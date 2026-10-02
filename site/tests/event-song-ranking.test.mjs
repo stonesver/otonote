@@ -52,3 +52,17 @@ test('short list respects playable charts, event songs, difficulty and level; du
 test('never infer a gekisou room grade from solo score',()=>{
  assert.throws(()=>estimateEventSong({options:{mode:'gekisou'}}),/团队结算评分/);
 });
+
+test('song candidates intersect band and song attribute with difficulty and level filters',()=>{
+ const tracks=[{id:'a',bandIds:['band-1'],musicType:1},{id:'b',bandIds:['band-2','band-1'],musicType:2},
+  {id:'c',bandIds:['band-2'],musicType:1},{id:'unknown'}];
+ const charts=tracks.flatMap(t=>['expert','hard'].map(difficulty=>({id:`${t.id}-${difficulty}`,trackId:t.id,difficulty,level:difficulty==='expert'?25:15,analysisDataUrl:'/chart'})));
+ const ids=filters=>eventSongCandidates({tracks,charts,...filters}).map(c=>c.id);
+ assert.deepEqual(ids({band:'band-1'}),['a-expert','b-expert']);
+ assert.deepEqual(ids({attribute:'1'}),['a-expert','c-expert']);
+ assert.deepEqual(ids({band:'band-1',attribute:'2'}),['b-expert']);
+ assert.deepEqual(ids({band:'band-1',attribute:'1',difficulty:'all',maxLevel:20}),['a-hard']);
+ assert.deepEqual(ids({band:'band-1',attribute:'1',allowedTrackIds:['c']}),[]);
+ assert.deepEqual(ids({band:'band-1',attribute:'5'}),[]);
+ assert.deepEqual(ids({band:'',attribute:''}),['a-expert','b-expert','c-expert','unknown-expert']);
+});

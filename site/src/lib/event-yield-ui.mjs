@@ -9,7 +9,7 @@ export function setupEventYieldOptimizer(tool){
  const stop=()=>{worker?.terminate();worker=null;q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
  function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
-   searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,difficulty:q('difficulty').value,maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:q('challenge-difficulty').value,challengeMaxLevel:Number(q('challenge-level').value)};}
+   searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:q('band').value,attribute:q('attribute').value,difficulty:q('difficulty').value,maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:q('challenge-difficulty').value,challengeMaxLevel:Number(q('challenge-level').value)};}
  function sync(){
    if(tool.q('mode').value==='challenge'&&q('goal').value==='grade')q('goal').value='badges';
    const c=context(),next=JSON.stringify(c);
@@ -17,9 +17,10 @@ export function setupEventYieldOptimizer(tool){
    const unsupported=c.mode==='gekisou';q('run').disabled=!!worker||unsupported;tool.q('suggest').disabled=!!worker||unsupported;
    q('challenge-settings').hidden=c.mode!=='ordinary'||!c.includeChallenge;
    q('normal-settings').hidden=c.mode==='challenge';q('stages').disabled=c.mode==='challenge';
+   q('song-filters').hidden=c.mode!=='ordinary'||c.songs==='selected';
    q('goal').querySelector('[value="grade"]').disabled=c.mode==='challenge';
    q('goal-help').textContent=c.goal==='both'?'比较档位、加成与后续挑战的实际收益，分别给出道具优先和活动 pt 优先方案；不限定稀有度，两种点数不直接相加。':c.goal==='eventPoints'?'先比较活动 pt 总收益，相同再比较道具。若包含后续挑战，挑战队伍与次数也按活动 pt 优化。':c.goal==='grade'?'先比较普通演出的估计档位，相同再比较道具总收益；不一定能获得最多活动 pt。':'先比较道具总收益，相同再比较活动 pt。道具最多的方案不一定活动 pt 最多。';
-   q('hint').textContent=unsupported?'激奏由团队结算档位决定收益，目前无法用单人 AP 估分推荐随机房间队伍。可在下方手填团队档位比较。':c.mode==='challenge'?'比较本期挑战歌曲的直接收益；消耗沿用上方设置，挑战 pt 不参与收益排序。':'按整份耗火预算比较，自动估算队伍在歌曲中的档位。完整循环允许普通和挑战使用不同队伍；已有挑战 pt 单列，不冒充本次刷取所得。';
+   q('hint').textContent=c.mode==='challenge'?'比较本期挑战歌曲的直接收益；消耗沿用上方设置，挑战 pt 不参与收益排序。':'按整份耗火预算比较，自动估算队伍在歌曲中的档位。完整循环允许普通和挑战使用不同队伍；已有挑战 pt 单列，不冒充本次刷取所得。';
  }
  function render(){
    const next=JSON.stringify([result.rows.map(r=>[r.id,r.song.id,r.total,r.expectedScore,r.recommendationGoals]),result.failures]);
@@ -67,9 +68,10 @@ export function setupEventYieldOptimizer(tool){
      if(needsInventory&&!profile)throw Error('请先导入实际卡库与养成，或选择“当前十张卡”。');
      c.draft.modifiers={...profile?.account,...c.draft.modifiers};c.inventory=profile?.inventory;
      const allowed=tool.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===c.eventId).map(r=>`music-${r._liveMusicId}`);
-     let candidates=eventSongCandidates({...tool.data,allowedTrackIds:c.mode==='challenge'?allowed:null,difficulty:c.songs==='selected'?'all':c.difficulty,maxLevel:c.songs==='selected'?40:c.maxLevel});
+     const filterSongs=c.mode==='ordinary'&&c.songs!=='selected';
+     let candidates=eventSongCandidates({...tool.data,allowedTrackIds:c.mode==='challenge'?allowed:null,difficulty:c.songs==='selected'?'all':c.difficulty,maxLevel:c.songs==='selected'?40:c.maxLevel,band:filterSongs?c.band:'',attribute:filterSongs?c.attribute:''});
      if(c.songs==='selected')candidates=candidates.filter(r=>r.trackId===c.draft.selectedSongId&&r.difficulty===(c.draft.selectedDifficulty??'expert'));
-     if(!candidates.length)throw Error('没有可计算的歌曲，请选歌或调整难度范围。');
+     if(!candidates.length)throw Error(filterSongs?'没有符合条件的可计算歌曲，请放宽乐队、歌曲属性或难度范围。':'没有可计算的歌曲，请选歌或调整难度范围。');
      const challengeCandidates=eventSongCandidates({...tool.data,allowedTrackIds:allowed,difficulty:c.challengeDifficulty,maxLevel:c.challengeMaxLevel});
      if(c.mode==='ordinary'&&c.includeChallenge&&!challengeCandidates.length)throw Error('后续挑战没有符合难度范围的谱面，请放宽条件或只比较普通阶段。');
      if(c.mode==='challenge'&&c.goal==='grade')c.goal='badges';

@@ -216,8 +216,8 @@ const htmlLanguage = activeReleaseContext.locale;
           });
         </script>
         <div class="nav-bottom">
-          <a href={href("/about/")} aria-current={pathname === "/about/" ? "page" : undefined}>{htmlLanguage === "en" ? "About" : "关于本站"}<span aria-hidden="true">↗</span></a>
-          <a href={href("/updates/")} aria-current={pathname === "/updates/" ? "page" : undefined}>{htmlLanguage === "en" ? "Version history" : "版本记录"}<span aria-hidden="true">↗</span></a>
+          <a href={href("/about/")} aria-current={pathname === "/about/" ? "page" : undefined}>{htmlLanguage === "en" ? "About" : "关于本站"}</a>
+          <a href={href("/updates/")} aria-current={pathname === "/updates/" ? "page" : undefined}>{htmlLanguage === "en" ? "Version history" : "版本记录"}</a>
           <small>{SITE_NAME} · {activeReleaseContext.region.toUpperCase()}</small>
         </div>
       </nav>

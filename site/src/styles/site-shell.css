@@ -199,6 +199,13 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
   [data-shell="sidebar"] .page-stamp { display: none; }
   [data-shell="sidebar"] .site-footer { grid-template-columns: 1fr; }
 }
+@media (max-width: 560px) {
+  /* Long translated server labels must yield space to the brand and controls. */
+  [data-shell="sidebar"] .site-header { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+  [data-shell="sidebar"] .context-switcher { min-width: 0; max-width: 100%; justify-self: stretch; }
+  [data-shell="sidebar"] .context-switcher summary { width: 100%; min-width: 0; }
+  [data-shell="sidebar"] .context-switcher summary span { overflow: hidden; text-overflow: ellipsis; }
+}
 @media (prefers-reduced-motion: reduce) {
   html[data-shell="sidebar"] { scroll-behavior: auto; }
   [data-shell="sidebar"] .nav-toggle span { transition: none; }

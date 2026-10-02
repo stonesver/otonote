@@ -3,83 +3,291 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import { SITE_NAME, siteDescription } from "../../lib/site-brand.mjs";
 import { SITE_CONTACT } from "../../lib/site-contact.mjs";
 import { activeReleaseContext } from "../../lib/release-context";
+import { siteHref } from "../../lib/site-context";
 import { getUi } from "../../lib/ui-i18n";
+import { projectCreditGroups } from "../../lib/project-credits";
 
 const en = activeReleaseContext.locale === "en";
+const say = (zh: string, english: string) => en ? english : zh;
 const ui = getUi(activeReleaseContext.locale);
+const href = (path: string) => import.meta.env.BASE_URL === "/" ? path : siteHref(path, activeReleaseContext);
+const repository = SITE_CONTACT.repositoryUrl;
+const documentUrl = (path: string) => `${repository}/blob/HEAD/${path}`;
+const sections = [
+  ["guide", say("在这里做什么", "Explore the site")],
+  ["source", say("源码与许可", "Source & licensing")],
+  ["technology", say("网站如何运作", "How it works")],
+  ["credits", say("项目与致谢", "Projects & credits")],
+  ["contact", say("参与和反馈", "Contribute & contact")],
+];
+const featureIcons = [
+  "M5 4h14v16H5z M8 8h8 M8 12h5 M8 16h7",
+  "M9 18V5l10-2v13 M9 8l10-2 M9 18a3 2 0 1 1-3-2c1.7 0 3 .9 3 2 M19 16a3 2 0 1 1-3-2c1.7 0 3 .9 3 2",
+  "M12 6c-3-2-6-2-9-1v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1v14",
+  "M4 5h6v6H4z M14 5h6v6h-6z M4 15h6v6H4z M14 15h6v6h-6z",
+];
+const features = [
+  { title: say("查阅角色与卡牌", "Characters & cards"), path: "/characters/",
+    text: say("查看角色档案、成员卡与留影，从一张卡片找到技能和养成资料。", "Browse profiles, member cards and snapshots, then explore their skills and growth details.") },
+  { title: say("聆听歌曲，查看谱面", "Music & charts"), path: "/music/",
+    text: say("查找曲目信息、难度与谱面，使用已提供的音频和演示预览。", "Look up tracks, difficulties and charts, with audio and chart previews where available.") },
+  { title: say("阅读故事，留下选段", "Stories & favorite moments"), path: "/stories/",
+    text: say("按分类阅读剧情章节，把喜欢的台词整理为分享长图。", "Browse story categories and episodes, and turn a favorite excerpt into a shareable image.") },
+  { title: say("尝试不同的配队", "Try a different team"), path: "/tools/deck-builder/",
+    text: say("搭配成员卡与留影，结合自己的养成情况比较计算结果。", "Combine member cards and snapshots, and compare estimates using your own growth settings.") },
+];
+const technologies = [
+  { title: say("页面与工具", "Pages & tools"), stack: "Astro · TypeScript · Web Workers",
+    text: say("资料页面共用一套界面，配队和歌曲计算在浏览器中运行；较重的计算交给后台 Worker，减少对页面操作的影响。", "Pages share a common interface. Team and song calculations run in your browser, with heavier work handled by background workers.") },
+  { title: say("独立更新的内容", "Independently updated content"), stack: "Python · JSON · SHA-256",
+    text: say("资源处理工具把不同游戏版本整理成内容快照。网站代码与内容分别发布，页面按所选版本读取对应资料。", "Python tools organize game versions into content snapshots. Website code and content are published separately, and each page reads the selected edition.") },
+  { title: say("查询与扩展服务", "Queries & supporting services"), stack: "FastAPI · SQLite · Pillow",
+    text: say("Python 服务提供查询等动态能力；机器人复用整理后的资料，并将回复绘制成便于阅读的图片。", "Python services provide dynamic queries. The bot uses the prepared data to render readable image replies.") },
+];
+const documents = [
+  ["docs/USER_GUIDE.md", say("使用指南", "User guide")],
+  ["docs/TECHNICAL_OVERVIEW.md", say("技术概览", "Technical overview")],
+  ["docs/LICENSING.md", say("源码与许可说明", "Source & licensing notes")],
+  ["THIRD_PARTY_NOTICES.md", say("第三方项目清单", "Third-party inventory")],
+  ["CONTRIBUTING.md", say("参与贡献", "Contributing")],
+];
 ---
 
-<BaseLayout title={en ? "About" : "关于本站"}>
+<BaseLayout title={say("关于本站", "About")} description={say(
+  "了解 OtoNote 的建站初衷、使用方式、源码许可、技术方案与第三方项目。",
+  "Learn about OtoNote, how to use it, its source and licensing, the technology and the projects behind it."
+)}>
   <article class="about-page">
     <header class="about-heading">
-      <p class="about-label">ABOUT {SITE_NAME.toUpperCase()}</p>
-      <h1>{en ? "A place for what we love." : "因为喜欢，所以记录。"}</h1>
+      <div class="about-heading-copy">
+      <h1>{say("关于", "About")} {SITE_NAME}</h1>
+      <p class="about-lead">{siteDescription(activeReleaseContext.locale)}</p>
+      <div class="about-actions">
+        <a class="about-source-link" href={repository} target="_blank" rel="noopener noreferrer">{say("在 GitHub 查看源码", "View source on GitHub")}</a>
+        <a class="about-secondary-link" href="#source">{say("MIT 开源", "MIT licensed")}</a>
+      </div>
+      </div>
+      <aside class="about-identity" aria-label={say("项目名片", "Project identity")}>
+        <div class="about-identity-top"><span>FAN RESOURCE</span><span>OUR NOTES</span></div>
+        <div class="about-mark"><img src={href("/brand/ournotes-mark.svg")} width="88" height="88" alt="" /></div>
+        <p class="about-wordmark">{SITE_NAME}</p>
+        <p class="about-identity-caption">{say("角色 · 音乐 · 故事", "Characters · Music · Stories")}</p>
+        <div class="about-identity-bottom"><span>{say("玩家维护", "Fan maintained")}</span><span>{say("非官方网站", "Unofficial")}</span></div>
+      </aside>
     </header>
 
-    <div class="about-intro">
-      <p>{siteDescription(activeReleaseContext.locale)}</p>
-      <p>{en
-        ? "Cards, songs and stories in one place. Spend less time searching and more time enjoying your next performance."
-        : "这里汇集了卡牌、歌曲与故事。少一点查找，多一点时间留给喜欢的演出。"}</p>
-    </div>
+    <div class="about-body">
+      <nav class="about-toc" aria-label={say("关于页面目录", "On this page")}>
+        <ul>{sections.map(([id, label]) => <li><a href={`#${id}`}>{label}</a></li>)}</ul>
+      </nav>
 
-    <section class="about-contact" aria-labelledby="contact-heading">
-      <div>
-        <h2 id="contact-heading">{en ? "Get in touch" : "一起完善这里"}</h2>
-        <p>{en ? "Corrections and suggestions are welcome." : "发现资料有误，或有想看的内容，欢迎反馈。"}</p>
+      <div class="about-content">
+        <section id="guide" class="about-section" aria-labelledby="guide-heading">
+          <h2 id="guide-heading">{say("在这里做什么", "Explore the site")}</h2>
+          <ul class="about-features">
+            {features.map((feature, index) => <li>
+              <svg class="about-feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={featureIcons[index]} /></svg>
+              <h3><a href={href(feature.path)}>{feature.title}</a></h3>
+              <p>{feature.text}</p>
+            </li>)}
+          </ul>
+          <details class="about-reading-note">
+            <summary>{say("使用资料前，了解这些", "A few things to know before you start")}<span aria-hidden="true">+</span></summary>
+            <div>
+            <p>{say("先确认当前区服和资料版本。不同区服的进度、名称或数值可能不同，资料整理也可能滞后；最新内容请以游戏内公告为准。", "Check the server and content edition first. Progress, names and values can vary between editions, and updates may take time to appear. In-game announcements remain the reference for current information.")}</p>
+            <p>{say("配队与歌曲计算供比较和规划使用，结果受卡片养成、谱面、技能与计分规则影响。请同时阅读工具内的适用范围和验证状态说明。", "Team and song estimates help with comparisons and planning. Results depend on growth, charts, skills and scoring rules. Read each tool’s applicability and verification notes alongside the result.")}</p>
+            <a href={href("/updates/")}>{say("查看资料版本", "View content version")}</a>
+            </div>
+          </details>
+        </section>
+
+        <section id="source" class="about-section" aria-labelledby="source-heading">
+          <h2 id="source-heading">{say("源码与许可", "Source & licensing")}</h2>
+          <p>{say("OtoNote 的应用源码、工具、测试和示例配置已在 GitHub 公开，欢迎阅读实现、反馈问题和讨论改进。", "OtoNote’s application code, tools, tests and example configuration are public on GitHub. You are welcome to explore the implementation, report issues and discuss improvements.")}</p>
+          <dl class="about-facts">
+            <div><dt>{say("开源许可", "Open-source license")}</dt><dd>{say("自有代码与文档采用 MIT 许可，使用、修改和再分发时保留版权与许可声明。", "Our code and documentation use the MIT license. Retain the copyright and license notices when using, modifying or redistributing them.")} <a href={documentUrl("LICENSE")} target="_blank" rel="noopener noreferrer">MIT License</a></dd></div>
+            <div><dt>{say("独立工具", "Local exporter")}</dt><dd>{say("本地养成导出工具保留其原有 MIT 许可证与版权声明，不覆盖官方 SDK、游戏资源或第三方依赖。", "The local growth exporter retains its original MIT license and copyright notice, excluding the official SDK, game assets and third-party dependencies.")}</dd></div>
+            <div><dt>{say("游戏与素材", "Game & assets")}</dt><dd>{say("游戏名称、角色、图片、音频、剧情与模型的权利归各自权利方所有。公开仓库不附带游戏安装包、内容快照或生产数据库。", "Game names, characters, images, audio, stories and models belong to their respective rights holders. Game packages, content snapshots and production databases are excluded from the public repository.")}</dd></div>
+            <div><dt>{say("第三方软件", "Third-party software")}</dt><dd>{say("各项目遵循各自许可。Live2D Core 与 Spine Runtimes 适用专门条款，不随本站代码获得额外授权。", "Each dependency retains its own terms. Live2D Core and Spine Runtimes have dedicated licenses; this site does not grant additional rights to them.")}</dd></div>
+          </dl>
+          <a class="about-text-link" href={documentUrl("docs/LICENSING.md")} target="_blank" rel="noopener noreferrer">{say("阅读完整许可说明", "Read the licensing notes")}</a>
+        </section>
+
+        <section id="technology" class="about-section" aria-labelledby="technology-heading">
+          <h2 id="technology-heading">{say("网站如何运作", "How it works")}</h2>
+          <p>{say("从整理游戏资料，到展示页面和尝试配队，网站由几个各司其职的部分组成。", "The site brings together content preparation, readable pages and tools for trying out teams.")}</p>
+          <div class="about-technology">
+            {technologies.map(technology => <div>
+              <h3>{technology.title}</h3>
+              <p>{technology.text}</p>
+              <small>{technology.stack}</small>
+            </div>)}
+          </div>
+          <p class="about-small">{say("源码可以独立编译；运行完整资料站需要自行准备兼容的内容快照和适用的第三方运行库。", "The code builds independently. Running the complete resource site also requires compatible content snapshots and the applicable third-party runtimes.")}</p>
+          <a class="about-text-link" href={documentUrl("docs/TECHNICAL_OVERVIEW.md")} target="_blank" rel="noopener noreferrer">{say("阅读技术概览与开发入口", "Read the technical overview")}</a>
+        </section>
+
+        <section id="credits" class="about-section" aria-labelledby="credits-heading">
+          <h2 id="credits-heading">{say("项目与致谢", "Projects & credits")}</h2>
+          <p>{say("感谢让这个资料站得以实现的项目与维护者。下面列出主要使用的项目及其用途；直接依赖、版本记录与许可来源见仓库清单。", "Thanks to the projects and maintainers behind this site. These are the main projects we use; the repository inventory records direct dependencies, versions and licensing sources.")}</p>
+          <div class="about-credit-grid">
+          {projectCreditGroups.map(group => <section class="about-credit-group" aria-label={en ? group.en : group.zh}>
+            <h3>{en ? group.en : group.zh}</h3>
+            <ul class="about-credits">
+              {group.projects.map(project => <li>
+                <div class="about-credit-heading">
+                  <a href={project.url} target="_blank" rel="noopener noreferrer">{project.name}</a>
+                  <span class="about-license">{project.license}</span>
+                </div>
+                <p>{en ? project.en : project.zh}</p>
+              </li>)}
+            </ul>
+          </section>)}
+          </div>
+          <p class="about-small">{say("这些名称用于说明技术来源，不代表对应项目或游戏权利方为本站提供背书。许可摘要不替代上游原文。", "These names identify the technology used; they do not imply endorsement by the projects or game rights holders. License summaries do not replace the original terms.")}</p>
+          <a class="about-text-link" href={documentUrl("THIRD_PARTY_NOTICES.md")} target="_blank" rel="noopener noreferrer">{say("查看第三方项目与许可清单", "View the third-party inventory")}</a>
+        </section>
+
+        <section id="contact" class="about-section about-community" aria-labelledby="contact-heading">
+          <h2 id="contact-heading">{say("一起完善这里", "Help improve this place")}</h2>
+          <p>{say("感谢每一位提供纠错、使用体验和建议的玩家。发现资料有误、页面异常，或有想看的内容，都欢迎告诉我们。", "Thank you to everyone who shares corrections, feedback and ideas. Let us know about incorrect data, a page that does not work, or something you would like to see.")}</p>
+          <p>{say("反馈时请附上页面链接、区服、资料版本和复现步骤；截图请先遮去账号信息。账号凭据、登录令牌和私有配置请勿放进公开 Issue。", "Include the page URL, server, content version and steps to reproduce. Redact account details in screenshots, and keep credentials, login tokens and private configuration out of public issues.")}</p>
+          <address class="about-contact">
+            <a href={`${repository}/issues`} target="_blank" rel="noopener noreferrer">GitHub Issues</a>
+            <a href={`mailto:${SITE_CONTACT.email}`}>{SITE_CONTACT.email}</a>
+            <span>QQ <span class="about-qq">{SITE_CONTACT.qq}</span><small>{say("（小号）", " (alternate)")}</small></span>
+          </address>
+          <nav class="about-documents" aria-label={say("项目文档", "Project documentation")}>
+            <h3>{say("进一步了解", "Read more")}</h3>
+            <p class="about-small">{say("以下链接前往 GitHub 上的中文项目文档。", "The following links open the project documentation on GitHub, currently written in Chinese.")}</p>
+            <ul>{documents.map(([path, label]) => <li><a href={documentUrl(path)} target="_blank" rel="noopener noreferrer">{label}</a></li>)}</ul>
+          </nav>
+        </section>
+
+        <aside class="about-note" aria-label={say("站点说明", "Site information")}>
+          <p>{ui.siteRights}</p>
+          <p>{say("本站为非官方玩家资料站，与游戏官方无隶属关系。资料仅供查阅与交流，最新游戏内容请以游戏内公告为准。", "This is an unofficial fan resource with no affiliation to the game’s operators. Information is provided for reference and discussion; refer to in-game announcements for current game content.")}</p>
+        </aside>
       </div>
-      <address>
-        <a href={`mailto:${SITE_CONTACT.email}`}>{SITE_CONTACT.email}<span aria-hidden="true"> ↗</span></a>
-        <span>QQ <span class="about-qq">{SITE_CONTACT.qq}</span><small>{en ? " (alternate)" : "（小号）"}</small></span>
-        {SITE_CONTACT.repositoryUrl && <a href={SITE_CONTACT.repositoryUrl} target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>}
-      </address>
-    </section>
-
-    <aside class="about-note" aria-label={en ? "Site information" : "站点说明"}>
-      <p>{ui.siteRights}</p>
-      <p>{en ? "This is an unofficial fan site. Please refer to in-game announcements for the latest information." : "本站为非官方玩家资料站，最新游戏内容请以游戏内公告为准。"}</p>
-    </aside>
+    </div>
   </article>
 </BaseLayout>
 
 <style>
   .about-page {
-    width: min(100% - 2 * var(--gutter), 760px);
-    margin: clamp(40px, 7vw, 88px) auto clamp(48px, 7vw, 88px);
+    --about-muted: #625b63;
+    --about-surface: color-mix(in srgb, var(--paper-light) 86%, transparent);
+    --about-tint: color-mix(in srgb, var(--lacquer) 6%, var(--paper-light));
+    width: min(100% - 2 * var(--gutter), 1100px);
+    margin: clamp(28px, 4vw, 60px) auto 64px;
   }
-  .about-label {
-    margin-bottom: 18px;
-    color: var(--lacquer);
-    font: 500 12px/1.5 var(--font-mono);
-    letter-spacing: .12em;
-  }
-  .about-heading h1 {
-    margin-bottom: 28px;
-    font: 600 clamp(30px, 4vw, 48px)/1.35 var(--font-display);
-    letter-spacing: -.035em;
-  }
-  .about-intro { max-width: 640px; }
-  .about-intro p { margin-bottom: 14px; line-height: 1.9; }
-  .about-contact {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 20px 32px;
-    margin-top: 36px;
-    padding-block: 24px;
-    border-block: 1px solid var(--line);
-  }
-  .about-contact h2 { margin-bottom: 8px; font-size: 17px; }
-  .about-contact p { margin: 0; font-size: 14px; line-height: 1.8; }
-  .about-contact address { display: flex; flex-direction: column; font-size: 14px; font-style: normal; overflow-wrap: anywhere; }
-  .about-contact address > * { display: block; padding-block: 8px; }
-  .about-contact a { color: var(--lacquer); text-underline-offset: 4px; }
-  .about-contact a:hover { text-decoration: underline; }
-  .about-contact a:focus-visible { outline: 2px solid var(--lacquer); outline-offset: 4px; }
-  .about-contact small { color: var(--silver-dark); }
+  .about-heading { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: clamp(24px, 4vw, 64px); align-items: center; padding: 20px 0 48px; }
+  .about-heading-copy { min-width: 0; }
+  .about-heading h1 { margin: 0 0 20px; }
+  .about-heading-copy > p { max-width: 590px; font-size: 14px; line-height: 1.95; color: var(--about-muted); }
+  .about-heading-copy > p.about-lead { color: var(--ink); font-size: 16px; }
+  .about-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+  .about-source-link, .about-secondary-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 20px; border: 1px solid transparent; border-radius: 7px; font-size: 13px; font-weight: 600; }
+  .about-source-link { background: var(--lacquer); color: var(--paper-light); }
+  .about-secondary-link { color: var(--lacquer); border-color: color-mix(in srgb, var(--lacquer) 25%, transparent); }
+  .about-identity { position: relative; overflow: hidden; padding: 24px; border: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent); border-radius: 12px; background: var(--about-tint); text-align: center; transform: rotate(2deg); box-shadow: 0 14px 32px -24px rgb(70 36 57 / 28%); }
+  .about-identity-top, .about-identity-bottom { display: flex; justify-content: space-between; gap: 10px; color: var(--lacquer); font: 10px/1.7 var(--font-mono); letter-spacing: .06em; }
+  .about-identity-top { padding-bottom: 20px; border-bottom: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent); }
+  .about-mark { position: relative; display: grid; place-items: center; margin: 34px -24px 20px; }
+  .about-mark::before { content: ''; position: absolute; inset: 22px 0; background: repeating-linear-gradient(to bottom, transparent 0 9px, color-mix(in srgb, var(--lacquer) 12%, transparent) 9px 10px); }
+  .about-mark img { position: relative; width: 80px; height: 80px; outline: 12px solid var(--about-tint); border-radius: 18px; }
+  .about-wordmark { margin: 0 0 6px; font: 600 32px/1.2 var(--font-display); letter-spacing: -.04em; }
+  .about-identity-caption { margin-bottom: 32px; font-size: 11px; color: var(--about-muted); }
+  .about-identity-bottom { padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent); }
+  .about-body { min-width: 0; }
+  .about-toc { border-block: 1px solid var(--line); padding-block: 8px; }
+  .about-toc ul, .about-features, .about-credits, .about-documents ul { list-style: none; margin: 0; padding: 0; }
+  .about-toc ul { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+  .about-toc a { display: block; padding: 10px 16px; border-radius: 5px; font-size: 13px; color: var(--about-muted); }
+  .about-toc a:hover { color: var(--lacquer); background: var(--about-tint); }
+  .about-content { min-width: 0; }
+  .about-section { padding-block: 46px; border-bottom: 1px solid var(--line); scroll-margin-top: calc(var(--header-height) + 24px); }
+  .about-section h2 { margin-bottom: 14px; font: 600 clamp(24px, 2.5vw, 30px)/1.4 var(--font-display); letter-spacing: -.025em; }
+  .about-section h3 { font-size: 15px; line-height: 1.6; }
+  .about-section > p { max-width: 760px; color: var(--about-muted); font-size: 14px; line-height: 1.9; }
+  .about-section a { color: var(--lacquer); text-underline-offset: 4px; }
+  .about-page a { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
+  .about-page a:hover { text-decoration: underline; }
+  .about-page a:focus-visible, .about-page summary:focus-visible { outline: 2px solid var(--lacquer); outline-offset: 4px; }
+  .about-page a, .about-license { overflow-wrap: anywhere; }
+  .about-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding-top: 12px; }
+  .about-features li { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-content: start; gap: 6px 14px; padding: 22px; border: 1px solid var(--line); border-radius: 9px; background: var(--about-surface); transition: border-color 160ms ease; }
+  .about-features li:has(a:hover), .about-features li:focus-within { border-color: var(--lacquer); }
+  .about-feature-icon { grid-row: span 2; width: 38px; height: 38px; padding: 8px; color: var(--lacquer); background: var(--about-tint); border-radius: 8px; }
+  .about-features h3 { margin: 4px 0 0; }
+  .about-features a::after { content: ''; position: absolute; inset: 0; border-radius: 9px; }
+  .about-features p { grid-column: 2; margin: 0; color: var(--about-muted); font-size: 13px; line-height: 1.85; }
+  .about-reading-note { margin-top: 18px; border-radius: 8px; background: color-mix(in srgb, var(--lacquer) 4%, transparent); font-size: 13px; line-height: 1.9; }
+  .about-reading-note summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; cursor: pointer; font-weight: 600; list-style: none; }
+  .about-reading-note summary::-webkit-details-marker { display: none; }
+  .about-reading-note summary span { color: var(--lacquer); font: 20px/1 var(--font-mono); transition: rotate 160ms ease; }
+  .about-reading-note[open] summary span { rotate: 45deg; }
+  .about-reading-note > div { padding: 0 20px 20px; max-width: 800px; }
+  .about-reading-note p { color: var(--about-muted); margin-bottom: 12px; }
+  .about-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin: 24px 0 16px; }
+  .about-facts > div { font-size: 13px; line-height: 1.9; }
+  .about-facts dt { margin-bottom: 10px; font-size: 15px; font-weight: 600; }
+  .about-facts dd { margin: 0; color: var(--about-muted); }
+  .about-facts a { text-decoration: underline; }
+  .about-text-link { display: inline-block; padding-block: 8px; font-size: 13px; font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lacquer) 35%, transparent); }
+  .about-technology { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-block: 26px 20px; }
+  .about-technology > div { display: flex; flex-direction: column; border-top: 2px solid color-mix(in srgb, var(--lacquer) 38%, transparent); padding: 20px 16px 20px 0; }
+  .about-technology h3 { margin-bottom: 10px; }
+  .about-technology p { margin-bottom: 18px; font-size: 13px; line-height: 1.9; color: var(--about-muted); }
+  .about-technology small { margin-top: auto; color: var(--lacquer); font: 11px/1.8 var(--font-mono); }
+  .about-credit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-block: 26px 24px; align-items: start; }
+  .about-credit-group { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--about-surface); }
+  .about-credit-group > h3 { margin: 0; padding: 16px 22px; background: var(--about-tint); border-bottom: 1px solid var(--line); color: var(--lacquer); font-size: 13px; }
+  .about-credits { padding-inline: 22px; }
+  .about-credits li { padding-block: 18px; }
+  .about-credits li + li { border-top: 1px solid var(--line); }
+  .about-credit-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+  .about-credit-heading a { color: var(--ink); font-size: 14px; font-weight: 600; }
+  .about-license { color: var(--about-muted); font: 10px/1.7 var(--font-mono); }
+  .about-credits p { margin: 6px 0 0; color: var(--about-muted); font-size: 12px; line-height: 1.85; }
+  .about-section > .about-small, .about-small { font-size: 12px; color: var(--about-muted); line-height: 1.9; }
+  .about-community { margin-top: 36px; padding: 30px; background: var(--about-surface); border: 1px solid var(--line); border-radius: 10px; }
+  .about-contact { display: flex; flex-wrap: wrap; gap: 10px; margin-block: 24px; font-style: normal; font-size: 13px; }
+  .about-contact > * { display: inline-flex; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; }
+  .about-contact > a:first-child { background: var(--lacquer); border-color: var(--lacquer); color: var(--paper-light); }
+  .about-contact > span { gap: 5px; }
   .about-qq { user-select: all; font-variant-numeric: tabular-nums; }
-  .about-note { margin-top: 22px; color: var(--silver-dark); }
-  .about-note p { margin-bottom: 5px; font-size: 12px; line-height: 1.8; }
-  @media (max-width: 600px) {
-    .about-contact { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 28px; }
+  .about-documents { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 24px; }
+  .about-documents h3 { margin-bottom: 8px; }
+  .about-documents ul { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  .about-documents a { display: inline-block; padding-block: 6px; font-size: 13px; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lacquer) 35%, transparent); }
+  .about-note { max-width: 780px; padding-top: 24px; }
+  .about-note p { color: var(--about-muted); font-size: 11px; line-height: 1.9; margin-bottom: 6px; }
+  @media (max-width: 1100px) {
+    .about-heading { grid-template-columns: minmax(0, 1fr) 210px; gap: 28px; }
+    .about-identity { padding: 18px; }
+    .about-identity-top { font-size: 8px; }
+    .about-features li { padding: 18px; gap: 6px 10px; }
+  }
+  @media (max-width: 700px) {
+    .about-heading { grid-template-columns: minmax(0, 1fr); padding: 8px 0 30px; }
+    .about-identity { display: none; }
+    .about-toc a { padding: 9px 10px; font-size: 12px; }
+    .about-toc ul { gap: 0 4px; }
+    .about-section { padding-block: 32px; }
+    .about-facts { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .about-facts > div { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+    .about-technology { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .about-technology > div { padding: 18px 0; }
+    .about-credit-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .about-community { margin-top: 24px; padding: 22px; }
+  }
+  @media (max-width: 480px) {
+    .about-features { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .about-contact { flex-direction: column; align-items: flex-start; }
+    .about-source-link, .about-secondary-link { padding-inline: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .about-page a, .about-features li, .about-reading-note summary span { transition: none; }
   }
 </style>

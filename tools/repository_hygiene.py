@@ -22,7 +22,7 @@ POLICY_VERSION = 1
 PUBLIC_CONFIG = frozenset({"config/site-product.json", "config/performance/gates.product-v1.json",
                            "config/performance/gates.v1.json", "config/performance/browser-baseline.v1.json"})
 SOURCE_ROOTS = frozenset({"backend", "tools", "tests", "scripts", "analysis", "shared", "packages", "docs", "deploy", "config", "site", "packaging", "catalog", ".github", ".githooks"})
-ROOT_FILES = frozenset({"README.md", "LICENSE", "LICENSE.md", "AGENTS.md", ".gitignore", ".dockerignore", ".nvmrc", "pyproject.toml", "pytest.ini", "package.json", "package-lock.json"})
+ROOT_FILES = frozenset({"README.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "LICENSE", "LICENSE.md", "AGENTS.md", ".gitignore", ".dockerignore", ".nvmrc", "pyproject.toml", "pytest.ini", "package.json", "package-lock.json"})
 EXCLUDED_PARTS = frozenset({".git", ".codex", ".claude", ".agents", ".superpowers", "node_modules", "__pycache__", ".pytest_cache", ".playwright-cli", ".astro", ".venv", "venv", ".deps"})
 PRIVATE_ROOTS = frozenset({"input", "output", "outputs", "data", "files", "アワーノーツ"})
 GENERATED_PREFIXES = ("deploy/admin/aliyun/", "docs/reports/", "docs/history/", "docs/research/", "docs/superpowers/", "site/dist/", "site/dist-matrix/", "site/output/", "site/src/data/", "site/public/auto-stage/", "site/public/growth/", "site/public/immersive/", "site/public/mission-rewards/", "site/public/system-banners/", "site/public/images/filter-bands/", "site/public/data/", "site/public/media/", "site/public/live2d/", "catalog/generated/", "catalog/site-data/", "catalog/evidence/")

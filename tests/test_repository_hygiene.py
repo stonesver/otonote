@@ -52,6 +52,17 @@ class RepositoryHygieneTests(unittest.TestCase):
             self.assertEqual(result[0].rule, rule)
             self.assertNotIn(value, repr(result))
 
+    def test_public_project_documents_export_with_content_checks(self):
+        for name in ("CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md"):
+            self.put(name, "# Public project documentation\n")
+        self.put("private-notes.md", "# Private notes\n")
+        manifest = export_source(self.root, self.base / "public-docs")
+        self.assertEqual([item["path"] for item in manifest["files"]],
+                         ["CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md"])
+        self.put("CONTRIBUTING.md", "ghp_" + "a" * 36)
+        with self.assertRaises(HygieneError):
+            export_source(self.root, self.base / "unsafe-docs")
+
     def test_template_does_not_bypass_credentials(self):
         value = "unapproved-long-value"
         payload = json.dumps({"app_" + "secret": value}).encode()

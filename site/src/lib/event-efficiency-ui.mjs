@@ -58,8 +58,8 @@ class EventEfficiencyTool extends HTMLElement {
   this.q('boost-wrap').hidden=mode==='challenge';this.q('cost-wrap').hidden=mode!=='challenge';
   this.q('budget-details').hidden=mode==='challenge';
   this.q('pool-hint').textContent=this.q('pool').value==='owned'?'使用已保存卡库的实际等级、突破、觉醒与技能，比较队伍和歌曲。':'保留当前十张卡，比较队长、留影配对和歌曲；缺失养成沿用计算器默认值。';
-  this.q('mode-hint').textContent=mode==='challenge'?'挑战演出消耗挑战 pt，不耗火。下方仅展示本活动的挑战歌曲。':mode==='gekisou'?'激奏也能获得活动奖励。请使用结算的团队评分，个人分数不能直接代替。':'普通演出获得徽章、活动 pt 和挑战 pt；后者还能用于挑战演出。';
-  this.q('rank-hint').textContent=mode==='gekisou'?'这里填结算的团队评分。自己出分更高不代表团队一定升档。':mode==='challenge'?'填写活动内挑战的稳定评分；普通歌曲估分不包含挑战专属加成。':'填写稳定评分。可用下方分数计算辅助判断，最终以游戏内结算为准。';
+  this.q('mode-hint').textContent=mode==='challenge'?'挑战演出消耗挑战 pt，不耗火。下方仅展示本活动的挑战歌曲。':'普通演出获得徽章、活动 pt 和挑战 pt；后者还能用于挑战演出。';
+  this.q('rank-hint').textContent=mode==='challenge'?'填写活动内挑战的稳定评分；普通歌曲估分不包含挑战专属加成。':'填写稳定评分。可用下方分数计算辅助判断，最终以游戏内结算为准。';
   this.songPicker?.refresh();
   const allowed=mode==='challenge'?this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`):null;
   if(allowed&&!allowed.includes(this.q('song').value)){this.q('song').value='';this.draft.selectedSongId=null;this.draft.selectedDifficulty=null;this.q('song-disclosure').open=true;this.songPicker?.sync();}

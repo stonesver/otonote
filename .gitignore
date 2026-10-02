@@ -104,3 +104,6 @@ __pycache__/
 /site/public/images/filter-bands/
 /site/public/gallery/*
 !/site/public/gallery/loading-mark.svg
+
+# Optional fonts are provisioned locally, outside public source.
+/backend/qqbot/fonts/*.ttf

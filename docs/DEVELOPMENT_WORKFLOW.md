@@ -44,6 +44,25 @@ gh run download RUN_ID --repo stonesver/otonote \
 
 解包结果为 `output/reviewed-RUN_ID/code-candidate/` 和 `output/reviewed-RUN_ID/runtime-candidate/`。从同一个成功运行的 Summary 获取代码回执与程序包两个 SHA-256；核对该运行的提交号和审查版本一致。发布时将下文 `--source` 改为下载的 `code-candidate` 目录，程序安装使用下载的 `runtime-candidate`，不重新构建晋级产物。下载目录应为新的空目录，避免混入旧产物。
 
+## 本地源码与私有资料分开保存
+
+公开工作副本是唯一日常开发入口。原始资源、实际配置、SDK、历史 Git、旧工作区快照和验收记录放在仓库外的受限私有目录；不要把旧工作区整棵复制回源码目录。
+
+干净工作副本可完成固定离线测试和独立代码预览。完整资源生产还需要角色对应的 Python 依赖及外部运行材料；仅安装 Node 依赖不代表解包链路已就绪。Python 虚拟环境按当前解释器重新创建，避免迁移旧环境后其启动器仍指向已退役路径。
+
+有私有内容快照时，可用独立预览服务组合它与新代码：
+
+```sh
+python3 tools/preview_independent_site.py \
+  --code output/code-preview \
+  --content /PRIVATE_CONTENT_STORE \
+  --port 4392
+```
+
+该入口不写内容快照，修改源码后需构建新的预览目录并重启预览服务。`npm run dev` 属于依赖本地资源配置和生成数据的旧 Astro 开发入口，不是干净检出的默认验收方式。
+
+QQ 渲染器可按需从私有资源目录将字体材料化到 `backend/qqbot/fonts/`；本地 TTF 文件已忽略，不随源码或 CI 上传。历史归档与当前运行资料分开管理；归档内旧路径只用于追溯，不应批量改写已封存回执。恢复历史资料时先查看对应迁移清单和链接映射。
+
 ## 程序不可变交付
 
 ```sh

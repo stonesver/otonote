@@ -147,6 +147,21 @@ class GlobalRemoteTest(unittest.TestCase):
                     _update(FakeClient(),root,root,plan,False,complete_content=True,decoder=decoder)
             self.assertEqual(json.loads((root/'state.json').read_text()),old)
 
+    def test_old_complete_pipeline_rebuilds_even_when_remote_and_decoder_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);plan=root/'plan.json';plan.write_text('{}')
+            old={'observation':FakeClient().discover(),'inputPlan':str(plan),'snapshot':str(root/'old'),
+                 'site':None,'decoderSha256':'a'*64,'bundleDecoderBindingSha256':'d'*64,'pipelineVersion':2}
+            (root/'state.json').write_text(json.dumps(old))
+            decoder={'apkSha256':'a'*64,'bundleDecoderBindingSha256':'d'*64}
+            def capture(client,path,*args):
+                self.assertIn('-complete-v3-',path.parent.name)
+                raise ProtocolError('new pipeline needs new inputs')
+            with patch('tools.release_preflight.load_plan',return_value=[{'id':'global-production','masterRoot':'old'}]),patch('tools.global_remote_sync.snapshot',side_effect=capture):
+                with self.assertRaisesRegex(ProtocolError,'new pipeline'):
+                    _update(FakeClient(),root,root,plan,False,complete_content=True,decoder=decoder)
+            self.assertEqual(json.loads((root/'state.json').read_text()),old)
+
     def test_initial_complete_inputs_without_binding_cannot_be_adopted(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);baseline=root/'baseline';baseline.mkdir()
@@ -163,7 +178,7 @@ class GlobalRemoteTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);observed=FakeClient().discover()
             decoder={'apkSha256':'a'*64,'bundleDecoderBindingSha256':'d'*64}
-            current=root/('1.0.0.104-bbbbbbbb-cccccccc-complete-v2-aaaaaaaa-d'+'d'*12)
+            current=root/('1.0.0.104-bbbbbbbb-cccccccc-complete-v3-aaaaaaaa-d'+'d'*12)
             captured=current/'snapshot';captured.mkdir(parents=True);(current/'inputs').mkdir()
             (captured/'report.json').write_text(json.dumps({'observation':observed}))
             (captured/'status.json').write_text(json.dumps({'status':'verified_snapshot'}))
@@ -223,7 +238,7 @@ class GlobalRemoteTest(unittest.TestCase):
             state_path = root / "state.json"
             state_path.write_text(json.dumps(state))
             original = state_path.read_bytes()
-            current = root / "1.0.0.104-bbbbbbbb-cccccccc-complete-v2"
+            current = root / "1.0.0.104-bbbbbbbb-cccccccc-complete-v3"
             captured = current / "snapshot"
             captured.mkdir(parents=True)
             (captured / "report.json").write_text(json.dumps({"observation": observed}))

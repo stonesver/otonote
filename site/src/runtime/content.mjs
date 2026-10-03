@@ -62,7 +62,8 @@ export async function artifactGlob(pattern, options = {}) {
   const prefix = '@projection-data/';
   if (!pattern.startsWith(prefix)) throw new Error('不支持的内容分组');
   if (!pattern.includes('*')) {
-    const value = await artifact('projection/' + pattern.slice(prefix.length));
+    const value = await artifact('projection/' + pattern.slice(prefix.length), {optional: true});
+    if (value === null) return {}; // Vite exact globs also return no matches for absent files.
     return { [pattern]: options.import === 'default' ? value : { default: value } };
   }
   let values;

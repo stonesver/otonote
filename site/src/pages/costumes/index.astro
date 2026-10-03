@@ -1,0 +1,72 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {catalog, getAsset} from '../../lib/catalog';
+import {costumeCatalog} from '../../lib/costumes';
+import {costumeCopy, costumePreviewPath, costumeState} from '../../lib/costume-library.mjs';
+import {activeReleaseContext} from '../../lib/release-context';
+import {siteHref} from '../../lib/site-context';
+import {filterVisual} from '../../lib/filter-visuals';
+import '../../styles/costumes.css';
+
+const en = activeReleaseContext.locale === 'en';
+const copy = costumeCopy(en);
+const href = (path:string) => import.meta.env.BASE_URL === '/' ? path : siteHref(path, activeReleaseContext);
+const {costumes} = costumeCatalog;
+const characters = catalog.characters.filter(c => costumes.some(item => item.characterId === c.id));
+const bands = catalog.bands.filter(b => costumes.some(item => item.bandId === b.id));
+---
+<BaseLayout title={copy.title} description={copy.intro}>
+  <costume-library class="costume-library content-shell" data-region={activeReleaseContext.region} data-locale={activeReleaseContext.locale}>
+    <header class="costume-heading">
+      <div><p class="costume-eyebrow">STAGE WARDROBE</p><h1>{copy.title}</h1><p>{copy.intro}</p></div>
+      <a href={href('/characters/')}>{en ? 'Character profiles' : '角色资料'}</a>
+    </header>
+    <form class="costume-filters" role="search" aria-label={copy.title}>
+      <label class="costume-search"><span>{en ? 'Search' : '搜索'}</span><input name="q" type="search" placeholder={copy.search} aria-label={copy.search} /></label>
+      <button class="costume-reset" type="reset">{copy.clear}</button>
+      <input type="hidden" name="band" /><input type="hidden" name="character" />
+      <fieldset><legend>{copy.band}</legend><div class="costume-choices">
+        <button type="button" class="costume-choice costume-choice-all" data-filter="band" data-value="" aria-pressed="true">{copy.allBands}</button>
+        {bands.map(b => { const logo = getAsset(b.logoAssetId); return <button type="button" class="costume-choice costume-choice-band" data-filter="band" data-value={b.id} aria-label={b.displayName} title={b.displayName} aria-pressed="false">
+          {logo ? <img src={logo.thumbnailUrl || logo.previewUrl} alt="" width="84" height="42" /> : <span>{b.displayName}</span>}
+        </button>; })}
+      </div></fieldset>
+      <fieldset><legend>{copy.character}</legend><div class="costume-choices">
+        <button type="button" class="costume-choice costume-choice-all" data-filter="character" data-value="" aria-pressed="true">{copy.allCharacters}</button>
+        {characters.map(c => { const icon = filterVisual('character', c.id).icon; return <button type="button" class="costume-choice costume-choice-character" data-filter="character" data-value={c.id} data-band={c.bandId} aria-label={c.displayName} title={c.displayName} aria-pressed="false" style={`--choice-color:${c.mainColor}`}>
+          {icon ? <img src={icon} alt="" width="44" height="44" /> : <span>{c.shortName || c.displayName}</span>}
+        </button>; })}
+      </div></fieldset>
+    </form>
+    <p class="costume-results" role="status"><strong data-count>{costumes.length}</strong> {copy.results}</p>
+    {costumeCatalog.status === 'unavailable' ? <p class="costume-empty">{copy.pending}</p>
+      : costumes.length === 0 && <p class="costume-empty">{copy.empty}</p>}
+    <p class="costume-empty" data-no-match hidden>{copy.noMatch}</p>
+    <div class="costume-grid">
+      {costumes.map(costume => {
+        const character = catalog.characters.find(c => c.id === costume.characterId);
+        const band = catalog.bands.find(b => b.id === costume.bandId);
+        const card = catalog.memberCards.find(c => c.id === costume.unlockMemberCardId);
+        const state = costumeState(costume.startAt, activeReleaseContext.region);
+        const models = costume.models.filter(m => m.state === 'available');
+        return <article class="costume-card" data-costume={costume.id} data-character={costume.characterId} data-band={costume.bandId}
+          data-search={[costume.name, character?.displayName, ...(character?.aliases ?? []), band?.displayName].join(' ')} style={`--costume-color:${character?.mainColor || '#79aec2'}`}>
+          <div class="costume-art">
+            {costume.poster ? <img class="costume-poster" src={costume.poster.url} width={costume.poster.width} height={costume.poster.height} alt={`${character?.displayName} · ${costume.name}`} loading="lazy" decoding="async" />
+              : <span class="costume-image-missing">{en ? 'Full-body image pending' : '全身图片待补充'}</span>}
+            <span class="costume-tag">{costume.isInitial ? copy.initial : copy.unlock}</span>
+          </div>
+          <div class="costume-body">
+            <p class="costume-owner"><a href={href(`/characters/${costume.characterId}/`)}>{character?.displayName}</a><span>{band?.displayName}</span></p>
+            <h2>{costume.name}</h2>
+            <p class="costume-unlock">{costume.isInitial ? copy.defaultUnlock : card ? <>{copy.obtain} <a href={href(`/cards/members/${card.id}/`)}>{card.displayName}</a></> : copy.unknownUnlock}</p>
+            {costume.startAt && <div class="costume-schedule"><span>{copy.starts}</span><time>{costume.startAt}</time><b data-start={costume.startAt} data-state={state} hidden={state === 'unknown'}>{state === 'upcoming' ? copy.upcoming : state === 'released' ? copy.released : ''}</b></div>}
+            <div class="costume-previews">{models.length ? models.map((model, i) => <a href={href(costumePreviewPath(costume, model)!)} aria-label={`${copy.preview} ${character?.displayName} ${costume.name} · ${copy.model} ${i + 1}`}>{copy.preview}{models.length > 1 ? ` · ${copy.model} ${i + 1}` : ''}</a>) : <span>{copy.noModel}</span>}</div>
+          </div>
+        </article>;
+      })}
+    </div>
+    {costumes.some(c => c.startAt) && <p class="costume-time-note">{copy.timeNote}</p>}
+  </costume-library>
+</BaseLayout>
+<script>import '../../lib/costume-browser.mjs';</script>

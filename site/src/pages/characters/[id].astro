@@ -5,6 +5,7 @@ import ArchiveImage from "../../components/ArchiveImage.astro";
 import BandMark from "../../components/BandMark.astro";
 import CharacterNavigator from "../../components/CharacterNavigator.astro";
 import CardAttributeBadge from "../../components/CardAttributeBadge.astro";
+import { costumeCatalog } from "../../lib/costumes";
 import Live2DWorkbench from "../../components/Live2DWorkbench.astro";
 import MemberCardTile from "../../components/MemberCardTile.astro";
 import SupportCardTile from "../../components/SupportCardTile.astro";
@@ -49,6 +50,7 @@ const facts = [
   [ui.school, profile.school], [ui.schoolClass, profile.schoolClass],
   [ui.favoriteFood, profile.favoriteFood], [ui.hobby, profile.hobby, "wide"]
 ].filter(([, value]) => Boolean(value));
+const costumes = costumeCatalog.costumes.filter(item => item.characterId === character.id);
 const memberCards = getCharacterMemberCards(character.id);
 const supportCards = getCharacterSupportCards(character.id);
 const vocalTracks = catalog.musicTracks.filter((track) =>
@@ -89,6 +91,7 @@ const vocalTracks = catalog.musicTracks.filter((track) =>
         </section>}
         <nav class="character-profile__links" aria-label={ui.archive}>
           <a href="#member-cards">{ui.members}<strong>{memberCards.length}</strong></a>
+          {costumeCatalog.status === "available" && <a href={`/costumes/?character=${character.id}`}>{catalog.release.locale === "en" ? "Costumes" : "服装"}<strong>{costumes.length}</strong></a>}
           <a href="#featured-snaps">{ui.supports}<strong>{supportCards.length}</strong></a>
           {vocalTracks.length > 0 && <a href="#vocal-tracks">{ui.music}<strong>{vocalTracks.length}</strong></a>}
         </nav>

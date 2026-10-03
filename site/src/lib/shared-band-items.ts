@@ -1,9 +1,10 @@
+import {entityIdentity,entityComparison} from './entity-identity.mjs';
 import {bandItemDatabase as native, type BandItemDefinition} from './band-items';
 import {sharedRows} from './shared-archives';
 import {otherEditionArtifact} from '../runtime/content.mjs';
 import {activeReleaseContext} from './release-context';
 const other=await otherEditionArtifact(activeReleaseContext.region,'projection/band-items.json');
-const items=await sharedRows(native.items,'projection/band-items.json','items',row=>row.contentIdentity??null);
+const items=await sharedRows(native.items,'projection/band-items.json','items',row=>entityIdentity('bandItems',row) ?? (row.contentIdentity??null),undefined,row=>entityComparison('bandItems',row));
 const bands=[...native.bands];
 for(const band of other?.bands??[])if(!bands.some(value=>value.id===band.id))bands.push(band);
 export const bandItemDatabase={...native,bands,items};

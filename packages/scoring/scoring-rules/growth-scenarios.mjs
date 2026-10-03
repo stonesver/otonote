@@ -54,7 +54,7 @@ export function resolveGrowthScenario(rules, draft, options = {}) {
     pool = normalizePool({ memberCardIds: rules.tables.MemberCard.map(r => r._id), supportCardIds: rules.tables.SupportCard.map(r => r._id) });
   } else if (scope === 'trial') {
     pool = normalizePool(Object.fromEntries(KINDS.map(kind => [`${kind}CardIds`, [
-      ...(inventoryInput ? ownedPool : selectedPool)[`${kind}CardIds`], ...trialPool[`${kind}CardIds`]]])));
+      ...ownedPool[`${kind}CardIds`], ...selectedPool[`${kind}CardIds`], ...trialPool[`${kind}CardIds`]]])));
   } else pool = selectedPool;
 
   const validateGrowth = (id, value, { complete = false } = {}) => {

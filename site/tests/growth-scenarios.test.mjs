@@ -178,3 +178,14 @@ test('finite training count requires actual baselines, unlimited search retains 
   assert.throws(() => resolveGrowthScenario(rules, draft, { scope: 'owned', inventory,
     unknownGrowth: 'reference', plan: { maxTrainedCards: 1 } }), /实际养成/);
 });
+
+
+test('trial union retains hand-selected cards even when supplied inventory is empty', () => {
+  const { rules, draft } = fixture();
+  const scenario = resolveGrowthScenario(rules, draft, { scope: 'trial',
+    inventory: { memberCardIds: [], supportCardIds: [] },
+    trialCardIds: { memberCardIds: [6], supportCardIds: [6] } });
+  assert.equal(scenario.inventory.memberCardIds.length, 6);
+  assert.equal(scenario.inventory.supportCardIds.length, 6);
+  assert.equal(scenario.cards['member-card-1'].ownership, 'unknown');
+});

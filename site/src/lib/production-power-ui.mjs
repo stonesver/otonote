@@ -4,6 +4,8 @@ import { setupPresetPortfolio } from "./preset-portfolio-ui.mjs";
 import { setupInventoryOptimizer } from "./inventory-optimizer-ui.mjs";
 import { toolRoute } from "./tool-route.mjs";
 
+import {bandItemGroups} from '../../../packages/scoring/scoring-rules/band-item-totals.mjs';
+
 const labels = {
   member: "成员", support: "留影", characterRank: "角色评级", characterTotalRank: "全角色评级",
   memory: "回忆加成", typeLink: "属性连携", leader: "队长技能", bandItems: "乐器 / 乐队道具",
@@ -80,10 +82,15 @@ export function setupProductionPower(workbench) {
       } else controls?.append(cell("p", "留影的两项技能等级随突破阶数变化，按正式表自动计算。"));
     }
     instrumentControls?.replaceChildren();
-    for (const instrument of workbench.data.instruments ?? []) {
-      instrumentControls?.append(numberInput(instrument.name, modifiers.bandItems?.[instrument.id] ?? 0, 0, 30, (v) => {
-        modifiers.bandItems ??= {}; modifiers.bandItems[instrument.id] = v;
-      }));
+    for(const group of bandItemGroups(rules)){
+      const name=workbench.data.bands?.find(b=>(b.masterId??b.id)===group.bandId)?.name??`乐队 ${group.bandId}`;
+      if(group.supported){
+        const total=modifiers.bandItemTotals?.[group.bandId]??group.items.reduce((n,i)=>n+(modifiers.bandItems?.[i.id]??0),0);
+        instrumentControls?.append(numberInput(`${name} 道具总等级`,total,0,group.maxTotal,v=>{(modifiers.bandItemTotals??={})[group.bandId]=v;}));
+      }else for(const item of group.items){
+        const instrument=workbench.data.instruments?.find(i=>i.id===item.id);
+        instrumentControls?.append(numberInput(instrument?.name??`${name} 道具 ${item.id}`,modifiers.bandItems?.[item.id]??0,0,item.maxLevel,v=>{(modifiers.bandItems??={})[item.id]=v;}));
+      }
     }
     const ranks = workbench.querySelector("[data-character-rank-controls]");
     ranks?.replaceChildren();

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' blob:; img-src 'self' blob: data:; worker-src 'self' blob:; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Otonote · 截图识别工作台</title><link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/tesseract.min.js"></script><script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <header><a class="brand" href="./">otonote<span>卡库实验室</span></a><span class="local">图片仅在此设备处理</span></header>
+  <main>
+    <section class="intro"><p class="eyebrow">截图导入 · 浏览器原型</p><h1>把卡库截图，变成养成清单。</h1><p>选择角色或留影列表截图，识别后逐张核对。这里不会修改你已保存的卡库。</p></section>
+    <section class="intake" aria-label="选择截图">
+      <div><label for="mode">添加的截图类型</label><select id="mode"><option value="member-level">角色卡 · 显示等级</option><option value="member-training">角色卡 · 显示特训</option><option value="support">留影卡</option></select><p class="hint">支持完整横屏列表：角色 6 列、留影 4 列。底部半张卡会跳过。</p></div>
+      <label class="file-button">选择截图<input id="files" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
+      <button id="samples" class="secondary" type="button">试用这三张示例</button>
+    </section>
+    <section id="queue" class="queue" aria-label="待识别截图"></section>
+    <div class="actions"><button id="run" disabled>开始识别</button><button id="cancel" class="secondary" hidden>取消识别</button><button id="clear" class="quiet">清空本次结果</button><span id="status" role="status" aria-live="polite">先选择截图，也可以直接试用示例。</span></div>
+    <progress id="progress" max="100" value="0" hidden aria-label="识别进度"></progress>
+    <section id="results-section" hidden>
+      <div class="results-heading"><div><h2>核对识别结果</h2><p id="summary"></p></div><button id="export" disabled>导出已勾选草稿</button></div>
+      <p class="notice">角色“特训”和“觉醒星数”分别记录；看不见的技能等级保持缺失。低置信度卡面默认不勾选。</p>
+      <p id="conflicts" role="alert"></p><div id="results" class="results"></div>
+    </section>
+    <details class="diagnostics"><summary>本次耗时与原型范围</summary><div id="metrics">识别完成后显示耗时。</div><p>这一版按示例网格定位，不适用于任意裁剪或其他列数。卡库是本地内容快照，可能缺少新卡；默认不接受近似候选。浏览器表现需要在真实手机上进一步验证。</p><p>导出的文件是待确认的观察清单，不是可直接替换整库的备份。本页面不会读取或写入网站个人养成。</p></details>
+  </main><footer>Otonote / Browser recognition study</footer>
+</body></html>

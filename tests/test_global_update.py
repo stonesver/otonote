@@ -52,6 +52,23 @@ class WorkflowTests(unittest.TestCase):
         retry.command.assert_not_called()
         self.assertEqual(json.loads(again.call_args.kwargs['scoring_rules'].read_text())['reason'],'updated-model')
 
+    def test_enabled_recognition_is_bound_before_content_publication(self):
+        self.config['contentPublication']={'root':str(self.root/'content'),'cardRecognition':True}
+        write_json(self.plan, {'environments':[{'masterRoot':str(self.root/'missing-master'),'contentReleaseId':'current'}]})
+        journal=workflow.Journal(self.workspace,'run')
+        journal.command=Mock(side_effect=lambda name,args:write_json(
+            Path(args[args.index('--output')+1])/'candidate.json',{'inputPlanSha256':file_hash(self.plan)}))
+        with patch('tools.card_recognition.prepare_candidate_index',return_value=self.root/'index') as index, \
+             patch('tools.content_publication.publish_content',return_value={'status':'content_published'}) as publish:
+            self.invoke(journal)
+        index.assert_called_once()
+        self.assertEqual(publish.call_args.kwargs['recognition_index'],self.root/'index')
+        with patch('tools.card_recognition.prepare_candidate_index',side_effect=ValueError('index failed')), \
+             patch('tools.content_publication.publish_content') as publish:
+            with self.assertRaisesRegex(ValueError,'index failed'):
+                self.invoke(workflow.Journal(self.workspace,'run'))
+        publish.assert_not_called()
+
     def test_content_success_defers_retention_and_preserves_old_builds_and_inputs(self):
         self.config['contentPublication']={'root':str(self.root/'content')}
         write_json(self.plan, {'environments':[{'masterRoot':str(self.root/'missing-master'),'contentReleaseId':'current'}]})

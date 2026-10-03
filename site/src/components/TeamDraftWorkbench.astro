@@ -46,7 +46,7 @@ const clientData = JSON.stringify({
   sourceReleaseId: catalog.release.id,
   formalRules,
   skillFilterFacets: skillFilters.facets,
-  bands: catalog.bands.map(b=>({id:b.id,name:b.displayName})),
+  bands: catalog.bands.map(b=>({id:b.id,masterId:b.masterId,name:b.displayName})),
   filterCharacters: catalog.characters.map(c=>({id:c.id,name:c.displayName,bandId:c.bandId})),
   attributeVisuals: catalog.cardTaxonomy.attributes.map(a=>({code:a.code,name:a.names[catalog.release.locale],color:a.color,iconUrl:getAsset(a.iconAssetId)?.previewUrl??null})),
   charts: catalog.musicCharts.map((chart) => ({ id: chart.id, trackId: chart.trackId,

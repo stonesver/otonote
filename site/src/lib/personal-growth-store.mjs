@@ -2,9 +2,11 @@ import {currentServerContext, assertAccountServer} from './game-servers.mjs';
 import {createInventoryManager} from './inventory-manager.mjs';
 import {convertGrowthSnapshot, growthModifiersForDraft} from './account-growth-import.mjs';
 
+import {validateBandItemTotals} from '../../../packages/scoring/scoring-rules/band-item-totals.mjs';
+
 export const PERSONAL_GROWTH_FORMAT = 'otonote-personal-growth';
 const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
-const accountFields = ['bandItems', 'characterRanks', 'tgwCardRank'];
+const accountFields = ['bandItems', 'bandItemTotals', 'characterRanks', 'tgwCardRank'];
 
 /** One durable profile per server. Content releases validate data, never identify its owner. */
 export function createPersonalGrowthStore({rules, vipRanks = [], context = currentServerContext(), storage}) {
@@ -25,6 +27,7 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
     const result = {};
     for (const field of accountFields) {
       if (!Object.hasOwn(value, field)) continue;
+      if (field === 'bandItemTotals') { result[field]=validateBandItemTotals(rules,value[field]);continue; }
       if (field === 'tgwCardRank') {
         const n = value[field];
         if (!Number.isSafeInteger(n) || n < 1 || n > 1000 || !vipRanks.some(r => r.rank === n)) throw Error('TGW 等级无效');
@@ -81,7 +84,9 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
     if (value?.format === 'ournotes-growth-snapshot') {
       const converted = convertGrowthSnapshot(value, rules, vipRanks);
       assertAccountServer(converted.safeSnapshot.source.serverId, context);
-      return {...empty(), inventory:converted.inventory, account:{...(read()?.account ?? {}), ...account(converted.modifiers)}};
+      const previous={...(read()?.account??{})};
+      if(Object.hasOwn(converted.modifiers,'bandItems'))delete previous.bandItemTotals;
+      return {...empty(), inventory:converted.inventory, account:{...previous,...account(converted.modifiers)}};
     }
     assertAccountServer(value?.serverId, context);
     return {...empty(), inventory:inventory(value), account:read()?.account ?? {}};
@@ -99,6 +104,7 @@ export function applyPersonalGrowth(draft, profile) {
   if (!profile) return draft;
   const existing = draft.modifiers ?? {};
   const saved = growthModifiersForDraft({modifiers:{...profile.account, growth:profile.inventory.growth}}, draft);
+  if(Object.hasOwn(existing,'bandItems'))delete saved.bandItemTotals;
   const growth = {...saved.growth};
   for (const [id, values] of Object.entries(existing.growth ?? {})) growth[id] = {...growth[id], ...values};
   draft.modifiers = {...saved, ...existing, growth};

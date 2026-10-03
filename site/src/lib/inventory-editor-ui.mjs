@@ -20,6 +20,15 @@ export function setupInventoryEditor(workbench,{onChange,onUse}) {
   const store=workbench.personalGrowthStore ??= createPersonalGrowthStore({rules:workbench.data.formalRules,vipRanks:workbench.data.vipRanks});
   let inventory=manager.empty(),undo=null,page=0,preview=null,fileRequest=0;
   const selected=new Set(),pageSize=12,status=q('[data-inventory-status]');
+  let screenshotImport;
+  q('[data-inventory-screenshot]').addEventListener('click',async event=>{
+    const button=event.currentTarget;button.disabled=true;
+    try{
+      screenshotImport??=(await import('./card-recognition/ui.mjs')).setupScreenshotImport(workbench,{manager,getInventory:()=>inventory,commit});
+      await screenshotImport.open();
+    }catch(error){status.textContent=`截图导入未打开：${error.message}`;}
+    finally{button.disabled=false;}
+  });
   const cardEditor=setupInventoryCardEdit(workbench,{manager,getInventory:()=>inventory,commit});
   try{const saved=store.read();if(saved){inventory=saved.inventory;applyPersonalGrowth(workbench.draft,saved);}}
   catch(error){status.textContent=`卡库未载入：${error.message}。原备份仍保留在浏览器中。`;}
@@ -57,19 +66,24 @@ export function setupInventoryEditor(workbench,{onChange,onUse}) {
       const owned=inventory[`${card.kind}CardIds`].includes(card.id),tile=el('article','','inventory-card');tile.dataset.owned=String(owned);tile.dataset.selected=String(selected.has(card.id));
       const label=el('label','','inventory-card-select'),check=el('input');check.type='checkbox';check.checked=selected.has(card.id);check.setAttribute('aria-label',`选择 ${card.shortLabel} ${card.relationLabel??''}`);
       check.addEventListener('change',()=>{if(check.checked)selected.add(card.id);else selected.delete(card.id);tile.dataset.selected=String(check.checked);selectionChanged();});
-      const identity=cardIdentity(workbench,card);
+      tile.dataset.kind=card.kind;
       if(album){
-        if(!card.imageUrl)identity.classList.add('card-identity--missing-art');
-        identity.querySelector(':scope>img')?.addEventListener('error',event=>{event.target.hidden=true;identity.classList.add('card-identity--missing-art');});
-        identity.querySelector('.calculator-attribute img')?.addEventListener('error',event=>{event.target.parentElement.textContent='●';});
+        label.append(check,el('span','选择'));tile.append(label);
+        const open=el('button','','inventory-card-open');open.type='button';open.setAttribute('aria-label',`${owned?'修改':'录入'} ${card.shortLabel} 的养成`);open.setAttribute('aria-haspopup','dialog');open.dataset.inventoryEdit=card.id;
+        const art=el('div','','inventory-card-art'),url=card.artUrl??card.imageUrl;
+        if(url){const image=el('img');image.src=url;image.alt='';image.loading='lazy';image.addEventListener('error',()=>{image.hidden=true;art.classList.add('is-missing');});art.append(image);}else art.classList.add('is-missing');
+        art.append(el('span',card.rarityLabel??'','inventory-rarity'),el('span',owned?`Lv.${inventory.growth[card.id].level}`:'未录入','inventory-level'));
+        const copy=el('div','','inventory-card-copy');copy.append(el('strong',card.shortLabel),el('span',card.relationLabel??''));
+        open.append(art,copy);open.addEventListener('click',()=>cardEditor.open(card));tile.append(open);
+        const values=el('dl','','inventory-card-stats'),growth=inventory.growth[card.id];
+        const fields=card.kind==='member'?[['特训',growth?.awake],['觉醒',growth?.rank],['技能',growth?`${growth.skillLevel}/${growth.gekisouSkillLevel}`:null]]:[['突破',growth?.rank]];
+        for(const [name,value] of fields){const cell=el('div');cell.append(el('dt',name),el('dd',value??'—'));values.append(cell);}tile.append(values);
+        const edit=el('button',owned?'编辑养成':'＋ 录入养成','inventory-card-edit');edit.type='button';edit.addEventListener('click',()=>cardEditor.open(card));tile.append(edit);
+      }else{
+        label.append(check,cardIdentity(workbench,card));tile.append(label,el('span',owned?'已拥有':'未录入','card-selection-state'),el('span',owned?describeGrowth(inventory.growth[card.id]):'尚未记录养成','inventory-card-growth'));
+        const edit=el('button',owned?'修改养成':'录入养成','inventory-card-edit');edit.type='button';edit.dataset.inventoryEdit=card.id;edit.setAttribute('aria-label',`${owned?'修改':'录入'} ${card.shortLabel} 的养成`);edit.addEventListener('click',()=>cardEditor.open(card));tile.append(edit);
       }
-      label.append(check,identity);tile.append(label,el('span',owned?'已拥有':'未录入','card-selection-state'),el('span',owned?describeGrowth(inventory.growth[card.id]):'尚未记录养成','inventory-card-growth'));
-      if(owned){
-        const edit=el('button','修改养成','inventory-card-edit');edit.type='button';edit.dataset.inventoryEdit=card.id;
-        edit.setAttribute('aria-label',`修改 ${card.shortLabel} 的养成`);edit.setAttribute('aria-haspopup','dialog');
-        edit.addEventListener('click',()=>cardEditor.open(card));tile.append(edit);
-      }
-      tile.append(skillPeek(workbench,card,{growth:inventory.growth[card.id],maximum:!owned},tile));root.append(tile);
+      tile.append(skillPeek(workbench,card,{growth:inventory.growth[card.id],maximum:!owned,hover:!album},album?undefined:tile));root.append(tile);
     }
     if(!list.length){const empty=el('div','','inventory-empty');empty.append(el('strong',q('[data-inventory-owned]').value==='owned'?'还没有符合条件的持有卡牌':'没有找到匹配的卡牌'),el('p','试试其他关键词，或切换到「全部」添加卡牌。'));root.append(empty);}
     q('[data-inventory-filter-count]').textContent=`${list.length} 张${kind()==='member'?'成员卡':'留影'}`;

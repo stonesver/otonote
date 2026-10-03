@@ -14,7 +14,7 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
   function prepare(snapshot){
     clear();preview=store.fromImport(snapshot);
     const {inventory,account}=preview,node=q('[data-growth-preview]');node.replaceChildren();node.hidden=false;
-    const summary=document.createElement('p');summary.textContent=`成员卡 ${inventory.memberCardIds.length} 张 · 留影 ${inventory.supportCardIds.length} 张 · 乐器 ${account.bandItems ? `${Object.keys(account.bandItems).length} 件` : '未记录'} · 角色评级 ${account.characterRanks ? `${Object.keys(account.characterRanks).length} 名` : '未记录'} · TGW ${account.tgwCardRank ?? '未记录'}`;
+    const summary=document.createElement('p');summary.textContent=`成员卡 ${inventory.memberCardIds.length} 张 · 留影 ${inventory.supportCardIds.length} 张 · 乐器 ${account.bandItemTotals&&Object.keys(account.bandItemTotals).length ? `${Object.keys(account.bandItemTotals).length} 个乐队` : account.bandItems ? `${Object.keys(account.bandItems).length} 件` : '未记录'} · 角色评级 ${account.characterRanks ? `${Object.keys(account.characterRanks).length} 名` : '未记录'} · TGW ${account.tgwCardRank ?? '未记录'}`;
     const note=document.createElement('p');note.textContent='确认后替换当前区服的养成档案，各工具共用此档案。请核对内容；本次导入可撤销。';node.append(summary,note);
     q('[data-growth-actions]').hidden=false;q('[data-growth-apply]').disabled=false;q('[data-growth-download]').disabled=false;status.textContent='读取完成，请预览后保存。';
   }
@@ -61,7 +61,7 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
       const previous={checkpoint:store.checkpoint(),inventory:structuredClone(getInventory()),modifiers:structuredClone(workbench.draft.modifiers)};
       const saved=store.save(preview);
       replaceInventory(saved.inventory,'已保存个人养成。',{persist:false,remember:false});
-      const {bandItems,characterRanks,tgwCardRank,...remaining}=workbench.draft.modifiers;
+      const {bandItems,bandItemTotals,characterRanks,tgwCardRank,...remaining}=workbench.draft.modifiers;
       workbench.draft.modifiers=growthModifiersForDraft({modifiers:{...saved.account,growth:saved.inventory.growth}},{...workbench.draft,modifiers:remaining});
       undo=previous;changed();q('[data-growth-undo]').disabled=false;
       q('[data-growth-apply]').disabled=true;status.textContent='已保存到当前区服的个人养成，各工具可直接使用。';

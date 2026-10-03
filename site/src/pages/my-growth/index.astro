@@ -21,7 +21,8 @@ const href=(path:string)=>import.meta.env.BASE_URL==='/'?path:siteHref(path,acti
 const data=JSON.stringify({formalRules,memberCards,supportCards,skillFilterFacets:skillFilters.facets,
   vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[],
   characters:catalog.characters.map(c=>({id:c.masterId,name:c.displayName})),
-  instruments:bandItemDatabase.items.map(i=>({id:i.masterId,name:i.name})),
+  bands:catalog.bands.map(b=>({id:b.masterId,name:b.displayName})),
+  instruments:bandItemDatabase.items.map(i=>({id:i.masterId,name:i.name,bandId:i.bandId})),
   attributeVisuals:catalog.cardTaxonomy.attributes.map(a=>({code:a.code,name:a.names[catalog.release.locale],color:a.color,iconUrl:getAsset(a.iconAssetId)?.previewUrl??null}))
 }).replaceAll('<','\\u003c');
 ---
@@ -36,7 +37,7 @@ const data=JSON.stringify({formalRules,memberCards,supportCards,skillFilterFacet
    <InventoryEditor standalone rarities={catalog.cardTaxonomy.rarities.map(r=>({value:r.code,label:r.label}))} />
    <section class="personal-account" aria-labelledby="personal-account-title"><h2 id="personal-account-title">账号养成</h2><p>空白表示未记录；乐器等级 0 表示未拥有。修改后保存，供各工具使用。</p>
     <form data-profile-account-form><label class="personal-tgw">TGW 等级<select data-profile-tgw><option value="">未记录</option></select></label>
-     <details><summary>乐器与乐队道具</summary><div class="personal-account-fields" data-profile-instruments></div></details>
+     <section class="personal-band-items"><h3>乐器与乐队道具</h3><p>按乐队填写所有道具的等级总和。例如 5 件道具都是 10 级，填 50。空白沿用单件记录，0 表示没有加成。</p><div class="personal-band-totals" data-profile-band-totals></div><details><summary>查看或修改单件等级</summary><p>修改某件道具后，该乐队会改用单件等级计算。</p><div class="personal-account-fields" data-profile-instruments></div></details></section>
      <details><summary>角色评级</summary><div class="personal-account-fields" data-profile-characters></div></details>
      <div class="inventory-toolbar"><button type="submit" class="growth-primary">保存账号养成</button><button type="button" data-profile-account-reset>恢复已保存的值</button></div><p data-profile-account-status role="status"></p>
     </form>

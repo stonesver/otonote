@@ -1,0 +1,4 @@
+# Offline feature-index build only; not required by the HTTP service.
+opencv-python-headless==4.13.0.92
+numpy==2.3.5
+Pillow==12.3.0

@@ -25,8 +25,16 @@ export const teamPlanningEnglish = {
   '只改变本次计划，实际卡库不变。张数限制不代表材料够用；账号加成仍按原设置。':'These upgrades apply only to this plan. Your collection stays unchanged. The card limit does not check materials; account bonuses stay as configured.',
   '指定愿意培养的卡、修改单卡目标':'Choose cards to upgrade and set individual targets',
   '搜索已录入的卡':'Search recorded cards',
+  '搜索可培养的卡':'Search cards available for upgrades',
+  '用哪些卡做培养计划':'Cards to use for this upgrade plan',
+  '已录入的卡库':'Recorded collection',
+  '当前手选的卡':'Currently selected cards',
+  '未限定卡片；允许比较当前范围内全部卡的培养方案。':'No card restriction. All cards in the selected pool may be considered for upgrades.',
+  '没有符合条件的卡。可以在下方手选队伍，或改选已录入的卡库。':'No cards match. Select a team below or switch to your recorded collection.',
+  '按所选范围比较培养后的搭配。手选卡需要填写实际养成，计划不会修改卡库。':'Compare upgrades within the selected card pool. Manually selected cards need recorded current upgrades. Plans do not update your collection.',
   '卡名、角色或乐队':'Card, character, or band name',
   '允许培养全部已录入卡':'Allow upgrades to all recorded cards',
+  '允许培养当前范围内全部卡':'Allow upgrades to every card in this pool',
   '找一张想试的卡':'Find a card to try',
   '试用卡':'Trial card',
   '选择成员或留影':'Choose a member or memory card',
@@ -124,9 +132,138 @@ export const teamPlanningEnglish = {
   '尚未填写对手时，按指定名次比较（初始为三段第一），不代表实战能拿第一。可在下方调整。':'Without opponent data, scores use specified ranks (initially first in all three sections). This does not predict a real first-place finish. Adjust below.',
   '发挥按上面的选择计算。未填对手时使用指定名次；增加任务计数能否抢到更高名次，需要结合对手判断。LUCK 使用抽样。':'Performance uses the settings above. Without opponents, ranks are fixed; the value of extra mission counts depends on opponents. LUCK is sampled.'
 };
+Object.assign(teamPlanningEnglish, {
+  '生成配队方案':'Generate team options',
+  '停止本次推荐':'Stop this recommendation',
+  '正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。':'Stopping. Completed team calculations will be kept; unfinished calculations are excluded.',
+  '部分组合尚未比较':'Some combinations remain unchecked',
+  '本次比较完成':'Comparison complete',
+  '比较未完成':'Comparison incomplete',
+  '已停止':'Stopped',
+  '先筛选搭配，再按所选养成与发挥比较。结果只覆盖已检查的方案，不保证全局最优；培养组合较多时，可以限定愿意练的卡或提高比较上限。停止后需重新开始，不支持接着上次续算。':'Teams are shortlisted and compared using the selected upgrades and performance. Results cover only checked candidates and do not guarantee a global optimum. Limit upgrade candidates or raise the comparison limit if needed. A stopped run must be restarted; it cannot be resumed.',
+  '哪支队伍更适合这首歌？':'Which team fits this song?',
+  '比较已保存的队伍，或看看换一张卡能多拿多少分。':'Compare saved teams or see how changing one card affects the score.',
+  '比较歌曲':'Song to compare',
+  '请选择歌曲':'Choose a song',
+  '比较难度':'Difficulty to compare',
+  '请选择难度':'Choose a difficulty',
+  '模式':'Mode',
+  '激奏':'Gekisou',
+  '普通':'Ordinary',
+  '想准备几套队伍应对多首歌？':'Plan a few teams for a song pool',
+  '比较下面选择的歌曲':'Compare the songs selected below',
+  '曲池（最多 12 首）':'Song pool (up to 12 songs)',
+  '选择曲池歌曲':'Select songs for the pool',
+  '最多保留几套':'Maximum teams to keep',
+  '各曲使用上方所选难度，并在比较时同等对待；这不是游戏选歌概率。':'All songs use the selected difficulty and equal comparison weights. These weights are not in-game selection probabilities.',
+  '判定、名次与养成设置':'Performance, ranks, and upgrade settings',
+  '扩窗卡':'Timing-window cards',
+  '判卡上限':'Timing-window card limit',
+  '0 或 1 张':'0 or 1 card',
+  '等级、成员技能按上限计算':'Use maximum levels and member skills',
+  '觉醒、突破沿用队伍的实际记录；留影技能随突破计算。勾选上限不会提高觉醒或突破。':'Keep recorded awakening and breakthrough stages. Memory skills follow breakthroughs. The maximum-level option does not change these stages.',
+  '初次使用可保留默认值。偏差填平常观察到的典型毫秒数，用于粗略比较判卡；不是个人 JUST 命中率预测。按 AP 模拟，FC 可作近似参考。':'Defaults can be used initially. Enter a typical observed timing offset to roughly compare timing-window cards; it does not predict your JUST rate. This legacy scenario simulates AP and treats FC as an approximation.',
+  '不限制张数':'No card-count limit',
+  '最多 1 张':'At most 1 card',
+  '不用扩窗卡':'No timing-window cards',
+  '比较时的发挥':'Performance for comparison',
+  '较多失误':'More frequent mistakes',
+  '旧预设的等级、成员技能按上限计算':'Use maximum levels and member skills for legacy presets',
+  '默认按队伍保存的养成计算；培养计划保留自己的目标，卡库更新后会重新核对。上限选项只作用于没有培养计划的旧预设。':'Use each team’s saved upgrades by default. Upgrade plans keep their targets and are checked against collection updates. The maximum-level option applies only to legacy presets without a plan.',
+  '激奏比较条件':'Gekisou comparison settings',
+  '平常偏差（ms）':'Timing offset (ms)',
+  '各段假设名次':'Assumed rank in each section',
+  'LUCK 抽样批数':'LUCK sample batches',
+  '所有队伍使用相同的参考操作样本，不把 FC 当作固定 JUST 命中率。偏差用于调整样本的整体早晚。':'All teams use the same reference inputs. FC does not determine a fixed JUST rate. The offset shifts inputs earlier or later.',
+  '所有队伍采用相同的假设名次。加数量技能的抢榜收益不能完整计入，请同时查看各段任务数。':'All teams use the same assumed ranks. Extra mission counts may help win ranks, but that benefit is not fully included here. Check the section counts too.',
+  '已保存的队伍':'Saved teams',
+  '已保存队伍':'Saved team',
+  '添加队伍':'Add a team',
+  '队伍名称':'Team name',
+  '例如：原队、JUST 单判卡':'For example: Original team, JUST window team',
+  '保存当前队伍':'Save current team',
+  '手动编辑队伍':'Edit team manually',
+  '录入我的卡库':'Record my collection',
+  '从个人卡库生成候选':'Generate candidates from my collection',
+  '按当前场景生成候选':'Generate candidates for this scenario',
+  '沿用上方的卡片范围与养成目标，生成综合力起点；之后按相同发挥比较。':'Use the card pool and upgrade targets above to generate power-based starting teams, then compare them under the same performance conditions.',
+  '已有卡库可直接生成；也可保存手动队伍或自动配队结果。生成时等级、成员技能按上限，觉醒与突破保持实际值。':'Generate from a recorded collection, or save manual and recommended teams. Generation maximizes levels and member skills while keeping current awakening and breakthrough stages.',
+  '备份或导入候选队伍':'Back up or import candidate teams',
+  '导出候选':'Export candidates',
+  '导入候选':'Import candidates',
+  '候选保存在当前浏览器；更换设备前请导出备份。卡库更新后，需要重新生成或保存候选。':'Candidates are saved in this browser. Export a backup before switching devices. Generate or save candidates again after collection updates.',
+  '开始比较':'Start comparison',
+  '比较这首歌的队伍':'Compare teams for this song',
+  '停止计算':'Stop calculation',
+  '导出结果':'Export results',
+  '只想知道换一张卡值不值？':'Want to compare a single-card change?',
+  '把原队「保存当前队伍」，作为比较基准。':'Use Save current team to save the original team as your baseline.',
+  '点击原队的「载入编辑」，在第二步替换成员或留影。':'Load the original team for editing, then replace a member or memory card in step two.',
+  '点击顶部「比较队伍 / 换卡」，选择原队作为基准，点击「比较当前队伍与基准」。当前队伍不必另存。':'Open Compare teams / Change a card, select the original team as the baseline, and choose Compare current team with baseline. You do not need to save the edited team separately.',
+  '换卡比较基准':'Baseline for card replacement',
+  '比较当前队伍与基准':'Compare current team with baseline',
+  '正数表示换卡后提高，负数表示降低。激奏会同时显示三个段落的分数变化。':'Positive values mean an increase after replacement; negative values mean a decrease. Gekisou also shows the change in each section.',
+  '载入编辑':'Load for editing',
+  '删除':'Delete',
+  '参考队伍 · 实际养成未齐全':'Reference team · current upgrade data incomplete',
+  '条件需检查，载入后查看':'Settings need review; load the team to check',
+  '还没有保存队伍。展开下方「添加队伍」，或先用「帮我配一队」获取推荐。':'No saved teams yet. Open Add a team below, or generate recommendations first.',
+  '输入已更新，可重新比较这首歌。':'Inputs changed. Compare this song again.',
+  '原候选备份无法读取，未覆盖。请先导出当前候选，检查浏览器存储。':'The original backup could not be read and was left unchanged. Export your current candidates and check browser storage.',
+  '最多保存 100 支候选，请先删除重复候选':'Save up to 100 candidates. Remove duplicate candidates first',
+  '候选文件格式或版本不一致':'The candidate file format or data version does not match',
+  '候选名称、ID 或版本无效':'Invalid candidate name, ID, or data version',
+  '候选文件过大（最多 5 MB）':'The candidate file is too large (maximum 5 MB)',
+  '请先选择歌曲和难度，再生成或比较队伍。':'Choose a song and difficulty before generating or comparing teams.',
+  '请先选择要比较的歌曲':'Choose a song to compare first',
+  '请先选择演奏难度':'Choose a difficulty first',
+  '请选择 1–12 首曲池歌曲':'Choose 1–12 songs for the pool',
+  '比较结果':'Comparison results',
+  '预计平均分 · 当前条件':'Estimated mean score · current conditions',
+  '这些结果只比较当前保存的队伍。分差接近时，可以按自己的习惯选择。':'These results compare only your saved teams. When scores are close, choose according to your preferences.',
+  '歌曲':'Song',
+  '建议使用':'Suggested team',
+  '条件平均分':'Mean score under these conditions',
+  '查看本曲各队的三段分值与任务数':'View section scores and mission counts for each team',
+  '预设':'Preset',
+  '整曲分数':'Song score',
+  '第一段':'Section 1',
+  '第二段':'Section 2',
+  '第三段':'Section 3',
+  '比较条件与适用范围':'Comparison settings and limits',
+  '请先在个人卡库录入实际持有与突破':'Record your owned cards and actual upgrades first',
+  '请先保存一支基准预设':'Save a baseline team first',
+  '请先保存或生成候选预设':'Save or generate candidate teams first',
+  '后台计算失败，请重试。':'The calculation failed. Please try again.',
+  '计算完成。结果仅针对当前歌曲、难度与比较条件。':'Calculation complete. Results apply to the selected songs, difficulty, and comparison settings.',
+  '已停止计算，候选预设仍保留。':'Calculation stopped. Your candidate presets are kept.'
+});
+for(const n of [1,2,3,4,5]){teamPlanningEnglish[`${n} 套`]=`${n} teams`;teamPlanningEnglish[`${n} 名`]=`Rank ${n}`;}
 for(const n of [1,2,3,5,10])teamPlanningEnglish[`${n} 张（成员和留影合计）`]=`${n} cards (members and memories combined)`;
 for(const n of [2,3,4,5])teamPlanningEnglish[`升至 ${n} 级`]=`Raise to level ${n}`;
 const patterns=[
+  [/^([+−\-]?[\d,.]+) 较当前养成方案$/,(_,delta)=>`${delta} vs. current-upgrade team`],
+  [/^相对当前养成方案：综合力 (.+)%，目标分数 (.+)%。这是整队替换后的变化。$/,(_,power,score)=>`Compared with the current-upgrade team: power ${power}%, target score ${score}%. These are whole-team changes.`],
+
+  [/^培养计划 · (\d+) 张卡$/,(_,n)=>`Upgrade plan · ${n} cards`],
+  [/^试用卡 · (.+)$/,(_,label)=>`Trial cards · ${translateTeamPlanningText(label)}`],
+  [/^已在本浏览器保存 (\d+) 支候选。$/,(_,n)=>`${n} candidates saved in this browser.`],
+  [/^队伍未载入：(.+)$/,(_,reason)=>`Team not loaded: ${translateTeamPlanningText(reason)}`],
+  [/^候选未载入：(.+)。原备份保留，未覆盖。$/,(_,reason)=>`Candidates not loaded: ${translateTeamPlanningText(reason)}. The original backup was kept.`],
+  [/^本次比较：(.+) · ([A-Z]+)。与页面上方选歌保持同步。$/,(_,song,difficulty)=>`Comparing: ${song} · ${difficulty}. Synced with the song selection above.`],
+  [/^当前队伍替换「(.+)」：本曲总分变化 (.+) 分。$/,(_,name,delta)=>`Replace “${name}” with the current team: song score changes by ${delta} points.`],
+  [/^曲池预设：(.+)$/,(_,names)=>`Song-pool presets: ${names}`],
+  [/^本曲推荐：(.+)$/,(_,names)=>`Recommended for this song: ${names}`],
+  [/^首曲对比：(.+)$/,(_,name)=>`First-song comparison: ${name}`],
+  [/^(.+)：还需要培养 (\d+) 张卡，结果按目标养成计算。$/,(_,name,n)=>`${name}: ${n} cards still need upgrades. Scores use the target upgrades.`],
+  [/^(.+) · 技能详情$/,(_,name)=>`${name} · Skill details`],
+  [/^(.+) 缺少当前难度谱面$/,(_,song)=>`${song}: no chart for the selected difficulty`],
+  [/^(.+) 谱面加载失败$/,(_,song)=>`${song}: chart failed to load`],
+  [/^加载谱面 (\d+)\/(\d+)…$/,(_,n,total)=>`Loading charts ${n}/${total}…`],
+  [/^生成候选 (\d+)\/(\d+)…$/,(_,n,total)=>`Generating candidates ${n}/${total}…`],
+  [/^比较歌曲与预设 (\d+)\/(\d+)…$/,(_,n,total)=>`Comparing songs and presets ${n}/${total}…`],
+  [/^生成 (\d+) 支候选。(.*)$/,(_,n,note)=>`Generated ${n} candidates. ${translateTeamPlanningText(note.trim())}`],
+
   [/^允许培养 (\d+) 张卡；最多实际提升 (\d+) 张。$/,(_,allowed,max)=>`${allowed} cards allowed; upgrade at most ${max}.`],
   [/^当前显示前 40 张，共 (\d+) 张。输入卡名可缩小范围。$/,(_,total)=>`Showing the first 40 of ${total} cards. Search by name to narrow the list.`],
   [/^保留位置 (\d+) 的成员与留影配对$/,(_,slot)=>`Keep the member and memory pairing in slot ${slot}`],
@@ -143,3 +280,23 @@ export function translateTeamPlanningText(value) {
   return text;
 }
 export function planningUiText(value,locale) {return locale==='en'?translateTeamPlanningText(value):value;}
+
+/** Explicit one-shot translation for dynamic tool output; no observer or input-value writes. */
+export function translatePlanningSubtree(root, locale) {
+  if(locale!=='en'||!root)return 0;
+  const skip='[data-ui-entity],[translate="no"],script,style,code,pre,textarea,[contenteditable="true"]';
+  if(root.parentElement?.closest?.(skip))return 0;
+  let changed=0;
+  function walk(node) {
+    if(node.nodeType===1&&node.matches?.(skip))return;
+    if(node.nodeType===3){
+      const value=node.nodeValue??'',text=value.replace(/\s+/g,' ').trim();
+      if(!text)return;
+      const translated=translateTeamPlanningText(text);
+      if(translated!==text){node.nodeValue=`${value.match(/^\s*/)?.[0]??''}${translated}${value.match(/\s*$/)?.[0]??''}`;changed++;}
+      return;
+    }
+    for(const child of node.childNodes??[])walk(child);
+  }
+  walk(root);return changed;
+}

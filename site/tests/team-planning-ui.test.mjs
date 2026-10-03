@@ -68,3 +68,16 @@ test('simple keep and exclude controls preserve other constraints and never keep
   assert.equal(excluded.bandId,1);assert.deepEqual(excluded.lockedPairs,original.lockedPairs);assert.deepEqual(original.requiredMemberIds,['member-card-1']);
   const clear=updatePlanningCardPreference(excluded,{kind:'member',id:'member-card-1',preference:''});assert.equal(clear.excludedMemberIds,undefined);
 });
+
+test('hand-selected cards can form an upgrade plan without an imported inventory',()=>{
+  const before=structuredClone(draft);
+  const settings=createPlanningSettings(form({kind:'training',trainingScope:'selected',maxTrainedCards:1,allowedCardIds:['member-card-1']}),context);
+  assert.equal(settings.planningScenario.scope,'selected');
+  assert.equal(settings.planningScenario.plan.maxTrainedCards,1);
+  assert.deepEqual(settings.planningScenario.selectedCardIds,{memberCardIds:['member-card-1'],supportCardIds:['support-card-1']});
+  assert.equal(settings.planningScenario.inventory,undefined);
+  assert.equal(settings.planningScenario.unknownGrowth,'exclude');
+  assert.deepEqual(draft,before);
+  const restored=planningSettingsValues(settings);assert.equal(restored.kind,'training');assert.equal(restored.trainingScope,'selected');
+  assert.deepEqual(createPlanningSettings(restored,context),settings);
+});

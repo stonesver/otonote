@@ -1,7 +1,7 @@
 import {setupTeamPlanningScenarios} from './team-planning-scenario-ui.mjs';
 import {resolveSearchInput} from './scoring-rules/formation-input.mjs';
 import {summarizeSearchSpace,formatCombinationCount,readOptimizerConstraints} from './optimizer-search-summary.mjs';
-import {optimizerReadiness,recommendedWorkerCount,searchEvaluationBudget} from './optimizer-guidance.mjs';
+import {optimizerReadiness,recommendedWorkerCount} from './optimizer-guidance.mjs';
 import {renderOptimizerResults} from './optimizer-results-ui.mjs';
 import { readGekisouOpponentInputs } from './gekisou-opponent-inputs.mjs';
 import {setupInventoryEditor} from './inventory-editor-ui.mjs';
@@ -15,11 +15,11 @@ export function setupInventoryOptimizer(workbench) {
   const q = s => workbench.querySelector(s), rules=workbench.data.formalRules;
   if(!q('[data-optimize-pairing]')) return null;
   const calculator=createFormationCalculator(rules);
-  let worker, request=0, checkpoint, lastResult, activeMethod, scenarios;
+  let worker, request=0, lastResult, scenarios;
   const progress=q('[data-pairing-progress]');
   const editor=setupInventoryEditor(workbench,{
     onChange:()=>{scenarios?.refreshInventory();invalidate();workbench.dispatchEvent(new CustomEvent('preset-inventory-changed'));progress.textContent='卡库已更新，请重新搜索。';},
-    onUse:()=>{q('[data-search-scope]').value='owned';invalidate();workbench.dispatchEvent(new CustomEvent('calculator-use-inventory'));q('[data-calculator-guidance]').scrollIntoView({block:'center'});}
+    onUse:()=>{q('[data-search-scope]').value='owned';q('[data-search-scope]').dispatchEvent(new Event('change',{bubbles:true}));workbench.dispatchEvent(new CustomEvent('calculator-use-inventory'));q('[data-calculator-guidance]').scrollIntoView({block:'center'});}
   });
   scenarios=setupTeamPlanningScenarios(workbench,{getInventory:()=>editor.inventory,onChange:()=>{invalidate();progress.textContent='条件已更新，请重新比较。';}});
   workbench.planningScenarios=scenarios;
@@ -54,14 +54,14 @@ export function setupInventoryOptimizer(workbench) {
       :q('[data-search-scope]').value==='theoretical'?'无需手动选卡。参考卡片按满养成搜索，账号加成单独设置。':'只比较下方选中的成员与留影；不会自动加入其他卡。';
     publish({...state,hasResults:Boolean(lastResult?.results.length),finished:Boolean(lastResult),running:Boolean(worker),space});
   }
-  function invalidate() {stop();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;checkpoint=null;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent='等待开始';guide();}
+  function invalidate() {stop();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent='等待开始';guide();}
 
   q('[data-pairing-mode]').addEventListener('change',()=>{q('[data-gekisou-settings]').hidden=q('[data-pairing-mode]').value!=='gekisou';if(q('[data-gekisou-rank-note]'))q('[data-gekisou-rank-note]').hidden=q('[data-pairing-mode]').value!=='gekisou';});
   for(const selector of ['[data-search-scope]','[data-pairing-objective]','[data-search-constraints]','[data-search-band]','[data-search-attribute]','[data-search-support-attribute]','[data-pairing-mode]','[data-gekisou-settings]','[data-planning-window-limit]','[data-planning-variant-limit]'])q(selector).addEventListener('change',()=>{invalidate();q('[data-pairing-results]').replaceChildren();progress.textContent='输入已更新，请重新搜索。';});
-  q('[data-cancel-pairing]').addEventListener('click',()=>{worker?.postMessage({type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent=activeMethod==='practical'?'正在停止；未完成的阶段不会标记完成，已完成的精算结果会保留。':'正在暂停；搜索阶段的进度会保留在本页…';});
+  q('[data-cancel-pairing]').addEventListener('click',()=>{worker?.postMessage({type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent='正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。';});
   q('[data-export-pairing]').addEventListener('click',()=>{if(lastResult)download('otonote-pairing-result.json',lastResult);});
-  async function run(resume=false) {
-    stop();const current=request;const previous=resume?checkpoint:null;checkpoint=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;
+  async function run() {
+    stop();const current=request;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;
     q('[data-pairing-results]').replaceChildren();
     try {
       const settings=scenarios?.persist()??{};
@@ -70,10 +70,10 @@ export function setupInventoryOptimizer(workbench) {
         frameRate:Number(q('[data-gekisou-fps]').value),opponents:readGekisouOpponentInputs(workbench),
         timingOffsetMs:Number(q('[data-gekisou-offset]').value),batches:Number(q('[data-gekisou-batches]').value),seed:Number(q('[data-gekisou-seed]').value),
         ranks:[...workbench.querySelectorAll('[data-gekisou-rank]')].map(n=>Number(n.value))};
-      activeMethod=q('[data-search-effort]').value==='practical'?'practical':'complete';
-      q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=activeMethod!=='practical';q('[data-practical-summary]').hidden=true;
-      q('[data-cancel-pairing]').textContent=activeMethod==='practical'?'停止本次推荐':'暂停搜索';
-      const maxEvaluations=searchEvaluationBudget(q('[data-search-effort]').value,q('[data-search-budget]').value);
+      const activeMethod='practical';
+      q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=false;q('[data-practical-summary]').hidden=true;
+      q('[data-cancel-pairing]').textContent='停止本次推荐';
+      const maxEvaluations=0;
       const inventory=editor.validate(editor.inventory);
       const constraints=readOptimizerConstraints(workbench),draft=structuredClone(workbench.draft);
       if(scope==='owned')draft.modifiers.growth={...draft.modifiers.growth,...inventory.growth};
@@ -107,7 +107,7 @@ export function setupInventoryOptimizer(workbench) {
           return;
         }
         if(data.type!=='result')return;
-        stop();lastResult=data.result;checkpoint=data.result.checkpoint;q('[data-resume-pairing]').disabled=!checkpoint;q('[data-export-pairing]').disabled=false;
+        stop();lastResult=data.result;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=false;
         const r=data.result;
         progress.textContent=`${r.optimality==='proven_within_model'?'已证明当前规则与范围内最优':r.optimality==='best_within_simulation'?'搜索完成：当前模拟情景及抽样下最佳，非实战最优保证':r.optimality==='infeasible'?'当前约束下不存在合法队伍':'搜索未完成，以下是目前最佳候选'}；已比较 ${r.evaluated} 组。`;
         if(r.searchMethod==='planning'){
@@ -127,27 +127,30 @@ export function setupInventoryOptimizer(workbench) {
         if(!['practical','planning'].includes(r.searchMethod))q('[data-search-diagnostics]').textContent=`剩余上界 ${format(r.upperBound)}，与当前最佳差 ${format(r.optimalityGap)}；待排查分支 ${r.checkpoint?.frontier?.length??0}。`;
         q('[data-search-limits]').textContent=(r.warnings??[]).join(' ');
         renderOptimizerResults(workbench,r.results,{mode,objective});
-        q('[data-search-state]').textContent=r.status==='completed'?(r.searchMethod==='practical'?'实用检查完成':'搜索完成'):r.status==='cancelled'?(r.searchMethod==='practical'?'已停止':'已暂停'):'本轮已完成，可继续深入';
+        q('[data-search-state]').textContent=planningSearchStatus(r);
         q('[data-search-state]').dataset.running='false';
         guide();
 
       };
-      worker.postMessage({type:'optimize',requestId:current,payload:{...settings,variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations,checkpoint:previous}});
+      worker.postMessage({type:'optimize',requestId:current,payload:{...settings,variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
     }catch(error){if(current!==request)return;stop();progress.textContent=error.message;publish({finished:true});}
   }
-  q('[data-optimize-pairing]').addEventListener('click',()=>run());q('[data-resume-pairing]').addEventListener('click',()=>run(true));
+  q('[data-optimize-pairing]').addEventListener('click',()=>run());
   function updateEffort() {
-    const preset=q('[data-search-effort]').value,budget=q('[data-search-budget]');
-    budget.disabled=preset==='complete'||preset==='practical';
-    if(preset!=='custom'&&preset!=='complete'&&preset!=='practical')budget.value=preset;
-    q('[data-optimize-pairing]').textContent=preset==='practical'?'生成实用推荐':'开始寻找配队';
-    q('[data-search-effort-note]').textContent=preset==='practical'?'按固定阶段完成，不按时间停止：技能特征粗筛、10 种顺序快速模拟，最多 6 队完整复算（120 种顺序；LUCK 至少 2 批）。按所选养成与发挥比较；不穷举全部技能组合或站位，不保证最优。':preset==='complete'
-      ?'不限组数，直到找到当前规则与筛选范围内的最佳配法。全卡库可能需要很久；可暂停续算，刷新或关闭页面会丢失进度。激奏仍受模拟条件与抽样限制。'
-      :'只比较本轮指定数量的候选，不保证全局最优。可以随时切换完整搜索，再点“继续搜索”沿用当前进度。';
+    q('[data-search-effort]').value='practical';q('[data-search-effort]').disabled=true;
+    q('[data-search-budget]').disabled=true;
+    q('[data-resume-pairing]').hidden=true;q('[data-resume-pairing]').disabled=true;
+    q('[data-optimize-pairing]').textContent='生成配队方案';
+    q('[data-search-effort-note]').textContent='先筛选搭配，再按所选养成与发挥比较。结果只覆盖已检查的方案，不保证全局最优；培养组合较多时，可以限定愿意练的卡或提高比较上限。停止后需重新开始，不支持接着上次续算。';
   }
   q('[data-search-effort]').addEventListener('change',updateEffort);
-  q('[data-search-budget]').addEventListener('change',()=>{q('[data-search-effort]').value='custom';updateEffort();});
   updateEffort();
   guide();
   return {invalidate};
+}
+
+export function planningSearchStatus(result) {
+  if(result.status==='cancelled')return '已停止';
+  if(result.status==='budget_exhausted'||result.planning?.truncated)return '部分组合尚未比较';
+  return result.status==='completed'?'本次比较完成':'比较未完成';
 }

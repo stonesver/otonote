@@ -208,14 +208,14 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     </div></details>
       <p class="journey-intro">推荐会保留有实际区别的搭配；如果几种方向得到同一队，就合并显示。</p>
       <details class="journey-advanced"><summary>限定乐队、属性或调整目标（可选）</summary>
-<label class="selection-filter-row"><span>搜索深度</span><select data-search-effort><option value="practical" selected>实用推荐 · 固定阶段</option><option value="complete">完整搜索 · 不限组数</option><option value="20">高级限量搜索 · 20 组</option><option value="200">高级限量搜索 · 200 组</option><option value="custom">自定义计算组数</option></select></label>      <p class="calculator-scope-note" data-search-effort-note></p><p class="calculator-scope-note" data-search-space></p>
+<label hidden class="selection-filter-row"><span>推荐方式</span><select data-search-effort disabled><option value="practical" selected>实用推荐</option></select></label>      <p class="calculator-scope-note" data-search-effort-note></p><p class="calculator-scope-note" data-search-space></p>
 <label class="selection-filter-row"><span>优化目标</span><select data-pairing-objective>
       <option value="expected_song_score">歌曲平均分（默认，估算）</option>
       <option value="minimum_song_score">最低分（激奏为样本最低）</option>
       <option value="maximum_song_score">最高分（激奏为样本最高）</option>
       <option value="formation_power">综合能力</option>
     </select></label>    <div data-search-filters><FilterPanel title="限定乐队、属性（可选）"><div class="optimizer-filter-fields selection-filter-rows">
-    <label class="selection-filter-row"><span>每次计算组数</span><input type="number" min="1" max="100000" value="20" data-search-budget /></label>
+    <label hidden class="selection-filter-row"><span>旧版计算组数</span><input type="number" min="1" max="100000" value="20" data-search-budget disabled /></label>
     <label class="selection-filter-row"><span>成员乐队</span><select data-search-band data-inline-filter data-filter-kind="band"><option value="">不限</option>{catalog.bands.map(band => <option value={band.masterId}>{band.displayName}</option>)}</select></label>
     <label class="selection-filter-row"><span>成员属性</span><select data-search-attribute data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
     <label class="selection-filter-row"><span>留影属性</span><select data-search-support-attribute data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
@@ -235,8 +235,8 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     <div class="calculator-start">
     <div><p data-calculator-guidance aria-live="polite"></p></div>
     <div class="optimizer-actions"><button type="button" data-optimize-pairing>开始寻找配队</button>
-    <button type="button" data-cancel-pairing disabled>暂停搜索</button>
-    <button type="button" data-resume-pairing disabled>继续搜索</button>
+    <button type="button" data-cancel-pairing disabled>停止本次推荐</button>
+    <button type="button" data-resume-pairing hidden disabled>继续搜索</button>
     <button type="button" data-export-pairing disabled>导出计算结果</button>
     </div>
     </div>

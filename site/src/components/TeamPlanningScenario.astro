@@ -13,6 +13,7 @@ import '../styles/team-planning.css';
   <p data-planning-note class="calculator-scope-note" aria-live="polite"></p>
   <div data-planning-training hidden>
     <div class="planning-fields">
+      <label class="planning-field"><span>用哪些卡做培养计划</span><select data-planning-training-scope><option value="owned">已录入的卡库</option><option value="selected">当前手选的卡</option></select></label>
       <label class="planning-field"><span>最多再练几张</span><select data-planning-count>{[1,2,3,5,10].map(n=><option value={n}>{n} 张（成员和留影合计）</option>)}</select></label>
       <label class="planning-field"><span>等级目标</span><select data-planning-growth><option value="current-cap">保持突破、觉醒，升到当前上限</option><option value="maximum">全满养成参考（含突破、觉醒）</option></select></label>
       <label class="planning-field"><span>成员演出技能</span><select data-planning-skill><option value="">保持当前等级</option>{[2,3,4,5].map(n=><option value={n}>升至 {n} 级</option>)}</select></label>
@@ -20,9 +21,9 @@ import '../styles/team-planning.css';
     </div>
     <p class="calculator-scope-note">只改变本次计划，实际卡库不变。张数限制不代表材料够用；账号加成仍按原设置。</p>
     <details><summary>指定愿意培养的卡、修改单卡目标</summary>
-      <label class="planning-field"><span>搜索已录入的卡</span><input type="search" data-planning-training-query placeholder="卡名、角色或乐队" /></label>
+      <label class="planning-field"><span>搜索可培养的卡</span><input type="search" data-planning-training-query placeholder="卡名、角色或乐队" /></label>
       <p data-planning-training-count class="calculator-scope-note"></p>
-      <button type="button" data-planning-training-clear>允许培养全部已录入卡</button>
+      <button type="button" data-planning-training-clear>允许培养当前范围内全部卡</button>
       <div class="planning-card-list" data-planning-training-cards></div>
     </details>
   </div>

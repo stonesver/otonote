@@ -1,7 +1,8 @@
+import {planningSearchStatus} from '../src/lib/inventory-optimizer-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {planningUiText,translateTeamPlanningText} from '../src/lib/team-planning-translations.mjs';
+import {planningUiText,translateTeamPlanningText,translatePlanningSubtree} from '../src/lib/team-planning-translations.mjs';
 import {translateUiText} from '../src/lib/ui-text-localizer.ts';
 import {localizeHtmlWithStats} from '../src/lib/html-localizer.ts';
 import {planningObjectiveForGoal} from '../src/lib/team-planning-scenario-ui.mjs';
@@ -31,4 +32,37 @@ test('restored recommendation goals choose consistent score objectives',()=>{
   assert.equal(planningObjectiveForGoal('stable'),'minimum_song_score');
   assert.equal(planningObjectiveForGoal('score'),'expected_song_score');
   assert.equal(planningObjectiveForGoal('missions'),'expected_song_score');
+});
+
+test('preset controls have English copy and preserve entity text during explicit subtree translation',()=>{
+  const source=readFileSync(new URL('../src/components/PresetPortfolio.astro',import.meta.url),'utf8');
+  for(const match of source.matchAll(/>([^<>{}]+)</g)){
+    const text=match[1].trim();if(!/[\u4e00-\u9fff]/.test(text))continue;
+    assert.notEqual(translateTeamPlanningText(text),text,`Missing preset translation: ${text}`);
+  }
+  assert.equal(translateTeamPlanningText('按当前场景生成候选'),'Generate candidates for this scenario');
+  const text=value=>({nodeType:3,nodeValue:value});
+  const element=(children,skip=false)=>({nodeType:1,childNodes:children,matches:()=>skip});
+  const label=text('  按当前场景生成候选  '),entity=text('当前养成'),code=text('当前养成');
+  const root=element([label,element([entity],true),element([code],true)]);
+  assert.equal(translatePlanningSubtree(root,'zh-CN'),0);
+  assert.equal(translatePlanningSubtree(root,'en'),1);
+  assert.equal(label.nodeValue,'  Generate candidates for this scenario  ');
+  assert.equal(entity.nodeValue,'当前养成');assert.equal(code.nodeValue,'当前养成');
+  assert.equal(translatePlanningSubtree(root,'en'),0);
+});
+test('preset messages keep embedded song and user names intact',()=>{
+  assert.equal(translateTeamPlanningText('首曲对比：春日影 · 我的队伍'),'First-song comparison: 春日影 · 我的队伍');
+  assert.equal(translateTeamPlanningText('试用卡 · 培养计划 · 2 张卡'),'Trial cards · Upgrade plan · 2 cards');
+  assert.equal(translateTeamPlanningText('本次比较：春日影 · EXPERT。与页面上方选歌保持同步。'),'Comparing: 春日影 · EXPERT. Synced with the song selection above.');
+});
+
+test('bounded planning and cancellation never advertise resumable exhaustive searches',()=>{
+  assert.equal(planningSearchStatus({status:'budget_exhausted'}),'部分组合尚未比较');
+  assert.equal(planningSearchStatus({status:'cancelled'}),'已停止');
+  assert.equal(planningSearchStatus({status:'completed'}),'本次比较完成');
+  const source=readFileSync(new URL('../src/components/TeamDraftWorkbench.astro',import.meta.url),'utf8');
+  const effort=source.match(/<select data-search-effort[^>]*>(.*?)<\/select>/s)?.[1];
+  assert.ok(effort);assert.doesNotMatch(effort,/value="complete"|value="custom"|value="20"/);
+  assert.match(source, /data-resume-pairing hidden disabled/);
 });

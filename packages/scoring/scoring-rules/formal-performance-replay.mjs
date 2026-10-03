@@ -93,7 +93,8 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       return { ...comboAtScore, scoreUpFactor, score: noteValue(event, comboAtScore.comboFactor, scoreUpFactor),
         baseScore: noteValue(event, comboAtScore.comboFactor, 1) };
     } });
-    const arrivals = new Map(), endings = new Map(), triggers = new Map(), converters = [], skillTrace = [], stateTrace = [];
+    const arrivals = new Map(), endings = new Map(), triggers = new Map(), converters = [], skillTrace = [], stateTrace = [], factorCommands = [];
+    const addFactor = command => { replay.addFactor(command); if (includeTrace) factorCommands.push(command); };
     const enqueue = (map, frame, value) => { if (!map.has(frame)) map.set(frame, []); map.get(frame).push(value); };
     for (const event of judgements) enqueue(arrivals, event.inputFrame, event);
     for (let i = 0; i < 5; i++) enqueue(triggers, clock.indexAt(timeline.skillTimes[i]), { slot: skillOrder[i], startMs: timeline.skillTimes[i] });
@@ -154,7 +155,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
           skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, currentLife, active });
           if (!active) continue;
           const delta = deltaFor(effect), ownerId = slot * 100 + 1;
-          replay.addFactor({ timeMs: startMs, ownerId, ...delta });
+          addFactor({ timeMs: startMs, ownerId, ...delta });
           endAt(effect, startMs, { kind: 'score', ownerId, delta, slot, effectId: effect.id });
           changed = true;
         }
@@ -162,7 +163,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       // Existing converters participate in this frame's input, then expire in
       // the skill phase. Newly activated converters begin with the next input.
       for (const ending of (endings.get(frame) ?? []).sort((a, b) => a.slot - b.slot)) {
-        if (ending.kind === 'score') replay.addFactor({ timeMs: ending.timeMs, ownerId: ending.ownerId,
+        if (ending.kind === 'score') addFactor({ timeMs: ending.timeMs, ownerId: ending.ownerId,
           ...Object.fromEntries(Object.entries(ending.delta).map(([key, value]) => [key, -value])) });
         else ending.converter.active = false;
         changed = true;
@@ -210,7 +211,9 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       warnings: ['结果仅对应导入的明确判定、输入帧和技能顺序；输入时机与判定是否能由真实操作产生未作推断。',
         '生命、连击、转换次数与技能条件按客户端代码回放；不包含激奏、辅助模式或其他未支持技能。',
         ...timeline.warnings.filter(warning => warning.includes('不一致'))],
-      ...(includeTrace ? { bestOrderNotes: notes, bestOrderFixedScore: score - noteTotal, stateTrace, skillTrace } : {}) };
+      ...(includeTrace ? { bestOrderNotes: notes, bestOrderFixedScore: score - noteTotal, stateTrace, skillTrace,
+        skillPlayback: { skills, skillTimes: timeline.skillTimes, frameRate: input.frameRate,
+          variants: [{ kind: 'explicit', order: skillOrder, score, notes, commands: factorCommands, skillTrace }] } } : {}) };
   }
   function calculate(draft, options = {}) {
     const baseline = run(draft, { withoutSkills: true });

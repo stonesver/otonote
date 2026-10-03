@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
 import {scopedStorageKey, currentServerContext, assertAccountServer} from './game-servers.mjs';
 import {teamLineup,scoreComposition,scoreRanking,replacementSummary} from './score-visuals.mjs';
@@ -146,6 +147,9 @@ export function setupPresetPortfolio(workbench) {
       }))); sectionDetails.append(detail);
     }
     if (result.mode === 'gekisou') results.append(sectionDetails);
+    for(const song of result.matrix.songs)for(const candidate of result.matrix.candidates){
+      const entry=el('div');entry.append(el('h4',`${candidate.name} · ${song.title}`),skillActivation(workbench,{...candidate.draft,selectedSongId:song.trackId,selectedDifficulty:song.difficulty},{mode:result.mode,scenario:result.scenario}));results.append(entry);
+    }
     const details = el('details'); details.append(el('summary', '比较条件与适用范围'));
     result.warnings.forEach(w => details.append(el('p', w)));
     result.omitted.forEach(c => details.append(el('p', `${c.id}：${c.reason}`))); results.append(details);

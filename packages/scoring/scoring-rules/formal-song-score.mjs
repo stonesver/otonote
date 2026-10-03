@@ -136,7 +136,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
       const noteTotal = score;
       score = eventPipeline.apply("fixed_score", score, { draft, order });
       if (!Number.isSafeInteger(score) || score < 0) throw new Error("Invalid event fixed score result");
-      const result = { score, noteTotal, fixedScore: score - noteTotal, notes };
+      const result = { score, noteTotal, fixedScore: score - noteTotal, notes, ...(trace ? { commands } : {}) };
       if (cacheKey !== null) orderCache.set(cacheKey, result);
       return result;
     };
@@ -149,6 +149,8 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
       if (score < minimum) { minimum = score; worstOrder = order; }
       if (score > maximum) { maximum = score; bestOrder = order; }
     }
+    const bestTrace = includeTrace ? scoreOrder(bestOrder, true) : null;
+    const worstTrace = includeTrace ? scoreOrder(worstOrder, true) : null;
     return { status: "estimated", timingModel: { frameRate, clock: "ideal", scoreBucketMs: 40 }, modelVersion: SCORE_MODEL_VERSION, scorePrecision, verificationStatus: timeline.verificationStatus,
       scenario: eventPipeline.context.id == null ? "ordinary_non_event_all_perfect_full_life_no_assist" : "ordinary_event_all_perfect_full_life_no_assist", event: eventPipeline.context, sourceReleaseId: rules.sourceReleaseId,
       ruleSetVersion: rules.ruleSetVersion, inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, frameRate, distributionVersion: SCORE_DISTRIBUTION_VERSION, ...(scorePrecision === 'screen' ? { scorePrecision } : {}) }),
@@ -159,7 +161,11 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
       chart: { id: timeline.chartId, level: timeline.level, difficultyFactor: timeline.difficultyFactor,
         convertedNoteCount: timeline.convertedNoteCount, eventCount: timeline.events.length,
         masterFullCombo: timeline.masterFullCombo, skillTimes: timeline.skillTimes, chartHash: timeline.chartHash },
-      warnings: timeline.warnings, ...(includeTrace ? { bestOrderNotes: scoreOrder(bestOrder, true).notes, bestOrderFixedScore: scoreOrder(bestOrder).fixedScore } : {}) };
+      warnings: timeline.warnings, ...(includeTrace ? { bestOrderNotes: bestTrace.notes, bestOrderFixedScore: bestTrace.fixedScore,
+        skillPlayback: { skills, skillTimes: timeline.skillTimes, frameRate, variants: [
+          { kind: 'best', order: [...bestOrder], ...bestTrace },
+          { kind: 'worst', order: [...worstOrder], ...worstTrace }
+        ] } } : {}) };
   }
   function upperBound(totalPower, scoreUpFactor) {
     if (eventAdapters.length) throw new Error("Event optimizer requires an independently audited upper bound");

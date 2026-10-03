@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 const fmt=n=>Math.round(n).toLocaleString('zh-CN');
 const el=(tag,text,className)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(className)node.className=className;return node;};
 
@@ -46,7 +47,7 @@ export function setupChallengeOptimizer(tool){
         }
         list.append(item);
       }
-      card.append(list);
+      card.append(list,skillActivation(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value)}));
       const apply=el('button','应用这支挑战队伍');apply.type='button';apply.addEventListener('click',()=>{
         tool.draft=structuredClone(row.draft);
         // The enclosing tool owns mode; do not leak challenge context into its ordinary calculators.

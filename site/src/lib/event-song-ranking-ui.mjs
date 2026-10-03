@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 import {eventSongCandidates,eventSongYield,sortEventSongs} from './event-song-ranking.mjs';
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
 const grades=['D','C','B','A','S','SS'];
@@ -51,7 +52,9 @@ export function setupEventSongRanking(tool){
    card.append(heading,meta);
    if(row.estimated)card.append(el('p',`综合力 ${fmt(row.power)} · AP ${fmt(row.estimatedScore)} 分 · 估计档位范围 ${grades[row.minimumRank-2]}–${grades[row.maximumRank-2]}`,'event-hint'));
    if(row.reward?.rewardBasis==='order_expectation')card.append(el('p',`以下为各顺序先判档、再结算的平均收益。档位分布：${row.gradeProbabilities.filter(g=>g.count).map(g=>`${grades[g.rank-2]} ${fmt(g.probability*100)}%`).join(' / ')}。假定 120 种 AP 技能顺序等可能。`,'event-hint'));
-   card.append(yields,choose);q('results').append(card);
+   card.append(yields,choose);
+   if(row.estimated)card.append(skillActivation(tool,{...structuredClone(tool.draft),selectedSongId:row.trackId,selectedDifficulty:row.difficulty},{mode:context.options.mode,eventId:context.eventId}));
+   q('results').append(card);
   }
   q('page').textContent=`${page+1} / ${pages}`;q('prev').disabled=page===0;q('next').disabled=page===pages-1;
   q('empty').hidden=ranked.length>0;

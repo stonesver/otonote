@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 import {teamLineup,scoreComposition} from './score-visuals.mjs';
 import {scoringScenarioSearch} from './scoring-rules/scenario-search.mjs';
 import {toolRoute} from './tool-route.mjs';
@@ -29,6 +30,7 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
       const link=el('a','查看分数明细 →');link.href=toolRoute(`/tools/song-calculator/${scoringScenarioSearch(result.draft,mode,result.scenario)}`,window.location.pathname);actions.append(link);
     }
     row.append(actions);
+    row.append(skillActivation(workbench,result.draft,{mode,scenario:result.scenario,conditionsOnly:objective==='formation_power'}));
     const detail=el('details',null,'recommendation-details');detail.append(el('summary','为什么推荐这支队伍？'));
     if(result.comparison){const c=result.comparison;detail.append(el('p',`相对原队：综合力 ${number(c.powerChangePercent)}%，目标分数 ${number(c.scoreChangePercent)}%。这是整队替换后的净变化。`));}
     if(result.sections){

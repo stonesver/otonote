@@ -54,6 +54,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     // Native replaces the old handle, preserving float32 subtraction/addition.
     if (e.scoreFactor) command(s, e, timeMs, -e.scoreFactor);
     if (value) command(s, e, timeMs, value);
+    if (trace) transitions.push({ frame: currentFrame, timeMs, sectionIndex: s.index, source: e.key, action: 'factor', value });
     e.scoreFactor = value;
   }
   function start(s, e, timeMs) {
@@ -194,9 +195,12 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
           start(s, e, s.history.at(-1)?.timeMs ?? timeMs);
         }
         for (const lot of s.previousLots) {
-          if (type === 11002 && lot.result === 3) s.luck.addBonusPoints(r._effectValue);
+          if (type === 11002 && lot.result === 3) { s.luck.addBonusPoints(r._effectValue);
+            if (trace) transitions.push({ frame, timeMs, sectionIndex: s.index, source: e.key, action: 'bonus', value: r._effectValue });
+          }
           if (type === 11003 && lot.result === 0 && e.trigger.some(c => c._conditionType === 7000) && e.uses < r._effectExecuteLimitCount) {
             s.luck.addGaugePercent(r._effectValue); e.uses++;
+            if (trace) transitions.push({ frame, timeMs, sectionIndex: s.index, source: e.key, action: 'gauge', value: r._effectValue });
           }
         }
         if (type === 13005) {

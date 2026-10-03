@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {rankGradeRows,SCORE_GRADES} from './song-grade-ranking.mjs';
 import { rankSongRows, RANKING_METRICS } from './song-ranking-view.mjs';
@@ -170,6 +171,7 @@ class SongRanking extends HTMLElement {
       root.append(node('p','当前技能条件如何影响本曲','ranking-detail-title'),skillDl);
       if(row.skillReference)root.append(node('p',`五次发动位置：${row.skillReference.startsSeconds.map(t=>number(t,2)+' 秒').join(' / ')}。按理想发动时机估算。`));
       this.distributionDetail(root,row);
+    this.activationDetail(root,row);
       const currentEdition=location.pathname.startsWith('/jp/')?'jp':'global';
       const linkReference=row.gradeReferences?.[currentEdition]??row.gradeReference;
       const edition=linkReference?.edition,locale=document.documentElement.lang||'zh-CN';
@@ -195,10 +197,19 @@ class SongRanking extends HTMLElement {
       root.append(node('p',`五次技能发动：${m.startsSeconds.map(time=>number(time,3)+' 秒').join(' / ')}。`));
     }
     this.distributionDetail(root,row);
+    this.activationDetail(root,row);
     if (row.sections) {
       const stages = node('div', '', 'ranking-stages');
       for (const s of row.sections) { const stage = node('div'); stage.append(node('span', `${['','COMBO','LUCK','JUST'][s.missionType]} / 第 ${s.index} 段`), node('strong', `+${number(s.rankingPercent)}%`), node('small', `名次奖励 ${number(s.rankingBonus)} 分 · 含奖励占全曲 ${number(s.share * 100, 1)}%`)); stages.append(stage); }
       root.append(stages, node('p', '分段百分比是该段额外奖励率，不是全曲倍率。LUCK 使用固定样本；样本范围及标准误不包含模型误差。'));
+    }
+  }
+  activationDetail(root,row){
+    if(row.replaySource){
+      const profile=this.querySelector('[data-grade-profile]').value;
+      const skills=this.mode==='ordinary'&&profile==='custom'?[...this.querySelectorAll('[data-skill-slot]')].map(slot=>({percent:Number(slot.querySelector('[data-skill-percent]').value),seconds:Number(slot.querySelector('[data-skill-seconds]').value)})):
+        Array.from({length:5},()=>({percent:profile==='none'&&this.mode==='ordinary'?0:row.benchmark.skillPercent,seconds:row.benchmark.skillSeconds}));
+      root.append(skillActivation(this,null,{mode:this.mode,ranking:{replaySource:row.replaySource,sourceId:row.sourceId,trackId:row.trackId,difficulty:row.difficulty,benchmark:row.benchmark,skills,frameRate:Number(this.querySelector('[data-replay-fps]').value)}}));
     }
   }
   distributionDetail(root,row){

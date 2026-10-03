@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 export const eventElement=(tag,text,className)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(className)node.className=className;return node;};
 export function currentEventDraft(tool){
  const draft=structuredClone(tool.draft);draft.modifiers??={};draft.modifiers.growth??={};
@@ -22,5 +23,5 @@ export function eventTeamDetails(tool,row){
      if(c?.imageUrl){const img=el('img');img.src=c.imageUrl;img.alt='';img.loading='lazy';img.addEventListener('error',()=>img.remove(),{once:true});cell.append(img);}
      cell.append(el('span',`${c?.displayName??id} · Lv.${g.level??'默认上限'} / 突破 ${g.rank??1}${kind==='member'?` / 技能 ${g.skillLevel??1}`:''}`));item.append(cell);
    }list.append(item);
- }details.append(list);return details;
+ }details.append(list,skillActivation(tool,row.draft,{mode:row.reward.mode,eventId:Number(tool.q('event').value)}));return details;
 }

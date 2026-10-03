@@ -1,0 +1,120 @@
+import {renderGekisouPlayback} from './gekisou-playback-view.mjs';
+import {activationRows, playbackDuration, noteDensity} from './skill-activation-model.mjs';
+const say = (zh,en) => document.documentElement.lang.startsWith('en') ? en : zh;
+const el = (tag,text,cls) => {const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
+const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+const seconds = n => `${fmt(n/1000)} s`;
+const effectNames = {2000:['得分提升','Score boost'],2004:['指定判定加分','Judgement score boost'],15000:['技能延长','Skill extension'],3001:['生命恢复','Life recovery'],12006:['判定转换','Judgement conversion'],13000:['JUST 计数加成','JUST count bonus'],12000:['COMBO 计数加成','COMBO count bonus'],11001:['LUCK 槽增益','LUCK gauge gain'],13002:['JUST 累计加成','Cumulative JUST bonus'],11002:['LUCK 点数追加','Extra LUCK points'],11003:['LUCK 槽追加','Extra LUCK gauge'],2001:['得分提升','Score boost'],4004:['JUST 判定扩大','JUST window'],11005:['LUCK 抽奖保底','LUCK minimum result'],13005:['Perfect 转 JUST','Perfect to JUST'],12004:['判定辅助','Judgement assistance']};
+const effectName = type => effectNames[type] ? say(...effectNames[type]) : say('技能效果','Skill effect');
+const label = (variant,random) => variant.kind==='explicit' ? say('指定判定回放','Entered performance') : variant.kind==='best' ? (random?say('最高分样本','Highest sample'):say('最高分顺序','Highest order')) : (random?say('最低分样本','Lowest sample'):say('最低分顺序','Lowest order'));
+function cardFor(data,kind,id){return data?.[`${kind}Cards`]?.find(c=>c.id===id);}
+function portrait(card){if(!card?.imageUrl)return null;const img=el('img');img.src=card.imageUrl;img.alt='';img.loading='lazy';img.addEventListener('error',()=>img.remove(),{once:true});return img;}
+function skillName(data,skill,slot){return cardFor(data,'member',skill.memberCardId)?.displayName ?? say(`技能 ${slot+1}`,`Skill ${slot+1}`);}
+function effectsList(data,skill,events=[]){
+  const list=el('ul',null,'activation-effects');
+  for(const [kind,effects] of [['member',skill.liveEffects??[]],['support',skill.supportEffects??[]]])for(const effect of effects){
+    const traced=events.find(e=>e.effectId===effect.id),active=traced?.active??effect.active;
+    const item=el('li');item.dataset.active=String(Boolean(active));
+    const name=kind==='support'?cardFor(data,kind,skill.supportCardId)?.displayName:null;
+    const state=active?say('生效','Active'):say('条件未满足','Condition unmet');
+    let value=effect.rate!=null?` +${fmt(effect.rate*100)}%`:effect.type===15000?` +${seconds(effect.value)}`:'';
+    item.append(el('strong',`${effectName(effect.type)}${value}`),el('span',state,'activation-state'));
+    if(name)item.append(el('small',name));
+    if(effect.durationMs!=null)item.append(el('small',say(`持续 ${seconds(effect.durationMs)}`,`Duration ${seconds(effect.durationMs)}`)));
+    if(active&&effect.contribution?.startsWith('no_score_change'))item.append(el('small',say('当前 AP／满生命条件下不增加分数','No score gain under the current AP / full-life assumptions')));
+    if(traced?.currentLife!=null)item.append(el('small',say(`判定条件时生命 ${fmt(traced.currentLife)}`,`Life at condition check: ${fmt(traced.currentLife)}`)));
+    list.append(item);
+  }
+  return list;
+}
+export function renderSkillActivation(root,result,data={}){
+  root.replaceChildren();const playback=result.skillPlayback;
+  if(!playback){
+    root.append(el('p',say('尚未指定歌曲，以下为 AP／满生命条件下的配对效果；选歌后可查看发动时间。','No chart selected. Pair effects below assume AP and full life; select a song for timing.')));
+    for(const skill of result.skills??[]){root.append(el('h4',skillName(data,skill,skill.slotIndex)),effectsList(data,skill));}return;
+  }
+  const heading=el('div',null,'activation-heading');heading.append(el('div',playback.ranges?say('技能与激奏回放','Skills & Gekisou replay'):say('技能发动时间轴','Skill activation timeline'),'activation-title'));
+  const power=result.power;heading.append(el('small',say(`本次综合力 ${fmt(power)}`,`Power ${fmt(power)}`)));root.append(heading);let selectedSlot=null;const gekisouState={};
+  const controls=el('div',null,'activation-controls');controls.setAttribute('role','group');controls.setAttribute('aria-label',say('回放顺序','Replay order'));root.append(controls);
+  const canvas=el('div',null,'activation-canvas');root.append(canvas);
+  function draw(index){
+    canvas.replaceChildren();[...controls.children].forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
+    const variant=playback.variants[index],rows=activationRows(playback,variant),duration=playbackDuration(playback,variant);
+    const summary=el('div',null,'activation-score');const scoreLabel=el('div',null,'activation-score-label');scoreLabel.append(el('span',label(variant,playback.randomSampling)),el('small',say('本次回放得分','Replay score')));summary.append(scoreLabel,el('strong',fmt(variant.score)));
+    if(playback.randomSampling&&variant.seed!=null)summary.append(el('small',`Seed ${variant.seed}`));canvas.append(summary);
+    canvas.append(el('p',playback.ranges?.length?say('平均分不对应单次回放。选择段落与技能，查看本次样本的任务、奖励与发动变化。','The mean is not a single replay. Select a section and skill to inspect this sample’s missions, rewards and activations.'):variant.kind==='explicit'?say('按导入的判定与指定顺序回放。点击时间条查看当时的技能条件。','Replayed from the entered judgements and skill order. Select an activation to inspect its conditions.'):say('平均分来自多种顺序，不对应单次发动。点击下方时间条，查看这一次的技能与音符。','The mean combines multiple orders. Select a timeline row to inspect one activation.'),'activation-caption'));
+    if(data.ranking)canvas.append(el('p',say('此处按当前技能逐谱精算；快速参考值可能与本次回放分数不同。','This view replays the current skills exactly; quick estimates may differ.'),'activation-caption'));
+    let ordinaryRoot=canvas;
+    if(playback.ranges?.length){
+      renderGekisouPlayback(canvas,result,variant,data,{el,say,fmt,seconds,cardFor,portrait,effectName},gekisouState);
+      ordinaryRoot=el('details',null,'gk-ordinary');ordinaryRoot.append(el('summary',say('普通演出技能 · 五人发动与覆盖','Ordinary live skills · Activations and coverage')));canvas.append(ordinaryRoot);
+    }
+    const stage=el('section',null,'activation-stage');stage.setAttribute('aria-label',say('技能发动时间谱','Skill activation tracks'));const stageHeader=el('div',null,'activation-stage-heading');stageHeader.append(el('strong',say('发动时间谱','Activation tracks')),el('span',say('选择一条音轨，查看技能详情','Select a track to inspect its skill')));stage.append(stageHeader);ordinaryRoot.append(stage);const scale=el('div',null,'activation-scale');for(let i=0;i<=4;i++)scale.append(el('span',seconds(duration*i/4)));stage.append(scale);
+    const density=el('div',null,'activation-density');density.setAttribute('aria-label',say('音符密度','Note density'));
+    const bins=noteDensity(variant.notes,duration),max=Math.max(1,...bins);for(const n of bins){const bar=el('i');bar.style.height=`${Math.max(2,n/max*100)}%`;density.append(bar);}stage.append(density);
+    const lanes=el('div',null,'activation-lanes'),inspection=el('div',null,'activation-inspection');stage.append(lanes);const legend=el('div',null,'activation-legend');legend.append(el('span',say('竖线 · 发动','Line · Start')),el('span',say('色块 · 得分窗口','Band · Score window')),el('span',say('上方柱形 · 音符密度','Bars above · Note density')));stage.append(legend);ordinaryRoot.append(inspection);
+    function select(row){
+      selectedSlot=row.slotIndex;
+      for(const button of lanes.children)button.setAttribute('aria-pressed',String(Number(button.dataset.position)===row.position));
+      inspection.replaceChildren();inspection.style.setProperty('--activation-color',`var(--activation-${row.slotIndex})`);
+      const profile=el('div',null,'activation-profile'),art=el('div',null,'activation-pair-art');
+      const memberArt=portrait(cardFor(data,'member',row.skill.memberCardId)),supportArt=portrait(cardFor(data,'support',row.skill.supportCardId));
+      if(memberArt)art.append(memberArt);else art.append(el('b',String(row.position+1)));
+      if(supportArt){supportArt.className='activation-support-art';art.append(supportArt);}
+      const profileText=el('div');profileText.append(el('span',say(`第 ${row.position+1} 次发动 · 位置 ${row.slotIndex+1}`,`Activation ${row.position+1} · Slot ${row.slotIndex+1}`),'activation-eyebrow'),el('h4',skillName(data,row.skill,row.slotIndex)));
+      const supportName=cardFor(data,'support',row.skill.supportCardId)?.displayName;
+      if(supportName)profileText.append(el('p',say(`搭配留影 · ${supportName}`,`Snap · ${supportName}`)));
+      profile.append(art,profileText);inspection.append(profile);
+      const stats=el('dl',null,'activation-stats');
+      for(const [name,value] of [[say('发动时刻','Start'),seconds(row.startMs)],[say('得分效果结束','Score effect ends'),row.windows.length?seconds(row.endMs):'—'],[say('留影延长','Extension'),seconds(row.skill.extensionMs??0)],[say('窗口内音符','Notes in windows'),fmt(row.covered.length)]]){const cell=el('div');cell.append(el('dt',name),el('dd',value));stats.append(cell);}inspection.append(stats,effectsList(data,row.skill,row.skillTrace));
+      if(!row.windows.length)inspection.append(el('p',say('本次没有生效的得分窗口；其他技能效果见上方。','No active score window for this activation. Other effects are listed above.')));
+      const detail=el('details',null,'activation-notes');detail.append(el('summary',say(`查看覆盖音符 · ${row.covered.length} 个`,`Inspect covered notes · ${row.covered.length}`)));
+      detail.append(el('p',say('按技能生效时间段统计，结束时刻不计入。音符分数包含当时所有效果，不是这张卡独立贡献；重叠窗口不能相加。','Coverage uses active time windows, excluding the end timestamp. Note scores include all effects, not an additive contribution from this card.')));
+      const table=el('table'),thead=el('thead'),tr=el('tr');for(const text of [say('时间','Time'),say('总加分倍率','Combined score factor'),say('音符得分','Note score')])tr.append(el('th',text));thead.append(tr);table.append(thead);
+      const body=el('tbody');table.append(body);detail.append(table);let page=0;const pager=el('div',null,'activation-pager'),prev=el('button',say('上一页','Previous')),next=el('button',say('下一页','Next')),status=el('span');prev.type=next.type='button';
+      const paint=()=>{body.replaceChildren();for(const n of row.covered.slice(page*20,page*20+20)){const line=el('tr');line.append(el('td',seconds(n.timeMs)),el('td',`${fmt(n.scoreUpFactor)}×`),el('td',fmt(n.score)));body.append(line);}prev.disabled=!page;next.disabled=(page+1)*20>=row.covered.length;status.textContent=`${page+1} / ${Math.max(1,Math.ceil(row.covered.length/20))}`;};
+      prev.addEventListener('click',()=>{page--;paint();});next.addEventListener('click',()=>{page++;paint();});pager.append(prev,status,next);detail.append(pager);paint();inspection.append(detail);
+    }
+    for(const row of rows){
+      const button=el('button',null,'activation-lane');button.type='button';button.dataset.position=row.position;button.style.setProperty('--activation-color',`var(--activation-${row.slotIndex})`);
+      const identity=el('span',null,'activation-identity');const img=portrait(cardFor(data,'member',row.skill.memberCardId));if(img)identity.append(img);identity.append(el('b',String(row.position+1)),el('span',skillName(data,row.skill,row.slotIndex)));
+      const track=el('span',null,'activation-track');for(const w of row.windows){const bar=el('span',null,'activation-window');bar.style.left=`${w.startMs/duration*100}%`;bar.style.width=`${Math.max(.25,(w.endMs-w.startMs)/duration*100)}%`;track.append(bar);}const pin=el('span',null,'activation-pin');pin.style.left=`${row.startMs/duration*100}%`;track.append(pin);
+      button.append(identity,track,el('span',seconds(row.startMs),'activation-time'));button.title=skillName(data,row.skill,row.slotIndex);button.setAttribute('aria-label',`${skillName(data,row.skill,row.slotIndex)} · ${seconds(row.startMs)}`);button.addEventListener('click',()=>select(row));
+      button.addEventListener('keydown',event=>{const offsets={ArrowDown:1,ArrowUp:-1,ArrowRight:1,ArrowLeft:-1};let target;
+        if(event.key in offsets)target=(row.position+offsets[event.key]+rows.length)%rows.length;
+        else if(event.key==='Home')target=0;else if(event.key==='End')target=rows.length-1;else return;
+        event.preventDefault();select(rows[target]);lanes.children[target].focus();});lanes.append(button);
+    }
+    if(rows.length)select(rows.find(row=>row.slotIndex===selectedSlot)??rows[0]);
+
+  }
+  playback.variants.forEach((v,i)=>{const b=el('button',label(v,playback.randomSampling));b.type='button';b.addEventListener('click',()=>draw(i));controls.append(b);});draw(0);
+}
+// Shared tool modules also import this file during server-side validation.
+if(typeof HTMLElement!=='undefined'&&typeof customElements!=='undefined'&&!customElements.get('skill-activation')){
+class SkillActivation extends HTMLElement {
+  connectedCallback(){if(this.initialized)return;this.initialized=true;const details=el('details',null,'skill-activation');const summary=el('summary'),mark=el('span',null,'activation-mark');mark.setAttribute('aria-hidden','true');for(let i=0;i<5;i++)mark.append(el('i'));
+    const summaryText=el('span',null,'activation-summary-text');summaryText.append(el('strong',say('查看技能发动','View skill activations')),el('small',say('发动顺序、技能条件与音符覆盖','Order, conditions and note coverage')));summary.append(mark,summaryText,el('span','⌄','activation-chevron'));details.append(summary);const body=el('div',null,'activation-body');details.append(body);this.append(details);
+    details.addEventListener('change',event=>event.stopPropagation());
+    details.addEventListener('toggle',()=>{if(!details.open){this.stop();return;}if(this.result){renderSkillActivation(body,this.result,this.data);return;}this.load(body);});
+  }
+  stop(){this.worker?.terminate();this.worker=null;}
+  disconnectedCallback(){this.stop();}
+  load(body){
+    this.stop();body.replaceChildren(el('p',say('正在重放这支队伍的技能…','Replaying skill activations…'),'activation-loading'));body.setAttribute('aria-busy','true');
+    const fail=message=>{this.stop();body.removeAttribute('aria-busy');body.replaceChildren(el('p',message));const retry=el('button',say('重试','Retry'));retry.type='button';retry.addEventListener('click',()=>this.load(body));body.append(retry);};
+    try{const worker=new Worker(new URL('./skill-activation-worker.mjs',import.meta.url),{type:'module'});this.worker=worker;
+      worker.onmessage=({data})=>{if(this.worker!==worker)return;if(data.error){fail(data.error);return;}this.stop();body.removeAttribute('aria-busy');this.result=data.result;renderSkillActivation(body,this.result,this.data);};
+      worker.onerror=()=>{if(this.worker===worker)fail(say('技能记录加载失败，请重试','Could not load skill records. Try again.'));};worker.postMessage(this.payload);
+    }catch(error){fail(error.message);}
+  }
+}
+customElements.define('skill-activation',SkillActivation);
+}
+export function skillActivation(tool,draft,options={}){
+  const data=tool.data??tool,view=document.createElement('skill-activation');view.data={memberCards:data.memberCards,supportCards:data.supportCards,ranking:Boolean(options.ranking)};
+  const copy=draft?structuredClone(draft):null;
+  const chart=options.chart??data.charts?.find(c=>c.trackId===copy?.selectedSongId&&c.difficulty===copy?.selectedDifficulty);
+  view.payload={rules:data.formalRules??data.rules,draft:copy,chart:options.conditionsOnly?null:chart,mode:options.mode??'ordinary',scenario:options.scenario,eventId:options.eventId,ranking:options.ranking,conditionsOnly:options.conditionsOnly};
+  view.result=options.result;return view;
+}

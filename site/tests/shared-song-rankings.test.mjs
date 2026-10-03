@@ -95,6 +95,41 @@ test('new edition score-rank thresholds do not split identical benchmark songs',
   }
 });
 
+test('card skill-effect updates do not duplicate either fixed-skill benchmark',async()=>{
+  const sources=await Promise.all(['global','jp'].map(async edition=>{
+    const value=source(edition,{rule:edition,chart:edition});
+    value.catalog.musicTracks[0].contentIdentity='shared-song';
+    value.catalog.musicCharts[0].contentIdentity='shared-notes';
+    value.data.gekisou=[{...value.data.ordinary[0],expectedScore:200}];
+    value.rules={sourceReleaseId:edition,native:{difficultyIncrement:0.005},tables:{
+      LiveNoteParameter:[{_scorePercent:100}],LiveComboScoreBonus:[{_bonusFactor:0.01}],
+      LiveSkill:[{_id:1}],LiveSkillEffect:[{_id:1,_liveSkillID:1,_effectValue:10000}]
+    }};
+    if(edition==='global'){
+      value.rules.tables.LiveSkill.push({_id:2});
+      value.rules.tables.LiveSkillEffect.push({_id:2,_liveSkillID:2,_effectValue:15000});
+      value.rules.tables.LiveSkillEffect[0]._effectValue=20000;
+    }
+    value.neutralRulesFingerprint=await neutralRankingRulesFingerprint(value.rules,edition);
+    return value;
+  }));
+  const before=structuredClone(sources);
+  for(const region of ['global','jp']){
+    const merged=combineSongRankings(sources,{region});
+    for(const mode of ['ordinary','gekisou']){
+      assert.equal(merged[mode].length,1);
+      assert.deepEqual(merged[mode][0].applicableEditions,['global','jp']);
+      assert.equal(merged[mode][0].expectedScore,mode==='ordinary'?100:200);
+    }
+  }
+  assert.deepEqual(sources,before,'published scoring inputs and scores are unchanged');
+  const changed=structuredClone(sources[1]);
+  changed.rules.tables.LiveComboScoreBonus[0]._bonusFactor=0.02;
+  changed.neutralRulesFingerprint=await neutralRankingRulesFingerprint(changed.rules,'jp');
+  const separate=combineSongRankings([sources[0],changed]);
+  for(const mode of ['ordinary','gekisou'])assert.equal(separate[mode].length,2,'real scoring changes must remain separate');
+});
+
 test('shared benchmark retains distinct edition thresholds for grade-power lookup',()=>{
  const a=source('global'),b=source('jp');
  for(const [i,s] of [a,b].entries())s.catalog.musicTracks[0].soloRewards={scoreRanks:[2,3,4,5,6,7].map((rank,j)=>({rank,requiredScore:j*(i+1)*1000}))};

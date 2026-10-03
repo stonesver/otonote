@@ -48,10 +48,10 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
       const training=el('div',null,'recommendation-training');training.append(el('strong',`这套队伍需要练好 ${planning.trainingChanges.length} 张卡`));
       const list=el('ul');for(const change of planning.trainingChanges)list.append(el('li',trainingDescription(change,workbench)));training.append(list);
       const values=[['当前卡库方案',planning.currentValue],['这套队伍按当前养成',planning.plannedTeamCurrentValue],['这套队伍达到目标后',planning.targetValue]];
-      if(!planning.missingActual&&values.some(([,v])=>v!=null)){const dl=el('dl',null,'recommendation-power');for(const [label,value] of values){const item=el('div');item.append(el('dt',label),el('dd',number(value)));dl.append(item);}training.append(dl);}
-      if(planning.missingActual)training.append(el('p','部分当前养成未记录，暂不计算比现在提高多少。'));
+      if(planning.plannedTeamCurrentValue!=null){const dl=el('dl',null,'recommendation-power');for(const [label,value] of values){const item=el('div');item.append(el('dt',label),el('dd',number(value)));dl.append(item);}training.append(dl);}
+      if(planning.missingActual)training.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成比较这套队伍；持有情况未确认，不与当前卡库最佳队伍比较。':'部分当前养成未记录，暂不计算比现在提高多少。'));
       training.append(el('p','材料消耗尚未核算；应用队伍不会修改实际卡库。'));row.append(training);
-    }else if(planning?.missingActual)row.append(el('p','包含参考养成，尚不能作为当前可用队伍或计算实际提升。','recommendation-caption'));
+    }else if(planning?.missingActual)row.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成计算；持有情况未确认。':'包含参考养成，尚不能作为当前可用队伍或计算实际提升。','recommendation-caption'));
     if(result.performanceSummary)row.append(el('p',typeof result.performanceSummary==='string'?result.performanceSummary:result.performanceSummary.label??'','recommendation-caption'));
     const actions=el('div',null,'recommendation-actions'),apply=el('button','应用队伍');apply.type='button';
     apply.addEventListener('click',()=>{workbench.draft=structuredClone(result.draft);workbench.planningScenarios?.restore();workbench.commit();workbench.dispatchEvent(new CustomEvent('calculator-edit-team'));workbench.querySelector('#team-editor')?.scrollIntoView({block:'start',behavior:'auto'});});actions.append(apply);

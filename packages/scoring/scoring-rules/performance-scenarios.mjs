@@ -13,6 +13,8 @@ export const PERFORMANCE_PROFILES = Object.freeze([
 ]);
 export function normalizePerformanceScenario(input = {}) {
   if (typeof input === 'string') input = { profile: input };
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('发挥情景格式无效');
+  if (input.version != null && input.version !== PERFORMANCE_SCENARIO_VERSION) throw new Error('发挥情景版本不受支持，请重新选择参考设置或重新导出演出记录');
   const profile = input.profile ?? 'steady';
   const preset = PERFORMANCE_PROFILES.find(row => row.id === profile);
   if (!preset && profile !== 'explicit') throw new Error('未知的发挥情景');
@@ -34,7 +36,8 @@ export function normalizePerformanceScenario(input = {}) {
   return { version: PERFORMANCE_SCENARIO_VERSION, profile, seed, samples: profile === 'explicit' ? 1 : samples,
     timingBiasMs, timingSpreadMs, missRate, difficultRanges, frameRate,
     ...(profile === 'explicit' ? { performance: structuredClone(input.performance) } : {}),
-    description: profile === 'explicit' ? '按指定操作回放。' : preset.description };
+    description: profile === 'explicit' ? '按指定操作文件与技能顺序回放；不从明确判定反推原始时机。'
+      : `整体偏差 ${timingBiasMs} 毫秒，波动在 ±${timingSpreadMs} 毫秒内均匀抽样，另有 ${Number((missRate * 100).toFixed(4))}% 漏击。${difficultRanges.length ? `另设 ${difficultRanges.length} 处难段，分别放大时机波动。` : ''}${samples} 组参考样本，不代表个人实测水平。` };
 }
 
 /** Generate once per chart/sample, never per candidate. Raw offsets are before

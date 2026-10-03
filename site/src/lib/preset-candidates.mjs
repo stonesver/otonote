@@ -1,3 +1,4 @@
+import { optimizeTeamPlanning } from './team-planning-optimizer.mjs';
 import { createInventoryManager } from './inventory-manager.mjs';
 import { optimizeInventory } from './inventory-optimizer.mjs';
 import { preparePresetDraft, presetWindowCardCount } from './preset-portfolio.mjs';
@@ -5,7 +6,24 @@ import { stableSnapshotHash } from './scoring-engine.mjs';
 
 /** Bounded seed generation, not a substitute for score-space search. Each seed
  * maximizes power in a type-focused pool; the portfolio later scores real charts. */
-export async function generatePresetCandidates({ rules, draft, inventory, songs, mode = 'gekisou', maxWindowCards = 1 }, { onProgress } = {}) {
+export async function generatePresetCandidates({ rules, draft, inventory, songs, mode = 'gekisou', maxWindowCards = 1, planningScenario, performanceScenario, constraints = {}, variantLimit = 24 }, { onProgress, yieldControl } = {}) {
+  if (planningScenario) {
+    const candidates = [], skipped = [], seen = new Set();
+    for (const [index,song] of songs.entries()) {
+      onProgress?.({completed:index,total:songs.length});
+      const report = await optimizeTeamPlanning({rules,draft:{...draft,selectedSongId:song.trackId,selectedDifficulty:song.difficulty},inventory,
+        planningScenario,performanceScenario,mode,objective:'formation_power',maxWindowCards,constraints,variantLimit,yieldControl});
+      for (const result of report.results) {
+        if (seen.has(result.id)) continue;seen.add(result.id);
+        candidates.push({id:`seed-${result.id}`,sourceReleaseId:rules.sourceReleaseId,draft:result.draft,
+          name:`${song.title??song.trackId} · ${result.planning.label}`,origin:'planning_power_seed'});
+      }
+      if(report.status!=='completed')skipped.push(`${song.title??song.trackId}：只比较了部分培养组合`);
+    }
+    onProgress?.({completed:songs.length,total:songs.length});
+    if(!candidates.length)throw Error('当前场景没有生成可用队伍，请检查卡片范围。');
+    return {candidates,skipped,warning:'这些是按保存的卡片与养成条件生成的综合力起点；请继续比较歌曲分数。'};
+  }
   if (!['ordinary', 'gekisou'].includes(mode) || ![0, 1].includes(maxWindowCards)) throw new Error('候选生成设置无效');
   const manager = createInventoryManager(rules), owned = manager.validate(inventory);
   if (owned.memberCardIds.length < 5 || owned.supportCardIds.length < 5) throw new Error('请先在个人卡库录入至少五个不同角色的成员及五张留影');

@@ -187,3 +187,14 @@ test('COMBO ranking uses maximum task combo even after a late break',()=>{
   assert.equal(result.sections[0].combo,9);assert.equal(result.sections[0].maxCombo,9);
   assert.equal(result.sections[0].rank,1);
 });
+
+test('saved scenario versions are checked and descriptions reflect normalized custom conditions',()=>{
+  assert.throws(()=>normalizePerformanceScenario({version:'performance-scenario-v999'}),/版本不受支持/);
+  assert.throws(()=>normalizePerformanceScenario({version:'performance-scenario-v0'}),/版本不受支持/);
+  const scenario=normalizePerformanceScenario({profile:'steady',timingBiasMs:25,timingSpreadMs:90,missRate:.035,samples:2,
+    difficultRanges:[{startMs:1000,endMs:2000,spreadMultiplier:2}],description:'旧的默认说明'});
+  assert.match(scenario.description,/25 毫秒/);assert.match(scenario.description,/±90 毫秒/);
+  assert.match(scenario.description,/3.5%/);assert.match(scenario.description,/1 处难段/);assert.match(scenario.description,/2 组参考样本/);
+  assert.doesNotMatch(scenario.description,/65|旧的默认说明/);
+  assert.deepEqual(normalizePerformanceScenario(scenario),scenario);
+});

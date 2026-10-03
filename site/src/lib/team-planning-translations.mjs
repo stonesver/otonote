@@ -331,7 +331,21 @@ Object.assign(teamPlanningEnglish, {
 for(const n of [1,2,3,4,5]){teamPlanningEnglish[`${n} 套`]=`${n} teams`;teamPlanningEnglish[`${n} 名`]=`Rank ${n}`;}
 for(const n of [1,2,3,5,10])teamPlanningEnglish[`${n} 张（成员和留影合计）`]=`${n} cards (members and memories combined)`;
 for(const n of [2,3,4,5])teamPlanningEnglish[`升至 ${n} 级`]=`Raise to level ${n}`;
+Object.assign(teamPlanningEnglish, {
+  '在当前计算条件下，这队的平均分较高。':'This team has a higher mean score under the selected conditions.',
+  '在相同发挥样本中，这队的较低分数较高。':'This team scores higher at the lower end of the same performance samples.',
+  '按各段计分事件数量衡量，这队的任务计数表现较好；可展开查看每段差别。':'This team has stronger mission counts, weighted by the number of scoring events in each section. Expand the details to compare sections.',
+  '在填写的对手条件下，这队的平均段落名次较好。':'This team has better average section ranks against the opponents entered.',
+  '在已比较的队伍中，这队综合力较高。':'This team has higher power among the teams checked.',
+  '换一首歌或改变发挥条件后，结果可能不同。':'Results may change with another song or different performance conditions.',
+  '没有填写对手，任务计数优势不等于一定拿第一。':'No opponents were entered. Stronger mission counts do not guarantee first place.',
+  '这是参考样本的比较，不是实战保底。':'This compares reference samples; it is not a guaranteed score.',
+  '先比较推荐分数和成员／留影搭配，再应用队伍；需要核对时打开计分明细。结果为参考估算，尚未完成当前游戏版本的实战核验。':'Compare scores and card pairings before applying a team. Open score details to check the calculation. These estimates have not been fully verified in the current game client.'
+});
 const patterns=[
+  [/^需要培养 (\d+) 张卡$/,(_,n)=>`Requires upgrading ${n} card${n==='1'?'':'s'}`],
+  [/^平均分比本次最高方案少 (.+) 分。$/,(_,n)=>`The mean score is ${n} points below the highest-scoring team checked.`],
+  [/^整体偏差 (.+) 毫秒，波动在 ±(.+) 毫秒内均匀抽样，另有 (.+)% 漏击。(?:另设 (\d+) 处难段，分别放大时机波动。)?(\d+) 组参考样本，不代表个人实测水平。$/,(_,bias,spread,miss,ranges,n)=>`Timing offset ${bias} ms, uniformly sampled spread ±${spread} ms, and ${miss}% additional misses.${ranges?` ${ranges} difficult sections increase timing spread.`:''} ${n} reference samples; these are not measurements of your play.`],
   [/^有 (\d+) 张卡尚未填全实际养成。请在「调整当前槽位的等级、突破与觉醒」中填写等级，并确认该槽位的显示值；也可以改用参考养成。$/,(_,n)=>`${n} cards have incomplete current-upgrade records. Open “Edit this slot’s levels, breakthroughs, and awakening”, enter levels, and confirm the displayed values. You may also use reference upgrades.`],
   [/^(成员|留影)等级（上限 (.+)）$/,(_,kind,cap)=>`${kind==='成员'?'Member':'Memory'} level (cap ${cap})`],
   [/^(成员|留影)突破阶数（1 = 未突破）$/,(_,kind)=>`${kind==='成员'?'Member':'Memory'} breakthrough stage (1 = no breakthrough)`],

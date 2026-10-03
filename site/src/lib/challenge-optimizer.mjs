@@ -18,7 +18,7 @@ export async function optimizeChallenge({rules,eventId,draft,chart,scope='owned'
     for(const [id,value] of Object.entries(next.modifiers.growth??{}))growth[id]={...growth[id],...value};
     next.modifiers.growth=growth;
   }
-  const result=await optimizePractical({rules,draft:next,chart,scope,inventory,objective,
+  const result=await optimizePractical({rules,draft:next,chart,scope,inventory,objective,performanceScenario:next.modifiers.performanceScenario,
     eventAdapters:[model.challengeAdapter(rules)],signal,onProgress,yieldControl});
   return {...result,mode:'challenge',eventId};
 }

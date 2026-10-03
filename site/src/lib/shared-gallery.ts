@@ -17,5 +17,5 @@ async function bindings(edition:string, catalog:typeof native | null) {
 const [primaryBindings,otherBindings]=await Promise.all([bindings(region,native),bindings(other,secondary)]);
 const values=kinds.map(kind=>mergeEditionRows(bindGalleryRows(native[kind],primaryBindings),
   secondary ? bindGalleryRows(secondary[kind],otherBindings) : null,
-  {region,locale,key:galleryIdentity,preferSecondary:preferAvailable,difference:row=>entityComparison('gallery',row)}));
+  {region,locale,path:undefined,key:galleryIdentity,preferSecondary:preferAvailable,difference:row=>entityComparison('gallery',row)}));
 export const gallery = {...native,...Object.fromEntries(kinds.map((kind,index)=>[kind,values[index]]))} as typeof native;

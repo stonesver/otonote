@@ -22,6 +22,7 @@ const cards=(rows: any[],kind:string)=>rows.map(c=>({...c,imageUrl:getAsset(c.th
 const charts=catalog.musicCharts.map(({id,trackId,difficulty,level,duration,analysisDataUrl})=>({id,trackId,difficulty,level,duration,analysisDataUrl}));
 const data=JSON.stringify({rules:formalRules,vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[],memberCards:cards(catalog.memberCards,'member'),supportCards:cards(catalog.supportCards,'support'),tracks:catalog.musicTracks,charts}).replaceAll('<','\\u003c');
 const rankLabels=['D','C','B','A','S','SS'];
+const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1 && a.code <= 5).map(a => ({...a, visual: filterVisual('attribute', String(a.code))}));
 ---
 <BaseLayout title="活动收益计算">
 <div class="tool-studio" data-tool-kind="event-efficiency">
@@ -45,7 +46,7 @@ const rankLabels=['D','C','B','A','S','SS'];
      <div data-yield-song-filters>
       <div class="event-controls event-option-row">
        <label>演奏乐队<select data-yield-band data-quick><option value="">全部乐队</option>{catalog.bands.map(b=>{const visual=filterVisual('band',b.id);return <option value={b.id} data-icon={visual.icon} data-icon-only={visual.iconOnly} data-round={visual.round}>{b.displayName}</option>;})}</select></label>
-       <label>歌曲属性<select data-yield-attribute data-quick><option value="">全部属性</option>{catalog.cardTaxonomy.attributes.filter(a=>a.code>=1&&a.code<=5).map(a=>{const visual=filterVisual('attribute',String(a.code));return <option value={a.code} data-icon={visual.icon} data-icon-only={visual.iconOnly}>{a.names[catalog.release.locale]}</option>;})}</select></label>
+       <label>歌曲属性<select data-yield-attribute data-quick><option value="">全部属性</option>{attributeFilters.map(a=><option value={a.code} data-icon={a.visual.icon} data-icon-only={a.visual.iconOnly}>{a.names[catalog.release.locale]}</option>)}</select></label>
       </div>
       <p class="event-hint">仅筛选普通演出的歌曲；同时选择乐队与属性时，只比较同时符合条件的歌曲。</p>
      </div>

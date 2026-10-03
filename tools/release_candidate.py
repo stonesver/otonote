@@ -21,6 +21,7 @@ GATES = {
     'python-delivery': ['python', '-m', 'unittest', 'tests.test_code_publication', 'tests.test_release_candidate', 'tests.test_runtime_bundle', 'tests.test_repository_hygiene', 'tests.test_costumes', 'tests.test_content_publication', 'tests.test_global_remote_sync'],
     'browser-content-contract': ['node', '--test', 'site/tests/independent-content.test.mjs', 'site/tests/tool-startup.test.mjs', 'site/tests/navigation-initial-state.test.mjs', 'site/tests/costumes.test.mjs', 'site/tests/card-recognition.test.mjs', 'site/tests/card-recognition-engine.test.mjs'],
     'shared-scoring': ['node', '--test', 'site/tests/scoring-engine.test.mjs', 'site/tests/formal-chart.test.mjs', 'site/tests/formal-native-state.test.mjs', 'site/tests/formal-note-core.test.mjs', 'site/tests/formal-score-replay.test.mjs', 'site/tests/formation-optimizer-worker.test.mjs', 'site/tests/shared-scoring-package.test.mjs', 'site/tests/band-item-totals.test.mjs'],
+    'performance-planning': ['node', '--test', 'site/tests/performance-scenarios.test.mjs', 'site/tests/growth-scenarios.test.mjs', 'site/tests/team-planning-integration.test.mjs', 'site/tests/team-planning-directions.test.mjs', 'site/tests/team-planning-scenario.test.mjs', 'site/tests/team-planning-localization.test.mjs', 'site/tests/manual-growth-input.test.mjs'],
 }
 
 

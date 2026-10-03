@@ -49,8 +49,10 @@ export function* practicalNeighbours(draft, inventory) {
 }
 
 export async function optimizePractical({ rules, draft, scope = 'selected', inventory, constraints = {}, theoreticalGrowth, chart,
-  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value, finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
+  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value, finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
   if(!Number.isInteger(finalistLimit)||finalistLimit<2||finalistLimit>24)throw Error('Invalid finalist limit');
+  if(!Number.isInteger(maxWindowCards)||maxWindowCards<0||maxWindowCards>5)throw Error('扩窗卡上限应为 0–5');
+  if(!Number.isInteger(resultLimit)||resultLimit<1||resultLimit>24)throw Error('Invalid result limit');
   const input = resolveSearchInput(rules, draft, { scope, inventory, constraints, theoreticalGrowth });
   if (!['ordinary', 'gekisou'].includes(mode)) throw new Error('演出模式无效');
   const stages = [{ id: 'prepare', label: '准备卡片与技能', completed: 0, total: null },
@@ -67,7 +69,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   const result = status => ({ status, searchMethod: 'practical', objective, searchScope: scope, mode,
     sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
     optimality: status === 'completed' ? 'practical_checked' : 'incomplete', evaluated: report.finalists,
-    results: [...results].sort(compareCandidates).slice(0, 3), baseline: baselineResult?.value ?? null,
+    results: [...results].sort(compareCandidates).slice(0, resultLimit), baseline: baselineResult?.value ?? null,
     baselineResult, warnings, practical: structuredClone(report), checkpoint: null,
     closeness: mode === 'gekisou' ? scoreCloseness([...results].sort(compareCandidates)[0], [...results].sort(compareCandidates)[1], objective) : null });
   const update = (index, completed, total) => {
@@ -80,7 +82,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   if (prepared) {
     Object.assign(report,structuredClone(prepared.report),{candidateCacheHit:true});
   } else {
-    const candidates=await prepareCandidates({rules,input,mode,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report});
+    const candidates=await prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report});
     if(!candidates||signal?.aborted)return result('cancelled');
     prepared={...candidates,report:{directions:report.directions,neighbourChecks:report.neighbourChecks,neighbourGenerated:report.neighbourGenerated}};
     if(candidateCacheKey!=null)candidateCache?.set(candidateCacheKey,structuredClone(prepared));
@@ -94,7 +96,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   const rawScore = (draft, precision) => {
     const key=precision+':'+signature(draft);
     if(scoreCache?.has(key)){report.scoreCacheHits++;return scoreCache.get(key);}
-    if(!evaluators.has(precision))evaluators.set(precision,createCandidateEvaluator({rules,chart,mode,objective,eventAdapters,scorePrecision:precision,
+    if(!evaluators.has(precision))evaluators.set(precision,createCandidateEvaluator({rules,chart,mode,objective,eventAdapters,performanceScenario,scorePrecision:precision,
       gekisouScenario:{...gekisouScenario,batches:precision==='screen'?1:Math.max(2,gekisouScenario.batches??1)}}));
     const value=evaluators.get(precision).score(draft);
     report.scoreCalculations++;scoreCache?.set(key,value);return value;
@@ -111,6 +113,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   const finalists = [], seen = new Set();
   const choose = c => { if (c && !seen.has(signature(c.draft)) && finalists.length < finalistLimit) { seen.add(signature(c.draft)); finalists.push(c); } };
   choose(screened[0]);
+  if(performanceScenario)choose([...screened].sort((a,b)=>(b.scoreDistribution?.p10??b.minimumScore??b.value)-(a.scoreDistribution?.p10??a.minimumScore??a.value))[0]);
   // Always retain the current legal team so screening cannot recommend a
   // strictly worse replacement under the final scoring model.
   choose(screened.find(c => c.origins.has('current')));
@@ -130,7 +133,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   return result('completed');
 }
 
-async function prepareCandidates({rules,input,mode,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report}) {
+async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report}) {
   const calculator = createFormationCalculator(rules, { eventAdapters }), members = new Map(rules.tables.MemberCard.map(r => [`member-card-${r._id}`, r]));
   const supports = new Map(rules.tables.SupportCard.map(r => [`support-card-${r._id}`, r]));
   const characterFor = id => members.get(id)._characterID;
@@ -163,7 +166,7 @@ async function prepareCandidates({rules,input,mode,eventAdapters,extraProfiles,p
       .map(effect => ({ mission: supportSkills.get(card[`_gekisouSupportSkillId0${i}`]), effect })))));
   }
   const isWindow = id => mode === 'gekisou' && supportFeatures.get(id)?.window;
-  const legal = d => legalPracticalDraft(d,input,characterFor,isWindow);
+  const legal = d => legalPracticalDraft(d,input,characterFor,isWindow,maxWindowCards);
   const memberCount = input.inventory.memberCardIds.length;
   let leaderCount = input.constraints.leaderId ? 1 : memberCount;
   const models = await compilePairingModels(rules, input, { signal, yieldControl, eventAdapters, pairCache, pairCacheKey,
@@ -199,8 +202,9 @@ async function prepareCandidates({rules,input,mode,eventAdapters,extraProfiles,p
     ...(mode === 'ordinary' ? [{ id: 'extension', label: '留影延时', feature: f => f.extension / extensionMax }] : []),
     { id: 'attribute', label: '歌曲同属性', feature: f => f.attribute },
     ...missions.map(t => ({ id: `mission-${t}`, label: `${['', 'COMBO', 'LUCK', 'JUST'][t]} 技能${t === 3 ? (requiredWindows.length ? ' · 保留必选判卡' : ' · 无判卡') : ''}`, feature: f => f.missions[t] / missionMax[t] })),
-    ...(missions.includes(3) ? [{ id: 'window', label: 'JUST · 单判卡', window: true, feature: f => f.missions[3] / missionMax[3] }] : []), ...extraProfiles];
-  if (requiredWindows.length > 1) throw new Error('实用推荐最多使用一张扩窗卡；请调整必选卡，或使用高级搜索。');
+    ...(missions.includes(3) && maxWindowCards ? [{ id: 'window', label: 'JUST · 判定改善', window: true, feature: f => f.missions[3] / missionMax[3] }] : []),
+    ...(missions.includes(3) && maxWindowCards>1 ? [{id:'window-combination',label:'JUST · 多张扩窗搭配',allWindows:true,feature:f=>f.missions[3]/missionMax[3]}] : []), ...extraProfiles];
+  if (requiredWindows.length > maxWindowCards) throw new Error('必选扩窗卡超过本次设置的上限，请调整配队条件。');
   const seedRows = [], screenDrafts = new Map();
   const add = (d, profile, kind) => { if (legal(d)) { const key = signature(d); const existing = screenDrafts.get(key);
     if (existing) existing.origins.add(profile.id); else screenDrafts.set(key, { draft: d, origins: new Set([profile.id]), kind }); } };
@@ -213,7 +217,16 @@ async function prepareCandidates({rules,input,mode,eventAdapters,extraProfiles,p
     const windows = profile.window ? (requiredWindows.length ? requiredWindows : input.inventory.supportCardIds.filter(isWindow)) : [requiredWindows[0] ?? null];
     for (const windowId of windows) for (const model of models) {
       if (signal?.aborted) return null;
-      const edges = model.edges.filter(e => !isWindow(e.support) || e.support === windowId)
+      // A bounded multi-window seed chooses its best distinct windows before pairing.
+      // This is a heuristic seed; the legality limit still applies to every neighbour.
+      const allowedWindows = new Set(requiredWindows);
+      if (windowId) allowedWindows.add(windowId);
+      if (profile.allWindows) {
+        const ranked = [...model.edges].filter(e => isWindow(e.support)).sort((a,b) =>
+          (b.weight + scale * 0.4 * profile.feature(features.get(b.key))) - (a.weight + scale * 0.4 * profile.feature(features.get(a.key))));
+        for (const edge of ranked) { if (allowedWindows.size >= maxWindowCards) break; allowedWindows.add(edge.support); }
+      }
+      const edges = model.edges.filter(e => !isWindow(e.support) || allowedWindows.has(e.support))
         .map(e => ({ ...e, weight: Math.round((profile.powerWeight??1)*e.weight + scale * (profile.featureWeight??0.4) * profile.feature(features.get(e.key),{memberCardId:e.member,supportCardId:e.support})) }));
       if (best && pairingProfileBound(edges,model.leader) <= best.weight) {
         report.prunedLeaders=(report.prunedLeaders??0)+1; await yieldControl(); continue;

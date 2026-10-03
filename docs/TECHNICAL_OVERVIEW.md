@@ -45,6 +45,14 @@ flowchart LR
 | `packaging/growth-tool/` | 本机运行的养成导出工具 | [工具说明](../packaging/growth-tool/README.md) |
 | `tests/`、`site/tests/` | Python 与 Node 验证 | 使用合成样例的离线检查，以及需另行提供资源的集成检查 |
 
+## 个人演出与配队
+
+配队页将卡片范围、培养目标、玩家发挥和推荐方向交给 `production-optimizer-worker`。规划入口调用 `team-planning-optimizer`，先检查培养变体，再用 `practical-optimizer` 生成并复算候选。不同方向比较整队结果，支配方案和重复队伍不另占一张推荐卡。
+
+纯计算来自共享包的 `growth-scenarios`、`performance-scenarios` 和 `performance-scenario-calculator`。普通、激奏及挑战适配共享输入；收益模块从分数估计档位再换算活动收益。个人搜索没有新增后端接口。详情回放与推荐沿用相同发挥条件；预设保留计划语义，更新实际卡库后重新计算差额。
+
+用户说明见[使用指南](USER_GUIDE.md)，设计范围和验收条件见[演出与配队设计](plans/2026-10-04-performance-and-team-planning-design.md)。
+
 ## 网页与内容如何配合
 
 页面使用 Astro 模板和 TypeScript。仓库保留传统 Astro 静态投影构建，但公开源码的默认预览入口是 `scripts/build-web-client.sh --preview`。它编译页面、交互脚本及 Worker，不读取整套游戏快照。共享样式和品牌信息由网站层统一管理。

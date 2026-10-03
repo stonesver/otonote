@@ -11,7 +11,7 @@ export function applyEventPlan(tool,row,mode){
  tool.q('mode').value=mode;tool.q('song').value=row.song.trackId;tool.q('rank').value=String(row.reward.scoreRank);
  tool.pairs.forEach((p,i)=>{for(const kind of ['member','support']){const id=tool.draft.slots[i][`${kind}CardId`];p.querySelector(`[data-${kind}]`).value=id;p.querySelector(`[data-${kind}-rank]`).value=tool.draft.modifiers.growth?.[id]?.rank??1;}});
  tool.q('bonus-source').value='team';tool.q('song-disclosure').open=false;tool.songPicker?.reset();tool.songPicker?.sync();tool.render();
- tool.q('team-status').textContent='已应用收益方案的队伍、歌曲与 AP 估计档位；可按实打情况调整档位。';
+ tool.q('team-status').textContent='已应用收益方案的队伍、歌曲与当前条件下的估计档位；可按实打情况调整档位。';
 }
 export function eventTeamDetails(tool,row){
  const el=eventElement,details=el('details',null,'event-details'),list=el('ol',null,'challenge-opt-pairs');

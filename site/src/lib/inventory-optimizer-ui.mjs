@@ -103,11 +103,11 @@ export function setupInventoryOptimizer(workbench) {
           const p=data.progress;
           if(p.phase==='planning'){progress.textContent=ui(p.message??`已比较 ${p.completed} 组培养范围`);return;}
           if(p.phase==='practical'){
-            progress.textContent=ui(`${p.stage} · ${p.completed}/${p.total}`);
+            progress.textContent=(p.planningVariant?`${ui(`比较培养方案 ${p.planningVariant}`)} · `:'')+ui(`${p.stage} · ${p.completed}/${p.total}`);
             const stages=q('[data-practical-progress]');stages.replaceChildren();
             for(const stage of p.stages){const item=document.createElement('li');item.dataset.complete=String(stage.total!=null&&stage.completed===stage.total);item.textContent=ui(`${stage.label}：${stage.total==null?'待开始':`${stage.completed} / ${stage.total}`}`);stages.append(item);}return;
           }
-          if(p.phase==='practical-result'){if(p.bestCandidate)renderOptimizerResults(workbench,[p.bestCandidate],{mode,objective,live:true});return;}
+          if(p.phase==='practical-result'){if(p.bestCandidate&&!settings.planningScenario)renderOptimizerResults(workbench,[p.bestCandidate],{mode,objective,live:true});return;}
 
           if(p.phase==='fallback'){progress.textContent=ui(p.message);return;}
           progress.textContent=ui(p.phase==='search'?`已比较 ${p.completed} 组 · 当前最佳 ${format(p.best)}`:p.phase==='placements'?`正在比较候选站位 ${p.completed}/${p.total}`:`准备${p.phase==='pair_weights'?'卡片配对':'队长加成'} ${p.completed}/${p.total}`);

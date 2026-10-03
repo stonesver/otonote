@@ -6,7 +6,9 @@ export async function neutralRankingRulesFingerprint(rules, releaseId) {
   const value=stableContent([rules.native,Object.fromEntries(Object.entries(rules.tables)
     // LiveScoreRank maps final scores to reward grades; it never contributes
     // to the fixed-power benchmark. Edition-specific songs add unrelated rows.
-    .filter(([name])=>name.startsWith('Live') && !['LiveMusic','LiveMusicScore','LiveSkill','LiveScoreRank'].includes(name)))]);
+    // Both benchmark modes construct fixed skill effects from the benchmark
+    // settings, so new card skills and their effect rows cannot split songs.
+    .filter(([name])=>name.startsWith('Live') && !['LiveMusic','LiveMusicScore','LiveSkill','LiveSkillEffect','LiveScoreRank'].includes(name)))]);
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),
     byte=>byte.toString(16).padStart(2,'0')).join('');
 }

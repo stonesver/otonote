@@ -67,11 +67,10 @@
 .tool-task-tabs button strong,.tool-task-tabs button small {display:block;}
 .tool-task-tabs button small {font-size:12px;margin-top:5px;line-height:1.6;}
 .tool-task-tabs button[aria-pressed=true] {border-color:var(--lacquer);box-shadow:inset 0 -3px var(--lacquer);background:#faf3f7;}
-.event-workbench[data-task=quick] .event-steps,.event-workbench[data-task=quick] #event-song {display:none;}
+.event-workbench[data-task=quick] #event-song {display:none;}
 .event-workbench[data-task=quick] #event-team> :not(.event-quick-bonus):not([data-bonus]) {display:none;}
 .event-workbench[data-task=quick] .event-quick-bonus>summary,.event-workbench[data-task=quick] .event-quick-bonus>label {display:none;}
 .event-workbench[data-task=quick] .event-quick-bonus {margin:0;border:0;padding:0;}
-.event-workbench .event-steps {display:none;}
 .event-workbench .event-panel-heading p {margin-bottom:0;}
 .event-workbench .event-summary {top:84px;}
 .event-workbench .event-summary-next {line-height:1.7;}

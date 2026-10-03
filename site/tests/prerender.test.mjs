@@ -39,6 +39,8 @@ test('tool HTML prepares automatically with the original loading scene and prelo
   assert.equal(result.payloads.length,1);
   assert.deepEqual(JSON.parse(result.payloads[0].bytes),{models:[1]});
   assert.match(result.html,/<live2d-workbench inert=""/);
+  assert.match(result.html,/<live2d-workbench[^>]* hidden=""/);
+  assert.match(result.html,/\[data-tool-pending\]\s*\{\s*display:\s*none\s*!important/);
   assert.doesNotMatch(result.html,/data-tool-start/);
   assert.match(result.html,/data-tool-status/);
   assert.match(result.html,/loading-companion/);
@@ -56,12 +58,13 @@ test('ordinary pages retain data and scripts, expose first images without waitin
   assert.match(result.html,/<h1>Cards<\/h1>/);
   assert.doesNotMatch(result.html,/data-tool-start/);
 });
-for (const [route, tag] of [['song-ranking','song-ranking'],['event-efficiency','event-efficiency-tool']]) {
-  test(`${route} keeps useful HTML while moving its large dataset into a cached payload`, () => {
+for (const [route, tag] of [['song-ranking','song-ranking'],['event-efficiency','event-efficiency-tool'],['ap-grade','ap-grade-tool'],['deck-builder','team-draft-workbench'],['song-calculator','scoring-research-workbench']]) {
+  test(`${route} keeps its controls hidden while preparing the cached payload`, () => {
     const result = prepareHtml(`<html><head></head><body><main><${tag}><h2>Results</h2><script type="application/json">{"rows":[1,2]}</script></${tag}></main><script type="module" src="/app/releases/abc/scripts/tool.js"></script></body></html>`, {...args,route:`tools/${route}`});
     assert.equal(result.payloads.length,1);
     assert.match(result.html,/<h2>Results<\/h2>/);
     assert.match(result.html,/data-deferred-json/);
+    assert.match(result.html,new RegExp(`<${tag}[^>]* hidden=""`));
     assert.match(result.html,/rel="modulepreload"/);
     assert.doesNotMatch(result.html,/data-tool-start/);
   });

@@ -1,6 +1,7 @@
 import {parse, parseFragment, serialize} from '../site/node_modules/parse5/dist/index.js';
 import {createHash} from 'node:crypto';
-import {loadingPresentation} from '../site/src/runtime/loading-presentation.mjs';
+import {loadingPresentation, fallbackLoadingArt} from '../site/src/runtime/loading-presentation.mjs';
+import {toolTags, toolPendingStyle} from '../site/src/runtime/tool-startup.mjs';
 
 const attr = (node, name) => node.attrs?.find(a => a.name === name)?.value;
 function set(node, name, value) {
@@ -25,7 +26,7 @@ export function redirectHtml(href, locale, {preserveLocation = false, storyDirec
   return `<!doctype html><html lang="${locale}" data-prerendered="true"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${escaped}"><title>OtoNote</title></head><body><a href="${escaped}">Continue / 继续</a><script>${redirect}</script></body></html>`;
 }
 
-export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bootstrap, navigationScript = '', css, stylesheet, locale, route, derivedRoot}) {
+export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bootstrap, navigationScript = '', loadingArt = fallbackLoadingArt(codeRoot), css, stylesheet, locale, route, derivedRoot}) {
   const doc = parse(html), all = [];
   walk(doc, node => all.push(node));
   const head = all.find(n => n.tagName === 'head');
@@ -53,9 +54,11 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     }
   }
   const payloads = [];
-  const tool = (route.startsWith('tools/') || route === 'my-growth') && all.find(n => ['personal-growth-workbench','team-draft-workbench','scoring-research-workbench','live2d-workbench','song-ranking','event-efficiency-tool'].includes(n.tagName));
+  const tool = (route.startsWith('tools/') || route === 'my-growth') && all.find(n => toolTags.includes(n.tagName));
   if (tool) {
     set(tool, 'inert', ''); set(tool, 'data-tool-pending', ''); set(tool, 'aria-busy', 'true');
+    set(tool, 'hidden', '');
+    append(head, fragment(`<style data-tool-visibility-style>${toolPendingStyle}</style>`)[0]);
     walk(tool, node => {
       if (node.tagName !== 'script' || attr(node, 'type') !== 'application/json') return;
       const bytes = Buffer.from(node.childNodes.map(n => n.value ?? '').join(''));
@@ -70,7 +73,7 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     const scene = loadingPresentation('tool', locale);
     const gate = fragment(`<section data-tool-gate>
       <div class="loading-interlude" data-loading-interlude>
-        <div class="loading-mini-stage" aria-hidden="true"><span class="loading-stage-orbit"></span><span class="loading-stage-star">✦</span><span class="loading-stage-note">♪</span><img class="loading-companion" src="${codeRoot}loading/${scene.art}" width="128" height="128" alt=""><span class="loading-stage-shadow"></span></div>
+        <div class="loading-mini-stage" aria-hidden="true"><span class="loading-stage-orbit"></span><span class="loading-stage-star">✦</span><span class="loading-stage-note">♪</span><img class="loading-companion" src="${loadingArt[scene.art]}" width="128" height="128" alt=""><span class="loading-stage-shadow"></span></div>
         <div class="loading-interlude-copy"><span class="loading-cue">${en ? 'BEFORE THE SHOW' : '开演之前'}</span><p class="loading-caption">${scene.caption}</p><p role="status"><span class="loading-dot" aria-hidden="true"></span><span data-tool-status>${en ? 'Preparing your tool…' : '正在准备工具，马上就好…'}</span></p><button type="button" data-tool-retry hidden>${en ? 'Reload' : '重新加载'}</button></div>
         <div class="loading-beat" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
       </div>
@@ -88,7 +91,7 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
       set(node, 'data-deferred-module', attr(node, 'src')); remove(node, 'src'); set(node, 'type', 'application/x-ournotes-deferred');
     }
   }
-  const config = {schemaVersion:1, pointer, codeRoot, app:{schemaVersion:app.schemaVersion, routes:app.routes, endpoints:app.endpoints, scripts:app.scripts}};
+  const config = {schemaVersion:1, pointer, codeRoot, loadingArt, app:{schemaVersion:app.schemaVersion, routes:app.routes, endpoints:app.endpoints, scripts:app.scripts}};
   const initializer = fragment(`<script>globalThis[Symbol.for('ournotes.prerender.v1')]=${safeJson(config)};${bootstrap.replace(/<\/script/gi, '<\\/script')};${navigationScript.replace(/<\/script/gi, '<\\/script')}</script>`)[0];
   initializer.parentNode = head; head.childNodes.unshift(initializer);
   if (stylesheet !== undefined) {

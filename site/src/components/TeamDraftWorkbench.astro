@@ -4,6 +4,7 @@ const optionVisual = (kind: string, value: string | number) => {
   const visual = filterVisual(kind, String(value));
   return {'data-icon': visual.icon, 'data-icon-only': visual.iconOnly ? 'true' : undefined, 'data-round': visual.round ? 'true' : undefined};
 };
+import TeamPlanningScenario from "./TeamPlanningScenario.astro";
 import SelectionFilters from "./SelectionFilters.astro";
 import "../styles/calculator-workflow.css";
 import "../styles/score-visuals.css";
@@ -72,7 +73,7 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
 {rulesAvailable ? <team-draft-workbench class="team-workbench">
   <script is:inline type="application/json" data-team-draft-data set:html={clientData}></script>
   <section class="calculator-journey">
-    <header class="journey-heading"><div><span>当前选择</span><p class="journey-context">先选歌，再用你的卡库找一套配队。</p></div></header>
+    <header class="journey-heading"><div><span>当前选择</span><p class="journey-context">先选歌，再选择卡片和这次想比较的条件。</p></div></header>
     <div class="journey-tasks" role="group" aria-label="选择配队任务"><button type="button" data-journey-task="automatic" aria-pressed="true">帮我配一队</button><button type="button" data-journey-task="saved" aria-pressed="false">比较队伍 / 换卡</button></div>
     <section class="journey-step" data-journey-step="0" id="journey-step-0">
   <section class="team-draft-settings" id="song-settings" aria-labelledby="team-settings-title">
@@ -102,16 +103,13 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
   </section>
     </section>
     <section class="journey-step" data-journey-step="1" id="journey-step-1">
-      <h3>用哪些卡来配？</h3><p class="journey-intro">推荐先导入游戏养成；也可以手动录入，或用全部满养成卡先体验。</p>
+      <h3>用哪些卡来配？</h3><p class="journey-intro">可以直接看参考队伍，也可以手选卡、使用卡库或比较培养后的搭配。</p>
 <label hidden class="selection-filter-row"><span>使用哪些卡牌</span><select data-search-scope>
       <option value="selected">当前所选 5＋5 张卡</option>
       <option value="owned">已拥有卡库（填写实际养成）</option>
       <option value="theoretical">全部卡库（卡片满养成）</option>
-    </select></label><div class="journey-choices" role="group" aria-label="选择卡库" data-choices="search-scope">
-<button type="button" data-choice="owned" aria-pressed="false"><strong>我的卡库</strong><span>使用已保存卡库与养成；需要时再展开编辑。</span></button>
-<button type="button" data-choice="theoretical" aria-pressed="false"><strong>全部卡牌</strong><span>卡片按满养成比较，结果可能包含你还没有的卡。</span></button>
-<button type="button" data-choice="selected" aria-pressed="false"><strong>当前这十张</strong><span>保留已选成员与留影，重新分配配对和队长。</span></button>
-</div>
+    </select></label>
+<TeamPlanningScenario part="cards" />
       <p class="calculator-scope-note" data-inventory-scope-note></p>
     <InventoryEditor attributes={attributes.map(a=>({value:a,label:getCardAttribute(a)?.names[catalog.release.locale] ?? String(a)}))} rarities={rarities.map(r=>({value:r,label:getCardRarity(r)?.label ?? String(r)}))} />
       <details class="journey-manual" hidden><summary>编辑当前五名成员和五张留影</summary>
@@ -191,14 +189,16 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
   </details>
     </section>
     <section class="journey-step" data-journey-step="2" id="journey-step-2">
-      <h3>这次想打普通，还是激奏？</h3><p class="journey-intro">默认全 Perfect（AP），以平均分推荐。通常保持默认即可。</p>
+      <h3>这次想打普通，还是激奏？</h3><p class="journey-intro">选好模式后，按参考发挥比较；也可以看看理想发挥或练习时的差别。</p>
 <label hidden class="selection-filter-row"><span>演出模式</span><select data-pairing-mode><option value="ordinary">自由演出 · 普通</option><option value="gekisou">激奏演出</option></select></label><div class="journey-choices" role="group" aria-label="选择演出模式" data-choices="pairing-mode">
 <button type="button" data-choice="ordinary" aria-pressed="false"><strong>普通自由演出</strong><span>比较综合力、加分技能和留影延时。</span></button>
 <button type="button" data-choice="gekisou" aria-pressed="false"><strong>激奏演出</strong><span>加上 COMBO / LUCK / JUST 三段任务与奖励。</span></button>
 </div>
-    <details class="calculator-extra" data-gekisou-settings hidden><summary>调整激奏条件 <span>默认零偏差、三段第一；可输入对手</span></summary><div class="calculator-extra-body">
-      <p>默认 AP＋零偏差、三段均第一。AP 不代表全 JUST；按理想时钟逐帧计算，LUCK 采用概率抽样，名次由指定值或对手段落数据计算。</p>
-      <label>判定偏差（毫秒）<input data-gekisou-offset type="number" min="-50" max="50" step="1" value="0" /></label>
+    <TeamPlanningScenario part="performance" />
+    <p class="calculator-scope-note" data-gekisou-rank-note hidden>尚未填写对手时，按指定名次比较（初始为三段第一），不代表实战能拿第一。可在下方调整。</p>
+    <details class="calculator-extra" data-gekisou-settings hidden><summary>调整激奏条件 <span>名次、对手与抽样</span></summary><div class="calculator-extra-body">
+      <p>发挥按上面的选择计算。未填对手时使用指定名次；增加任务计数能否抢到更高名次，需要结合对手判断。LUCK 使用抽样。</p>
+      <label hidden>旧版判定偏差（毫秒）<input data-gekisou-offset type="number" min="-50" max="50" step="1" value="0" /></label>
       {[1, 2, 3].map(i => <label>第 {i} 段名次 <select data-gekisou-rank>{[1, 2, 3, 4, 5].map(rank => <option value={rank}>{rank}</option>)}</select></label>)}
     <GekisouOpponentInputs />
       <label>抽样批数（每批 120 次）<input data-gekisou-batches type="number" min="1" max="32" step="1" value="1" /></label>
@@ -206,7 +206,7 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
       <label>模拟帧率 <select data-gekisou-fps><option value="60">60 FPS</option><option value="120">120 FPS</option></select></label>
       <p>建议用平均分搜索，再增加批数或更换种子复算接近的候选。样本最高分不等于理论最高分。</p>
     </div></details>
-      <p class="journey-intro">默认使用实用推荐：先筛选组合，再精算领先队伍。通常先保持默认即可。</p>
+      <p class="journey-intro">推荐会保留有实际区别的搭配；如果几种方向得到同一队，就合并显示。</p>
       <details class="journey-advanced"><summary>限定乐队、属性或调整目标（可选）</summary>
 <label class="selection-filter-row"><span>搜索深度</span><select data-search-effort><option value="practical" selected>实用推荐 · 固定阶段</option><option value="complete">完整搜索 · 不限组数</option><option value="20">高级限量搜索 · 20 组</option><option value="200">高级限量搜索 · 200 组</option><option value="custom">自定义计算组数</option></select></label>      <p class="calculator-scope-note" data-search-effort-note></p><p class="calculator-scope-note" data-search-space></p>
 <label class="selection-filter-row"><span>优化目标</span><select data-pairing-objective>
@@ -220,6 +220,9 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     <label class="selection-filter-row"><span>成员属性</span><select data-search-attribute data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
     <label class="selection-filter-row"><span>留影属性</span><select data-search-support-attribute data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
     </div></FilterPanel></div>
+    <label class="selection-filter-row"><span>最多带几张扩窗成员卡</span><select data-planning-window-limit>{[5,0,1,2,3,4].map(n=><option value={n}>{n===5?'不限':`${n} 张`}</option>)}</select></label>
+    <label class="selection-filter-row"><span>培养范围比较上限</span><input type="number" data-planning-variant-limit min="1" max="1000" value="24" /></label>
+    <p class="calculator-scope-note">这是本次推荐的搜索设置，不是游戏限制。培养组合较多时，可以先指定愿意练的卡。</p>
     <details class="optimizer-advanced"><summary>高级约束：必选卡与固定配对</summary>
       <p>JSON 可设置 bandId、attribute、supportAttribute、leaderId、requiredMemberIds、requiredSupportIds、excludedMemberIds、excludedSupportIds、lockedPairs。卡片 ID 支持数字。固定配对示例：&#123;"lockedPairs":[&#123;"memberCardId":1,"supportCardId":1&#125;]&#125;。</p>
       <label>搜索约束 <textarea data-search-constraints rows="4">&#123;&#125;</textarea></label>
@@ -238,8 +241,8 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
       <p class="journey-results-tip">先比较推荐分数和成员／留影搭配，再应用队伍；需要核对时打开计分明细。结果为参考估算，尚未完成当前游戏版本的实战核验。</p>
   <section class="optimizer-results-panel" id="optimizer-results" aria-labelledby="optimizer-results-title">
     <header class="tool-panel-header"><div><span>比较这首歌的出分</span><h2 id="optimizer-results-title">推荐编成</h2></div><span class="calculator-search-state" data-search-state>等待开始</span></header>
-    <p class="calculator-progress" data-pairing-progress aria-live="polite">搜索时会持续显示当前最佳。快速推荐结束后，可以继续深入；只有搜索完成才会标明模型内最优。</p>
-    <div class="calculator-empty" data-results-empty><div class="calculator-empty-slots" aria-hidden="true">{[1,2,3,4,5].map(i=><span class:list={[i===3&&'is-leader']}>{i===3?'队长':i}</span>)}</div><h3>你的下一支队伍，从这里开始。</h3><p>先选择歌曲和卡库，推荐会同时展示成员、留影与相对原队的分数变化。</p></div>
+    <p class="calculator-progress" data-pairing-progress aria-live="polite">计算时可以停止；修改卡片或条件后，需要重新比较。</p>
+    <div class="calculator-empty" data-results-empty><div class="calculator-empty-slots" aria-hidden="true">{[1,2,3,4,5].map(i=><span class:list={[i===3&&'is-leader']}>{i===3?'队长':i}</span>)}</div><h3>选好歌曲，就可以开始配队。</h3><p>还没录入卡库也没关系，可以先看参考队伍。结果会说明使用了哪些卡、按什么养成计算。</p></div>
     <ol data-practical-progress class="practical-progress" aria-label="实用推荐进度" hidden></ol>
     <p data-practical-summary hidden></p>
     <ol data-pairing-results></ol>

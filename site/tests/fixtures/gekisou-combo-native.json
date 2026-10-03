@@ -1,0 +1,609 @@
+{
+  "clientSha256": "514a5b73d038c264b60cc91fd4a747cf178190c6b2096e6d7007c2020e2b1bca",
+  "decodedSha256": "393a166e12f1886597709aa82e93bc58283631d629238e10e22fa10efc3f24eb",
+  "method": "GekisouController.RecalculateBonusDependentCounts",
+  "instructionRange": "0x55d6d20..0x55d6e8c",
+  "scope": "Original judgement block executed in Unicorn. Generic List item read, write and removal are fixture callbacks. Initial combo=5, maxCombo=8, gain=3; finite protections start at 2 charges. Not the complete method or Unity loop.",
+  "cases": [
+    {
+      "judgement": 1,
+      "masks": [],
+      "unlimited": [],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 1,
+      "masks": [],
+      "unlimited": [
+        2
+      ],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 1,
+      "masks": [
+        2
+      ],
+      "unlimited": [],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        1
+      ]
+    },
+    {
+      "judgement": 1,
+      "masks": [
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        1
+      ]
+    },
+    {
+      "judgement": 1,
+      "masks": [
+        4
+      ],
+      "unlimited": [],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 1,
+      "masks": [
+        4
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 1,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        1,
+        1
+      ]
+    },
+    {
+      "judgement": 1,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        1,
+        1
+      ]
+    },
+    {
+      "judgement": 2,
+      "masks": [],
+      "unlimited": [],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 2,
+      "masks": [],
+      "unlimited": [
+        2
+      ],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 2,
+      "masks": [
+        2
+      ],
+      "unlimited": [],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 2,
+      "masks": [
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 2,
+      "masks": [
+        4
+      ],
+      "unlimited": [],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        1
+      ]
+    },
+    {
+      "judgement": 2,
+      "masks": [
+        4
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 5,
+      "maxCombo": 8,
+      "remaining": [
+        1
+      ]
+    },
+    {
+      "judgement": 2,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 2,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 0,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 3,
+      "masks": [],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 3,
+      "masks": [],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 3,
+      "masks": [
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 3,
+      "masks": [
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 3,
+      "masks": [
+        4
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 3,
+      "masks": [
+        4
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 3,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 3,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 4,
+      "masks": [],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 4,
+      "masks": [],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 4,
+      "masks": [
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 4,
+      "masks": [
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 4,
+      "masks": [
+        4
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 4,
+      "masks": [
+        4
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 4,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 4,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 5,
+      "masks": [],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 5,
+      "masks": [],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 5,
+      "masks": [
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 5,
+      "masks": [
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 5,
+      "masks": [
+        4
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 5,
+      "masks": [
+        4
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 5,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 5,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 6,
+      "masks": [],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 6,
+      "masks": [],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": []
+    },
+    {
+      "judgement": 6,
+      "masks": [
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 6,
+      "masks": [
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 6,
+      "masks": [
+        4
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 6,
+      "masks": [
+        4
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2
+      ]
+    },
+    {
+      "judgement": 6,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    },
+    {
+      "judgement": 6,
+      "masks": [
+        2,
+        2
+      ],
+      "unlimited": [
+        2
+      ],
+      "combo": 8,
+      "maxCombo": 8,
+      "remaining": [
+        2,
+        2
+      ]
+    }
+  ]
+}

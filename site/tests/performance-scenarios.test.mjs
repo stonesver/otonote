@@ -140,3 +140,46 @@ test('COMBO task breaks retain max; guards preserve only task combo and consume 
   assert.equal(replay.states[0].maxCombo,3);assert.equal(replay.states[0].combo,1);
   assert.equal(replay.performance.maxCombo,2);assert.equal(replay.performance.fullCombo,false);
 });
+
+test('every released Gekisou support definition accepts explicit non-AP input without assuming full life',()=>{
+  const {r,c,d,p}=fixture();
+  p.judgements.forEach((row,i)=>row.judgement=[1,2,3,4,5,6][i%6]);
+  for(const skill of r.tables.GekisouSupportSkill) {
+    const support=r.tables.SupportCard.find(row=>row._id===1);
+    support._gekisouSupportSkillId01=skill._id;
+    const result=createGekisouSongCalculator(r,c,{performance:p}).calculate(d);
+    assert.ok(Number.isSafeInteger(result.expectedScore),`support skill ${skill._id}`);
+    assert.equal(result.scenario.life,'replayed');
+  }
+});
+test('raw input preserves unexpanded and effective grades, and disallows a second conflicting frame clock',()=>{
+  const replay=frameFixture([3,3],[effect(4004)],{raw:true});
+  assert.deepEqual(replay.events.map(n=>n.originalJudgement),[5,5]);
+  assert.deepEqual(replay.events.map(n=>n.windowJudgement),[5,6]);
+  const {r,c}=fixture();
+  assert.throws(()=>createGekisouSongCalculator(r,c,{performanceScenario:{profile:'ideal'},scenario:{frames:[{timeMs:0,deltaSeconds:0}]}}),/时钟/);
+});
+
+test('task COMBO transition matches all 48 captured native instruction-block outcomes',async()=>{
+  const {applyGekisouComboJudgement}=await import('../../packages/scoring/scoring-rules/gekisou-frame-replay.mjs');
+  const fixture=JSON.parse(readFileSync(new URL('./fixtures/gekisou-combo-native.json',import.meta.url)));
+  assert.equal(fixture.clientSha256,rules.nativeSha256);
+  const targets=mask=>[1,2,3,4,5,6].filter(j=>mask&(1<<j));
+  for(const row of fixture.cases){
+    const result=applyGekisouComboJudgement({combo:5,maxCombo:8},row.judgement,3,
+      [...row.masks.map(mask=>({targets:targets(mask),remaining:2})),...row.unlimited.map(mask=>({targets:targets(mask),remaining:null}))]);
+    assert.equal(result.combo,row.combo);assert.equal(result.maxCombo,row.maxCombo);
+    assert.deepEqual(result.remaining.slice(0,row.masks.length),row.remaining);
+  }
+});
+
+test('COMBO ranking uses maximum task combo even after a late break',()=>{
+  const {r,c,d,p}=fixture([1010,1100,1200,1300,1400,1500,1600,1700,1800,1900]);
+  p.judgements.at(-1).judgement=1;
+  const opponent={sections:[{combo:8,luckPoints:0,just:0,noteScore:0,perfectCount:0},
+    {combo:0,luckPoints:0,just:0,noteScore:0,perfectCount:0},{combo:0,luckPoints:0,just:0,noteScore:0,perfectCount:0}]};
+  const result=createGekisouSongCalculator(r,c,{performance:p,scenario:{opponents:[opponent]}}).calculate(d);
+  assert.equal(result.sections[0].currentCombo,0);
+  assert.equal(result.sections[0].combo,9);assert.equal(result.sections[0].maxCombo,9);
+  assert.equal(result.sections[0].rank,1);
+});

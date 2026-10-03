@@ -9,6 +9,19 @@ const f32 = Math.fround;
 const sum32 = xs => xs.reduce((s, n) => f32(s + n), 0);
 const quantize = n => f32(Math.floor(f32(n * 100000)) / 100000);
 
+/** Native RecalculateBonusDependentCounts judgement block, build 25,
+ * 0x55d6d20..0x55d6e8c. Protection affects task combo only. */
+export function applyGekisouComboJudgement(state, judgement, gain, guards = []) {
+  let protectedCombo = false;
+  const remaining = guards.map(guard => {
+    if (judgement > 2 || guard.remaining === 0 || !guard.targets.includes(judgement)) return guard.remaining;
+    protectedCombo = true;
+    return guard.remaining === null ? null : guard.remaining - 1;
+  });
+  const combo = judgement >= 3 ? state.combo + Math.floor(gain) : protectedCombo ? state.combo : 0;
+  return { combo, maxCombo: Math.max(state.maxCombo, combo), protectedCombo, remaining };
+}
+
 /** AP replay on an explicit ideal device clock. Native order:
  * BeforeUpdate -> judgements -> skill phase 2 -> Gekisou.Update.
  * Score commands retain their native authored/override timestamps and are
@@ -109,18 +122,16 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         else justGain = f32(justGain + c.value);
       }
       if (s.missionType === 1) {
-        if (note.judgement <= 2) {
-          note.gekisouComboProtected = false;
-          for (const guard of s.effects.filter(e => e.definition._skillEffectType === 12004 && e.triggered &&
-            note.timeMs >= e.startMs && note.timeMs < e.endMs)) {
-            const targets = guard.targets?.length ? guard.targets : [1, 2];
-            const used = cache.protectionUses.get(guard.key) ?? 0;
-            if (!targets.includes(note.judgement) || (guard.definition._effectLimitCount > 0 && used >= guard.definition._effectLimitCount)) continue;
-            cache.protectionUses.set(guard.key, used + 1); note.gekisouComboProtected = true;
-          }
-        }
-        s.combo = note.judgement <= 2 && !note.gekisouComboProtected ? 0 : s.combo + (note.judgement >= 3 ? Math.floor(comboGain) : 0);
-        s.maxCombo = Math.max(s.maxCombo, s.combo);
+        const guards = note.judgement > 2 ? [] : s.effects.filter(e => e.definition._skillEffectType === 12004 && e.triggered &&
+          note.timeMs >= e.startMs && note.timeMs < e.endMs).map(guard => ({ key: guard.key,
+            targets: guard.targets?.length ? guard.targets : [1, 2],
+            remaining: guard.definition._effectLimitCount > 0 ? Math.max(0, guard.definition._effectLimitCount - (cache.protectionUses.get(guard.key) ?? 0)) : null,
+          }));
+        const next = applyGekisouComboJudgement(s, note.judgement, comboGain, guards);
+        guards.forEach((guard, i) => { if (guard.remaining !== null) cache.protectionUses.set(guard.key,
+          (cache.protectionUses.get(guard.key) ?? 0) + guard.remaining - next.remaining[i]); });
+        note.gekisouComboProtected = next.protectedCombo;
+        s.combo = next.combo; s.maxCombo = next.maxCombo;
         s.comboHistory.push({ timeMs: note.timeMs, combo: s.combo });
       }
       if (note.judgement === 6) {
@@ -178,7 +189,8 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
           if (justEnabled && Math.abs(offset) <= baseWindow + expansionFor(baseWindow)) note.judgement = 6;
         }
       }
-      note.originalJudgement = note.judgement;
+      note.originalJudgement = performanceInput ? resolveTimingJudgement(rules, note, { justEnabled }) : 5;
+      note.windowJudgement = note.judgement;
       // Ordinary converters resolve first in owner/activation order, then
       // Gekisou converters consume only a matching, actually changed grade.
       if (ordinary) Object.assign(note, ordinary.convert(note.judgement));
@@ -228,6 +240,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       // Skill phase: previous-frame counters/lots, current judgement results.
       for (const e of s.effects) {
         const r = e.definition, type = r._skillEffectType;
+        const eligible = !e.eligible || e.eligible(life?.at(timeMs) ?? maximumLife);
         if (e.executing && (frame >= e.endFrame || closing)) {
           e.executing = false;
           if ([12000, 13000].includes(type)) {
@@ -248,7 +261,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         if (type === 12000 && e.comboThreshold && !e.triggered && s.combo >= e.comboThreshold) {
           start(s, e, s.history.at(-1)?.timeMs ?? timeMs);
         }
-        for (const lot of s.previousLots) {
+        for (const lot of eligible ? s.previousLots : []) {
           if (type === 11002 && lot.result === 3) { s.luck.addBonusPoints(r._effectValue);
             if (trace) transitions.push({ frame, timeMs, sectionIndex: s.index, source: e.key, action: 'bonus', value: r._effectValue });
           }
@@ -261,7 +274,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
           if (frame < s.settleFrame && !e.pending && e.exhaustedFrame < frame) {
             e.executing = false;
             e.counter += notes.filter(n => n.judgement === 5).length;
-            if (e.counter >= e.perfectInterval && e.perfectInterval > 0 && e.uses < r._effectExecuteLimitCount) {
+            if (eligible && e.counter >= e.perfectInterval && e.perfectInterval > 0 && e.uses < r._effectExecuteLimitCount) {
               e.counter %= e.perfectInterval; e.pending = r._effectLimitCount; e.uses++;
               start(s, e, timeMs);
             }

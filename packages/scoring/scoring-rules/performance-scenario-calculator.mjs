@@ -13,22 +13,22 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
   const player = normalizePerformanceScenario(performanceScenario);
   const inputs = Array.from({ length: player.samples }, (_, i) => createPerformanceScenario(rules, chart, player, i));
   const calculators = inputs.flatMap((performance, sampleIndex) => {
-    if (mode === 'gekisou') return [{ sampleIndex, calculator: createGekisouSongCalculator(rules, chart, { performance, scenario, scorePrecision, eventAdapters }) }];
+    if (mode === 'gekisou') return [{ sampleIndex, calculator: createGekisouSongCalculator(rules, chart, { performance, performanceOrder: player.profile === 'explicit' ? 'fixed' : 'sampled', scenario, scorePrecision, eventAdapters }) }];
     const orders = player.profile === 'explicit' ? [performance.skillOrder] : skillOrdersFor(scorePrecision);
-    return orders.map(order => ({ sampleIndex, calculator: createPerformanceSongCalculator(rules, chart,
-      { performance: { ...performance, skillOrder: order }, eventAdapters }) }));
+    const calculator = createPerformanceSongCalculator(rules, chart, { performance, eventAdapters });
+    return orders.map(skillOrder => ({ sampleIndex, skillOrder, calculator }));
   });
   function calculate(draft, { includeTrace = false } = {}) {
-    const results = calculators.map(entry => ({ ...entry, result: entry.calculator.calculate(draft) }));
+    const results = calculators.map(entry => ({ ...entry, result: entry.calculator.calculate(draft, { skillOrder: entry.skillOrder }) }));
     const scores = results.flatMap(({ result }) => result.scoreDistribution.outcomes.flatMap(row => Array(row.count).fill(row.score)));
     const distribution = summarizeScoreDistribution(scores, { kind: 'seed_samples', complete: false });
     const best = results.reduce((a, b) => a.result.maximumScore >= b.result.maximumScore ? a : b);
     const worst = results.reduce((a, b) => a.result.minimumScore <= b.result.minimumScore ? a : b);
-    const trace = includeTrace ? best.calculator.calculate(draft, { includeTrace: true }) : best.result;
-    const worstTrace = includeTrace ? (best === worst ? trace : worst.calculator.calculate(draft, { includeTrace: true })) : null;
+    const trace = includeTrace ? best.calculator.calculate(draft, { includeTrace: true, skillOrder: best.skillOrder }) : best.result;
+    const worstTrace = includeTrace ? (best === worst ? trace : worst.calculator.calculate(draft, { includeTrace: true, skillOrder: worst.skillOrder })) : null;
     const mean = field => results.reduce((sum, row) => sum + (row.result[field] ?? 0), 0) / results.length;
     const sections = trace.sections?.map((section, i) => ({ ...section,
-      ...Object.fromEntries(['noteScore','rankingBonus','totalScore','ordinaryReferenceScore','combo','maxCombo','just','rawJust','luckPoints','perfectCount','rank','share'].map(key =>
+      ...Object.fromEntries(['noteScore','rankingBonus','totalScore','ordinaryReferenceScore','combo','currentCombo','maxCombo','just','rawJust','luckPoints','perfectCount','rank','share'].map(key =>
         [key, results.reduce((sum, row) => sum + row.result.sections[i][key], 0) / results.length])),
       rankProbabilities: section.rankProbabilities.map((_, rank) => results.reduce((sum, row) => sum + row.result.sections[i].rankProbabilities[rank], 0) / results.length),
     }));
@@ -53,8 +53,8 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
       ...(includeTrace ? { bestPlayerSampleIndex: best.sampleIndex, worstPlayerSampleIndex: worst.sampleIndex } : {}),
     };
     if (includeTrace && trace.skillPlayback) result.skillPlayback = { ...trace.skillPlayback,
-      variants: [trace.skillPlayback.variants.find(v=>v.kind==='best') ?? trace.skillPlayback.variants[0],
-        { ...(worstTrace.skillPlayback.variants.find(v=>v.kind==='worst') ?? worstTrace.skillPlayback.variants[0]), kind: 'worst' }] };
+      variants: [{ ...(trace.skillPlayback.variants.find(v=>v.kind==='best') ?? trace.skillPlayback.variants[0]), kind: 'best', playerSampleIndex: best.sampleIndex },
+        { ...(worstTrace.skillPlayback.variants.find(v=>v.kind==='worst') ?? worstTrace.skillPlayback.variants[0]), kind: 'worst', playerSampleIndex: worst.sampleIndex }] };
     return result;
   }
   return { calculate, timeline: calculators[0].calculator.timeline, scenario: { performanceScenario: player },

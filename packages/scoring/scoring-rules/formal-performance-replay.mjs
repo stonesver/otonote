@@ -76,7 +76,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   const maximumLife = setting('life_base');
   const musicLengthMs = Math.max(...timeline.events.map(event => event.timeMs), ...timeline.skillTimes);
 
-  function run(draft, { includeTrace = false, withoutSkills = false } = {}) {
+  function run(draft, { includeTrace = false, withoutSkills = false, skillOrder = input.skillOrder } = {}) {
     if (draft.slots?.length !== 5 || draft.slots.some(slot => !slot.memberCardId || !slot.supportCardId)) throw new Error('请选择五张成员卡和五张留影');
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error('歌曲或难度与载入谱面不一致');
     const power = formation.calculate(draft), skills = resolve(draft);
@@ -147,7 +147,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       verificationStatus: timeline.verificationStatus, scenario: performance.version === TIMING_PERFORMANCE_VERSION ? 'ordinary_raw_timing_no_assist' : 'ordinary_explicit_judgements_no_assist',
       timingModel: { frameRate: input.frameRate, clock: clock.kind, scoreBucketMs: 40 },
       sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion, event: eventPipeline.context,
-      inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, performance, modelVersion: SCORE_MODEL_VERSION }),
+      inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, performance, skillOrder, modelVersion: SCORE_MODEL_VERSION }),
       power: power.total.total, baseScore, expectedScore: score, minimumScore: score, maximumScore: score,
       skillScoreGain: noteTotal - baseScore, eventFixedScoreGain: score - noteTotal, orderCount: 1,
       scoreDistribution: summarizeScoreDistribution([score], { complete: false }), bestOrder: skillOrder, worstOrder: skillOrder, skills,
@@ -162,8 +162,10 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
           variants: [{ kind: 'explicit', order: skillOrder, score, notes, commands: factorCommands, skillTrace }] } } : {}) };
   }
   function calculate(draft, options = {}) {
-    const baseline = run(draft, { withoutSkills: true });
-    const result = run(draft, { includeTrace: Boolean(options.includeTrace) });
+    const order = options.skillOrder ?? input.skillOrder;
+    if (!Array.isArray(order) || order.length !== 5 || new Set(order).size !== 5 || order.some(i => !Number.isInteger(i) || i < 0 || i > 4)) throw new Error('技能顺序必须是 0 至 4 的完整排列');
+    const baseline = run(draft, { withoutSkills: true, skillOrder: order });
+    const result = run(draft, { includeTrace: Boolean(options.includeTrace), skillOrder: order });
     // A second explicit scenario removes score, conversion and recovery
     // effects together; the gain includes their resulting combo/life changes.
     result.baseScore = baseline.expectedScore - baseline.eventFixedScoreGain;

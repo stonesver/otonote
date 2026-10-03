@@ -89,7 +89,7 @@ function compileEffects(rules, draft, dynamic = false) {
 /** Conditional AP score calculator. Replays skill/Gekisou phases on an explicit
  * ideal clock, then resolves timestamped score commands. Device input order,
  * random stream and opponent outcomes remain separate scenario assumptions. */
-export function createGekisouSongCalculator(rules, chart, { scenario: inputScenario, eventAdapters = [], referenceProfile = null, scorePrecision = 'full', performance = null, performanceScenario = null } = {}) {
+export function createGekisouSongCalculator(rules, chart, { scenario: inputScenario, eventAdapters = [], referenceProfile = null, scorePrecision = 'full', performance = null, performanceScenario = null, performanceOrder = 'fixed' } = {}) {
   let orders = skillOrdersFor(scorePrecision);
   // A neutral chart benchmark: identical live skills, no card-specific power
   // or Gekisou effects. Normal team calculations do not enter this branch.
@@ -108,9 +108,12 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
   const performanceInput = performance ? validateAgainstTimeline(timeline, performance, scenario.frameRate) : null;
   if (performanceInput) {
     scenario.frameRate = performanceInput.frameRate;
+    if (inputScenario?.frames && !performanceInput.clock.frames) throw new Error('逐帧时钟须放入玩家操作文件，不能与另一套输入帧混用');
     if (performanceInput.clock.frames) scenario.frames = performanceInput.clock.frames;
+    else delete scenario.frames;
     scenario.judgement = performance.version; scenario.life = 'replayed'; scenario.playerInput = 'explicit_operations';
-    if (performance.version === 'ournotes-performance-v1') orders = [performanceInput.skillOrder];
+    if (!['fixed', 'sampled'].includes(performanceOrder)) throw new Error('未知技能顺序情景');
+    if (performanceOrder === 'fixed' && !performanceScenario) orders = [performanceInput.skillOrder];
   }
   const music = rules.tables.LiveMusic.find(r => `music-${r._id}` === timeline.trackId);
   const missions = [1, 2, 3].map(i => music[`_gekisouMission${i}`]);
@@ -170,7 +173,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const frameActions = replay.comboUpdates.map(update => ({ frame: update.frame,
         run() { comboViews[update.sectionIndex - 1] = update; } }));
       frameActions.push(...gekisouSettlementActions(states, s => {
-        if (scenario.opponents.length) s.rank = rankGekisouSection({combo:s.combo,luckPoints:s.luck.state.bonusPoints,just:s.just,noteScore:s.noteScore,perfectCount:s.perfectCount}, scenario.opponents.map(o=>o.sections[s.index-1]), s.missionType);
+        if (scenario.opponents.length) s.rank = rankGekisouSection({combo:s.maxCombo,luckPoints:s.luck.state.bonusPoints,just:s.just,noteScore:s.noteScore,perfectCount:s.perfectCount}, scenario.opponents.map(o=>o.sections[s.index-1]), s.missionType);
         const bonus = gekisouRankingBonus(rules, { missions, sectionIndex: s.index, rank: s.rank, sectionScore: s.noteScore });
         s.rankingPercent = bonus.percent;
         return bonus.additionalScore;
@@ -219,7 +222,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const sections = states.map(s => {
         return { index: s.index, missionType: s.missionType, rank: s.rank, noteScore: s.noteScore,
           ordinaryReferenceScore: referenceSections[s.index - 1], rankingBonus: s.rankingBonus, totalScore: s.noteScore + s.rankingBonus,
-          rankingPercent: s.rankingPercent, combo: s.combo, maxCombo: s.maxCombo, just: s.just, rawJust: s.rawJust, perfectCount: s.perfectCount,
+          rankingPercent: s.rankingPercent, combo: s.maxCombo, currentCombo: s.combo, maxCombo: s.maxCombo, just: s.just, rawJust: s.rawJust, perfectCount: s.perfectCount,
           ...(trace ? { scoreQuery: s.scoreQuery, confirmationFrame: s.confirmationFrame, finalNoteScore: s.finalNoteScore, replayAdjustment: s.finalNoteScore - s.noteScore } : {}),
           luckPoints: s.luck.state.bonusPoints, luckCounts: [...s.luck.state.counts] };
       });
@@ -232,7 +235,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       return result;
     }
     const batches = randomSampling ? scenario.batches : 1;
-    const samples = [], sectionSums = ranges.map(() => ({ noteScore: 0, rankingBonus: 0, totalScore: 0, ordinaryReferenceScore: 0, combo: 0, maxCombo: 0, just: 0, rawJust: 0, luckPoints: 0, perfectCount: 0, rank: 0 }));
+    const samples = [], sectionSums = ranges.map(() => ({ noteScore: 0, rankingBonus: 0, totalScore: 0, ordinaryReferenceScore: 0, combo: 0, currentCombo: 0, maxCombo: 0, just: 0, rawJust: 0, luckPoints: 0, perfectCount: 0, rank: 0 }));
     const rankCounts = ranges.map(()=>[0,0,0,0,0]);
     let sum = 0, bonusSum = 0, minimum = Infinity, maximum = -Infinity, best, worst;
     for (let batch = 0; batch < batches; batch++) for (const [index, order] of orders.entries()) {
@@ -262,7 +265,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     return { status: 'estimated', modelVersion: SCORE_MODEL_VERSION, scorePrecision, verificationStatus: 'source_informed_frame_replay', optimizerEligible: !referenceProfile,
       score: expectedScore, expectedScore, minimumScore: minimum, maximumScore: maximum, power: formation.total.total,
       scenario, referenceKind: performanceInput ? 'same_effective_judgements_without_gekisou_score_factors' : 'ordinary_ap_reference', event: pipeline.context, sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
-      inputHash: stableSnapshotHash({ draft, performance, chartHash: timeline.chartHash, scenario, distributionVersion: SCORE_DISTRIBUTION_VERSION, ...(scorePrecision === 'screen' ? { scorePrecision } : {}), ...(referenceProfile ? { referenceProfile } : {}) }),
+      inputHash: stableSnapshotHash({ draft, performance, performanceOrder, chartHash: timeline.chartHash, scenario, distributionVersion: SCORE_DISTRIBUTION_VERSION, ...(scorePrecision === 'screen' ? { scorePrecision } : {}), ...(referenceProfile ? { referenceProfile } : {}) }),
       sampleCount: samples.length, orderCount: orders.length, randomSampling, standardError,
       scoreDistribution: summarizeScoreDistribution(samples, { kind: randomSampling ? 'seed_samples' : 'skill_orders', complete: !randomSampling && scorePrecision === 'full' }),
       rankingBonus: bonusSum / samples.length, rankingBonusShare: sum ? bonusSum / sum : 0,

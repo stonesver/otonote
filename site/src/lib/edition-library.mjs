@@ -36,10 +36,25 @@ export function mergeEditionRows(primary, secondary, {region, key, path, locale 
   return rows;
 }
 
+function cardResourceIdentity(kind, row, asset) {
+  if (!['memberCards', 'supportCards'].includes(kind) || !Number.isSafeInteger(row.assetId) || row.assetId <= 0) return null;
+  const member = kind === 'memberCards';
+  const path = `Assets/AddressableResources/${member ? 'MemberCard' : 'SupportCard'}/${row.assetId}/${member ? 'member_full' : 'snap_full'}.png`;
+  // Match the Master binding against the actual primary resource, not just an ID
+  // or title. PNG encoding and bundle revisions are not card identities.
+  if (row.sourceContainerPath !== path || asset?.containerPath !== path) return null;
+  const characters = member ? [row.characterId] : row.featuredCharacterIds;
+  if (!Array.isArray(characters) || !characters.length || !characters.every(id => /^character-[1-9]\d*$/.test(id))) return null;
+  if (![row.rarity, row.attributeCode].every(value => Number.isSafeInteger(value) && value > 0)) return null;
+  return stable([kind, 'resource-binding-v1', path, [...new Set(characters)].sort(), row.rarity, row.attributeCode]);
+}
+
 export function catalogIdentity(kind, row, catalog) {
   if(kind==='musicTracks' && row.contentIdentity)return stable([kind,row.contentIdentity]);
   const assetId = row.primaryAssetId ?? row.profileAssetId ?? row.jacketAssetId ?? row.logoAssetId;
   const asset = catalog.assets?.find(a => a.id === assetId);
+  const cardIdentity = cardResourceIdentity(kind, row, asset);
+  if (cardIdentity) return cardIdentity;
   if (!asset?.sha256) return null;
   const fields = kind === 'memberCards' ? [row.rarity, row.attributeCode, row.assetId]
     : kind === 'supportCards' ? [row.rarity, row.attributeCode, row.assetId]

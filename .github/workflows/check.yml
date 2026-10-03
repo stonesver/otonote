@@ -33,6 +33,7 @@ jobs:
           npm --prefix site ci --ignore-scripts --no-audit --no-fund
           node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs
           node --test site/tests/event-song-ranking.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs
+          node --test site/tests/edition-library.test.mjs site/tests/shared-song-rankings.test.mjs site/tests/card-skill-filtering.test.mjs
           python3 -m unittest tests.test_item_acquisition tests.test_game_database tests.test_code_publication tests.test_operations tests.test_docs_status tests.test_global_update tests.test_prerender_publication tests.test_admin_upgrade.ManualStageTests tests.test_current_content_media tests.test_bundle_decoder tests.test_global_remote_sync tests.test_current_resources tests.test_deployment_preservation -q
       - name: Publish reviewed artifact identifiers to the run summary
         run: |

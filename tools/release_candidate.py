@@ -18,8 +18,8 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 # These gates require only checked-in fixtures, never a downloaded game snapshot.
 GATES = {
-    'python-delivery': ['python', '-m', 'unittest', 'tests.test_code_publication', 'tests.test_release_candidate', 'tests.test_runtime_bundle', 'tests.test_repository_hygiene', 'tests.test_content_publication'],
-    'browser-content-contract': ['node', '--test', 'site/tests/independent-content.test.mjs', 'site/tests/tool-startup.test.mjs', 'site/tests/navigation-initial-state.test.mjs', 'site/tests/card-recognition.test.mjs', 'site/tests/card-recognition-engine.test.mjs'],
+    'python-delivery': ['python', '-m', 'unittest', 'tests.test_code_publication', 'tests.test_release_candidate', 'tests.test_runtime_bundle', 'tests.test_repository_hygiene', 'tests.test_costumes', 'tests.test_content_publication', 'tests.test_global_remote_sync'],
+    'browser-content-contract': ['node', '--test', 'site/tests/independent-content.test.mjs', 'site/tests/tool-startup.test.mjs', 'site/tests/navigation-initial-state.test.mjs', 'site/tests/costumes.test.mjs', 'site/tests/card-recognition.test.mjs', 'site/tests/card-recognition-engine.test.mjs'],
     'shared-scoring': ['node', '--test', 'site/tests/scoring-engine.test.mjs', 'site/tests/formal-chart.test.mjs', 'site/tests/formal-native-state.test.mjs', 'site/tests/formal-note-core.test.mjs', 'site/tests/formal-score-replay.test.mjs', 'site/tests/formation-optimizer-worker.test.mjs', 'site/tests/shared-scoring-package.test.mjs', 'site/tests/band-item-totals.test.mjs'],
 }
 

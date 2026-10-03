@@ -136,7 +136,7 @@ class PhoneResources(CurrentResources):
 def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse_cache=(), prepare_only=()):
     from tools.current_content_inputs import extract_images, extract_scores, extract_stories, extract_audio
     from tools.current_bgm_inputs import extract_bgm
-    from tools.current_content_media import gallery, mission_images, live2d, immersive, auto_stage
+    from tools.current_content_media import gallery, mission_images, live2d, immersive, auto_stage, costume_icons
     from tools.current_growth_inputs import growth
     capture, master, metadata, apk_root, output = map(lambda p: Path(p).resolve(), (capture, master, metadata, apk_root, output))
     if ROOT/'output' not in output.parents or output.exists(): raise ValueError('use a new directory under output/')
@@ -185,6 +185,7 @@ def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse
     module('scores',stage/'scores',lambda:extract_scores(resources,source,stage/'scores'))
     supplemental=stage/'supplemental';public=supplemental/'public';data=supplemental/'data'
     module('gallery',public/'gallery',lambda:gallery(resources,public/'gallery'))
+    module('costumes', public / 'costumes', lambda: costume_icons(resources, public / 'costumes'))
     module('growth',public/'growth',lambda:growth(resources,public/'growth'))
     module('missions',supplemental/'missions',lambda:mission_images(resources,supplemental/'missions'))
     for group in ('system-banners','mission-rewards'):

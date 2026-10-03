@@ -194,7 +194,7 @@ def refresh_current(snapshot, baseline_catalog, plan, output, *, decoder=None):
     from tools.release_preflight import load_plan, check_environment
     from tools.global_remote_sync import validate_manifest
     from tools.resource_pipeline.golden import CURRENT_SITE_MASTER_TABLES, _master_aggregate, _master_row_count
-    from tools.current_content_media import gallery, mission_images, live2d, immersive, auto_stage
+    from tools.current_content_media import gallery, mission_images, live2d, immersive, auto_stage, costume_icons
     from tools.current_bgm_inputs import extract_bgm
     from tools.current_growth_inputs import growth
     from tools.supplemental_inputs import read_supplemental
@@ -230,7 +230,7 @@ def refresh_current(snapshot, baseline_catalog, plan, output, *, decoder=None):
     stage.mkdir(parents=True, exist_ok=True)
     fingerprint = {'report': file_hash(snapshot / 'report.json'), 'plan': file_hash(plan), 'decoder': file_hash(apk),
         'bundleDecoderBindingSha256': decoder.get('bundleDecoderBindingSha256') if decoder else None,
-        'code': {name: file_hash(ROOT / 'tools' / name) for name in ('bundle_decoder.py','current_resources.py','current_content_inputs.py','current_content_media.py','export_immersive_scenes.py','prepare_auto_stage.py','current_bgm_inputs.py','current_input_cache.py','current_growth_inputs.py')}}
+        'code': {name: file_hash(ROOT / 'tools' / name) for name in ('bundle_decoder.py','current_resources.py','current_content_inputs.py','current_content_media.py','export_immersive_scenes.py','prepare_auto_stage.py','current_bgm_inputs.py','current_input_cache.py','current_growth_inputs.py','costume_assets.py','costume_catalog.py')}}
     identity = stage / '.identity.json'
     if identity.exists() and read_json(identity) != fingerprint:
         raise ValueError('partial inputs belong to another source/compiler; use a new output directory')
@@ -263,6 +263,7 @@ def refresh_current(snapshot, baseline_catalog, plan, output, *, decoder=None):
     supplemental = stage / 'supplemental'
     public, data = supplemental / 'public', supplemental / 'data'
     module('gallery', public / 'gallery', lambda: gallery(resources, public / 'gallery'))
+    module('costumes', public / 'costumes', lambda: costume_icons(resources, public / 'costumes'))
     module('growth', public / 'growth', lambda: growth(resources, public / 'growth'))
     # Both mission groups are produced together in their own staging root.
     module('missions', supplemental / 'missions', lambda: mission_images(resources, supplemental / 'missions'))

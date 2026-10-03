@@ -51,6 +51,11 @@ def gallery(resources, output):
     return len(assets)
 
 
+def costume_icons(resources, output):
+    from tools.costume_assets import extract_costume_icons
+    return extract_costume_icons(resources, output)
+
+
 def mission_images(resources, public):
     from tools.system_details import SystemContext, build_missions
     groups = build_missions(SystemContext(resources.master, 'zh-CN'))

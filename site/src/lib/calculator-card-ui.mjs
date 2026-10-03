@@ -70,7 +70,7 @@ export function skillPeek(workbench,card,options={},hoverTarget) {
   const button=cardElement('button','技能','card-skill-trigger');button.type='button';button.setAttribute('aria-label',`查看 ${card.shortLabel} 的技能`);button.setAttribute('aria-expanded','false');button.setAttribute('aria-haspopup','dialog');
   const manager=skillPopover(workbench);button.setAttribute('aria-controls',manager.panel.id);
   const target=hoverTarget??button;
-  target.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')manager.hover(target,button,card,options);});target.addEventListener('pointerleave',manager.leave);
+  if(options.hover!==false){target.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')manager.hover(target,button,card,options);});target.addEventListener('pointerleave',manager.leave);}
   button.addEventListener('blur',manager.leave);
   button.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();manager.toggle(target,button,card,options);});return button;
 }

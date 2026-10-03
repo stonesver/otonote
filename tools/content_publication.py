@@ -74,7 +74,7 @@ def rewrite(value, root, locale, release):
     return value
 
 
-def publish_content(candidate, store, *, scoring_rules=None, expected_current=None):
+def publish_content(candidate, store, *, scoring_rules=None, recognition_index=None, expected_current=None):
     candidate, store = Path(candidate).resolve(), Path(store).resolve()
     if candidate == store or candidate in store.parents or store in candidate.parents: raise ValueError('content store overlaps candidate')
     source = read_json(candidate / 'candidate.json')
@@ -100,13 +100,19 @@ def publish_content(candidate, store, *, scoring_rules=None, expected_current=No
         rules = read_json(ROOT/'packages/scoring/data/formal-scoring-rules.json')
         if rules.get('sourceReleaseId') != release:
             rules = {'schemaVersion':1,'sourceReleaseId':release,'verificationStatus':'unavailable'}
-    derivative_sources = [ROOT/'tools/library_metadata.py', ROOT/'tools/live2d_transport.py', ROOT/'tools/content_derivatives.mjs', ROOT/'packages/scoring/server/song-ranking-data.mjs',
+    index_path = Path(recognition_index) if recognition_index else source_root/'supplemental-data/card-recognition'
+    recognition = None
+    if recognition_index or index_path.exists():
+        from tools.card_recognition import read_index
+        recognition = read_index(index_path, edition, release)
+    recognition_identity = json.dumps(recognition[0],sort_keys=True) if recognition else ''
+    derivative_sources = [ROOT/'tools/card_recognition.py', ROOT/'tools/library_metadata.py', ROOT/'tools/live2d_transport.py', ROOT/'tools/content_derivatives.mjs', ROOT/'packages/scoring/server/song-ranking-data.mjs',
         ROOT/'packages/scoring/song-ranking.mjs', ROOT/'packages/scoring/song-ranking-meta.mjs',
         ROOT/'packages/scoring/song-ranking-view.mjs', ROOT/'packages/scoring/song-skill-windows.mjs',
         ROOT/'packages/scoring/scoring-engine.mjs', ROOT/'packages/scoring/scoring-release-gate.mjs',ROOT/'packages/scoring/data/formal-scoring-rules.json']
     derivative_sources += sorted((ROOT/'packages/scoring/scoring-rules').glob('*.mjs'))
     derivative_hash = ''.join(file_hash(p) for p in derivative_sources)
-    identity = hashlib.sha256((file_hash(candidate / 'candidate.json') + file_hash(Path(__file__)) + derivative_hash + json.dumps(rules,sort_keys=True) + str(SCHEMA)).encode()).hexdigest()[:24]
+    identity = hashlib.sha256((file_hash(candidate / 'candidate.json') + file_hash(Path(__file__)) + derivative_hash + json.dumps(rules,sort_keys=True) + recognition_identity + str(SCHEMA)).encode()).hexdigest()[:24]
     public_root = '/content/releases/' + identity + '/'
     (store / 'releases').mkdir(parents=True, exist_ok=True)
     with (store / '.publication.lock').open('a+') as lock:
@@ -139,6 +145,9 @@ def publish_content(candidate, store, *, scoring_rules=None, expected_current=No
                 bundle_live2d_tree(stage / 'public' / 'live2d')
                 manifest = {'schemaVersion':SCHEMA,'contentReleaseId':release,'region':edition,'channel':'production','root':public_root,'locales':{},
                             'limitations':['formal_gameplay_not_verified']}
+                if recognition:
+                    (stage/'recognition').mkdir()
+                    (stage/'recognition/features.bin.gz').write_bytes(recognition[1])
                 for context in contexts:
                     locale = context['locale']; records = {'files':{},'groups':{}}
                     data = source_root / 'generated/releases' / release / locale
@@ -174,6 +183,12 @@ def publish_content(candidate, store, *, scoring_rules=None, expected_current=No
                             value = enrich_scenes(value, source_root/'public')
                         project('supplemental/'+name,locale+'/_supplemental/'+name,value)
                     project('supplemental/music-previews.json',locale+'/_supplemental/music-previews.json',{'contentReleaseId':release,'tracks':{}})
+                    if recognition:
+                        catalog = read_json(data/'catalog.json')
+                        ids = {c['id'] for kind in ('memberCards','supportCards') for c in catalog.get(kind,[])}
+                        if any(c['id'] not in ids for c in recognition[0]['cards']):
+                            raise ValueError('recognition card is absent from catalog')
+                        project('supplemental/card-recognition.json',locale+'/_supplemental/card-recognition.json',recognition[0])
                     project('supplemental/formal-scoring-rules.json',locale+'/_supplemental/formal-scoring-rules.json',rules)
                     if 'musicCharts' in read_json(data/'catalog.json'):
                         target=stage/locale/'_supplemental/song-rankings.json'
@@ -234,10 +249,11 @@ def rollback_content(store, *, region='global'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate',type=Path); parser.add_argument('--store',type=Path,required=True)
+    parser.add_argument('--recognition-index',type=Path,help='Version-bound browser recognition index directory')
     parser.add_argument('--scoring-rules',type=Path,help='Version-bound rules for an existing sealed candidate')
     parser.add_argument('--rollback',action='store_true')
     parser.add_argument('--region',choices=('global','jp'),default='global',help='Edition to roll back')
     args = parser.parse_args()
     if bool(args.candidate)==args.rollback: parser.error('choose --candidate or --rollback')
-    if args.rollback and args.scoring_rules: parser.error('--scoring-rules requires --candidate')
-    print(json.dumps(rollback_content(args.store,region=args.region) if args.rollback else publish_content(args.candidate,args.store,scoring_rules=args.scoring_rules),ensure_ascii=False,indent=2))
+    if args.rollback and (args.scoring_rules or args.recognition_index): parser.error('--scoring-rules requires --candidate')
+    print(json.dumps(rollback_content(args.store,region=args.region) if args.rollback else publish_content(args.candidate,args.store,scoring_rules=args.scoring_rules,recognition_index=args.recognition_index),ensure_ascii=False,indent=2))

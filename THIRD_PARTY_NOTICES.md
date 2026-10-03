@@ -80,3 +80,15 @@ Node.js、Python、容器基础镜像、系统软件包及反向代理由开发/
 更新依赖时一并核对版本、用途、上游来源、包内许可证及额外 NOTICE。网页展示的主要项目位于 [`site/src/lib/project-credits.ts`](site/src/lib/project-credits.ts)，应与本文一致。
 
 分发构建后的网页、镜像或便携工具包时，还需根据**实际包含的文件**保留第三方声明与适用许可；不要将本清单当作已完成全部传递依赖和二进制分发义务核验的证明。
+
+## 浏览器截图识别
+
+固定版本来自 `site/package-lock.json`，识别资源在打开截图导入面板时后台准备。
+
+| 项目 | 版本 | 用途 | 许可与来源 |
+| --- | --- | --- | --- |
+| @techstark/opencv-js | 4.12.0-release.1 | 浏览器内卡面特征匹配 | Apache-2.0，npm 包 LICENSE；[上游](https://github.com/TechStark/opencv-js) |
+| tesseract.js / tesseract.js-core | 7.0.0 | 数字 OCR 与 WASM 引擎 | Apache-2.0，包内 LICENSE.md / LICENSE；[上游](https://github.com/naptha/tesseract.js) |
+| @tesseract.js-data/eng | 1.0.0 | 英文数字模型 | npm 包声明 MIT；[模型项目](https://github.com/naptha/tessdata) |
+
+独立代码构建保留引擎许可证及语言包来源说明。离线索引构建使用 OpenCV Python、NumPy 与 Pillow，HTTP 服务不运行这些依赖。游戏卡面与派生索引仍遵循游戏素材的权利边界。

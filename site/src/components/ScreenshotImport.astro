@@ -1,0 +1,28 @@
+---
+import '../styles/screenshot-import.css';
+---
+<dialog class="screenshot-import" data-screenshot-dialog aria-labelledby="screenshot-import-heading">
+  <header><div><p class="screenshot-eyebrow">我的卡库</p><h2 id="screenshot-import-heading" tabindex="-1">从游戏截图导入</h2></div><button type="button" data-shot-close aria-label="关闭截图导入">×</button></header>
+  <p data-shot-context></p>
+  <p class="screenshot-help">图片只在此浏览器内处理。支持完整横屏列表：角色卡每行 6 张、留影每行 4 张；底部不完整的卡牌会跳过。请先核对结果，再保存到卡库。</p>
+  <div class="screenshot-preparation" data-shot-preparation aria-live="polite">
+    <strong data-shot-preparation-title>正在准备识别工具</strong>
+    <div class="screenshot-preparation-steps">{[['cards','卡面引擎'],['index','卡库索引'],['numbers','数字识别']].map(([key,label])=><span data-shot-stage={key}>{label}<small>等待准备</small></span>)}</div>
+    <progress data-shot-progress max="1" aria-label="当前准备阶段进度"></progress>
+    <small data-shot-preparation-label>准备期间可以选择截图</small>
+    <button type="button" data-shot-retry hidden>重新准备</button>
+  </div>
+  <label class="screenshot-upload">选择游戏截图<span>可多选 · 自动判断角色等级、角色特训或留影</span><input data-shot-files type="file" accept="image/png,image/jpeg,image/webp" multiple /></label>
+  <p class="screenshot-help">角色卡的等级页与特训页可一起选择，同卡信息会合并。新角色卡两种技能默认 1 级；已有卡技能保留原值。</p>
+  <div data-shot-queue class="screenshot-queue"></div>
+  <div class="screenshot-controls"><button type="button" data-shot-run class="growth-primary" disabled>开始识别</button><button type="button" data-shot-stop hidden>取消识别</button><button type="button" data-shot-clear>清空</button></div>
+  <p data-shot-status role="status" aria-live="polite"></p>
+  <section data-shot-review hidden>
+    <details data-shot-matches><summary>核对截图与卡牌匹配</summary><div data-shot-observations class="screenshot-observations"></div></details>
+    <div class="screenshot-review-heading"><h3>合并后养成</h3><button type="button" data-shot-max>勾选角色卡技能一键满级</button><button type="button" data-shot-reset-skills>恢复技能默认值</button></div>
+    <p class="screenshot-help">勾选想导入的卡。未读出的字段会保留已有值；新卡缺少等级或阶数时，请手动补齐。数值冲突需要确认。</p>
+    <div data-shot-merged class="screenshot-merged"></div>
+    <p data-shot-errors role="status"></p>
+  </section>
+  <footer><button type="button" data-shot-apply class="growth-primary" disabled>确认合并到卡库</button><button type="button" data-shot-close>取消</button></footer>
+</dialog>

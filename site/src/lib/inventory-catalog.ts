@@ -23,7 +23,8 @@ export const memberCards = catalog.memberCards.map((card) => {
     skills: skillsFor(card.id), skillFacets: skillFilters.records.get(card.id),
     shortLabel: card.subtitle || card.displayName,
     relationLabel: [character?.displayName, band?.displayName].filter(Boolean).join(" · "),
-    imageUrl: getAsset(card.thumbnailAssetId)?.thumbnailUrl ?? getAsset(card.thumbnailAssetId)?.previewUrl ?? null
+    artUrl: getAsset(card.variantAssetIds?.[0])?.previewUrl ?? null,
+  imageUrl: getAsset(card.thumbnailAssetId)?.thumbnailUrl ?? getAsset(card.thumbnailAssetId)?.previewUrl ?? null
   };
 });
 export const supportCards = catalog.supportCards.map((card) => ({
@@ -37,6 +38,7 @@ export const supportCards = catalog.supportCards.map((card) => ({
     .map((id) => getCharacter(id)?.displayName)
     .filter(Boolean)
     .join("、"),
+  artUrl: getAsset(card.variantAssetIds?.[0])?.previewUrl ?? null,
   imageUrl: getAsset(card.thumbnailAssetId)?.thumbnailUrl ?? getAsset(card.thumbnailAssetId)?.previewUrl ?? null
 }));
 export const projections = [...projectionById.values()].map((projection) => ({

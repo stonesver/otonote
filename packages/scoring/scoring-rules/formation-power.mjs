@@ -5,6 +5,8 @@ import {
 import { createEventPipeline } from "./event-rules.mjs";
 import { scoringRulesAvailable, referenceScoringRules } from '../scoring-release-gate.mjs';
 
+import {bandItemEffects} from './band-item-totals.mjs';
+
 export const POWER_COMPONENTS = ["performance", "technic", "visual"];
 const masterComponents = ["performance", "technic", "visual"];
 const zero = () => createCardPowerInt(0, 0, 0);
@@ -126,7 +128,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     if (!Array.isArray(draft?.slots) || draft.slots.length !== 5) throw new Error("Exactly five slots required");
     const modifiers = draft.modifiers ?? {};
     const event = createEventPipeline(rules, modifiers.event, eventAdapters);
-    for (const name of ["growth", "characterRanks", "memoryPoints", "bandItems"]) {
+    for (const name of ["growth", "characterRanks", "memoryPoints", "bandItems", "bandItemTotals"]) {
       const value = modifiers[name];
       if (value !== undefined && (!value || typeof value !== "object" || Array.isArray(value))) {
         throw new TypeError(`Invalid settings: ${name}`);
@@ -155,14 +157,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     const leaderEffects = leader ? t.LeaderSkillEffect.filter((r) =>
       r._leaderSkillID === leader.member._leaderSkillID && r._level === leader.memberGrowth.rankRow._leaderSkillLevel) : [];
     if (leader && !leaderEffects.length) throw new Error("Missing leader effects");
-    const bandEffects = [];
-    for (const [key, level] of Object.entries(modifiers.bandItems ?? {})) {
-      requireInteger(level, "instrument level", 0, 30);
-      if (!level) continue;
-      const effects = t.BandItemSkillEffect.filter((r) => r._bandItemId === Number(key) && r._level === level);
-      if (!effects.length) throw new Error(`Unknown instrument/level ${key}/${level}`);
-      bandEffects.push(...effects);
-    }
+    const bandEffects = bandItemEffects(rules,modifiers);
     const rankValues = t.Character.map((c) => requireInteger(modifiers.characterRanks?.[c._id] ?? 1,
       "character rank", 1, 50));
     const totalRank = rankValues.reduce((a, b) => a + b, 0);

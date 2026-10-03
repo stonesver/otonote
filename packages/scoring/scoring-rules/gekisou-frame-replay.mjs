@@ -1,7 +1,9 @@
-import { createFrameClock, gekisouReleaseFrames, nativeSkillDuration } from './formal-frame-clock.mjs';
+import { createFrameClock, gekisouReleaseFrames, nativeSkillDuration, skillEndFrame } from './formal-frame-clock.mjs';
 import { createGekisouLuckMachine, createScoringRandom } from './gekisou-luck.mjs';
 import { formalJudgementType } from './formal-judgement.mjs';
 import { roundToEven } from './formal-time.mjs';
+import { resolveTimingJudgement } from './performance-scenarios.mjs';
+import { createLifeReplay, createComboReplay, createOrdinarySkillLifecycle } from './formal-performance-state.mjs';
 
 const f32 = Math.fround;
 const sum32 = xs => xs.reduce((s, n) => f32(s + n), 0);
@@ -12,24 +14,33 @@ const quantize = n => f32(Math.floor(f32(n * 100000)) / 100000);
  * Score commands retain their native authored/override timestamps and are
  * replayed separately, so a later frame can change an earlier note's score.
  * This is not a recording of the game's input scheduler or random stream. */
-export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false } = {}) {
+export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4] } = {}) {
   const random = createScoringRandom(seed);
   const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
+  const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
+  const maximumLife = setting('life_base'), musicLengthMs = Math.max(...timeline.events.map(e => e.timeMs), ...(timeline.skillTimes ?? []));
+  const life = performanceInput ? createLifeReplay(maximumLife, musicLengthMs) : null;
+  const combo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
+  const ordinary = ordinarySkills ? createOrdinarySkillLifecycle({ skills: ordinarySkills, skillTimes: timeline.skillTimes, skillOrder,
+    clock, life, skillEndFrame }) : null;
+  let lowestLife = maximumLife, totalDamage = 0, convertedCount = 0;
+  const judgementCounts = Object.fromEntries([1,2,3,4,5,6].map(j => [j,0]));
+  const stateTrace = [];
   const windows = new Map(rules.tables.LiveJudgementTiming.filter(r => r._assistLevel === 0 && r._noteSimulateJudgement === 6).map(r => [r._noteJudgementType, r]));
   const commands = [], comboUpdates = [], luckEvents = [], transitions = [];
   // CreateGekisouLiveSettings: maximum Master AfterMs, then 500 ms complete
   // delay. BeforeUpdate enters state 8 one frame after state 7 releases skills.
   const slowJudgeDelay = Math.max(...rules.tables.LiveJudgementTiming.map(r => r._afterMs));
-  const states = ranges.map((range, i) => ({ ...range, rank: scenario.ranks[i], combo: 0, just: 0, rawJust: 0,
+  const states = ranges.map((range, i) => ({ ...range, rank: scenario.ranks[i], combo: 0, maxCombo: 0, just: 0, rawJust: 0,
     justBase: 0, perfectCount: 0, noteScore: 0, baseNoteScore: 0, entered: false, closed: false,
     history: [], comboHistory: [], countCommands: [], previousLots: [], rushFactor: 0,
     effects: effects.filter(e => e.active && e.missionType === range.missionType).map(e => ({ ...e,
       uses: 0, pending: 0, counter: 0, executing: false, triggered: false, scoreFactor: 0, startMs: null, endMs: Infinity,
       cumulativeRaw: 0, exhaustedFrame: -1 })), luck: createGekisouLuckMachine(rules, { random }) }));
-  const events = timeline.events.map(event => ({ ...event,
-    inputFrame: clock.indexAt(event.timeMs + scenario.timingOffsetMs),
+  const events = (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
+    inputFrame: event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs),
     sectionIndex: ranges.findIndex(r => event.timeMs >= r.startMs && event.timeMs <= r.endMs) + 1,
-    judgement: 5 }));
+    judgement: 5 })).sort((a,b) => a.inputFrame - b.inputFrame || (a.inputSequence ?? a.scoreIndex) - (b.inputSequence ?? b.scoreIndex));
   const frames = new Map();
   for (const note of events) {
     if (!frames.has(note.inputFrame)) frames.set(note.inputFrame, []);
@@ -58,7 +69,9 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     e.scoreFactor = value;
   }
   function start(s, e, timeMs) {
+    if (e.eligible && !e.eligible(life?.at(clock.at(currentFrame).timeMs) ?? maximumLife)) return false;
     s.countsDirty = true;
+    e.remaining = e.definition._effectLimitCount > 0 ? e.definition._effectLimitCount : null;
     e.triggered = e.executing = true; e.startMs = timeMs;
     e.durationRawMs = nativeSkillDuration(e.definition._activationTimeSecond);
     // Trigger timestamps can be backdated: the lifecycle starts on THIS update.
@@ -73,6 +86,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       s.countCommands.push({ timeMs, sequence: judgementSequence - 1, value: e.definition._effectValue, type: e.definition._skillEffectType });
     }
     if (trace) transitions.push({ frame: currentFrame, timeMs, sectionIndex: s.index, source: e.key, action: 'start' });
+    return true;
   }
   function recount(s) {
     // RecalculateBonusDependentCounts merges timestamped bonus commands with
@@ -81,8 +95,8 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     // command invalidates that prefix; replay it then to preserve native order.
     if (!s.countReplay || s.countsDirty) {
       s.countReplay = { sorted: s.countCommands.slice().sort((a, b) => a.timeMs - b.timeMs || a.sequence - b.sequence),
-        cursor: 0, processed: 0, comboGain: 1, justGain: 1 };
-      s.combo = s.just = s.justBase = s.rawJust = 0; s.comboHistory = [];
+        cursor: 0, processed: 0, comboGain: 1, justGain: 1, protectionUses: new Map() };
+      s.combo = s.maxCombo = s.just = s.justBase = s.rawJust = 0; s.comboHistory = [];
     }
     const cache = s.countReplay, sorted = cache.sorted;
     let i = cache.cursor, comboGain = cache.comboGain, justGain = cache.justGain;
@@ -95,7 +109,18 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         else justGain = f32(justGain + c.value);
       }
       if (s.missionType === 1) {
-        s.combo += Math.floor(comboGain);
+        if (note.judgement <= 2) {
+          note.gekisouComboProtected = false;
+          for (const guard of s.effects.filter(e => e.definition._skillEffectType === 12004 && e.triggered &&
+            note.timeMs >= e.startMs && note.timeMs < e.endMs)) {
+            const targets = guard.targets?.length ? guard.targets : [1, 2];
+            const used = cache.protectionUses.get(guard.key) ?? 0;
+            if (!targets.includes(note.judgement) || (guard.definition._effectLimitCount > 0 && used >= guard.definition._effectLimitCount)) continue;
+            cache.protectionUses.set(guard.key, used + 1); note.gekisouComboProtected = true;
+          }
+        }
+        s.combo = note.judgement <= 2 && !note.gekisouComboProtected ? 0 : s.combo + (note.judgement >= 3 ? Math.floor(comboGain) : 0);
+        s.maxCombo = Math.max(s.maxCombo, s.combo);
         s.comboHistory.push({ timeMs: note.timeMs, combo: s.combo });
       }
       if (note.judgement === 6) {
@@ -130,7 +155,10 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     start: clock.indexAt(s.startMs),
     end: Math.max(clock.indexAt(s.startMs) + 1, clock.indexAt(s.endMs)),
   }));
-  for (const [frame, frameNotes] of [...frames].sort((a, b) => a[0] - b[0])) {
+  const lastFrame = Math.max(...frames.keys(), ordinary?.lastFrame ?? 0);
+  for (let frame = 0; frame <= Math.max(lastFrame, ordinary?.lastFrame ?? 0); frame++) {
+    if (!performanceInput && !frames.has(frame)) continue;
+    const frameNotes = frames.get(frame) ?? [];
     currentFrame = frame;
     const timeMs = clock.at(frame).timeMs;
     frameNotes.forEach((note, i) => { note.judgementSequence = judgementSequence + i; });
@@ -139,29 +167,55 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     const judgementEffects = states.flatMap(s => s.effects).filter(e => e.executing);
     for (const note of frameNotes) {
       note.inputTimeMs = timeMs;
-      const window = windows.get(formalJudgementType(note.type, note.critical));
-      if (!window) continue;
-      const baseWindow = scenario.timingOffsetMs < 0 ? window._beforeMs : window._afterMs;
-      // 4004 uses EnhanceJudgementByPercent: each handle scales the original
-      // judgement window. The 8 ms Gekisou factor belongs to effect 13001.
-      const expansion = sum32(judgementEffects.filter(e => e.definition._skillEffectType === 4004).map(e =>
-        roundToEven(f32(f32(e.definition._effectValue / 10000) * baseWindow))));
-      if (justEnabled && Math.abs(scenario.timingOffsetMs) <= baseWindow + expansion) note.judgement = 6;
+      const offset = note.timingOffsetMs ?? scenario.timingOffsetMs;
+      const expansionFor = base => sum32(judgementEffects.filter(e => e.definition._skillEffectType === 4004).map(e =>
+        roundToEven(f32(f32(e.definition._effectValue / 10000) * base))));
+      if (performanceInput) note.judgement = resolveTimingJudgement(rules, note, { justEnabled, justExpansion: expansionFor });
       else {
-        // Disabling the raw JUST window does not unregister a skill converter.
-        const converter = judgementEffects.find(e => e.definition._skillEffectType === 13005 && e.pending > 0);
-        if (converter) {
-          note.judgement = 6; converter.pending--;
-          if (!converter.pending) converter.exhaustedFrame = frame;
+        const window = windows.get(formalJudgementType(note.type, note.critical));
+        if (window) {
+          const baseWindow = offset < 0 ? window._beforeMs : window._afterMs;
+          if (justEnabled && Math.abs(offset) <= baseWindow + expansionFor(baseWindow)) note.judgement = 6;
         }
       }
+      note.originalJudgement = note.judgement;
+      // Ordinary converters resolve first in owner/activation order, then
+      // Gekisou converters consume only a matching, actually changed grade.
+      if (ordinary) Object.assign(note, ordinary.convert(note.judgement));
+      for (const effect of judgementEffects) {
+        const type = effect.definition._skillEffectType;
+        const targets = effect.targets ?? (type === 13005 ? [5] : []);
+        if (type === 13005 && effect.pending > 0 && targets.includes(note.judgement) && note.judgement !== 6) {
+          note.judgement = 6; effect.pending--; note.convertedBy = { source: effect.key, effectId: effect.definition._id, kind: 'gekisou' };
+          if (!effect.pending) effect.exhaustedFrame = frame;
+          break;
+        }
+        if (type === 12006 && effect.remaining !== 0 && targets.includes(note.judgement) && note.judgement !== effect.definition._effectValue) {
+          note.judgement = effect.definition._effectValue; if (effect.remaining !== null) effect.remaining--;
+          note.convertedBy = { source: effect.key, effectId: effect.definition._id, kind: 'gekisou' }; break;
+        }
+      }
+      if (performanceInput) {
+        if (note.convertedBy) convertedCount++;
+        judgementCounts[note.judgement]++;
+        combo.add(note.timeMs, note.judgement);
+        const damage = rules.tables.LiveJudgementParameter.find(row => row._noteSimulateJudgement === note.judgement)?._damage;
+        if (!Number.isInteger(damage) || damage < 0) throw new Error('缺少判定生命参数');
+        if (damage) { life.add({ timeMs: note.timeMs, kind: 0, value: damage }); totalDamage += damage; }
+        note.lifeAtInput = life.at(note.timeMs); lowestLife = Math.min(lowestLife, note.lifeAtInput);
+      }
+    }
+    ordinary?.advance(frame);
+    if (performanceInput) {
+      lowestLife = Math.min(lowestLife, life.at(timeMs));
+      if (trace && (frameNotes.length || ordinary?.skillTrace.at(-1)?.frame === frame)) stateTrace.push({ frame, timeMs, life: life.at(timeMs), combo: combo.state.combo, maxCombo: combo.state.maxCombo });
     }
     for (const s of states) {
       const notes = frameNotes.filter(n => n.sectionIndex === s.index);
       if (s.closed || (!s.entered && timeMs < s.startMs)) {
         // Early AP input retains authored section membership. Start effects
         // are not yet installed; recount after entry can still backdate them.
-        s.history.push(...notes); s.perfectCount += notes.length;
+        s.history.push(...notes); s.perfectCount += notes.filter(n => n.judgement >= 5).length;
         continue;
       }
       const entering = !s.entered;
@@ -187,9 +241,9 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         if (closing) continue;
         if (entering && e.trigger.some(c => c._conditionType === 7010 ||
           (c._conditionType === 7020 && r._skillTriggerType === 2)) && random() < e.probability / 100) {
-          start(s, e, s.startMs);
-          if (type === 11005) s.luck.addMinimum(r._effectValue - 1, r._effectLimitCount);
-          if (type === 11003) s.luck.addGaugePercent(r._effectValue);
+          const started = start(s, e, s.startMs);
+          if (started && type === 11005) s.luck.addMinimum(r._effectValue - 1, r._effectLimitCount);
+          if (started && type === 11003) s.luck.addGaugePercent(r._effectValue);
         }
         if (type === 12000 && e.comboThreshold && !e.triggered && s.combo >= e.comboThreshold) {
           start(s, e, s.history.at(-1)?.timeMs ?? timeMs);
@@ -216,7 +270,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         if (type === 2000) {
           // Sustained RUSH support condition reads the previous G frame. The
           // native base RUSH multiplier is a separate, multiplicative handle.
-          updateScoreFactor(s, e, s.luck.state.rushCombo ? quantize(f32(r._effectValue / 10000)) : 0, timeMs);
+          updateScoreFactor(s, e, (s.luck.state.rushCombo && (!e.eligible || e.eligible(life?.at(timeMs) ?? maximumLife))) ? quantize(f32(r._effectValue / 10000)) : 0, timeMs);
         }
         if (type === 2001 && e.executing) {
           e.cumulativeRaw += notes.filter(n => n.judgement === 6).length;
@@ -230,7 +284,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         continue;
       }
       // Gekisou.Update: append judgements, recalculate count history, lottery.
-      s.history.push(...notes); s.perfectCount += notes.length;
+      s.history.push(...notes); s.perfectCount += notes.filter(n => n.judgement >= 5).length;
       // LUCK AP judgements are always PERFECT, so neither COMBO nor JUST
       // histories change there. Its ranking points live in the luck machine.
       if (notes.length || s.countsDirty) { if (s.missionType !== 2) recount(s); s.countsDirty = false; }
@@ -249,5 +303,8 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     }
     judgementSequence += frameNotes.length;
   }
-  return { clock, states, events, commands, comboUpdates, ...(trace ? { luckEvents, transitions } : {}) };
+  return { clock, states, events, commands, comboUpdates, ordinaryCommands: ordinary?.commands,
+    ...(performanceInput ? { performance: { ...combo.state, life: life.at(clock.at(Math.max(lastFrame, ordinary?.lastFrame ?? 0)).timeMs), lowestLife, totalDamage,
+      recoveryAmount: ordinary?.recoveryAmount ?? 0, judgementCounts, convertedCount } } : {}),
+    ...(trace ? { luckEvents, transitions, stateTrace, ordinarySkillTrace: ordinary?.skillTrace } : {}) };
 }

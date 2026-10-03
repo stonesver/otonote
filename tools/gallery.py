@@ -63,6 +63,7 @@ def project_gallery(master: Path, release_id: str, locale: str, asset_root: Path
             title = (f'{cast} · ' + ('Comic' if locale == 'en' else '漫画')) if kind == 'comics' else label(row['_nameTextId'], fallback)
             result[kind].append({'id': row['_id'], 'title': title, 'characterIds': ids,
                 'bandIds': sorted({characters[id]['bandId'] for id in ids}),
+                'sourceResource': ref,
                 'category': kind if kind in ('stickers', 'backgrounds') else str(row.get('_stampCategory', 0)), 'mediaType': kind,
                 'status': asset['status'], 'description': label(row.get('_descriptionTextId', ''), ''), 'startAt': row.get('_startAt'), 'endAt': row.get('_endAt'),
                 'image': '/gallery/' + asset['image'] if asset['status'] == 'available' else None,

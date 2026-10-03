@@ -1,3 +1,4 @@
+import {optimizerReadiness} from '../src/lib/optimizer-guidance.mjs';
 import {planningSearchStatus} from '../src/lib/inventory-optimizer-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -65,4 +66,13 @@ test('bounded planning and cancellation never advertise resumable exhaustive sea
   const effort=source.match(/<select data-search-effort[^>]*>(.*?)<\/select>/s)?.[1];
   assert.ok(effort);assert.doesNotMatch(effort,/value="complete"|value="custom"|value="20"/);
   assert.match(source, /data-resume-pairing hidden disabled/);
+});
+
+test('main journey controls and runtime readiness remain English after updates',()=>{
+  const controls=['帮我配一队','比较队伍 / 换卡','选择歌曲与难度','用哪些卡来配？','这次想打普通，还是激奏？','普通自由演出','激奏演出','账号加成：乐器、角色评级与 TGW','限定乐队、属性或调整目标（可选）','比较这首歌的出分','推荐编成','等待开始','搜索详情与计算条件','配队攻略与计算说明'];
+  for(const label of controls)assert.doesNotMatch(planningUiText(label,'en'),/[\u4e00-\u9fff]/,label);
+  const empty={slots:Array.from({length:5},()=>({}))};
+  const waiting=optimizerReadiness({draft:empty,locale:'en'});assert.equal(waiting.ready,false);assert.match(waiting.message,/Choose a song/);
+  const owned=optimizerReadiness({draft:{...empty,selectedSongId:'song',selectedDifficulty:'expert'},scope:'owned',inventory:{memberCardIds:[],supportCardIds:[]},locale:'en'});assert.doesNotMatch(owned.message,/[\u4e00-\u9fff]/);assert.match(owned.message,/reference teams/);
+  for(const status of ['卡库已更新，请重新搜索。','准备计算…','正在寻找更好的编成','准备卡片与技能 · 1/5','完整复算领先队伍：待开始',' 未找到满足约束的队伍。'])assert.doesNotMatch(planningUiText(status,'en'),/[\u4e00-\u9fff]/,status);
 });

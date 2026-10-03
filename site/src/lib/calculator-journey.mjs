@@ -1,6 +1,8 @@
+import {planningUiText} from './team-planning-translations.mjs';
 /** Bind the single current layout; the template owns all controls and panels. */
 export function setupCalculatorJourney(workbench) {
   const q = selector => workbench.querySelector(selector);
+  const ui=text=>planningUiText(text,workbench.data.locale);
   const root = q('.calculator-journey');
   if (!root) return null;
   const events = new AbortController();
@@ -22,8 +24,8 @@ export function setupCalculatorJourney(workbench) {
   function refresh() {
     const state = workbench.optimizerState ?? {};
     q('.journey-context').textContent = state.songReady
-      ? `${q('[data-song-selection]').textContent} · ${q(savedMode ? '[data-preset-mode]' : '[data-pairing-mode]').value === 'gekisou' ? '激奏演出' : '普通自由演出'}`
-      : '先选歌，再选择卡片和这次想比较的条件。';
+      ? `${q('[data-song-selection]').textContent} · ${q(savedMode ? '[data-preset-mode]' : '[data-pairing-mode]').value === 'gekisou' ? ui('激奏演出') : ui('普通自由演出')}`
+      : ui('先选歌，再选择卡片和这次想比较的条件。');
     for (const {select, buttons} of choices) for (const button of buttons) {
       button.setAttribute('aria-pressed', String(select.value === button.dataset.choice));
     }

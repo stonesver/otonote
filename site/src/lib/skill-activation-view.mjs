@@ -90,6 +90,8 @@ export function renderSkillActivation(root,result,data={}){
   }
   playback.variants.forEach((v,i)=>{const b=el('button',label(v,playback.randomSampling));b.type='button';b.addEventListener('click',()=>draw(i));controls.append(b);});draw(0);
 }
+// Shared tool modules also import this file during server-side validation.
+if(typeof HTMLElement!=='undefined'&&typeof customElements!=='undefined'&&!customElements.get('skill-activation')){
 class SkillActivation extends HTMLElement {
   connectedCallback(){if(this.initialized)return;this.initialized=true;const details=el('details',null,'skill-activation');const summary=el('summary'),mark=el('span',null,'activation-mark');mark.setAttribute('aria-hidden','true');for(let i=0;i<5;i++)mark.append(el('i'));
     const summaryText=el('span',null,'activation-summary-text');summaryText.append(el('strong',say('查看技能发动','View skill activations')),el('small',say('发动顺序、技能条件与音符覆盖','Order, conditions and note coverage')));summary.append(mark,summaryText,el('span','⌄','activation-chevron'));details.append(summary);const body=el('div',null,'activation-body');details.append(body);this.append(details);
@@ -107,7 +109,8 @@ class SkillActivation extends HTMLElement {
     }catch(error){fail(error.message);}
   }
 }
-if(!customElements.get('skill-activation'))customElements.define('skill-activation',SkillActivation);
+customElements.define('skill-activation',SkillActivation);
+}
 export function skillActivation(tool,draft,options={}){
   const data=tool.data??tool,view=document.createElement('skill-activation');view.data={memberCards:data.memberCards,supportCards:data.supportCards,ranking:Boolean(options.ranking)};
   const copy=draft?structuredClone(draft):null;

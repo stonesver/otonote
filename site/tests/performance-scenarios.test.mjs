@@ -62,6 +62,8 @@ test('ordinary recovery and life-conditioned score skills use the same phase ord
   const ordinary=createPerformanceSongCalculator(r,c,{performance:p}).calculate(d,{includeTrace:true});
   const result=createGekisouSongCalculator(r,c,{performance:p}).calculate(d,{includeTrace:true});
   assert.deepEqual(result.bestSample.ordinarySkillTrace,ordinary.skillTrace);
+  assert.deepEqual(result.skillPlayback.variants[0].skillTrace,ordinary.skillTrace);
+  assert.equal(result.skillPlayback.skills[0].supportEffects[0].contribution,'life_recovery');
   assert.equal(result.bestSample.ordinarySkillTrace.find(e=>e.type===2004).currentLife,700);
   assert.deepEqual(result.bestSample.notes.map(n=>n.lifeAtInput),ordinary.bestOrderNotes.map(n=>n.lifeAtInput));
 });
@@ -82,6 +84,7 @@ test('shared adapter records fixed raw sample hashes and aggregates actual outco
     assert.deepEqual(a.playerSamples.map(s=>s.inputHash),b.playerSamples.map(s=>s.inputHash));
     assert.equal(a.playerSampleCount,2);assert.equal(a.scoreDistribution.count,a.sampleCount);assert.equal(a.orderCount,10);
     assert.equal(a.randomSources.player,true);assert.equal(a.randomSources.skillOrder,true);
+    assert.deepEqual(a.performanceScenario,a.playerScenario);assert.equal(a.skillPlayback.randomSampling,true);
     assert.equal(a.expectedScore,a.scoreDistribution.mean);assert.ok(a.minimumScore<=a.maximumScore);
     assert.equal(a.scoreDistribution.complete,false);assert.ok(a.skillPlayback.variants.length>=2);
   }

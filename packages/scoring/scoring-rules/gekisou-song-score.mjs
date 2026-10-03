@@ -230,7 +230,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const noteScore = total - rankingBonus;
       const score = pipeline.apply('fixed_score', total, { draft, order, sections });
       if (!Number.isSafeInteger(score) || score < 0) throw new Error('Invalid Gekisou score');
-      const result = { score, performance: replay.performance, noteScore, rankingBonus, outsideScore, sections, eventFixedScore: score - total, ...(trace ? { notes, luckEvents: replay.luckEvents, skillTransitions: replay.transitions, stateTrace: replay.stateTrace, ordinarySkillTrace: replay.ordinarySkillTrace, factorCommands: commands, commands: ordinaryCommands } : {}) };
+      const result = { score, performance: replay.performance, noteScore, rankingBonus, outsideScore, sections, eventFixedScore: score - total, ...(trace ? { notes, luckEvents: replay.luckEvents, skillTransitions: replay.transitions, stateTrace: replay.stateTrace, ordinarySkillTrace: replay.ordinarySkillTrace, skillTrace: replay.ordinarySkillTrace, factorCommands: commands, commands: ordinaryCommands } : {}) };
       if (cacheKey !== null) orderCache.set(cacheKey, result);
       return result;
     }
@@ -272,11 +272,11 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       sections: ranges.map((r, i) => ({ ...r, ...Object.fromEntries(Object.entries(sectionSums[i]).map(([k, v]) => [k, v / samples.length])), rankProbabilities:rankCounts[i].map(n=>n/samples.length), share: sum ? sectionSums[i].totalScore / sum : 0 })),
       effects: effects.map(e => ({ sourceCardId: e.sourceCardId, slotIndex: e.slotIndex, type: e.definition._skillEffectType, active: e.active, missionType: e.missionType,
         contribution: !performanceInput && [12004, 12006].includes(e.definition._skillEffectType) ? 'no_score_change_under_ap' : 'simulated' })),
-      bestOrder: best.order, worstOrder: worst.order, warnings, skills: perfect,
+      bestOrder: best.order, worstOrder: worst.order, warnings, skills: ordinarySkills ?? perfect,
       chart: { id: timeline.chartId, level: timeline.level, eventCount: timeline.events.length, chartHash: timeline.chartHash,
         difficultyFactor: timeline.difficultyFactor, convertedNoteCount: timeline.convertedNoteCount, masterFullCombo: timeline.masterFullCombo, skillTimes: timeline.skillTimes },
       ...(includeTrace ? { bestSample: bestTrace, bestSampleSeed: best.seed,
-        skillPlayback: { skills: perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
+        skillPlayback: { skills: ordinarySkills ?? perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
           randomSampling, ranges: ranges.map(({index,missionType,startMs,endMs})=>({index,missionType,startMs,endMs})),
           luckPointsByResult: [...rules.native.luckPointsByResult],
           effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex,

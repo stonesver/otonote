@@ -41,7 +41,7 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
       randomSources: { player: player.profile !== 'explicit' && (player.timingSpreadMs > 0 || player.missRate > 0),
         skillOrder: mode === 'gekisou' ? best.result.orderCount > 1 : calculators.length > inputs.length, game: Boolean(trace.randomSampling) },
       scenario: { ...(mode === 'gekisou' ? trace.scenario : {}), performanceScenario: player },
-      playerScenario: player, playerSampleCount: inputs.length,
+      playerScenario: player, performanceScenario: player, playerSampleCount: inputs.length,
       playerSamples: inputs.map((_, i) => {
         const rows = results.filter(row => row.sampleIndex === i).map(row => row.result);
         return { index: i, inputHash: stableSnapshotHash(inputs[i]), expectedScore: rows.reduce((sum,row)=>sum+row.expectedScore,0)/rows.length,
@@ -55,7 +55,7 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
       inputHash: stableSnapshotHash({ inputHashes: results.map(row=>row.result.inputHash), player, mode }), warnings,
       ...(includeTrace ? { bestPlayerSampleIndex: best.sampleIndex, worstPlayerSampleIndex: worst.sampleIndex } : {}),
     };
-    if (includeTrace && trace.skillPlayback) result.skillPlayback = { ...trace.skillPlayback,
+    if (includeTrace && trace.skillPlayback) result.skillPlayback = { ...trace.skillPlayback, randomSampling: Boolean(result.randomSources.player || result.randomSources.game),
       variants: [{ ...(trace.skillPlayback.variants.find(v=>v.kind==='best') ?? trace.skillPlayback.variants[0]), kind: 'best', playerSampleIndex: best.sampleIndex },
         { ...(worstTrace.skillPlayback.variants.find(v=>v.kind==='worst') ?? worstTrace.skillPlayback.variants[0]), kind: 'worst', playerSampleIndex: worst.sampleIndex }] };
     return result;

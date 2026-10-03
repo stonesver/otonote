@@ -81,3 +81,80 @@
 .calculator-journey .song-picker-difficulties {width:100%;}
 .calculator-journey .song-picker-difficulties button {flex:1;min-width:0;}
 @media(max-width:1000px){.calculator-journey {display:flex;flex-direction:column;}.calculator-journey> :not([hidden]) {width:100%;box-sizing:border-box;}.calculator-journey .journey-step .song-picker-list {max-height:360px!important;}}
+
+/* Manual selection needs the content width, not the quick setup side column. */
+.team-workbench .calculator-journey:has(.journey-manual[open]:not([hidden])) {
+ grid-template-columns:minmax(0,1fr);
+}
+.team-workbench .calculator-journey:has(.journey-manual[open]:not([hidden]))>.journey-step {
+ grid-column:1/-1;
+ grid-row:auto;
+}
+.team-workbench .journey-step :is(details,.team-workbench-grid,.team-builder,.team-slot-list,.team-slot-pair,.team-slot-card,.team-card-picker,.card-picker-workspace,.card-picker-workspace>*,.team-picker-results) {
+ min-width:0;
+ max-width:100%;
+ box-sizing:border-box;
+}
+.team-workbench .journey-manual {
+ container:manual-team / inline-size;
+}
+.team-workbench .journey-step .team-slot-card :is(strong,small,span) {
+ max-width:100%;
+ overflow-wrap:anywhere;
+}
+.team-workbench .journey-step .journey-card-picker .team-card-picker {
+ container:manual-card-picker / inline-size;
+}
+.team-workbench .journey-step .journey-card-picker .tool-panel-header {
+ padding:12px 0;
+ flex-wrap:wrap;
+}
+.team-workbench .journey-step .journey-card-picker .card-picker-workspace {
+ grid-template-columns:minmax(0,1fr);
+}
+.team-workbench .journey-step .journey-card-picker .card-preview {
+ position:static;
+ order:-1;
+}
+.team-workbench .journey-step .journey-card-picker .team-picker-results {
+ grid-template-columns:minmax(0,1fr);
+}
+.team-workbench .journey-step .journey-card-picker :is(.selection-filter-grid,.selection-pagination,.team-kind-switch) {
+ min-width:0;
+ max-width:100%;
+}
+.team-workbench .journey-step .journey-card-picker .selection-pagination {
+ flex-wrap:wrap;
+ gap:8px;
+}
+@container manual-card-picker (min-width:680px) {
+ .team-workbench .journey-step .journey-card-picker .card-picker-workspace {
+  grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);
+ }
+ .team-workbench .journey-step .journey-card-picker .card-preview {
+  position:sticky;
+  order:0;
+ }
+}
+@container manual-team (max-width:600px) {
+ .team-workbench .journey-step .journey-manual .team-slot-list {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  overflow:visible;
+  width:100%;
+ }
+ .team-workbench .journey-step .journey-manual .team-slot {
+  flex:none;
+  min-width:0;
+  width:auto;
+ }
+ .team-workbench .journey-step .journey-manual .team-context-controls {
+  grid-template-columns:minmax(0,1fr);
+ }
+ .team-workbench .journey-step .journey-manual :is(input,select,button) {
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+  overflow-wrap:anywhere;
+ }
+}

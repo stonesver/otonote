@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {defaultPlanningKind,createPlanningSettings,planningSettingsValues,planningSummary} from '../src/lib/team-planning-scenario-ui.mjs';
+import {defaultPlanningKind,createPlanningSettings,planningSettingsValues,planningSummary,updatePlanningCardPreference} from '../src/lib/team-planning-scenario-ui.mjs';
 import {recommendationScenarioLabel,visibleRecommendations} from '../src/lib/optimizer-results-ui.mjs';
 const draft={slots:[{memberCardId:'member-card-1',supportCardId:'support-card-1'},...Array.from({length:4},()=>({}))],modifiers:{growth:{'member-card-1':{level:1}}}};
 const context={sourceReleaseId:'test-release',draft};
@@ -32,7 +32,7 @@ test('trial must name a card and keeps ownership separate',()=>{
 test('specific card targets survive settings restoration without overwriting current state',()=>{
   const settings=createPlanningSettings(form({kind:'training',maxTrainedCards:1,allowedCardIds:['member-card-1'],targets:{'member-card-1':{level:70}}}),context);
   const values=planningSettingsValues(settings);
-  assert.equal(values.kind,'training');assert.equal(values.targets['member-card-1'].level,70);
+  assert.equal(values.kind,'training');assert.equal(settings.planningScenario.plan.mode,'current-cap');assert.equal(values.targets['member-card-1'].level,70);
   assert.deepEqual(createPlanningSettings(values,context),settings);
   assert.match(planningSummary(values),/最多练 1 张/);
 });
@@ -59,4 +59,12 @@ test('duplicate direction results do not fill all visible recommendation slots',
   const result=n=>({draft:{slots:[{memberCardId:`member-card-${n}`}],modifiers:{growth:{}}}});
   assert.equal(visibleRecommendations([result(1),result(1),result(2),result(3),result(4)]).length,3);
   assert.equal(visibleRecommendations([result(1),result(1)]).length,1);
+});
+
+test('simple keep and exclude controls preserve other constraints and never keep both',()=>{
+  const original={bandId:1,requiredMemberIds:['member-card-1'],lockedPairs:[{memberCardId:'member-card-2',supportCardId:'support-card-2'}]};
+  const excluded=updatePlanningCardPreference(original,{kind:'member',id:'member-card-1',preference:'exclude'});
+  assert.equal(excluded.requiredMemberIds,undefined);assert.deepEqual(excluded.excludedMemberIds,['member-card-1']);
+  assert.equal(excluded.bandId,1);assert.deepEqual(excluded.lockedPairs,original.lockedPairs);assert.deepEqual(original.requiredMemberIds,['member-card-1']);
+  const clear=updatePlanningCardPreference(excluded,{kind:'member',id:'member-card-1',preference:''});assert.equal(clear.excludedMemberIds,undefined);
 });

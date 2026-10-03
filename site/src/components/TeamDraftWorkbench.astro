@@ -223,7 +223,11 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     <label class="selection-filter-row"><span>最多带几张扩窗成员卡</span><select data-planning-window-limit>{[5,0,1,2,3,4].map(n=><option value={n}>{n===5?'不限':`${n} 张`}</option>)}</select></label>
     <label class="selection-filter-row"><span>培养范围比较上限</span><input type="number" data-planning-variant-limit min="1" max="1000" value="24" /></label>
     <p class="calculator-scope-note">这是本次推荐的搜索设置，不是游戏限制。培养组合较多时，可以先指定愿意练的卡。</p>
-    <details class="optimizer-advanced"><summary>高级约束：必选卡与固定配对</summary>
+    <details class="optimizer-advanced"><summary>保留当前队伍中的卡或配对</summary>
+      <p>在下方编辑队伍后，可指定哪些卡一定要带、哪些卡不参加推荐。</p>
+      <div class="planning-card-list" data-planning-card-locks></div>
+    </details>
+    <details class="optimizer-advanced"><summary>更多卡片约束（JSON）</summary>
       <p>JSON 可设置 bandId、attribute、supportAttribute、leaderId、requiredMemberIds、requiredSupportIds、excludedMemberIds、excludedSupportIds、lockedPairs。卡片 ID 支持数字。固定配对示例：&#123;"lockedPairs":[&#123;"memberCardId":1,"supportCardId":1&#125;]&#125;。</p>
       <label>搜索约束 <textarea data-search-constraints rows="4">&#123;&#125;</textarea></label>
     </details>

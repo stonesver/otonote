@@ -5,6 +5,16 @@ from pathlib import Path
 import re
 
 
+def costume_model_key(path):
+    """Game naming shared by the stage and dialogue versions of the same outfit."""
+    return path.rsplit('/', 1)[-1].removeprefix('adv_').removesuffix('_low')
+
+
+def matches_costume_model(model, paths):
+    return model['modelPath'] in paths or (model.get('usage') == 'story'
+        and costume_model_key(model['modelPath']) in {costume_model_key(path) for path in paths})
+
+
 def read_posters(root):
     root = Path(root)
     if (root / 'manifest.json').is_symlink():

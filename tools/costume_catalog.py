@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 from tools.resource_pipeline.localization import resolve_text
-from tools.costume_posters import read_posters
+from tools.costume_posters import read_posters, matches_costume_model
 
 
 def table(root, name):
@@ -100,8 +100,9 @@ def project_costumes(master, catalog, *, live2d=None, icons_root=None):
         poster = posters.get(group_id)
         bound_model = models.get(poster['modelPath']) if poster else None
         valid_poster = (poster and bound_model and poster['characterId'] == character['masterId']
+                        and str(bound_model['characterId']) == str(character['masterId'])
                         and poster['sourceSha256'] == bound_model.get('sourceSha256')
-                        and any(v['modelPath'] == poster['modelPath'] for v in variants))
+                        and matches_costume_model(bound_model, [v['modelPath'] for v in variants]))
         payload['costumes'].append({
             'id': f'costume-group-{group_id}', 'masterId': group_id, 'name': name,
             'characterId': character['id'], 'characterMasterId': character['masterId'],

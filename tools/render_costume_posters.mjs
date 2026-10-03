@@ -19,6 +19,12 @@ button.addEventListener('click', async () => {
         player = await createLive2DPlayer({canvas:document.querySelector('canvas'), resources, coreUrl:'/core.js', signal:controller.signal});
         for (const effect of ['blink','breath','gaze','physics']) player.effect(effect, false);
         player.resetParameters();
+        if (job.presentation === 'instrument-off') {
+          const parameter = player.parameters.find(p => p.id === 'ParamInstrumentOff');
+          if (!parameter || parameter.max <= 0) throw new Error('Model has no instrument visibility control');
+          // The game's switch displays instruments at 1 and hides them at 0.
+          player.lock(parameter.index, parameter.min);
+        }
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const blob = await (await fetch(player.snapshot())).blob();
         const response = await fetch(`/result/${job.groupId}`, {method:'POST', headers:{'X-Poster-Token':jobs.token,'Content-Type':'image/png'}, body:blob});

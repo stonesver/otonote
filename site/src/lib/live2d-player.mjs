@@ -144,7 +144,12 @@ export async function createLive2DPlayer({ canvas, resources, coreUrl, signal, o
     signal.addEventListener('abort', dispose, { once: true });
     return {
       parameters, parts, dispose,
-      snapshot() { app.renderer.render(app.stage); return app.renderer.extract.canvas(app.stage).toDataURL('image/png'); },
+      snapshot() {
+        // Apply parameter/part locks even when the document's ticker is paused.
+        internal.update(0, model.elapsedTime);
+        app.renderer.render(app.stage);
+        return app.renderer.extract.canvas(app.stage).toDataURL('image/png');
+      },
       play: (group, index) => model.motion(group, index, 3),
       stop: () => { internal.motionManager.stopAllMotions(); },
       expression: name => name ? model.expression(name) : Promise.resolve(internal.motionManager.expressionManager?.resetExpression()),

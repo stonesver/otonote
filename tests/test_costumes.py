@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 from tools.costume_catalog import project_costumes
 from tools.costume_assets import extract_costume_icons
-from tools.costume_posters import poster_inputs
+from tools.costume_posters import poster_inputs, matches_costume_model
 
 
 class CostumeTests(unittest.TestCase):
@@ -107,6 +107,13 @@ class CostumeTests(unittest.TestCase):
         self.assertIsNone(self.project(icons_root=self.root/'icons')['costumes'][0]['poster'])
         (directory / name).write_bytes(b'corrupt')
         with self.assertRaisesRegex(ValueError, 'integrity'): poster_inputs(binding, self.root)
+
+    def test_dialogue_counterparts_must_match_the_exact_costume_name(self):
+        paths = ['022_live/live2d_miku_022_birthday2627_01_low/model/live2d_miku_022_birthday2627_01_low']
+        model = {'usage':'story','modelPath':'022_adv/adv_live2d_miku_022_birthday2627_01/model/adv_live2d_miku_022_birthday2627_01'}
+        self.assertTrue(matches_costume_model(model, paths))
+        self.assertFalse(matches_costume_model({**model,'usage':'live'},paths))
+        self.assertFalse(matches_costume_model({**model,'modelPath':model['modelPath'].replace('birthday2627','live')},paths))
 
     def resources(self):
         reference = self.groups[0]['_iconPath']

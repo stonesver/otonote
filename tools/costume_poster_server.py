@@ -13,7 +13,7 @@ import secrets
 import subprocess
 from urllib.parse import urlsplit
 
-from tools.costume_posters import read_posters
+from tools.costume_posters import read_posters, matches_costume_model
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,18 +29,34 @@ def handler(costumes, models, content, core, output, bundle, port):
                    and v['modelId'] in selected and selected[v['modelId']]['modelPath'] == v['modelPath']]
         if not matches:
             continue
-        model = min(matches, key=lambda m:m['bytes'])
+        paths = [v['modelPath'] for v in row['models']]
+        counterparts = [m for m in selected.values() if m['characterId'] == row['characterMasterId']
+                        and m.get('usage') == 'story' and matches_costume_model(m, paths)]
+        if counterparts:
+            model = min(counterparts, key=lambda m:m['bytes'])
+            presentation = 'dialogue-costume'
+        else:
+            switchable = []
+            for m in matches:
+                manifest_path = content / m['root'].removeprefix('/content/') / 'manifest.json'
+                if manifest_path.is_file() and 'ParamInstrumentOff' in json.loads(manifest_path.read_text())['defaults']:
+                    switchable.append(m)
+            if not switchable:
+                raise ValueError(f"no verified instrument-free model for costume {row['masterId']}")
+            model = min(switchable, key=lambda m:m['bytes'])
+            presentation = 'instrument-off'
         if str(model['characterId']) != str(row['characterMasterId']):
             raise ValueError('costume/model character mismatch')
         jobs[row['masterId']] = {k:model[k] for k in ['modelPath','sourceSha256','characterId','root']}
         jobs[row['masterId']]['groupId'] = row['masterId']
+        jobs[row['masterId']]['presentation'] = presentation
     if output.exists():
         raise ValueError('output already exists; choose a new poster directory')
     stage = output.with_name('.' + output.name + '.working')
     stage.mkdir(parents=True, exist_ok=True)
     saved = read_posters(stage)
     for key, row in saved.items():
-        if key not in jobs or any(row[k] != jobs[key][k] for k in ['modelPath','sourceSha256','characterId']):
+        if key not in jobs or any(row.get(k) != jobs[key][k] for k in ['modelPath','sourceSha256','characterId','presentation']):
             raise ValueError('poster staging belongs to different models')
     origin = f'http://127.0.0.1:{port}'
     class Handler(SimpleHTTPRequestHandler):

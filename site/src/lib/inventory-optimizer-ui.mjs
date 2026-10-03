@@ -1,3 +1,4 @@
+import {resolveGrowthScenario} from './scoring-rules/growth-scenarios.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 import {setupTeamPlanningScenarios} from './team-planning-scenario-ui.mjs';
 import {resolveSearchInput} from './scoring-rules/formation-input.mjs';
@@ -35,13 +36,19 @@ export function setupInventoryOptimizer(workbench) {
     }
     const state=optimizerReadiness({draft:workbench.draft,scope:q('[data-search-scope]').value,inventory,objective:q('[data-pairing-objective]').value,
       locale:workbench.data.locale,characterFor:id=>calculator.card(id,'member')._characterID});
-    try {scenarios?.read();} catch(error){state.ready=false;state.message=error.message;}
+    try {scenarios?.read();if([...workbench.querySelectorAll('[data-manual-card]')].some(input=>!input.checkValidity()))throw new Error('请检查当前槽位的等级与技能数值，再确认实际养成。');} catch(error){state.ready=false;state.message=error.message;}
     let space=null;
     if(state.ready) {
       try {
         const draft=structuredClone(workbench.draft);
         if(q('[data-search-scope]').value==='owned')draft.modifiers.growth={...draft.modifiers.growth,...inventory.growth};
-        const input=resolveSearchInput(rules,draft,{scope:q('[data-search-scope]').value,inventory:editor.inventory,planningScenario:scenarios?.read().planningScenario,constraints:readOptimizerConstraints(workbench)});
+        const planningScenario=scenarios?.read().planningScenario;
+        if(planningScenario){
+          const growth=resolveGrowthScenario(rules,draft,{...planningScenario,inventory:editor.inventory});
+          const distinctCharacters=new Set(growth.inventory.memberCardIds.map(id=>calculator.card(id,'member')._characterID));
+          if(growth.excludedCardIds.length&&(distinctCharacters.size<5||growth.inventory.supportCardIds.length<5))throw new Error(`有 ${growth.excludedCardIds.length} 张卡尚未填全实际养成。请在「调整当前槽位的等级、突破与觉醒」中填写等级，并确认该槽位的显示值；也可以改用参考养成。`);
+        }
+        const input=resolveSearchInput(rules,draft,{scope:q('[data-search-scope]').value,inventory:editor.inventory,planningScenario,constraints:readOptimizerConstraints(workbench)});
         space=summarizeSearchSpace(rules,input);
       }catch(error){state.ready=false;state.message=error.message;}
     }

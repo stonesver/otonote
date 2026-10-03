@@ -31,6 +31,7 @@ jobs:
       - name: Existing public contract gates
         run: |
           npm --prefix site ci --ignore-scripts --no-audit --no-fund
+          node --test site/tests/calculator-layout-render.test.mjs
           node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs
           node --test site/tests/event-song-ranking.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs
           node --test site/tests/edition-library.test.mjs site/tests/shared-song-rankings.test.mjs site/tests/card-skill-filtering.test.mjs

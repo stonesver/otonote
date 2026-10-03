@@ -230,18 +230,13 @@
   gap: 18px;
 }
 
-.team-builder,
-.team-summary,
-.team-card-picker,
-.team-draft-settings {
+.team-builder,.team-card-picker,.team-draft-settings {
   border: 1px solid var(--line);
   background: var(--paper-light);
   box-shadow: 0 14px 38px rgb(17 19 27 / 7%);
 }
 
-.team-builder,
-.team-summary,
-.team-draft-settings {
+.team-builder,.team-draft-settings {
   padding: clamp(20px, 2.6vw, 32px);
 }
 
@@ -387,116 +382,6 @@
   color: var(--silver-dark);
   font-size: 13px;
   text-align: center;
-}
-
-.team-workspace-limit {
-  margin: 16px 0 0;
-  color: var(--silver-dark);
-  font-size: 12px;
-}
-
-.team-completion-status {
-  margin: 12px 0 0;
-  padding: 9px 11px;
-  border-left: 3px solid var(--warning);
-  background: #fff6e4;
-  color: #72522f;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.team-completion-status.is-complete {
-  border-left-color: var(--success);
-  background: #edf8f1;
-  color: #376148;
-}
-
-.team-total-score {
-  padding: 24px 0;
-  border-block: 1px solid var(--line);
-}
-
-.team-total-score strong,
-.team-total-score span {
-  display: block;
-}
-
-.team-total-score strong {
-  font-family: var(--font-display);
-  font-size: clamp(42px, 6vw, 70px);
-  line-height: 1;
-}
-
-.team-total-score span {
-  margin-top: 8px;
-  color: var(--silver-dark);
-  font-size: 12px;
-}
-
-.team-power-breakdown {
-  margin: 0;
-}
-
-.team-power-breakdown div,
-.team-count-line {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.team-power-breakdown dt {
-  color: var(--silver-dark);
-  font-size: 13px;
-}
-
-.team-power-breakdown dd {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-weight: 700;
-}
-
-.team-count-line {
-  font-size: 13px;
-}
-
-.team-skill-summary {
-  margin-top: 24px;
-}
-
-.team-skill-summary h3 {
-  margin: 0 0 12px;
-  font-size: 16px;
-}
-
-.team-skill-summary article {
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-}
-
-.team-skill-summary article span,
-.team-skill-summary article strong,
-.team-skill-summary article p {
-  display: block;
-}
-
-.team-skill-summary article span {
-  color: var(--silver-dark);
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.team-skill-summary article strong {
-  margin-top: 4px;
-  font-size: 14px;
-}
-
-.team-skill-summary article p,
-.team-skill-summary > div > p {
-  margin: 4px 0 0;
-  color: var(--silver-dark);
-  font-size: 13px;
 }
 
 .team-card-picker,
@@ -1122,10 +1007,6 @@
 .production-power-panel details { margin-top: 1rem; }
 .production-power-panel summary { cursor: pointer; }
 .production-power-panel pre { max-height: 28rem; overflow: auto; white-space: pre; }
-.production-power-table { overflow-x: auto; }
-.production-power-table table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.production-power-table th, .production-power-table td { padding: .6rem; text-align: right; border-bottom: 1px solid var(--line, #dedbd6); }
-.production-power-table th:first-child { text-align: left; }
 .production-power-panel li { margin: 1rem 0; overflow-wrap: anywhere; }
 .production-power-panel button { cursor: pointer; padding: .5rem .9rem; margin-right: .5rem; }
 .production-power-panel button:disabled { cursor: default; opacity: .5; }

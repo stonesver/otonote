@@ -61,7 +61,7 @@
 .tool-studio :is(.event-primary,button[data-ap-run],button[data-optimize-pairing],button[data-yield-run]):hover:not(:disabled) {background:#63344e;border-color:#63344e;box-shadow:0 5px 12px #79456024;}
 .tool-studio :is(button[data-ap-run],button[data-optimize-pairing],button[data-yield-run])::after {content:'→';margin-left:14px;}
 /* Team builder: a clear song desk next to the two smaller decisions. */
-.tool-studio .calculator-journey[data-guided=true] {gap:18px;grid-template-columns:minmax(0,1.12fr) minmax(300px,1fr);}
+.tool-studio .calculator-journey {gap:18px;grid-template-columns:minmax(0,1.12fr) minmax(300px,1fr);}
 .tool-studio .calculator-journey>.journey-heading {padding:0 2px;color:var(--studio-muted);}.tool-studio .journey-heading>button {font-size:11px;}
 .tool-studio .calculator-journey>.journey-tasks {padding:4px;gap:4px;border:1px solid #d8dee7;border-radius:11px;background:#e8ecf2;justify-self:start;}
 .tool-studio .calculator-journey .journey-tasks button {border:0;min-height:38px;padding:8px 18px;font-size:12px;font-weight:650;color:var(--studio-muted);}
@@ -86,8 +86,8 @@
 .tool-studio .song-picker-difficulties>.song-difficulty[aria-pressed=true] {color:white;background:var(--difficulty-color);border-color:var(--difficulty-color);box-shadow:none;}
 .tool-studio .calculator-journey .journey-step[data-journey-step="3"] {border-color:#cbdce9;background:#f9fcff;}
 .tool-studio .calculator-empty {background:#eff4f9;border:1px dashed #cad7e4;}
-/* Single-song score: input on the left; a calm, persistent result on the right. */
-.tool-studio .scoring-research-workbench {display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.9fr);gap:20px;align-items:start;}
+/* Single-song score follows the inputs in normal flow, without a floating panel. */
+.tool-studio .scoring-research-workbench {display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start;}
 .tool-studio .scoring-research-workbench>* {min-width:0;}
 .tool-studio .scoring-research-workbench>.tool-help,.tool-studio .scoring-research-workbench>.scoring-snapshot-details {grid-column:1/-1;margin:0;padding:0 4px;border-top:1px solid var(--studio-line);}
 .tool-studio .tool-saved-team {margin:0 0 16px;}
@@ -97,8 +97,8 @@
 .tool-studio .tool-team-strip>div {border:1px solid #e1e6ed;background:#f6f8fb;border-radius:10px;padding:7px 4px;text-align:center;}
 .tool-studio .tool-team-strip img {width:90%;height:66px;}.tool-studio .tool-team-strip img+img {height:40px;margin-top:4px;}.tool-studio .tool-team-strip small {font-size:9px;color:var(--studio-muted);line-height:1.65;margin-top:5px;}
 .tool-studio .tool-song-disclosure {padding:18px 20px;margin:0;}.tool-studio .tool-song-disclosure>summary {font-size:13px;}.tool-studio .tool-song-disclosure>summary>span {font-size:10px;}
-.tool-studio .score-output {position:sticky;top:88px;background:#e9f0f7;border:1px solid #cad9e6;border-radius:17px;padding:24px;}
-.tool-studio .score-output>.scoring-research-summary {display:block;padding:0;margin:0;border:0;background:none;box-shadow:none;}
+.tool-studio .score-output {position:static;scroll-margin-top:calc(var(--header-height,68px) + 20px);background:#e9f0f7;border:1px solid #cad9e6;border-radius:17px;padding:24px;}
+.tool-studio .score-output>.scoring-research-summary {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;padding:0;margin:0;border:0;background:none;box-shadow:none;}
 .tool-studio .scoring-research-summary .tool-status {display:inline-flex;background:#d6e3ee;border:0;border-radius:5px;color:var(--studio-blue);font:600 10px var(--font-body);padding:6px 8px;}
 .tool-studio .scoring-research-summary h2 {font:700 20px/1.5 var(--font-body);color:#28455e;margin:16px 0 8px;}
 .tool-studio .scoring-research-summary p {color:#5b7084;font-size:11px;line-height:1.85;}
@@ -172,7 +172,7 @@
 .tool-studio .ux-card-picker .ux-card-grid button {border-color:#dce4ed;background:#f9fbfd;border-radius:11px;}
 .tool-studio .ux-card-picker .ux-card-grid button:hover:not(:disabled) {background:#f4edf4;border-color:#ac8aa6;}
 @media(min-width:1151px){.tool-studio .event-layout {grid-template-columns:minmax(0,1fr) 280px;}}
-@media(max-width:1250px){.tool-studio .scoring-research-workbench {grid-template-columns:minmax(0,1fr) 290px;gap:16px;}.tool-studio .score-output {padding:20px;}.tool-studio .event-context {grid-template-columns:1fr 1fr;}.tool-studio .event-context>label:first-child {grid-column:1/-1;}.tool-studio .ap-workbench .event-panel {padding:20px;}}
+@media(max-width:1250px){.tool-studio .scoring-research-workbench {gap:16px;}.tool-studio .score-output {padding:20px;}.tool-studio .event-context {grid-template-columns:1fr 1fr;}.tool-studio .event-context>label:first-child {grid-column:1/-1;}.tool-studio .ap-workbench .event-panel {padding:20px;}}
 @media(max-width:1050px){.tool-studio .scoring-research-workbench {grid-template-columns:1fr;}.tool-studio .score-output {position:static;}.tool-studio ap-grade-tool.ap-workbench {grid-template-columns:1fr;}.tool-studio .ap-settings-panel .event-controls {grid-template-columns:1fr 1fr;}.tool-studio .ap-settings-panel .event-controls:has([data-ap-run]) {grid-template-columns:1fr;}.tool-studio .tool-team-strip img {width:48%;height:66px;}.tool-studio .tool-team-strip img+img {height:52px;}.tool-studio .ranking-controls {flex-wrap:wrap;}}
 @media(max-width:700px){
  .tool-studio>.tool-page-header {padding:22px 0 20px;}.tool-studio .tool-page-header h1 {font-size:25px;gap:10px;}.tool-studio .tool-title-glyph {width:38px;height:38px;border-radius:11px;}.tool-studio .tool-title-glyph svg {width:26px;height:26px;}
@@ -189,7 +189,7 @@
  .tool-studio .tool-task-tabs {flex-direction:column;gap:9px;margin-bottom:16px;}.tool-studio .tool-task-tabs button {padding:10px 12px;}.tool-studio .tool-task-tabs button strong {font-size:13px;padding-right:18px;}
  .tool-studio .event-quick-bonus .event-controls {grid-template-columns:1fr;gap:18px;}.tool-studio .event-summary-main>strong {font-size:35px;}
  .tool-studio .tool-team-strip {gap:4px;}.tool-studio .tool-team-strip img {width:90%;height:52px;}.tool-studio .tool-team-strip img+img {height:33px;}.tool-studio .tool-team-strip small {font-size:9px;}
- .tool-studio .tool-song-disclosure {padding:16px;}.tool-studio .scoring-research-summary dl {gap:16px;}.tool-studio .scoring-research-summary dd[data-song-score] {font-size:36px;}
+ .tool-studio .tool-song-disclosure {padding:16px;}.tool-studio .score-output>.scoring-research-summary {grid-template-columns:1fr;gap:12px;}.tool-studio .scoring-research-summary dl {gap:16px;}.tool-studio .scoring-research-summary dd[data-song-score] {font-size:36px;}
  .tool-studio .ranking-controls {gap:12px;}.tool-studio .ranking-mode {width:100%;}.tool-studio .ranking-mode button {flex:1;padding:10px 14px;}
  .tool-studio .ranking-board-heading {padding:20px 16px 16px;align-items:start;flex-direction:column;gap:8px;}.tool-studio .ranking-board-heading h2 {font-size:19px;}.tool-studio .ranking-board-heading h2 span {display:block;margin:7px 0 0;}
  .tool-studio .ranking-browse {padding:0 16px 18px;grid-template-columns:1fr;gap:14px;}.tool-studio .ranking-browse>label:last-child {grid-column:1;grid-row:3;}.tool-studio .ranking-browse>label:last-child select {width:100%;max-width:none;}

@@ -1,21 +1,5 @@
 /* Shared calculator flow: plum stage accents, quiet slate surfaces, card art. */
 :is(.team-workbench,.scoring-research-workbench) { --calc-accent:#763b63; --calc-muted:#677080; --calc-line:#dcdde5; --calc-surface:#fff; --calc-tint:#f5f2f7; --calc-positive:#23776b; }
-.calculator-guide { padding:24px; border-radius:18px; background:var(--calc-tint); border:1px solid var(--calc-line); }
-.calculator-kicker { color:var(--calc-accent); font:700 12px/1.4 var(--font-body); }
-.calculator-guide-intro h2 { font:700 clamp(20px,2.2vw,28px)/1.4 var(--font-body); letter-spacing:-.03em; margin:8px 0; }
-.calculator-guide-intro p { color:var(--calc-muted); font-size:13px; margin:0; }
-.calculator-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; list-style:none; padding:0; margin:22px 0 0; }
-.calculator-steps li { margin:0; min-width:0; }
-.calculator-steps a { display:flex; gap:12px; align-items:center; padding:12px; border:1px solid var(--calc-line); border-radius:10px; background:var(--calc-surface); }
-.calculator-steps a>span { display:grid; place-items:center; width:30px; height:30px; flex-shrink:0; border:1px solid var(--calc-line); border-radius:50%; font:600 13px var(--font-mono); }
-.calculator-steps strong,.calculator-steps small { display:block; font-family:var(--font-body); }
-.calculator-steps strong { font-size:13px; }
-.calculator-steps small { font-size:11px; color:var(--calc-muted); margin-top:3px; }
-.calculator-steps [data-complete="true"] a>span { background:var(--calc-positive); border-color:var(--calc-positive); color:white; }
-.calculator-default { padding:5px 9px; border-radius:20px; background:#e9f2f0; color:var(--calc-positive)!important; font:600 11px var(--font-body)!important; white-space:nowrap; }
-[data-shell="sidebar"] .team-workbench .optimizer-panel { background:var(--calc-surface); padding:24px; border-color:var(--calc-line); }
-[data-shell="sidebar"] .team-workbench .optimizer-main-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
-[data-shell="sidebar"] .team-workbench .optimizer-main-fields select { min-height:46px; background:#faf9fc; }
 [data-shell="sidebar"] .team-workbench .calculator-scope-note { border-left:3px solid var(--calc-accent); padding:8px 12px; margin:16px 0; background:var(--calc-tint); }
 [data-shell="sidebar"] .team-workbench .calculator-extra { border:1px solid var(--calc-line); border-radius:10px; padding:0 14px; margin:10px 0; }
 .calculator-extra summary { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; }
@@ -78,14 +62,11 @@
 .calculator-table-scroll { overflow-x:auto; }.calculator-table-scroll table { width:100%; min-width:510px; border-collapse:collapse; font-size:12px; }
 .calculator-table-scroll :is(th,td) { padding:10px; border-bottom:1px solid var(--calc-line); text-align:right; white-space:nowrap; }
 .calculator-table-scroll :is(th,td):first-child { text-align:left; }
-:is(.calculator-guide,.optimizer-panel,.optimizer-results-panel,.scoring-research-workbench) :is(a,button,input,select,summary):focus-visible { outline:2px solid var(--calc-accent); outline-offset:3px; }
-.team-workbench[data-mode="builder"] .calculator-guide { display:none; }
+:is(.optimizer-results-panel,.scoring-research-workbench) :is(a,button,input,select,summary):focus-visible { outline:2px solid var(--calc-accent); outline-offset:3px; }
 :is(.team-workbench,.scoring-research-workbench) [hidden] { display:none!important; }
 @keyframes calculator-pulse { 50% { opacity:.3; } }
 @media(max-width:700px) {
- .calculator-guide,.optimizer-results-panel,[data-shell="sidebar"] .team-workbench .optimizer-panel { padding:16px; }
- .calculator-steps { gap:6px; }.calculator-steps a { flex-direction:column; align-items:flex-start; gap:8px; padding:10px; }.calculator-steps small { display:none; }
- [data-shell="sidebar"] .team-workbench .optimizer-main-fields { grid-template-columns:1fr; gap:12px; }
+ .optimizer-results-panel { padding:16px; }
  .calculator-extra-body,[data-opponent-section] { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .recommendation .optimizer-result-pairs { grid-template-columns:repeat(5,minmax(100px,1fr)); overflow-x:auto; padding-bottom:8px; }
  .team-workbench [data-pairing-results]>.recommendation { padding:14px; }.recommendation-power { grid-template-columns:repeat(2,minmax(0,1fr)); }

@@ -41,9 +41,6 @@ export function setupInventoryOptimizer(workbench) {
     q('[data-calculator-guidance]').textContent=state.message;
     q('[data-calculator-guidance]').dataset.ready=String(state.ready);
     q('[data-optimize-pairing]').disabled=Boolean(worker)||!state.ready;
-    for(const [i,ready] of [state.songReady,state.cardsReady,Boolean(lastResult?.results.length)].entries()) {
-      const step=q(`[data-guide-step="${i+1}"]`);if(step)step.dataset.complete=String(ready);
-    }
     q('[data-inventory-scope-note]').textContent=q('[data-search-scope]').value==='owned'
       ?`已保存 ${inventory.memberCardIds.length} 张成员、${inventory.supportCardIds.length} 张留影。展开下方卡库修改养成。`
       :q('[data-search-scope]').value==='theoretical'?'无需手动选卡。全部卡片按满养成搜索，账号加成单独设置。':'只重新配对下方的五张成员与五张留影；不会自动加入其他卡。';
@@ -136,8 +133,6 @@ export function setupInventoryOptimizer(workbench) {
   q('[data-search-effort]').addEventListener('change',updateEffort);
   q('[data-search-budget]').addEventListener('change',()=>{q('[data-search-effort]').value='custom';updateEffort();});
   updateEffort();
-  q('[data-try-theoretical]').addEventListener('click',()=>{q('[data-search-scope]').value='theoretical';invalidate();});
-  q('[data-open-account]').addEventListener('click',()=>{const panel=q('#power-settings');panel.open=true;panel.scrollIntoView({block:'start',behavior:'auto'});});
   guide();
   return {invalidate};
 }

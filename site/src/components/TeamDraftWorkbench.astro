@@ -34,7 +34,6 @@ import { getRuntimeUiLabels } from "../lib/runtime-ui-labels";
 import "../styles/tools.css";
 import "../styles/workbench-layout.css";
 import "../styles/calculator-polish.css";
-const { mode = "builder" } = Astro.props;
 
 const rulesAvailable = scoringRulesAvailable(formalRules, catalog.release.id);
 
@@ -70,94 +69,65 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
   .sort((left, right) => left - right);
 ---
 
-{rulesAvailable ? <team-draft-workbench class="team-workbench" data-mode={mode}>
-  <ScoringModelNotice />
+{rulesAvailable ? <team-draft-workbench class="team-workbench">
   <script is:inline type="application/json" data-team-draft-data set:html={clientData}></script>
-  <section class="calculator-guide" aria-label="配队计算步骤">
-    <div class="calculator-guide-intro"><span class="calculator-kicker">为这一首歌配队</span><h2>选好歌曲，找到更高出分的组合。</h2><p>默认 AP。成员、留影、队长一起比较，结果可以直接带入分数明细。</p></div>
-    <ol class="calculator-steps">
-      <li data-guide-step="1"><a href="#song-settings"><span>1</span><div><strong>选择歌曲</strong><small>歌曲与难度</small></div></a></li>
-      <li data-guide-step="2"><a href="#optimizer-settings"><span>2</span><div><strong>确认卡库</strong><small>卡片范围与养成</small></div></a></li>
-      <li data-guide-step="3"><a href="#optimizer-results"><span>3</span><div><strong>查看推荐</strong><small>分数、配对与收益</small></div></a></li>
-    </ol>
-  </section>
-
-  <CalculatorStrategyGuide ruleVersion={formalRules.ruleSetVersion} />
-
-  <details class="tool-capability workbench-rules"><summary>计算规则与默认养成</summary>
-    <div>
-      <span class="tool-status tool-status--experimental">正式包代码复算</span>
-      <p>选择 5 张成员卡与 5 张留影，设置成长、角色评级、乐器和 T.G.W CARD，按正式包规则逐槽位计算综合能力。</p>
+  <section class="calculator-journey">
+    <header class="journey-heading"><div><span>当前选择</span><p class="journey-context">先选歌，再用你的卡库找一套配队。</p></div></header>
+    <div class="journey-tasks" role="group" aria-label="选择配队任务"><button type="button" data-journey-task="automatic" aria-pressed="true">帮我配一队</button><button type="button" data-journey-task="saved" aria-pressed="false">比较队伍 / 换卡</button></div>
+    <section class="journey-step" data-journey-step="0" id="journey-step-0">
+  <section class="team-draft-settings" id="song-settings" aria-labelledby="team-settings-title">
+    <header class="tool-panel-header">
+      <div><h2 id="team-settings-title">选择歌曲与难度</h2></div>
+    </header>
+    <CalculatorSongPicker />
+    <div class="team-context-controls">
+      <label hidden>
+        <span>歌曲</span>
+        <select data-song-select>
+          <option value="">暂不选择</option>
+          {catalog.musicTracks.map((track) => <option value={track.id}>{track.title}</option>)}
+        </select>
+      </label>
+      <label hidden>
+        <span>难度</span>
+        <select data-difficulty-select>
+          <option value="">暂不选择</option>
+          <option value="easy">EASY</option>
+          <option value="normal">NORMAL</option>
+          <option value="hard">HARD</option>
+          <option value="expert">EXPERT</option>
+        </select>
+      </label>
     </div>
-    <dl>
-      <div><dt>规则版本</dt><dd>{formalRules.ruleSetVersion}</dd></div>
-      <div><dt>编成位置</dt><dd>{TEAM_RULE_SET.officialSlotCount} 组</dd></div>
-      <div><dt>核验方式</dt><dd>代码与 Master</dd></div>
-    </dl>
-    <p id="team-capability-title" class="tool-boundary">
-      第三槽为队长。未填写时按未突破、未觉醒的当前等级上限计算；角色评级与 T.G.W 默认为 1，乐器与回忆默认为 0。不含活动能力加成。
-    </p>
-  </details>
-
+  </section>
+    </section>
+    <section class="journey-step" data-journey-step="1" id="journey-step-1">
+      <h3>用哪些卡来配？</h3><p class="journey-intro">推荐先导入游戏养成；也可以手动录入，或用全部满养成卡先体验。</p>
+<label hidden class="selection-filter-row"><span>使用哪些卡牌</span><select data-search-scope>
+      <option value="selected">当前所选 5＋5 张卡</option>
+      <option value="owned">已拥有卡库（填写实际养成）</option>
+      <option value="theoretical">全部卡库（卡片满养成）</option>
+    </select></label><div class="journey-choices" role="group" aria-label="选择卡库" data-choices="search-scope">
+<button type="button" data-choice="owned" aria-pressed="false"><strong>我的卡库</strong><span>使用已保存卡库与养成；需要时再展开编辑。</span></button>
+<button type="button" data-choice="theoretical" aria-pressed="false"><strong>全部卡牌</strong><span>卡片按满养成比较，结果可能包含你还没有的卡。</span></button>
+<button type="button" data-choice="selected" aria-pressed="false"><strong>当前这十张</strong><span>保留已选成员与留影，重新分配配对和队长。</span></button>
+</div>
+      <p class="calculator-scope-note" data-inventory-scope-note></p>
+    <InventoryEditor attributes={attributes.map(a=>({value:a,label:getCardAttribute(a)?.names[catalog.release.locale] ?? String(a)}))} rarities={rarities.map(r=>({value:r,label:getCardRarity(r)?.label ?? String(r)}))} />
+      <details class="journey-manual" hidden><summary>编辑当前五名成员和五张留影</summary>
   <div class="team-workbench-grid" id="team-editor">
-    <section class="team-builder" aria-labelledby="team-slots-title">
-      <header class="tool-panel-header">
-        <div><span>TEAM DRAFT / 5 POSITIONS</span><h2 id="team-slots-title">五人编队</h2></div>
-      </header>
+    <section class="team-builder">
       <div
         class="team-slot-list"
         data-team-slots
         data-ui-entity
         aria-live="polite"
       ></div>
-      <p class="team-workspace-limit">每个位置选择 1 张成员卡和 1 张留影，共计 5 + 5 份资料。</p>
       <details class="workbench-growth"><summary>调整当前槽位的等级、突破与觉醒</summary><div class="team-context-controls" data-growth-controls></div></details>
     </section>
 
-    <aside class="team-summary" aria-labelledby="team-summary-title">
-      <header class="tool-panel-header">
-        <div><span>AUDITABLE TOTAL</span><h2 id="team-summary-title">队伍综合能力</h2></div>
-      </header>
-      <div class="team-total-score">
-        <strong data-total-power>0</strong>
-        <span>含当前歌曲和已配置的各项加成</span>
-      </div>
-      <dl class="team-power-breakdown">
-        <div><dt>表现力</dt><dd data-power-performance>0</dd></div>
-        <div><dt>技巧力</dt><dd data-power-technic>0</dd></div>
-        <div><dt>视觉力</dt><dd data-power-visual>0</dd></div>
-      </dl>
-      <div class="team-count-line">
-        <span>成员卡 <strong data-member-count>0</strong>/5</span>
-        <span>留影 <strong data-support-count>0</strong>/5</span>
-      </div>
-      <p class="team-completion-status" data-team-completion>编队未完成</p>
-      <details class="team-skill-summary">
-        <summary>技能资料 · 满级说明</summary>
-        <p>以下为资料库最高技能等级说明，不代表本次成长设置；当前队长的能力贡献见下方分项。</p>
-        <div data-team-skills data-ui-entity>
-          <p>选择卡牌后显示技能摘要。</p>
-        </div>
-      </details>
-    </aside>
   </div>
-
-  <details id="power-settings" class="production-power-panel workbench-breakdown"><summary>账号加成：乐器、角色评级与 TGW</summary>
-    <p data-production-status aria-live="polite">等待计算</p>
-    <div class="production-power-table"><table>
-      <thead><tr><th>分项</th><th>Performance</th><th>Technic</th><th>Visual</th><th>合计</th></tr></thead>
-      <tbody data-production-breakdown></tbody>
-    </table></div>
-    <details><summary>乐器 / 乐队道具等级（0 表示未启用）</summary>
-      <div class="team-context-controls" data-instrument-controls></div>
-    </details>
-    <details><summary>全角色评级（影响全角色评级加成）</summary>
-      <div class="team-context-controls" data-character-rank-controls></div>
-    </details>
-    <button type="button" data-reset-power-settings>重置成长与加成设置</button>
-    <details><summary>查看逐槽位基数、倍率与整数结果</summary><pre data-power-trace></pre></details>
-  </details>
-
+        <details class="journey-card-picker"><summary>更换成员或留影</summary>
   <section class="team-card-picker" id="card-library" aria-labelledby="team-picker-title">
     <header class="tool-panel-header">
       <div><span>CARD LIBRARY</span><h2 id="team-picker-title">选择当前槽位卡牌</h2></div>
@@ -195,29 +165,10 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     </div>
   </section>
 
-  <section class="team-draft-settings" id="song-settings" aria-labelledby="team-settings-title">
-    <header class="tool-panel-header">
-      <div><span>第一步 · 这次想打哪首歌</span><h2 id="team-settings-title">选择歌曲与难度</h2></div><span class="calculator-default">默认 AP · 满生命</span>
-    </header>
-    <CalculatorSongPicker />
-    <div class="team-context-controls">
-      <label hidden>
-        <span>歌曲</span>
-        <select data-song-select>
-          <option value="">暂不选择</option>
-          {catalog.musicTracks.map((track) => <option value={track.id}>{track.title}</option>)}
-        </select>
-      </label>
-      <label hidden>
-        <span>难度</span>
-        <select data-difficulty-select>
-          <option value="">暂不选择</option>
-          <option value="easy">EASY</option>
-          <option value="normal">NORMAL</option>
-          <option value="hard">HARD</option>
-          <option value="expert">EXPERT</option>
-        </select>
-      </label>
+        </details>
+      </details>
+  <details id="power-settings" class="production-power-panel workbench-breakdown"><summary>账号加成：乐器、角色评级与 TGW</summary>
+    <div class="journey-account">
       {vipRanks.length > 0 && <label data-account-tgw>
         <span>T.G.W CARD 等级</span>
         <select data-tgw-rank-select>
@@ -231,37 +182,20 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
         T.G.W CARD 按正式包中的基点倍率逐槽位计算并逐维取整。
       </p>}
     </div>
-    <details class="workbench-share"><summary>分享、导出与更多计算</summary><div class="workbench-share-actions">
-      <button type="button" data-copy-draft>复制编成数据</button>
-      <a class="team-to-scoring" href="/tools/ap-grade/" data-ap-grade-link>AP 档位预测 →</a>
-      <a class="team-to-scoring" href="/tools/song-calculator/" data-scoring-research-link>歌曲计算与核验 →</a>
-      <a class="team-to-scoring" href="/tools/song-ranking/" data-song-ranking-link>查看歌曲排行榜 →</a>
-      <a href="#optimizer-settings">查看配队设置 →</a>
-      <span class="team-copy-status" data-copy-status aria-live="polite"></span>
-    </div>
-    <div class="team-validation" data-team-validation aria-live="polite"></div>
-    <pre class="team-draft-json" data-draft-json tabindex="0"></pre></details>
-  </section>
-
-  <section class="production-power-panel optimizer-panel" id="optimizer-settings">
-    <header class="tool-panel-header"><div><span>第二步 · 用哪些卡寻找最佳配对</span><h2>卡库与演出条件</h2></div><a href="#team-editor">编辑当前五人队伍 ↓</a></header>
-    <p>选择当前队伍、自己的卡库或全部卡牌，计算后可直接应用结果。歌曲分数为全 Perfect、满生命情景下的估算。</p>
-    <div class="optimizer-main-fields selection-filter-rows"><label class="selection-filter-row"><span>使用哪些卡牌</span><select data-search-scope>
-      <option value="selected">当前所选 5＋5 张卡</option>
-      <option value="owned">已拥有卡库（填写实际养成）</option>
-      <option value="theoretical">全部卡库（卡片满养成）</option>
-    </select></label>
-    <label class="selection-filter-row"><span>演出模式</span><select data-pairing-mode><option value="ordinary">自由演出 · 普通</option><option value="gekisou">激奏演出</option></select></label>
-    <label class="selection-filter-row"><span>优化目标</span><select data-pairing-objective>
-      <option value="expected_song_score">歌曲平均分（默认，估算）</option>
-      <option value="minimum_song_score">最低分（激奏为样本最低）</option>
-      <option value="maximum_song_score">最高分（激奏为样本最高）</option>
-      <option value="formation_power">综合能力</option>
-    </select></label>
-    <label class="selection-filter-row"><span>搜索深度</span><select data-search-effort><option value="practical" selected>实用推荐 · 固定阶段</option><option value="complete">完整搜索 · 不限组数</option><option value="20">高级限量搜索 · 20 组</option><option value="200">高级限量搜索 · 200 组</option><option value="custom">自定义计算组数</option></select></label>
-    </div>
-    <p class="calculator-scope-note" data-inventory-scope-note></p>
-    <button class="calculator-text-button" type="button" data-open-account>设置账号评级、乐器与成长加成 →</button>
+    <details><summary>乐器 / 乐队道具等级（0 表示未启用）</summary>
+      <div class="team-context-controls" data-instrument-controls></div>
+    </details>
+    <details><summary>全角色评级（影响全角色评级加成）</summary>
+      <div class="team-context-controls" data-character-rank-controls></div>
+    </details>
+  </details>
+    </section>
+    <section class="journey-step" data-journey-step="2" id="journey-step-2">
+      <h3>这次想打普通，还是激奏？</h3><p class="journey-intro">默认全 Perfect（AP），以平均分推荐。通常保持默认即可。</p>
+<label hidden class="selection-filter-row"><span>演出模式</span><select data-pairing-mode><option value="ordinary">自由演出 · 普通</option><option value="gekisou">激奏演出</option></select></label><div class="journey-choices" role="group" aria-label="选择演出模式" data-choices="pairing-mode">
+<button type="button" data-choice="ordinary" aria-pressed="false"><strong>普通自由演出</strong><span>比较综合力、加分技能和留影延时。</span></button>
+<button type="button" data-choice="gekisou" aria-pressed="false"><strong>激奏演出</strong><span>加上 COMBO / LUCK / JUST 三段任务与奖励。</span></button>
+</div>
     <details class="calculator-extra" data-gekisou-settings hidden><summary>调整激奏条件 <span>默认零偏差、三段第一；可输入对手</span></summary><div class="calculator-extra-body">
       <p>默认 AP＋零偏差、三段均第一。AP 不代表全 JUST；按理想时钟逐帧计算，LUCK 采用概率抽样，名次由指定值或对手段落数据计算。</p>
       <label>判定偏差（毫秒）<input data-gekisou-offset type="number" min="-50" max="50" step="1" value="0" /></label>
@@ -272,10 +206,15 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
       <label>模拟帧率 <select data-gekisou-fps><option value="60">60 FPS</option><option value="120">120 FPS</option></select></label>
       <p>建议用平均分搜索，再增加批数或更换种子复算接近的候选。样本最高分不等于理论最高分。</p>
     </div></details>
-    <p class="calculator-scope-note" data-search-effort-note></p>
-    <p class="calculator-scope-note" data-search-space></p>
-    <InventoryEditor attributes={attributes.map(a=>({value:a,label:getCardAttribute(a)?.names[catalog.release.locale] ?? String(a)}))} rarities={rarities.map(r=>({value:r,label:getCardRarity(r)?.label ?? String(r)}))} />
-    <div data-search-filters><FilterPanel title="限定乐队、属性（可选）"><div class="optimizer-filter-fields selection-filter-rows">
+      <p class="journey-intro">默认使用实用推荐：先筛选组合，再精算领先队伍。通常先保持默认即可。</p>
+      <details class="journey-advanced"><summary>限定乐队、属性或调整目标（可选）</summary>
+<label class="selection-filter-row"><span>搜索深度</span><select data-search-effort><option value="practical" selected>实用推荐 · 固定阶段</option><option value="complete">完整搜索 · 不限组数</option><option value="20">高级限量搜索 · 20 组</option><option value="200">高级限量搜索 · 200 组</option><option value="custom">自定义计算组数</option></select></label>      <p class="calculator-scope-note" data-search-effort-note></p><p class="calculator-scope-note" data-search-space></p>
+<label class="selection-filter-row"><span>优化目标</span><select data-pairing-objective>
+      <option value="expected_song_score">歌曲平均分（默认，估算）</option>
+      <option value="minimum_song_score">最低分（激奏为样本最低）</option>
+      <option value="maximum_song_score">最高分（激奏为样本最高）</option>
+      <option value="formation_power">综合能力</option>
+    </select></label>    <div data-search-filters><FilterPanel title="限定乐队、属性（可选）"><div class="optimizer-filter-fields selection-filter-rows">
     <label class="selection-filter-row"><span>每次计算组数</span><input type="number" min="1" max="100000" value="20" data-search-budget /></label>
     <label class="selection-filter-row"><span>成员乐队</span><select data-search-band data-inline-filter data-filter-kind="band"><option value="">不限</option>{catalog.bands.map(band => <option value={band.masterId}>{band.displayName}</option>)}</select></label>
     <label class="selection-filter-row"><span>成员属性</span><select data-search-attribute data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
@@ -285,15 +224,18 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
       <p>JSON 可设置 bandId、attribute、supportAttribute、leaderId、requiredMemberIds、requiredSupportIds、excludedMemberIds、excludedSupportIds、lockedPairs。卡片 ID 支持数字。固定配对示例：&#123;"lockedPairs":[&#123;"memberCardId":1,"supportCardId":1&#125;]&#125;。</p>
       <label>搜索约束 <textarea data-search-constraints rows="4">&#123;&#125;</textarea></label>
     </details>
+      </details>
     <div class="calculator-start">
-    <div><p data-calculator-guidance aria-live="polite"></p><button class="calculator-text-button" type="button" data-try-theoretical>还没有卡库？先用全部满养成卡体验</button></div>
+    <div><p data-calculator-guidance aria-live="polite"></p></div>
     <div class="optimizer-actions"><button type="button" data-optimize-pairing>开始寻找配队</button>
     <button type="button" data-cancel-pairing disabled>暂停搜索</button>
     <button type="button" data-resume-pairing disabled>继续搜索</button>
     <button type="button" data-export-pairing disabled>导出计算结果</button>
     </div>
     </div>
-  </section>
+    </section>
+    <section class="journey-step" data-journey-step="3" id="journey-step-3">
+      <p class="journey-results-tip">先比较推荐分数和成员／留影搭配，再应用队伍；需要核对时打开计分明细。结果为参考估算，尚未完成当前游戏版本的实战核验。</p>
   <section class="optimizer-results-panel" id="optimizer-results" aria-labelledby="optimizer-results-title">
     <header class="tool-panel-header"><div><span>比较这首歌的出分</span><h2 id="optimizer-results-title">推荐编成</h2></div><span class="calculator-search-state" data-search-state>等待开始</span></header>
     <p class="calculator-progress" data-pairing-progress aria-live="polite">搜索时会持续显示当前最佳。快速推荐结束后，可以继续深入；只有搜索完成才会标明模型内最优。</p>
@@ -304,13 +246,29 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     <details class="calculator-notes"><summary>搜索详情与计算条件</summary><p data-search-diagnostics></p><p>待排查分支是尚未排除的组合分组，搜索过程中还会继续拆分，不代表剩余队伍数量或完成百分比。</p><p data-search-limits></p></details>
   </section>
 
-  <details class="production-power-panel workbench-song-pool"><summary>选歌比较队伍与换卡收益 · 使用引导</summary>
-    <PresetPortfolio />
+      <details class="journey-help"><summary>配队攻略与计算说明</summary>
+        <CalculatorStrategyGuide ruleVersion={formalRules.ruleSetVersion} />
+  <details class="tool-capability workbench-rules"><summary>计算规则与默认养成</summary>
+    <div>
+      <span class="tool-status tool-status--experimental">正式包代码复算</span>
+      <p>选择 5 张成员卡与 5 张留影，设置成长、角色评级、乐器和 T.G.W CARD，按正式包规则逐槽位计算综合能力。</p>
+    </div>
+    <dl>
+      <div><dt>规则版本</dt><dd>{formalRules.ruleSetVersion}</dd></div>
+      <div><dt>编成位置</dt><dd>{TEAM_RULE_SET.officialSlotCount} 组</dd></div>
+      <div><dt>核验方式</dt><dd>代码与 Master</dd></div>
+    </dl>
+    <p id="team-capability-title" class="tool-boundary">
+      第三槽为队长。未填写时按未突破、未觉醒的当前等级上限计算；角色评级与 T.G.W 默认为 1，乐器与回忆默认为 0。不含活动能力加成。
+    </p>
   </details>
 
-  <noscript>
-    <p class="tool-noscript">编成研究台需要 JavaScript 才能编辑；卡牌与来源资料仍可从卡牌目录浏览。</p>
-  </noscript>
+        <ScoringModelNotice />
+      </details>
+    </section>
+    <section class="journey-saved" hidden><PresetPortfolio /></section>
+  </section>
+  <noscript><p class="tool-noscript">编成研究台需要 JavaScript 才能编辑；卡牌与来源资料仍可从卡牌目录浏览。</p></noscript>
 </team-draft-workbench> : <ScoringUnavailable />}
 
 <script>

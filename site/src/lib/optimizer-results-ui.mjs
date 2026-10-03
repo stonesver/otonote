@@ -6,7 +6,6 @@ const number=n=>n==null?'—':n.toLocaleString(undefined,{maximumFractionDigits:
 export function renderOptimizerResults(workbench,results,{mode,objective,live=false}={}) {
   const root=workbench.querySelector('[data-pairing-results]');root.replaceChildren();
   workbench.querySelector('[data-results-empty]').hidden=Boolean(results.length);
-  const step=workbench.querySelector('[data-guide-step="3"]');if(step)step.dataset.complete=String(Boolean(results.length));
   for(const [i,result] of results.entries()) {
     const row=el('li',null,'recommendation');
     const header=el('div',null,'recommendation-heading');

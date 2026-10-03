@@ -37,7 +37,7 @@ class EventEfficiencyTool extends HTMLElement {
   this.addEventListener('change',event=>{if(event.target.closest('[data-card-dialog]')||event.target.closest('[data-song-picker]'))return;if(event.target.matches('[data-mode],[data-event]'))this.songPicker?.reset();this.render();});this.q('suggest').addEventListener('click',()=>this.suggest());
   this.q('copy-bonus').addEventListener('click',()=>{if(this.rewardBP!=null){this.q('challenge-bonus').value=this.rewardBP/100;this.q('challenge-point-bonus').value=this.eventPointBP/100;this.render();}});
   this.q('save').addEventListener('click',()=>{if(this.current){this.saved={...this.current};this.render();}});
-  const bonusPanel=this.querySelector('.event-quick-bonus');bonusPanel.append(this.querySelector('.event-grade'));
+  const bonusPanel=this.querySelector('.event-quick-bonus');
   const setTask=task=>{this.dataset.task=task;this.q('bonus-source').value=task==='quick'?'manual':'team';bonusPanel.open=task==='quick';for(const b of this.querySelectorAll('[data-event-task]'))b.setAttribute('aria-pressed',String(b.dataset.eventTask===task));this.render();};
   for(const b of this.querySelectorAll('[data-event-task]'))b.addEventListener('click',()=>setTask(b.dataset.eventTask));
   this.shortcuts=setupQuickOptions(this);

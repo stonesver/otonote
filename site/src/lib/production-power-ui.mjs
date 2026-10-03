@@ -1,14 +1,6 @@
 import { createFormationCalculator } from "./scoring-rules/formation-power.mjs";
-import { serializeTeamDraftSearch } from "./team-draft.mjs";
 import { setupPresetPortfolio } from "./preset-portfolio-ui.mjs";
 import { setupInventoryOptimizer } from "./inventory-optimizer-ui.mjs";
-import { toolRoute } from "./tool-route.mjs";
-
-const labels = {
-  member: "成员", support: "留影", characterRank: "角色评级", characterTotalRank: "全角色评级",
-  memory: "回忆加成", typeLink: "属性连携", leader: "队长技能", bandItems: "乐器 / 乐队道具",
-  musicType: "歌曲属性", musicTag: "擅长歌曲", tgw: "T.G.W CARD"
-};
 
 function cell(tag, value) {
   const node = document.createElement(tag);
@@ -21,8 +13,6 @@ export function setupProductionPower(workbench) {
   if (!rules || rules.sourceReleaseId !== workbench.data.sourceReleaseId) return null;
   const calculator = createFormationCalculator(rules);
   const controls = workbench.querySelector("[data-growth-controls]");
-  const breakdown = workbench.querySelector("[data-production-breakdown]");
-  const message = workbench.querySelector("[data-production-status]");
   const instrumentControls = workbench.querySelector("[data-instrument-controls]");
   const optimizer = setupInventoryOptimizer(workbench);
   const presets = setupPresetPortfolio(workbench);
@@ -94,12 +84,6 @@ export function setupProductionPower(workbench) {
     }
   }
 
-  workbench.querySelector("[data-reset-power-settings]")?.addEventListener("click", () => {
-    workbench.draft.modifiers = {};
-    workbench.parseIssues = [];
-    workbench.commit();
-  });
-
   return {
     settings() {
       try { settings(); }
@@ -110,32 +94,6 @@ export function setupProductionPower(workbench) {
       workbench.querySelector("[data-pairing-results]")?.replaceChildren();
       const progress = workbench.querySelector("[data-pairing-progress]");
       if (progress) progress.textContent = "输入已更新，可重新比较。";
-    },
-    render() {
-      breakdown?.replaceChildren();
-      try {
-        if (workbench.parseIssues?.length) throw new Error("分享链接的加成设置无效，请重置成长与加成设置。");
-        const result = calculator.calculate(workbench.draft, { sourceReleaseId: workbench.data.sourceReleaseId });
-        for (const [name, value] of Object.entries(result.breakdown)) {
-          const row = document.createElement("tr");
-          row.append(cell("th", labels[name] ?? name), ...[value.performance, value.technic, value.visual, value.total].map((n) => cell("td", n.toLocaleString())));
-          breakdown?.append(row);
-        }
-        message.textContent = (rules.verificationStatus === 'reference_compatible' ? '已按参考规则估算；' : '已按正式包代码计算；')
-          + '第三槽为队长。当前数值为综合能力，歌曲分数还要经过谱面与演出技能计算。';
-        const trace = workbench.querySelector("[data-power-trace]");
-        if (trace) trace.textContent = JSON.stringify(result, null, 2);
-        return result.total;
-      } catch (error) {
-        message.textContent = error.message;
-        const trace = workbench.querySelector("[data-power-trace]");
-        if (trace) trace.textContent = "无有效计算结果";
-        return null;
-      } finally {
-        for (const anchor of workbench.querySelectorAll("[data-production-link]")) {
-          anchor.href = toolRoute(`${anchor.dataset.productionLink}${serializeTeamDraftSearch(workbench.draft)}`, window.location.pathname);
-        }
-      }
     }
   };
 }

@@ -12,3 +12,4 @@
 | `docs/OPERATIONS.md` | `implemented` | — | 独立空间审计、引用保护和回收演练 | 2026-10-03 |
 | `docs/RANKING_OPERATIONS.md` | `implemented` | — | 采集版本、阶段状态及外置 SDK/凭据契约 | 2026-10-03 |
 | `docs/DEVELOPMENT_ACCEPTANCE.md` | `implemented` | — | 真实更新、预渲染、线上健康、调度恢复、容量与测试边界 | 2026-10-03 |
+| `docs/SHARED_LIBRARY_IDENTITY.md` | `implemented` | — | 实体身份/资源版本分离、双向目录入口测试与实际快照回放 | 2026-10-03 |

@@ -1,3 +1,4 @@
+import {entityIdentity, entityComparison, stableContent as stable} from './entity-identity.mjs';
 export const EDITIONS = ['global', 'jp'];
 export const editionLabel = (edition, en = false) => edition === 'jp' ? (en ? 'Japan' : '日服') : (en ? 'Global' : '国际版');
 export function presenceLabel(value, en = false) {
@@ -7,12 +8,10 @@ export function presenceLabel(value, en = false) {
 export function sourceHref(edition, locale, path) {
   return `/${edition}/${locale}${path.startsWith('/') ? path : '/' + path}`;
 }
-const stable = value => JSON.stringify(value, (_, v) => v && typeof v === 'object' && !Array.isArray(v)
-  ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
 export {stable as stableContent};
 
 /** Only unique, evidence-backed keys are joined; ambiguous matches remain separate. */
-export function mergeEditionRows(primary, secondary, {region, key, path, locale = 'zh-CN', difference = (_row) => '', namespace = true, canMerge = (_left, _right) => true}) {
+export function mergeEditionRows(primary, secondary, {region, key, path, locale = 'zh-CN', difference = (_row) => '', namespace = true, canMerge = (_left, _right) => true, preferSecondary = (_left, _right) => false}) {
   const other = region === 'jp' ? 'global' : 'jp';
   const counts = rows => { const out = new Map(); for (const row of rows ?? []) { const k = key(row); if (k) out.set(k, (out.get(k) ?? 0) + 1); } return out; };
   const leftCounts = counts(primary), rightCounts = counts(secondary);
@@ -21,13 +20,16 @@ export function mergeEditionRows(primary, secondary, {region, key, path, locale 
   const wrap = (row, edition, pair) => ({...row,
     sourceEdition: edition, sourceId: row.id,
     sourceHref: path ? sourceHref(edition, locale, path(row)) : undefined,
-    editionPresence: {status: secondary == null || !key(row) ? 'unknown' : 'known', editions: pair ? EDITIONS : [edition],
+    editionPresence: {status: secondary == null || !key(row) || (!pair && (
+      (edition === region ? secondary : primary).some(candidate=>String(candidate.id)===String(row.id))
+      || leftCounts.get(key(row)) > 1 || rightCounts.get(key(row)) > 1)) ? 'unknown' : 'known', editions: pair ? EDITIONS : [edition],
       different: pair ? difference(row) !== difference(pair) : false,
-      counterparts: pair && path ? [{edition:other, href:sourceHref(other, locale, path(pair))}] : []}
+      counterparts: pair && path ? [{edition:edition === region ? other : region, href:sourceHref(edition === region ? other : region, locale, path(pair))}] : []}
   });
   const rows = primary.map(row => {
     const k = key(row), match = k && leftCounts.get(k) === 1 && rightCounts.get(k) === 1 && canMerge(row,right.get(k)) ? right.get(k) : null;
     if (match) consumed.add(match);
+    if (match && preferSecondary(row,match)) return {...wrap(match,other,row),id:namespace ? `${other}--${match.id}` : match.id};
     return wrap(row, region, match);
   });
   for (const row of secondary ?? []) if (!consumed.has(row)) {
@@ -53,6 +55,10 @@ export function catalogIdentity(kind, row, catalog) {
   if(kind==='musicTracks' && row.contentIdentity)return stable([kind,row.contentIdentity]);
   const assetId = row.primaryAssetId ?? row.profileAssetId ?? row.jacketAssetId ?? row.logoAssetId;
   const asset = catalog.assets?.find(a => a.id === assetId);
+  const boundIdentity = entityIdentity(kind, row, asset);
+  if (boundIdentity) return boundIdentity;
+  // Do not downgrade contradictory Master/resource evidence to a byte match.
+  if (['characters','bands'].includes(kind) && row.masterId != null && asset?.containerPath) return null;
   const cardIdentity = cardResourceIdentity(kind, row, asset);
   if (cardIdentity) return cardIdentity;
   if (!asset?.sha256) return null;
@@ -72,10 +78,10 @@ export function mergeCatalogs(primary, secondary, locale) {
   const remaps = {};
   for (const kind of Object.keys(paths)) {
     // Bind identity to each source before comparing; asset IDs can collide.
-    const mark = (rows, catalog) => (rows ?? []).map(row=>({...row, libraryIdentity:catalogIdentity(kind,row,catalog)}));
+    const mark = (rows, catalog) => (rows ?? []).map(row=>({...row, libraryIdentity:catalogIdentity(kind,row,catalog), libraryComparison:entityComparison(kind,row,catalog.assets?.find(a=>a.id===(row.profileAssetId ?? row.logoAssetId)))}));
     merged[kind] = mergeEditionRows(mark(primary[kind], primary), secondary ? mark(secondary[kind], secondary) : null, {
       region, locale, key:r=>r.libraryIdentity, path:paths[kind],
-      difference:r=>stable([r.contentComparison,r.performancePowerMax,r.technicPowerMax,r.visualPowerMax,r.liveSkillId,r.leaderSkillId,r.supportSkillIds,r.maxLevel])
+      difference:r=>stable([r.libraryComparison,r.contentComparison,r.performancePowerMax,r.technicPowerMax,r.visualPowerMax,r.liveSkillId,r.leaderSkillId,r.supportSkillIds,r.maxLevel])
     });
     remaps[kind] = new Map();
     for (const row of merged[kind]) {

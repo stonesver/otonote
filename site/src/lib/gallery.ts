@@ -1,7 +1,7 @@
 import type {EditionRecord} from "./catalog";
 import { activeReleaseContext } from './release-context';
 export interface GalleryEntry extends EditionRecord {
-  contentIdentity?:string; sourceSha256?:string;
+  contentIdentity?:string; sourceSha256?:string; sourceResource?:string;
   id: number; title: string; characterIds: number[]; bandIds: number[]; category: string;
   image: string | null; thumbnail: string | null; width: number | null; height: number | null;
   mediaType: 'comics' | 'stamps' | 'stickers' | 'backgrounds'; status: 'available' | 'missing'; description: string;

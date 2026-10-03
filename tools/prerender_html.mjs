@@ -1,6 +1,7 @@
 import {parse, parseFragment, serialize} from '../site/node_modules/parse5/dist/index.js';
 import {createHash} from 'node:crypto';
 import {loadingPresentation, fallbackLoadingArt} from '../site/src/runtime/loading-presentation.mjs';
+import {toolTags, toolPendingStyle} from '../site/src/runtime/tool-startup.mjs';
 
 const attr = (node, name) => node.attrs?.find(a => a.name === name)?.value;
 function set(node, name, value) {
@@ -53,9 +54,11 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     }
   }
   const payloads = [];
-  const tool = (route.startsWith('tools/') || route === 'my-growth') && all.find(n => ['personal-growth-workbench','team-draft-workbench','scoring-research-workbench','live2d-workbench','song-ranking','event-efficiency-tool'].includes(n.tagName));
+  const tool = (route.startsWith('tools/') || route === 'my-growth') && all.find(n => toolTags.includes(n.tagName));
   if (tool) {
     set(tool, 'inert', ''); set(tool, 'data-tool-pending', ''); set(tool, 'aria-busy', 'true');
+    set(tool, 'hidden', '');
+    append(head, fragment(`<style data-tool-visibility-style>${toolPendingStyle}</style>`)[0]);
     walk(tool, node => {
       if (node.tagName !== 'script' || attr(node, 'type') !== 'application/json') return;
       const bytes = Buffer.from(node.childNodes.map(n => n.value ?? '').join(''));

@@ -7,7 +7,8 @@ test('same numeric ID never establishes cross-edition identity',()=>{
   const rows=mergeEditionRows([{id:1,proof:'a'}],[{id:1,proof:'b'}],options);
   assert.equal(rows.length,2);assert.equal(rows[1].id,'jp--1');
   assert.equal(rows[1].sourceHref,'/jp/zh-CN/cards/1/');
-  assert.equal(presenceLabel(rows[1].editionPresence),'日服独有');
+  assert.equal(presenceLabel(rows[1].editionPresence),'');
+  assert.equal(rows[1].editionPresence.status,'unknown','conflicting identity is not evidence of exclusivity');
 });
 test('unique evidence joins content, ambiguous and missing evidence do not',()=>{
   assert.equal(mergeEditionRows([{id:1,proof:'a'}],[{id:2,proof:'a'}],options).length,1);
@@ -89,5 +90,17 @@ for (const kind of ['memberCards','supportCards']) {
     const primary=cardCatalog('global',kind),secondary=cardCatalog('jp',kind);
     secondary[kind].push({...secondary[kind][0],id:'another-card'});
     assert.equal(mergeCatalogs(primary,secondary,'en')[kind].length,3);
+  });
+}
+
+for (const region of ['global','jp']) {
+  test(`${region}: a character remains one person when portrait encoding changes`,()=>{
+    const make=region=>({release:{id:region,region},bands:[],memberCards:[],supportCards:[],musicTracks:[],musicCharts:[],
+      characters:[{id:'character-1',masterId:1,bandId:'band-1',birthday:{month:11,day:22},profileAssetId:'portrait',role:'Vo.'}],
+      assets:[{id:'portrait',containerPath:'Assets/AddressableResources/Character/Image/1/character_thumbnail.png',sha256:region}]});
+    const a=make(region),b=make(region==='global'?'jp':'global');const before=structuredClone([a,b]);
+    const result=mergeCatalogs(a,b,'en');assert.equal(result.characters.length,1);
+    assert.equal(result.characters[0].editionPresence.different,true);
+    assert.deepEqual([a,b],before);
   });
 }

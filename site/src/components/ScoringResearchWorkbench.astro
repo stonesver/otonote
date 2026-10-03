@@ -48,10 +48,10 @@ const clientData = JSON.stringify({
 
 {rulesAvailable ? <scoring-research-workbench class="scoring-research-workbench">
   <script is:inline type="application/json" data-scoring-research-data set:html={clientData}></script>
-  <div class="score-preparation"><section class="tool-saved-team"><h2>用哪支队伍计算？</h2><label>已保存队伍<select data-score-preset data-quick-native><option value="">使用当前带入的队伍</option></select></label><p data-score-team-note role="status"></p><div class="tool-team-strip" data-score-team></div><div class="calculator-links"><a href="/tools/deck-builder/" data-edit-scoring-draft>编辑 / 创建队伍 →</a><a href="/tools/event-efficiency/" data-event-efficiency-link>带入活动收益 →</a></div></section>
+  <div class="score-preparation"><section class="tool-saved-team"><h2>用哪支队伍计算？</h2><label>已保存队伍<select data-score-preset data-quick-native><option value="">使用当前带入的队伍</option></select></label><p data-score-team-note role="status"></p><div class="tool-team-strip" data-score-team></div><div class="calculator-links"><a href="#song-result">查看计算结果 ↓</a><a href="/tools/deck-builder/" data-edit-scoring-draft>编辑 / 创建队伍 →</a><a href="/tools/event-efficiency/" data-event-efficiency-link>带入活动收益 →</a></div></section>
   <details class="tool-song-disclosure" data-score-song-picker open><summary>选择或更换歌曲 <span data-score-song-name>点击难度选定谱面</span></summary><CalculatorSongPicker /></details>
   <div class="calculator-song-fields" hidden><label>歌曲<select data-calculator-song><option value="">选择歌曲</option>{catalog.musicTracks.map(track=><option value={track.id}>{track.title}</option>)}</select></label><label>难度<select data-calculator-difficulty><option value="">选择难度</option>{['easy','normal','hard','expert'].map(d=><option value={d}>{d.toUpperCase()}</option>)}</select></label></div>
-  </div><div class="score-output">
+  </div><section class="score-output" id="song-result" aria-label="歌曲计算结果与演出设置">
   <section class="scoring-research-summary" aria-labelledby="scoring-research-title">
     <div>
       <span class="tool-status tool-status--experimental">整曲分数估算</span>
@@ -86,7 +86,7 @@ const clientData = JSON.stringify({
   <p data-song-score-details aria-live="polite"></p>
   <p data-performance-summary aria-live="polite" hidden></p>
 
-  </div>
+  </section>
   <details class="tool-help"><summary>查看队伍输入与计算明细</summary><div class="scoring-research-grid">
     <article class="scoring-research-panel">
       <span>当前队伍与歌曲</span>

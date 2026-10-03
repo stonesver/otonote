@@ -117,6 +117,19 @@ while ([...workers.keys()].some(key=>!compiledWorkers.has(key))) {
   await build({...options,entryNames:'[dir]/[name]',entryPoints:Object.fromEntries(batch.map(([key,file])=>['workers/'+key,file]))});
   batch.forEach(([key])=>compiledWorkers.add(key));
 }
+// Heavy recognition engines are static, same-origin and loaded only after explicit use.
+const recognitionDir=join(stage,'recognition');
+await mkdir(recognitionDir,{recursive:true});
+for(const name of ['worker.js','shortlist.js'])await cp(join(site,'src/lib/card-recognition',name),join(recognitionDir,name));
+for(const [source,target] of [
+  ['@techstark/opencv-js/dist/opencv.js','opencv.js'],['@techstark/opencv-js/LICENSE','OPENCV-LICENSE'],
+  ['tesseract.js/dist/tesseract.min.js','tesseract.min.js'],['tesseract.js/dist/worker.min.js','worker.min.js'],
+  ['tesseract.js/LICENSE.md','TESSERACT-LICENSE'],['tesseract.js-core/LICENSE','CORE-LICENSE'],
+  ['@tesseract.js-data/eng/package.json','LANG-PACKAGE.json'],['@tesseract.js-data/eng/README.md','LANG-README.md'],
+  ['@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz','lang/eng.traineddata.gz'],
+  ...['lstm','simd-lstm','relaxedsimd-lstm'].flatMap(variant=>['wasm.js','wasm'].map(ext=>[
+    `tesseract.js-core/tesseract-core-${variant}.${ext}`,`core/tesseract-core-${variant}.${ext}`]))
+]){await mkdir(dirname(join(recognitionDir,target)),{recursive:true});await cp(join(site,'node_modules',source),join(recognitionDir,target));}
 const relativeOutput = p => relative(stage, resolve(p));
 const byEntry = new Map(Object.entries(compiled.metafile.outputs).filter(([,v]) => v.entryPoint).map(([p,v]) => [resolve(v.entryPoint),{ module:relativeOutput(p), css:v.cssBundle ? relativeOutput(v.cssBundle) : null }]));
 const scriptOutputs = Object.fromEntries(Object.entries(interactions.metafile.outputs).filter(([,v])=>v.entryPoint).map(([p,v]) => [v.entryPoint.replace(/^interaction:/,''),relativeOutput(p)]));

@@ -5,6 +5,7 @@ import { renderToString, renderContext } from './astro.mjs';
 import { localizeHtmlWithStats } from '../lib/html-localizer.ts';
 import { routeParams } from './routes.mjs';
 import { startPageInputs } from './startup.mjs';
+import { stageClientTools } from './tool-startup.mjs';
 
 export { routeParams, renderToString, renderContext };
 
@@ -50,6 +51,7 @@ async function start() {
   if (html instanceof Response) { location.replace(html.headers.get('location')); return; }
   if (context.locale === 'en') html = localizeHtmlWithStats(html, 'en').html;
   const documentNext = new DOMParser().parseFromString(html, 'text/html');
+  const revealTools = stageClientTools(documentNext, context.locale);
   restoreServerLabels(documentNext, GAME_SERVERS);
   for (const element of documentNext.querySelectorAll('[href],[src],[poster],[data-src]')) {
     for (const name of ['href','src','poster','data-src']) {
@@ -92,10 +94,21 @@ async function start() {
     await loaded;
   }
   document.dispatchEvent(new Event('astro:page-load'));
+  revealTools();
   document.documentElement.dataset.contentReady = 'true';
 }
 if (typeof document !== 'undefined') start().catch(error => {
   console.error(error);
+  const toolGate = document.querySelector('[data-tool-gate]');
+  if (toolGate) {
+    const en = document.documentElement.lang === 'en';
+    toolGate.textContent = en ? 'Could not prepare this tool. ' : '工具准备失败，';
+    const retry = document.createElement('a');
+    retry.href = location.href;
+    retry.textContent = en ? 'Reload to try again' : '重新加载后重试';
+    toolGate.append(retry);
+    return;
+  }
   const showLoadingError = globalThis[Symbol.for('ournotes.loading-error.v1')];
   if (showLoadingError) { showLoadingError(); return; }
   let target = document.querySelector('[data-content-status]');

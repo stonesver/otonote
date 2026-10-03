@@ -5,7 +5,6 @@ import {setupCalculatorJourney} from './calculator-journey.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {attributeBadge} from './calculator-attribute-ui.mjs';
 
-  import { toolRoute } from "./tool-route.mjs";
   import { resolveTgwCardRankBonus } from "./scoring-rules/tgw-card.mjs";
   import { setupProductionPower } from "./production-power-ui.mjs";
   import {
@@ -19,16 +18,10 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
 
   class TeamDraftWorkbench extends HTMLElement {
     connectedCallback() {
-      // Match reading/tab order to the task, keeping one set of form controls.
-      const sections = this.dataset.mode === "optimizer"
-        ? [".workbench-route-tabs", ".calculator-guide", ".calculator-strategy", ".team-draft-settings", ".optimizer-panel", ".optimizer-results-panel", ".team-workbench-grid", ".team-card-picker", ".workbench-breakdown", ".workbench-song-pool", ".workbench-rules"]
-        : [".workbench-route-tabs", ".calculator-strategy", ".team-draft-settings", ".team-workbench-grid", ".team-card-picker", ".optimizer-panel", ".optimizer-results-panel", ".workbench-breakdown", ".workbench-song-pool", ".workbench-rules"];
-      sections.forEach(selector => { const section = this.querySelector(selector); if (section) this.append(section); });
       const dataNode = this.querySelector("[data-team-draft-data]");
       if (!(dataNode instanceof HTMLScriptElement)) return;
       this.data = JSON.parse(dataNode.textContent || "{}");
       this.labels = this.data.labels;
-      this.numberFormatter = new Intl.NumberFormat(this.data.locale);
       this.memberById = new Map(this.data.memberCards.map((card) => [card.id, card]));
       this.supportById = new Map(this.data.supportCards.map((card) => [card.id, card]));
       this.known = {
@@ -69,16 +62,6 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
           delete this.draft.modifiers.tgwCardRank;
         }
         this.commit();
-      });
-      this.querySelector("[data-copy-draft]")?.addEventListener("click", async () => {
-        const text = serializeTeamDraftJson(this.draft);
-        const status = this.querySelector("[data-copy-status]");
-        try {
-          await navigator.clipboard.writeText(text);
-          if (status) status.textContent = this.labels.copied;
-        } catch {
-          if (status) status.textContent = this.labels.copyFailed;
-        }
       });
     }
 
@@ -158,63 +141,6 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
 
     filterCards() { this.cardPicker?.sync(); }
 
-    renderSummary() {
-      const summary = deriveTeamDraftSummary(this.draft, {
-        memberCards: this.data.memberCards,
-        supportCards: this.data.supportCards,
-        projections: this.data.projections
-      });
-      const setNumber = (selector, value) => {
-        const element = this.querySelector(selector);
-        if (element) {
-          element.textContent = this.numberFormatter.format(Number(value));
-        }
-      };
-      const power = this.productionPower?.render();
-      for (const [selector, field] of [["[data-total-power]", "total"], ["[data-power-performance]", "performance"],
-        ["[data-power-technic]", "technic"], ["[data-power-visual]", "visual"]]) {
-        if (power) setNumber(selector, power[field]);
-        else { const node = this.querySelector(selector); if (node) node.textContent = "—"; }
-      }
-      setNumber("[data-member-count]", summary.selectedMemberCount);
-      setNumber("[data-support-count]", summary.selectedSupportCount);
-      const completion = this.querySelector("[data-team-completion]");
-      if (completion) {
-        completion.textContent = summary.isComplete
-          ? this.labels.complete
-          : `${this.labels.incomplete} · ${this.labels.member} ` +
-            `${summary.selectedMemberCount}/5 · ${this.labels.support} ` +
-            `${summary.selectedSupportCount}/5`;
-        completion.classList.toggle("is-complete", summary.isComplete);
-      }
-      const skills = this.querySelector("[data-team-skills]");
-      if (!skills) return;
-      skills.replaceChildren();
-      if (summary.skillSummaries.length === 0) {
-        const empty = document.createElement("p");
-        empty.textContent = this.labels.emptySkills;
-        skills.append(empty);
-        return;
-      }
-      summary.skillSummaries.forEach((skill) => {
-        const item = document.createElement("article");
-        const meta = document.createElement("span");
-        const slotKind = this.memberById.has(skill.cardId)
-          ? this.labels.memberSlot
-          : this.labels.supportSlot;
-        meta.textContent = `${this.labels.slot} ` +
-          `${String(skill.slotIndex + 1).padStart(2, "0")} · ${slotKind} · Lv.${skill.level ?? "?"}`;
-        const title = document.createElement("strong");
-        title.textContent = skill.name;
-        title.dataset.uiEntity = "";
-        const description = document.createElement("p");
-        description.textContent = skill.summary;
-        description.dataset.uiEntity = "";
-        item.append(meta, title, description);
-        skills.append(item);
-      });
-    }
-
     renderDraft() {
       const song = this.querySelector("[data-song-select]");
       if (song) song.value = this.draft.selectedSongId || "";
@@ -236,31 +162,6 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
       } else if (tgwNote) {
         tgwNote.textContent = this.labels.tgwDefault;
       }
-      const json = this.querySelector("[data-draft-json]");
-      if (json) json.textContent = serializeTeamDraftJson(this.draft);
-      const apLink=this.querySelector('[data-ap-grade-link]');if(apLink)apLink.href=toolRoute('/tools/ap-grade/',location.pathname)+serializeTeamDraftSearch(this.draft);
-      const researchLink = this.querySelector("[data-scoring-research-link]");
-      if (researchLink instanceof HTMLAnchorElement) {
-        researchLink.href = toolRoute(`/tools/song-calculator/${serializeTeamDraftSearch(this.draft)}`, window.location.pathname);
-      }
-      const validation = this.querySelector("[data-team-validation]");
-      const rankingLink = this.querySelector('[data-song-ranking-link]');
-      if (rankingLink) rankingLink.href = toolRoute('/tools/song-ranking/', window.location.pathname);
-      if (!validation) return;
-      const issues = [...this.parseIssues, ...validateTeamDraft(this.draft, this.known)];
-      validation.replaceChildren();
-      const title = document.createElement("strong");
-      title.textContent = issues.length === 0
-        ? this.labels.validDraft
-        : `${issues.length} ${this.labels.draftIssues}`;
-      validation.append(title);
-      const note = document.createElement("p");
-      note.textContent = issues.length === 0
-        ? this.labels.validDraftNote
-        : issues
-            .map((entry) => this.labels.issues[entry.code] ?? entry.code)
-            .join("; ");
-      validation.append(note);
     }
 
     commit() {
@@ -274,7 +175,6 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
     render() {
       this.renderSlots();
       this.renderPickerState();
-      this.renderSummary();
       this.renderDraft();
       this.productionPower?.settings();
       this.songPicker?.sync();

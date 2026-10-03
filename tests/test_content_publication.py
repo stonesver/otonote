@@ -197,3 +197,50 @@ class ContentPublicationTests(unittest.TestCase):
         self.assertEqual((self.store/'current.json').read_bytes(),previous)
 
 if __name__=='__main__': unittest.main()
+
+class RecognitionPublicationTests(unittest.TestCase):
+    setUp = ContentPublicationTests.setUp
+    candidate = ContentPublicationTests.candidate
+    def recognition(self,candidate):
+        import gzip
+        from tools.card_recognition import ALGORITHM
+        source=read_json(candidate/'candidate.json');bound=candidate/source['regions'][0]['path']
+        for locale in ('zh-CN','en'):
+            path=bound/'generated/releases/test-1'/locale/'catalog.json';value=read_json(path)
+            value['memberCards']=[{'id':'member-card-1'}];write(path,value)
+        source['files']=inventory(candidate,exclude=('candidate.json',));write(candidate/'candidate.json',source)
+        directory=self.root/'recognition';directory.mkdir()
+        packed=gzip.compress(b'\0'*160)
+        (directory/'features.bin.gz').write_bytes(packed)
+        value={'schemaVersion':1,'algorithm':ALGORITHM,'region':'global','sourceReleaseId':'test-1',
+            'featuresPath':'recognition/features.bin.gz','featuresSha256':hashlib.sha256(packed).hexdigest(),
+            'compressedBytes':len(packed),'decodedBytes':160,'cards':[{'id':'member-card-1','kind':'member',
+                'assetId':'asset-1','count':4,'descriptorOffset':0,'pointOffset':128,'name':'Synthetic'}]}
+        write(directory/'card-recognition.json',value)
+        return directory,value
+
+    def test_recognition_is_optional_and_bound_to_snapshot_and_catalog(self):
+        candidate=self.candidate();directory,value=self.recognition(candidate)
+        initial=publish_content(candidate,self.store)
+        result=publish_content(candidate,self.store,recognition_index=directory)
+        self.assertNotEqual(initial['pointer'],result['pointer'])
+        root=Path(result['snapshot']);manifest=read_json(root/'manifest.json')
+        for locale in ('en','zh-CN'):
+            record=manifest['locales'][locale]['files']['supplemental/card-recognition.json']
+            self.assertEqual(read_json(root/record['path']),value)
+        self.assertEqual((root/'recognition/features.bin.gz').read_bytes(),(directory/'features.bin.gz').read_bytes())
+        self.assertEqual(read_json(self.store/'previous.json'),initial['pointer'])
+        value['sourceReleaseId']='wrong';write(directory/'card-recognition.json',value)
+        with self.assertRaisesRegex(ValueError,'recognition index content release mismatch'):
+            publish_content(candidate,self.store,recognition_index=directory)
+        self.assertEqual(read_json(self.store/'current.json'),result['pointer'])
+
+    def test_recognition_tampering_ranges_and_unknown_ids_reject_without_pointer_changes(self):
+        candidate=self.candidate();directory,value=self.recognition(candidate)
+        result=publish_content(candidate,self.store)
+        original=json.loads(json.dumps(value))
+        for mutate in [lambda v:v.update(featuresSha256='0'*64),lambda v:v['cards'][0].update(pointOffset=999),
+                       lambda v:v['cards'][0].update(id='member-card-999'),lambda v:v.update(region='jp')]:
+            value=json.loads(json.dumps(original));mutate(value);write(directory/'card-recognition.json',value)
+            with self.assertRaises(ValueError):publish_content(candidate,self.store,recognition_index=directory)
+            self.assertEqual(read_json(self.store/'current.json'),result['pointer'])

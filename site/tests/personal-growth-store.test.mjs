@@ -70,3 +70,16 @@ test('full import can replace unreadable storage and undo restores the exact pri
  assert.equal(store.read().inventory.memberCardIds.length,1);store.restore(before);assert.equal(storage.getItem(store.key),'broken');
  store.restore(null);assert.equal(store.read(),null);
 });
+
+
+test('observed instrument imports replace aggregate overrides; missing observations preserve them',()=>{
+ const {store}=setup();store.saveAccount({bandItemTotals:{1:50},bandItems:{101:7}});
+ const observed=snapshot();observed.growth.bandItems=[{masterId:101,level:3}];
+ const imported=store.fromImport(observed);
+ assert.equal(imported.account.bandItemTotals,undefined);
+ assert.deepEqual(imported.account.bandItems,{101:3});
+ const partial=snapshot();partial.coverage.bandItems='not_observed';partial.growth.bandItems=null;
+ const retained=store.fromImport(partial);
+ assert.deepEqual(retained.account.bandItemTotals,{1:50});
+ assert.deepEqual(retained.account.bandItems,{101:7});
+});

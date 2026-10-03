@@ -82,38 +82,47 @@
 [data-shell] .inventory-editor--album .inventory-selection:not([data-active=true]) button { border:0; background:transparent; color:var(--lacquer); }
 [data-shell] .inventory-editor--album .inventory-selection[data-active=true] { background:var(--paper-light); }
 [data-shell] .inventory-editor--album [data-inventory-edit-selected] { background:var(--lacquer); color:var(--paper-light); border-color:var(--lacquer); }
-[data-shell] .inventory-editor--album .inventory-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px 16px; overflow:visible; max-height:none; }
-[data-shell] .inventory-editor--album .inventory-card { padding:10px; gap:8px; border-radius:9px; border:1px solid var(--calc-line); background:var(--paper-light); box-shadow:0 3px 8px #30232b05; }
-[data-shell] .inventory-editor--album .inventory-card[data-selected=true] { background:var(--calc-tint); border-color:var(--lacquer); outline:1px solid var(--lacquer); }
-[data-shell] .inventory-editor--album .inventory-card-select { display:block; cursor:pointer; position:relative; }
-[data-shell] .inventory-editor--album .inventory-card-select>input { position:absolute; left:8px; top:8px; z-index:2; box-shadow:0 0 0 4px var(--paper-light); border-radius:3px; }
-[data-shell] .inventory-editor--album .card-identity { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
-[data-shell] .inventory-editor--album .card-identity>img { width:100%; height:180px; max-height:none; border-radius:5px; object-fit:contain; background:var(--paper); }
-[data-shell] .inventory-editor--album .card-identity--missing-art::before { content:'暂无卡面'; display:grid; place-items:center; height:180px; border:1px dashed var(--calc-line); border-radius:5px; color:var(--calc-muted); font:12px var(--font-body); background:var(--paper); }
-[data-shell] .inventory-editor--album .card-identity>div { gap:4px; min-height:90px; align-content:start; }
-[data-shell] .inventory-editor--album .card-identity strong { font-size:13px; line-height:1.6; }
-[data-shell] .inventory-editor--album .card-identity .calculator-attribute { position:absolute; right:8px; top:8px; display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--paper-light); }
-[data-shell] .inventory-editor--album .inventory-card-growth { border:0; padding:0; font-size:10px; }
-[data-shell] .inventory-editor--album .card-selection-state { position:absolute; top:165px; right:16px; border:1px solid var(--calc-line); background:var(--paper-light); color:var(--calc-muted); }
-[data-shell] .inventory-editor--album .inventory-card[data-owned=true] .card-selection-state { color:var(--lacquer); background:var(--calc-tint); }
-[data-shell] .inventory-editor--album .card-skill-trigger { border:0; border-top:1px solid var(--calc-line); width:100%; padding:8px 0 0; min-height:36px; border-radius:0; background:transparent; text-align:left; color:var(--lacquer); }
-.inventory-editor--album .inventory-empty { grid-column:1/-1; padding:40px 20px; text-align:center; border:1px dashed var(--calc-line); border-radius:8px; color:var(--calc-muted); }
-.inventory-empty strong { font:600 18px var(--font-display); color:var(--ink); }.inventory-empty p { font-size:12px; line-height:1.8; }
-@media(max-width:1150px) { [data-shell] .inventory-editor--album .inventory-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media(max-width:700px) {
- [data-shell] .inventory-editor--album>summary { padding:18px 16px 0; }
- [data-shell] .inventory-editor--album>summary>span { display:block; margin-top:4px; }
- [data-shell] .personal-growth-workbench .inventory-editor--album .inventory-body { padding:10px 16px 16px; }
- .inventory-editor--album .inventory-body>.inventory-intro { grid-column:1/-1; grid-row:auto; }
- .inventory-editor--album .inventory-body>.inventory-library-actions { grid-column:1/-1; grid-row:auto; justify-content:flex-start; }
- [data-shell] .inventory-editor--album .inventory-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
- [data-shell] .inventory-editor--album .inventory-card { padding:8px; }
- [data-shell] .inventory-editor--album .card-identity>img { height:154px; }
- [data-shell] .inventory-editor--album .card-identity--missing-art::before { height:154px; }
- [data-shell] .inventory-editor--album .card-selection-state { top:140px; right:12px; padding:3px 5px; font-size:10px; }
- [data-shell] .inventory-editor--album .card-identity>div { min-height:100px; }
- [data-shell] .inventory-editor--album .inventory-kind-tabs button { padding:8px 12px; }
- [data-shell] .inventory-editor--album .inventory-owned-tabs button { padding:6px 9px; }
- [data-shell] .inventory-editor--album .inventory-toolbar>button { flex:0 1 auto; }
- [data-shell] .inventory-editor--album .inventory-selection[data-active=true] button { flex:1 1 100px; }
+
+/* Portrait album: artwork opens editing, selection has its own explicit control. */
+[data-shell] .inventory-editor--album .inventory-grid {grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 18px;max-height:none;overflow:visible}
+[data-shell] .inventory-editor--album .inventory-card{position:relative;display:grid;grid-template-columns:1fr auto;align-content:start;gap:0;padding:0;border:1px solid var(--calc-line);border-radius:14px;background:var(--paper-light);overflow:hidden;box-shadow:0 3px 12px #30232b08;transition:border-color .15s,box-shadow .15s}
+[data-shell] .inventory-editor--album .inventory-card:hover{border-color:var(--lacquer);box-shadow:0 7px 20px #30232b13}
+[data-shell] .inventory-editor--album .inventory-card[data-selected=true]{outline:2px solid var(--lacquer);outline-offset:2px}
+[data-shell] .inventory-editor--album .inventory-card-select{position:absolute;z-index:2;top:10px;left:10px;display:flex;gap:5px;align-items:center;min-height:34px;padding:4px 7px;border-radius:7px;background:#fffffff0;box-shadow:0 1px 5px #0002;cursor:pointer;color:var(--ink);font-size:11px}
+[data-shell] .inventory-editor--album .inventory-card-select input{margin:0}
+[data-shell] .inventory-editor--album .inventory-card-open{grid-column:1/-1;display:block;border:0;border-radius:0;padding:0;background:transparent;text-align:left;color:var(--ink);min-width:0}
+[data-shell] .inventory-editor--album .inventory-card-open:hover{background:transparent;color:var(--ink)}
+.inventory-card-art{position:relative;aspect-ratio:1/1.12;overflow:hidden;background:var(--paper)}
+.inventory-card-art>img{width:100%;height:100%;object-fit:cover;object-position:50% 35%;display:block}
+.inventory-card-art.is-missing::before{content:'卡面待补充';display:grid;place-items:center;position:absolute;inset:0;color:var(--calc-muted);font:13px var(--font-body)}
+.inventory-rarity{position:absolute;right:10px;top:12px;padding:3px 8px;background:#30232bd9;color:#fff;border-radius:5px;font:600 11px var(--font-mono)}
+.inventory-level{position:absolute;bottom:10px;left:12px;color:#fff;text-shadow:0 1px 4px #000;font:700 23px var(--font-mono)}
+.inventory-card-art::after{content:'';position:absolute;inset:70% 0 0;background:linear-gradient(transparent,#16121c9c);pointer-events:none}
+.inventory-level{z-index:1}.inventory-card[data-owned=false] .inventory-level{font:500 12px var(--font-body);background:#30232b99;padding:5px 9px;border-radius:5px}
+.inventory-card-copy{display:grid;gap:5px;padding:14px 14px 10px;min-height:78px;box-sizing:border-box}
+.inventory-card-copy strong{font:600 14px/1.5 var(--font-body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.inventory-card-copy>span{color:var(--calc-muted);font:11px/1.6 var(--font-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inventory-card-stats{grid-column:1/-1;display:flex;gap:0;margin:0 14px 12px;padding:10px 0;border-block:1px solid var(--calc-line)}
+.inventory-card-stats>div{flex:1;text-align:center;border-right:1px solid var(--calc-line)}.inventory-card-stats>div:last-child{border:0}
+.inventory-card-stats dt{color:var(--calc-muted);font:10px var(--font-body);margin-bottom:5px}.inventory-card-stats dd{margin:0;font:600 15px var(--font-mono);color:var(--ink)}
+[data-shell] .inventory-editor--album .inventory-card .inventory-card-edit{margin:0 0 12px 12px;border:0;background:var(--calc-tint);color:var(--lacquer);min-height:38px;padding:7px 10px;text-align:center}
+[data-shell] .inventory-editor--album .inventory-card .card-skill-trigger{width:auto;align-self:start;margin:0 10px 12px 5px;padding:7px 8px;min-height:38px;border:0;background:transparent;color:var(--calc-muted)}
+.inventory-card[data-kind=support] .inventory-card-art{aspect-ratio:16/10}.inventory-card[data-kind=support] .inventory-card-art img{object-position:center}
+.inventory-editor--album .inventory-empty{grid-column:1/-1;padding:40px;text-align:center}.inventory-edit-feedback{grid-column:1/-1}
+[data-shell] .personal-growth-workbench .inventory-import-entry{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;border:1px solid #b66c8c55;border-radius:12px;background:var(--calc-tint);grid-column:1/-1;grid-row:1}
+.inventory-import-entry strong{font:600 18px var(--font-display)}.inventory-import-entry p{margin:7px 0 0;font-size:12px;color:var(--calc-muted)}
+[data-shell] .personal-growth-workbench .inventory-import-entry [data-inventory-screenshot]{padding:14px 24px;font-size:15px;min-height:52px;white-space:nowrap;background:var(--lacquer);color:white;border:0;display:flex;align-items:center;gap:14px}
+.inventory-editor--album .inventory-body>.inventory-intro,.inventory-editor--album .inventory-body>.inventory-library-actions{grid-row:2}
+.inventory-import-entry{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px;background:var(--calc-tint);border-radius:10px}.inventory-import-entry [data-inventory-screenshot]{min-height:48px;padding:12px 20px}
+@media(max-width:1150px){[data-shell] .inventory-editor--album .inventory-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){
+ [data-shell] .inventory-editor--album .inventory-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 10px}
+ [data-shell] .personal-growth-workbench .inventory-import-entry{align-items:stretch;flex-direction:column;padding:16px}
+ [data-shell] .personal-growth-workbench .inventory-import-entry [data-inventory-screenshot]{justify-content:center}
+ .inventory-editor--album .inventory-body>.inventory-intro{grid-column:1/-1;grid-row:2}.inventory-editor--album .inventory-body>.inventory-library-actions{grid-column:1/-1;grid-row:3}
+ [data-shell] .personal-growth-workbench .inventory-editor--album .inventory-body{padding:12px}
+ [data-shell] .inventory-editor--album>summary{padding:18px 14px 0}.inventory-card-copy{padding:12px 10px 8px;min-height:87px}.inventory-card-copy strong{font-size:12px}
+ .inventory-card-stats{margin-inline:10px}.inventory-card-select span{display:none}
 }
+@media(prefers-reduced-motion:reduce){.inventory-card{transition:none!important}}
+.personal-band-items{margin-top:28px;padding-top:20px;border-top:1px solid var(--calc-line)}.personal-band-items h3{font:600 19px var(--font-display);margin:0 0 10px}.personal-band-items p{font-size:12px;line-height:1.8;color:var(--calc-muted)}.personal-band-totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:18px 0}.personal-band-totals label{display:grid;gap:12px;padding:16px;border:1px solid var(--calc-line);border-radius:10px;background:var(--paper)}.personal-band-totals strong{font-size:14px}.personal-band-totals small{font-size:11px;color:var(--calc-muted)}

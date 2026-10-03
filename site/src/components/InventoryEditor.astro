@@ -10,6 +10,7 @@ import SelectionFilters from "./SelectionFilters.astro";
 import {catalog} from "../lib/catalog";
 import CalculatorAttributeFilter from "./CalculatorAttributeFilter.astro";
 import AccountGrowthImport from './AccountGrowthImport.astro';
+import ScreenshotImport from './ScreenshotImport.astro';
 interface Props {
   standalone?: boolean;
   attributes?: {value:number;label:string}[];
@@ -22,13 +23,15 @@ const {rarities=[], standalone=false} = Astro.props;
   <div class="inventory-body">
     {!standalone && <p class="inventory-help">此卡库与 <a href={import.meta.env.BASE_URL==='/'?'/my-growth/':siteHref('/my-growth/',activeReleaseContext)}>我的养成</a> 共用，修改后供其他工具使用。</p>}
     {!standalone && <AccountGrowthImport />}
-    <p class="inventory-help inventory-intro">点「修改养成」编辑单卡；勾选多张卡后可批量选择等级、阶数和技能，或一键升满。</p>
+    <div class="inventory-import-entry"><div><strong>把游戏里的卡库带过来</strong><p>选择截图，自动识别卡牌与养成，再确认导入。</p></div><button type="button" data-inventory-screenshot class="growth-primary"><span aria-hidden="true">▧</span> 截图导入 <span aria-hidden="true">→</span></button></div>
+    <p class="inventory-help inventory-intro">点卡面编辑养成；勾选左上角可批量修改。</p>
     <div class="inventory-toolbar inventory-library-actions">
       <button type="button" data-inventory-from-draft hidden={standalone}>加入当前编成</button>
       <button type="button" data-inventory-use hidden={standalone}>用我的卡库配队</button>
       <button type="button" data-inventory-undo disabled>撤销上次修改</button>
       <button type="button" data-inventory-export>导出养成备份</button>
     </div>
+    <ScreenshotImport />
     <p data-inventory-status role="status"></p>
       <label hidden={standalone}>卡片类型<select data-inventory-kind><option value="member">成员卡</option><option value="support">留影</option></select></label>
     {standalone && <div class="inventory-collection-tabs">
@@ -75,7 +78,7 @@ const {rarities=[], standalone=false} = Astro.props;
           <button type="button" data-inventory-edit-preset="maximum"><strong>一键满养成</strong><small>等级、阶数、技能全部升满</small></button>
         </div>
         <div class="inventory-growth-fields">
-          {Object.entries({level:'等级',rank:'突破阶数',awake:'觉醒阶数',skillLevel:'演出技能等级',gekisouSkillLevel:'激奏技能等级'}).map(([field,label])=><label data-inventory-edit-label={field}>{label}<select aria-label={label} data-inventory-edit-field={field}></select><small data-inventory-edit-range={field}></small></label>)}
+          {Object.entries({level:'等级',rank:'突破阶数',awake:'觉醒阶数',skillLevel:'演出技能等级',gekisouSkillLevel:'激奏技能等级'}).map(([field,label])=><label data-inventory-edit-label={field}><span data-inventory-edit-title={field}>{label}</span><select aria-label={label} data-inventory-edit-field={field}></select><small data-inventory-edit-range={field}></small></label>)}
         </div>
         <div class="inventory-toolbar inventory-edit-shortcuts"><button type="button" data-inventory-edit-reset>恢复原值</button></div>
         <p data-inventory-edit-status role="status" aria-live="polite"></p>

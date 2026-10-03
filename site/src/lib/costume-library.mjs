@@ -17,6 +17,10 @@ export function validateCostumes(value, context) {
       || !(row.unlockMemberCardId === null || /^member-card-\d+$/.test(row.unlockMemberCardId))
       || !Array.isArray(row.models)) invalid();
     ids.add(row.id);
+    if (row.poster != null && (typeof row.poster.url !== 'string'
+      || !/^\/(?:costumes\/posters\/|content\/releases\/[a-f0-9]{24}\/public\/costumes\/posters\/)[0-9]+-[a-f0-9]{64}\.webp$/.test(row.poster.url)
+      || !Number.isInteger(row.poster.width) || !Number.isInteger(row.poster.height)
+      || row.poster.width <= 0 || row.poster.height <= 0)) invalid();
     if (row.icon !== null && (!row.icon || typeof row.icon.url !== 'string'
       || !/^\/(?:costumes\/|content\/releases\/[a-f0-9]{24}\/public\/costumes\/)/.test(row.icon.url)
       || row.icon.url.includes('..') || row.icon.width <= 0 || row.icon.height <= 0)) invalid();

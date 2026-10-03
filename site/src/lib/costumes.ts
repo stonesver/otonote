@@ -9,6 +9,7 @@ export interface Costume {
   id:string; masterId:number; name:string; characterId:string; characterMasterId:number;
   bandId:string; isInitial:boolean; unlockMemberCardId:string | null; startAt:string | null;
   icon:{url:string; width:number; height:number} | null; models:CostumeModel[];
+  poster?:{url:string; width:number; height:number} | null;
 }
 export interface CostumeCatalog {
   schemaVersion:1; contentReleaseId:string; region:string; locale:string;

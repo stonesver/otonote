@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 from tools.resource_pipeline.localization import resolve_text
+from tools.costume_posters import read_posters
 
 
 def table(root, name):
@@ -61,6 +62,7 @@ def project_costumes(master, catalog, *, live2d=None, icons_root=None):
     characters = unique(catalog['characters'], 'masterId', 'character')
     cards = unique(catalog['memberCards'], 'masterId', 'member card')
     icons = costume_icons(icons_root, master)
+    posters = read_posters(Path(icons_root) / 'posters') if icons_root else {}
     if live2d is not None and live2d.get('releaseId') != release['id']:
         raise ValueError('costume models do not match content release')
     models = unique((live2d or {}).get('models', []), 'modelPath', 'published model path')
@@ -95,6 +97,11 @@ def project_costumes(master, catalog, *, live2d=None, icons_root=None):
         name = resolve_text(texts.get(group['_costumeNameTextId']),
                             ('Costume #' if release['locale'] == 'en' else '服装 #') + str(group_id),
                             locale=release['locale'])
+        poster = posters.get(group_id)
+        bound_model = models.get(poster['modelPath']) if poster else None
+        valid_poster = (poster and bound_model and poster['characterId'] == character['masterId']
+                        and poster['sourceSha256'] == bound_model.get('sourceSha256')
+                        and any(v['modelPath'] == poster['modelPath'] for v in variants))
         payload['costumes'].append({
             'id': f'costume-group-{group_id}', 'masterId': group_id, 'name': name,
             'characterId': character['id'], 'characterMasterId': character['masterId'],
@@ -104,6 +111,8 @@ def project_costumes(master, catalog, *, live2d=None, icons_root=None):
             'icon': {'url': '/costumes/' + icon['file'], 'width': icon['width'], 'height': icon['height']}
                     if icon and icon['state'] == 'available' else None,
             'models': variants,
+            'poster': {'url': '/costumes/posters/' + poster['file'], 'width': poster['width'], 'height': poster['height']}
+                      if valid_poster else None,
         })
     payload['status'] = 'available'
     return payload

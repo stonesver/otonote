@@ -1,4 +1,5 @@
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ from unittest.mock import Mock
 
 from tools.costume_catalog import project_costumes
 from tools.costume_assets import extract_costume_icons
+from tools.costume_posters import poster_inputs
 
 
 class CostumeTests(unittest.TestCase):
@@ -86,6 +88,25 @@ class CostumeTests(unittest.TestCase):
         self.live['releaseId'] = 'fixture'
         self.live['models'][0]['characterId'] = 2
         with self.assertRaisesRegex(ValueError, 'character mismatch'): self.project()
+
+    def test_full_body_image_is_bound_to_exact_model_and_validated_input(self):
+        directory = self.root / 'icons/posters'
+        directory.mkdir(parents=True)
+        data = b'fixture-webp'; sha = hashlib.sha256(data).hexdigest()
+        name = f'1-{sha}.webp'; (directory / name).write_bytes(data)
+        self.live['models'][0]['sourceSha256'] = 'a' * 64
+        poster = {'groupId':1,'characterId':1,'modelPath':'model-1','sourceSha256':'a'*64,
+                  'file':name,'sha256':sha,'width':600,'height':800}
+        manifest = directory / 'manifest.json'
+        manifest.write_text(json.dumps({'schemaVersion':1,'posters':[poster]}))
+        binding = {'costumePosterInputs':{'root':'icons/posters','sha256':hashlib.sha256(manifest.read_bytes()).hexdigest()}}
+        self.assertEqual(poster_inputs(binding, self.root), directory.resolve())
+        image = self.project(icons_root=self.root/'icons')['costumes'][0]['poster']
+        self.assertEqual(image['url'], '/costumes/posters/' + name)
+        self.live['models'][0]['sourceSha256'] = 'b' * 64
+        self.assertIsNone(self.project(icons_root=self.root/'icons')['costumes'][0]['poster'])
+        (directory / name).write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'integrity'): poster_inputs(binding, self.root)
 
     def resources(self):
         reference = self.groups[0]['_iconPath']

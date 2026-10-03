@@ -76,9 +76,11 @@ class ContentPublicationTests(unittest.TestCase):
         candidate = self.candidate()
         bound = candidate / 'global/test-1'
         (bound/'public/costumes/icon.webp').write_bytes(b'costume image')
+        (bound/'public/costumes/posters').mkdir()
+        (bound/'public/costumes/posters/full.webp').write_bytes(b'full body')
         for locale in ('en','zh-CN'):
             write(bound/f'generated/releases/test-1/{locale}/costumes.json',
-                  {'schemaVersion':1,'costumes':[{'icon':{'url':'/costumes/icon.webp'}}]})
+                  {'schemaVersion':1,'costumes':[{'icon':{'url':'/costumes/icon.webp'},'poster':{'url':'/costumes/posters/full.webp'}}]})
         metadata = read_json(candidate/'candidate.json')
         metadata['files'] = inventory(candidate, exclude=('candidate.json',))
         write(candidate/'candidate.json',metadata)
@@ -87,6 +89,8 @@ class ContentPublicationTests(unittest.TestCase):
         data = read_json(snapshot/'en/costumes.json')
         self.assertEqual(data['costumes'][0]['icon']['url'],result['pointer']['manifest'].removesuffix('manifest.json')+'public/costumes/icon.webp')
         self.assertEqual((snapshot/'public/costumes/icon.webp').read_bytes(),b'costume image')
+        self.assertEqual(data['costumes'][0]['poster']['url'],result['pointer']['manifest'].removesuffix('manifest.json')+'public/costumes/posters/full.webp')
+        self.assertEqual((snapshot/'public/costumes/posters/full.webp').read_bytes(),b'full body')
         # The old, sealed format predates the optional media directory.
         legacy = self.candidate('legacy')
         (legacy/'global/legacy/public/costumes').rmdir()

@@ -29,6 +29,7 @@ from tools.bgm_catalog import project_bgm, read_bgm_inputs
 from tools.scoring_content import bind_scoring_rules
 from tools.formal_chart_projection import project_formal_charts
 from tools.costume_catalog import project_costumes
+from tools.costume_posters import poster_inputs
 
 
 def write_json(path: Path, value: object) -> None:
@@ -63,6 +64,9 @@ def compile_core(source: dict, destination: Path, locales: tuple[str, ...], root
             shutil.copytree(supplemental / 'public' / group, public / group, copy_function=link_or_copy, ignore=shutil.ignore_patterns('.DS_Store'))
     if supplemental and (supplemental / 'public/costumes').is_dir():
         shutil.copytree(supplemental / 'public/costumes', public / 'costumes', copy_function=link_or_copy)
+    posters = poster_inputs(source, root)
+    if posters:
+        shutil.copytree(posters, public / 'costumes/posters', copy_function=link_or_copy)
     write_json(destination / 'supplemental-data/formal-scoring-rules.json',
                bind_scoring_rules(root / source['masterRoot'], source['contentReleaseId']))
     # Gallery is maintained separately. Freeze and validate it before lengthy

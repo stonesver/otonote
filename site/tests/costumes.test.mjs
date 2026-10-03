@@ -25,6 +25,13 @@ test('filters combine and preserve server selection in shareable URLs', () => {
   const search = costumeFilterSearch('?server=global-hmt',{q:'日 生',band:'band-1',character:'character-1'});
   assert.deepEqual(readCostumeFilters(search),{q:'日 生',band:'band-1',character:'character-1'});
 });
+test('static full-body images require a hashed costume image path and dimensions', () => {
+  const poster = {url:'/costumes/posters/1-'+'a'.repeat(64)+'.webp',width:600,height:800};
+  const value = {...context,schemaVersion:1,status:'available',costumes:[{...row,poster}]};
+  assert.equal(validateCostumes(value,context),value);
+  for (const patch of [{url:'/models/model.moc3'},{url:'https://other.example/image.webp'},{height:0}])
+    assert.throws(() => validateCostumes({...value,costumes:[{...row,poster:{...poster,...patch}}]},context));
+});
 test('model links use published IDs and unavailable models have no link', () => {
   assert.equal(costumePreviewPath(row,row.models[0]),'/tools/live2d/?character=1&costume=published-model');
   assert.equal(costumePreviewPath(row,{state:'unavailable',modelId:null}),null);

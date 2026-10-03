@@ -80,7 +80,8 @@ test('shared adapter records fixed raw sample hashes and aggregates actual outco
     const calc=createScenarioSongCalculator(r,c,{mode,performanceScenario:{profile:'practice',seed:5,samples:2},scorePrecision:'screen'});
     const a=calc.calculate(d,{includeTrace:true}),b=calc.calculate({...d,modifiers:{...d.modifiers,tgwCardRank:2}});
     assert.deepEqual(a.playerSamples.map(s=>s.inputHash),b.playerSamples.map(s=>s.inputHash));
-    assert.equal(a.playerSampleCount,2);assert.equal(a.scoreDistribution.count,a.sampleCount);
+    assert.equal(a.playerSampleCount,2);assert.equal(a.scoreDistribution.count,a.sampleCount);assert.equal(a.orderCount,10);
+    assert.equal(a.randomSources.player,true);assert.equal(a.randomSources.skillOrder,true);
     assert.equal(a.expectedScore,a.scoreDistribution.mean);assert.ok(a.minimumScore<=a.maximumScore);
     assert.equal(a.scoreDistribution.complete,false);assert.ok(a.skillPlayback.variants.length>=2);
   }

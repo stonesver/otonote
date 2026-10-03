@@ -37,6 +37,9 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
       '同一批原始操作用于所有候选；玩家波动、技能顺序、游戏随机和对手条件分别保存。'])];
     const result = { ...trace, score: distribution.mean, expectedScore: distribution.mean, minimumScore: distribution.minimum, maximumScore: distribution.maximum,
       scorePrecision, scoreDistribution: distribution, sampleCount: scores.length,
+      orderCount: mode === 'gekisou' ? best.result.orderCount : calculators.length / inputs.length,
+      randomSources: { player: player.profile !== 'explicit' && (player.timingSpreadMs > 0 || player.missRate > 0),
+        skillOrder: mode === 'gekisou' ? best.result.orderCount > 1 : calculators.length > inputs.length, game: Boolean(trace.randomSampling) },
       scenario: { ...(mode === 'gekisou' ? trace.scenario : {}), performanceScenario: player },
       playerScenario: player, playerSampleCount: inputs.length,
       playerSamples: inputs.map((_, i) => {

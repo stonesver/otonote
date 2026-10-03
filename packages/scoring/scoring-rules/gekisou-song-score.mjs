@@ -247,7 +247,12 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       bestOrder: best.order, worstOrder: worst.order, warnings,
       ...(includeTrace ? { bestSample: bestTrace, bestSampleSeed: best.seed,
         skillPlayback: { skills: perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
-          randomSampling, effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex, type: e.definition._skillEffectType, active: e.active })),
+          randomSampling, ranges: ranges.map(({index,missionType,startMs,endMs})=>({index,missionType,startMs,endMs})),
+          luckPointsByResult: [...rules.native.luckPointsByResult],
+          effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex,
+            kind: e.kind, missionType: e.missionType, type: e.definition._skillEffectType, active: e.active,
+            probability: e.probability, effectValue: e.definition._effectValue,
+            comboThreshold: e.comboThreshold, perfectInterval: e.perfectInterval })),
           variants: [{ kind: 'best', order: [...best.order], seed: best.seed, ...bestTrace },
             { kind: 'worst', order: [...worst.order], seed: worst.seed, ...worstTrace }] } } : {}) };
   }

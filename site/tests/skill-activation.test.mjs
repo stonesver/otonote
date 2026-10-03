@@ -74,3 +74,40 @@ test('detail worker preserves challenge scoring, rejects missing charts and reso
    await handle({data:{rules:r,draft:structuredClone(draft),conditionsOnly:true}});assert.equal(reply.error,undefined);assert.equal(reply.result.skills.length,5);
  }finally{globalThis.self=previous;}
 });
+
+test('Gekisou section views reconcile final notes and rewards for each selected sample',async()=>{
+ const {gekisouSections,gekisouEffectTrack}=await import('../src/lib/gekisou-playback-model.mjs');
+ const r=structuredClone(rules);Object.assign(r.tables.LiveMusic.find(m=>m._id===100001),{_gekisouMission1:1,_gekisouMission2:2,_gekisouMission3:3});
+ const result=createGekisouSongCalculator(r,chart,{scenario:{seed:42}}).calculate(draft,{includeTrace:true});
+ assert.deepEqual(result.skillPlayback.ranges.map(s=>s.missionType),[1,2,3]);
+ assert.ok(result.skillPlayback.effects.every(e=>e.missionType && ['member','support'].includes(e.kind)));
+ for(const variant of result.skillPlayback.variants){
+   const sections=gekisouSections(result.skillPlayback,variant);
+   assert.equal(sections.reduce((sum,s)=>sum+s.contribution,0)+variant.outsideScore+variant.eventFixedScore,variant.score);
+   for(const s of sections){
+     assert.ok(s.displayStartMs<=s.startMs&&s.displayEndMs>=s.endMs);
+     assert.ok(s.events.every(e=>e.sectionIndex===s.index));
+     assert.equal(s.luckEvents.length,s.luckCounts.reduce((sum,n)=>sum+n,0));
+     for(const e of result.skillPlayback.effects.filter(e=>e.missionType===s.missionType)){
+       const track=gekisouEffectTrack(e,s);assert.ok(track.events.every(ev=>ev.source===e.source));
+     }
+   }
+ }
+});
+test('Gekisou factor tracks retain steps, gaps, repeated activations and zero-factor releases',async()=>{
+ const {gekisouEffectTrack}=await import('../src/lib/gekisou-playback-model.mjs');
+ const effect={source:'support:0:1',type:2000,active:true};
+ const section={events:[{source:'other',timeMs:1,action:'factor',value:5},
+   ...[[100,.1],[200,.2],[300,0],[500,.3],[600,0]].map(([timeMs,value])=>({source:effect.source,timeMs,frame:timeMs,action:'factor',value}))]};
+ const track=gekisouEffectTrack(effect,section);
+ assert.deepEqual(track.windows,[{startMs:100,endMs:200,value:.1},{startMs:200,endMs:300,value:.2},{startMs:500,endMs:600,value:.3}]);
+ assert.equal(track.peakFactor,.3);assert.equal(track.changes,3);assert.equal(track.starts,0);
+});
+test('Gekisou converters show discrete triggers, not invented continuous lifetimes',async()=>{
+ const {gekisouEffectTrack}=await import('../src/lib/gekisou-playback-model.mjs');
+ const effect={source:'member:0:1',type:13005,active:true};
+ const section={events:[100,200,300].map(timeMs=>({source:effect.source,timeMs,action:'start',frame:timeMs}))};
+ const track=gekisouEffectTrack(effect,section);assert.equal(track.starts,3);assert.deepEqual(track.windows,[]);
+ assert.equal(gekisouEffectTrack({...effect,source:'missing'},section).status,'not_triggered');
+ assert.equal(gekisouEffectTrack({...effect,source:'missing',active:false},section).status,'condition_unmet');
+});

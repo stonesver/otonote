@@ -1,3 +1,4 @@
+import {renderGekisouPlayback} from './gekisou-playback-view.mjs';
 import {activationRows, playbackDuration, noteDensity} from './skill-activation-model.mjs';
 const say = (zh,en) => document.documentElement.lang.startsWith('en') ? en : zh;
 const el = (tag,text,cls) => {const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
@@ -32,8 +33,8 @@ export function renderSkillActivation(root,result,data={}){
     root.append(el('p',say('尚未指定歌曲，以下为 AP／满生命条件下的配对效果；选歌后可查看发动时间。','No chart selected. Pair effects below assume AP and full life; select a song for timing.')));
     for(const skill of result.skills??[]){root.append(el('h4',skillName(data,skill,skill.slotIndex)),effectsList(data,skill));}return;
   }
-  const heading=el('div',null,'activation-heading');heading.append(el('div',say('技能发动时间轴','Skill activation timeline'),'activation-title'));
-  const power=result.power;heading.append(el('small',say(`本次综合力 ${fmt(power)}`,`Power ${fmt(power)}`)));root.append(heading);let selectedSlot=null;
+  const heading=el('div',null,'activation-heading');heading.append(el('div',playback.ranges?say('技能与激奏回放','Skills & Gekisou replay'):say('技能发动时间轴','Skill activation timeline'),'activation-title'));
+  const power=result.power;heading.append(el('small',say(`本次综合力 ${fmt(power)}`,`Power ${fmt(power)}`)));root.append(heading);let selectedSlot=null;const gekisouState={};
   const controls=el('div',null,'activation-controls');controls.setAttribute('role','group');controls.setAttribute('aria-label',say('回放顺序','Replay order'));root.append(controls);
   const canvas=el('div',null,'activation-canvas');root.append(canvas);
   function draw(index){
@@ -41,12 +42,17 @@ export function renderSkillActivation(root,result,data={}){
     const variant=playback.variants[index],rows=activationRows(playback,variant),duration=playbackDuration(playback,variant);
     const summary=el('div',null,'activation-score');const scoreLabel=el('div',null,'activation-score-label');scoreLabel.append(el('span',label(variant,playback.randomSampling)),el('small',say('本次回放得分','Replay score')));summary.append(scoreLabel,el('strong',fmt(variant.score)));
     if(playback.randomSampling&&variant.seed!=null)summary.append(el('small',`Seed ${variant.seed}`));canvas.append(summary);
-    canvas.append(el('p',variant.kind==='explicit'?say('按导入的判定与指定顺序回放。点击时间条查看当时的技能条件。','Replayed from the entered judgements and skill order. Select an activation to inspect its conditions.'):say('平均分来自多种顺序，不对应单次发动。点击下方时间条，查看这一次的技能与音符。','The mean combines multiple orders. Select a timeline row to inspect one activation.'),'activation-caption'));
+    canvas.append(el('p',playback.ranges?.length?say('平均分不对应单次回放。选择段落与技能，查看本次样本的任务、奖励与发动变化。','The mean is not a single replay. Select a section and skill to inspect this sample’s missions, rewards and activations.'):variant.kind==='explicit'?say('按导入的判定与指定顺序回放。点击时间条查看当时的技能条件。','Replayed from the entered judgements and skill order. Select an activation to inspect its conditions.'):say('平均分来自多种顺序，不对应单次发动。点击下方时间条，查看这一次的技能与音符。','The mean combines multiple orders. Select a timeline row to inspect one activation.'),'activation-caption'));
     if(data.ranking)canvas.append(el('p',say('此处按当前技能逐谱精算；快速参考值可能与本次回放分数不同。','This view replays the current skills exactly; quick estimates may differ.'),'activation-caption'));
-    const stage=el('section',null,'activation-stage');stage.setAttribute('aria-label',say('技能发动时间谱','Skill activation tracks'));const stageHeader=el('div',null,'activation-stage-heading');stageHeader.append(el('strong',say('发动时间谱','Activation tracks')),el('span',say('选择一条音轨，查看技能详情','Select a track to inspect its skill')));stage.append(stageHeader);canvas.append(stage);const scale=el('div',null,'activation-scale');for(let i=0;i<=4;i++)scale.append(el('span',seconds(duration*i/4)));stage.append(scale);
+    let ordinaryRoot=canvas;
+    if(playback.ranges?.length){
+      renderGekisouPlayback(canvas,result,variant,data,{el,say,fmt,seconds,cardFor,portrait,effectName},gekisouState);
+      ordinaryRoot=el('details',null,'gk-ordinary');ordinaryRoot.append(el('summary',say('普通演出技能 · 五人发动与覆盖','Ordinary live skills · Activations and coverage')));canvas.append(ordinaryRoot);
+    }
+    const stage=el('section',null,'activation-stage');stage.setAttribute('aria-label',say('技能发动时间谱','Skill activation tracks'));const stageHeader=el('div',null,'activation-stage-heading');stageHeader.append(el('strong',say('发动时间谱','Activation tracks')),el('span',say('选择一条音轨，查看技能详情','Select a track to inspect its skill')));stage.append(stageHeader);ordinaryRoot.append(stage);const scale=el('div',null,'activation-scale');for(let i=0;i<=4;i++)scale.append(el('span',seconds(duration*i/4)));stage.append(scale);
     const density=el('div',null,'activation-density');density.setAttribute('aria-label',say('音符密度','Note density'));
     const bins=noteDensity(variant.notes,duration),max=Math.max(1,...bins);for(const n of bins){const bar=el('i');bar.style.height=`${Math.max(2,n/max*100)}%`;density.append(bar);}stage.append(density);
-    const lanes=el('div',null,'activation-lanes'),inspection=el('div',null,'activation-inspection');stage.append(lanes);const legend=el('div',null,'activation-legend');legend.append(el('span',say('竖线 · 发动','Line · Start')),el('span',say('色块 · 得分窗口','Band · Score window')),el('span',say('上方柱形 · 音符密度','Bars above · Note density')));stage.append(legend);canvas.append(inspection);
+    const lanes=el('div',null,'activation-lanes'),inspection=el('div',null,'activation-inspection');stage.append(lanes);const legend=el('div',null,'activation-legend');legend.append(el('span',say('竖线 · 发动','Line · Start')),el('span',say('色块 · 得分窗口','Band · Score window')),el('span',say('上方柱形 · 音符密度','Bars above · Note density')));stage.append(legend);ordinaryRoot.append(inspection);
     function select(row){
       selectedSlot=row.slotIndex;
       for(const button of lanes.children)button.setAttribute('aria-pressed',String(Number(button.dataset.position)===row.position));
@@ -80,13 +86,7 @@ export function renderSkillActivation(root,result,data={}){
         event.preventDefault();select(rows[target]);lanes.children[target].focus();});lanes.append(button);
     }
     if(rows.length)select(rows.find(row=>row.slotIndex===selectedSlot)??rows[0]);
-    if(playback.effects?.length){
-      const details=el('details',null,'activation-gekisou');details.append(el('summary',say('激奏技能 · 发动记录','Gekisou skills · Activation log')));
-      details.append(el('p',say('仅对应当前回放。记录发动、结束和加分变化；未出现记录可能是条件、区段或概率未满足。随机样本的极值不是理论极值。','This log belongs to the current replay, including starts, ends and score changes. Conditions, sections or chance can prevent events. Random sample extremes are not theoretical bounds.')));
-      for(const effect of playback.effects){const events=(variant.skillTransitions??[]).filter(e=>e.source===effect.source);const item=el('details');item.append(el('summary',`${cardFor(data,'member',effect.sourceCardId)?.displayName??cardFor(data,'support',effect.sourceCardId)?.displayName??say(`位置 ${effect.slotIndex+1}`,`Slot ${effect.slotIndex+1}`)} · ${effectName(effect.type)} · ${events.length} ${say('条记录','events')}`));
-        if(!events.length)item.append(el('p',effect.active?say('本次没有记录到发动或效果变化','No activation or effect change recorded in this replay'):say('条件未满足','Condition unmet')));
-        for(const e of events)item.append(el('p',`${seconds(e.timeMs)} · ${say('第','Section ')}${e.sectionIndex}${say('段','')} · ${e.action==='start'?say('发动','Start'):e.action==='factor'?say(`加分效果更新为 +${fmt(e.value*100)}%`,`Score effect updated to +${fmt(e.value*100)}%`):e.action==='bonus'?say(`追加 ${fmt(e.value)} LUCK 点数`,`Add ${fmt(e.value)} LUCK points`):e.action==='gauge'?say('追加 LUCK 槽','Add LUCK gauge'):say('结束','End')}`));details.append(item);}canvas.append(details);
-    }
+
   }
   playback.variants.forEach((v,i)=>{const b=el('button',label(v,playback.randomSampling));b.type='button';b.addEventListener('click',()=>draw(i));controls.append(b);});draw(0);
 }

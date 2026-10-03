@@ -18,7 +18,7 @@ from tools.live2d_transport import bundle_live2d_tree
 
 SCHEMA = 1
 ROOT = Path(__file__).resolve().parents[1]
-MEDIA_GROUPS = ('media', 'gallery', 'live2d', 'immersive', 'auto-stage', 'growth', 'system-banners', 'mission-rewards')
+MEDIA_GROUPS = ('media', 'gallery', 'live2d', 'immersive', 'auto-stage', 'growth', 'system-banners', 'mission-rewards', 'costumes')
 
 
 def pointer_directory(store, region):
@@ -135,6 +135,8 @@ def publish_content(candidate, store, *, scoring_rules=None, expected_current=No
                 contexts = [{'contentReleaseId':release,'region':edition,'channel':'production','locale':locale,
                              'catalogPath':public_root+locale+'/catalog.json'} for locale in locales]
                 for group in MEDIA_GROUPS:
+                    if group == 'costumes' and not (source_root / 'public' / group).exists():
+                        continue
                     shutil.copytree(source_root / 'public' / group, stage / 'public' / group, copy_function=link_or_copy, ignore=shutil.ignore_patterns('.DS_Store'))
                 bundle_live2d_tree(stage / 'public' / 'live2d')
                 manifest = {'schemaVersion':SCHEMA,'contentReleaseId':release,'region':edition,'channel':'production','root':public_root,'locales':{},

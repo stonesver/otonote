@@ -72,6 +72,39 @@ class ContentPublicationTests(unittest.TestCase):
         rollback_content(self.store)
         self.assertEqual(json.loads((self.store/'current.json').read_text()),first['pointer'])
 
+    def test_costume_projection_and_icons_publish_together_and_legacy_is_supported(self):
+        candidate = self.candidate()
+        bound = candidate / 'global/test-1'
+        (bound/'public/costumes/icon.webp').write_bytes(b'costume image')
+        for locale in ('en','zh-CN'):
+            write(bound/f'generated/releases/test-1/{locale}/costumes.json',
+                  {'schemaVersion':1,'costumes':[{'icon':{'url':'/costumes/icon.webp'}}]})
+        metadata = read_json(candidate/'candidate.json')
+        metadata['files'] = inventory(candidate, exclude=('candidate.json',))
+        write(candidate/'candidate.json',metadata)
+        result = publish_content(candidate,self.store)
+        snapshot = Path(result['snapshot'])
+        data = read_json(snapshot/'en/costumes.json')
+        self.assertEqual(data['costumes'][0]['icon']['url'],result['pointer']['manifest'].removesuffix('manifest.json')+'public/costumes/icon.webp')
+        self.assertEqual((snapshot/'public/costumes/icon.webp').read_bytes(),b'costume image')
+        # The old, sealed format predates the optional media directory.
+        legacy = self.candidate('legacy')
+        (legacy/'global/legacy/public/costumes').rmdir()
+        self.assertEqual(publish_content(legacy,self.store)['status'],'content_published')
+
+    def test_missing_costume_media_cannot_replace_current(self):
+        publish_content(self.candidate(),self.store)
+        pointer = (self.store/'current.json').read_bytes()
+        candidate = self.candidate('broken-costume')
+        bound = candidate/'global/broken-costume'
+        write(bound/'generated/releases/broken-costume/en/costumes.json',{'icon':'/costumes/missing.webp'})
+        metadata = read_json(candidate/'candidate.json')
+        metadata['files'] = inventory(candidate,exclude=('candidate.json',))
+        write(candidate/'candidate.json',metadata)
+        with self.assertRaisesRegex(ValueError,'missing content reference'):
+            publish_content(candidate,self.store)
+        self.assertEqual((self.store/'current.json').read_bytes(),pointer)
+
     def test_publication_rechecks_expected_pointer_inside_lock(self):
         source=self.candidate();publish_content(source,self.store)
         current=(self.store/'current.json').read_bytes()

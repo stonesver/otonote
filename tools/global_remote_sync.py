@@ -257,13 +257,15 @@ def _update(client, output: Path, baseline: Path, plan: Path, build_site: bool, 
     state_path = output / "state.json"
     state = read_json(state_path) if state_path.exists() else None
     observation = client.discover()
-    if state and version_identity(state["observation"]) == version_identity(observation) and (not decoder or state.get('decoderSha256') == decoder['apkSha256'] and state.get('bundleDecoderBindingSha256') == decoder_binding) and (not complete_content or state.get('pipelineVersion') == 2):
+    if state and version_identity(state["observation"]) == version_identity(observation) and (not decoder or state.get('decoderSha256') == decoder['apkSha256'] and state.get('bundleDecoderBindingSha256') == decoder_binding) and (not complete_content or state.get('pipelineVersion') == 3):
         if Path(state["inputPlan"]).is_file() and (not build_site or state.get("site") and Path(state["site"]).is_dir()):
             return {"status": "unchanged", "observation": observation, "candidate": state["inputPlan"], "site": state.get("site")}
     if state:
         baseline, plan = Path(state["snapshot"]), Path(state["inputPlan"])
     previous = next(x for x in load_plan(plan) if x["id"] == "global-production")
-    if not state and complete_content and decoder and previous.get('supplementalInputs') and previous.get('bgmAudioInputs'):
+    if (not state and complete_content and decoder and previous.get('supplementalInputs') and previous.get('bgmAudioInputs')
+            and isinstance(previous['supplementalInputs'], dict)
+            and (ROOT / previous['supplementalInputs'].get('root', '') / 'public/costumes/manifest.json').is_file()):
         initial = read_json(baseline / 'observation.json')
         manifest = read_json(ROOT / previous['manifest'])
         if (version_identity(initial) == version_identity(observation)
@@ -275,12 +277,12 @@ def _update(client, output: Path, baseline: Path, plan: Path, build_site: bool, 
             read_supplemental(previous, ROOT)
             result = {'status': 'verified_initial_inputs', 'observation': observation,
                       'snapshot': str(baseline.resolve()), 'inputPlan': str(plan.resolve()), 'site': None,
-                      'decoderSha256': decoder['apkSha256'], 'bundleDecoderBindingSha256': decoder_binding, 'pipelineVersion': 2, 'publicationReady': False}
+                      'decoderSha256': decoder['apkSha256'], 'bundleDecoderBindingSha256': decoder_binding, 'pipelineVersion': 3, 'publicationReady': False}
             write_json(state_path, result)
             return result
     identity = f"{observation['resourceVersion']}-{observation['masterVersion'][:8]}-{observation['catalogHash'][:8]}"
     if complete_content:
-        identity += '-complete-v2'
+        identity += '-complete-v3'
     if decoder:
         identity += '-' + decoder['apkSha256'][:8] + '-d' + decoder_binding[:12]
     current = output / identity
@@ -316,7 +318,7 @@ def _update(client, output: Path, baseline: Path, plan: Path, build_site: bool, 
               "snapshot": str(captured.resolve()), "inputPlan": str(candidate_plan.resolve()),
               "site": str((site_path / "site").resolve()) if build_site else None,
               "remoteCodeChanged": read_json(captured / "report.json")["remoteCodeChanged"],
-              "publicationReady": False, "decoderSha256": decoder['apkSha256'] if decoder else None, "bundleDecoderBindingSha256": decoder_binding, "pipelineVersion": 2 if complete_content else 1}
+              "publicationReady": False, "decoderSha256": decoder['apkSha256'] if decoder else None, "bundleDecoderBindingSha256": decoder_binding, "pipelineVersion": 3 if complete_content else 1}
     write_json(state_path, result)
     return result
 

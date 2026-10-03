@@ -24,7 +24,7 @@ from tools.resource_pipeline.adapters.global_public import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART_PROJECTION_SOURCES = (
-    'tools/release_candidates.py', 'tools/formal_chart_projection.py',
+    'tools/release_candidates.py', 'tools/costume_catalog.py', 'tools/formal_chart_projection.py',
     'tools/project_formal_charts.mjs', 'packages/scoring/scoring-rules/formal-chart.mjs',
     'packages/scoring/scoring-rules/formal-time.mjs', 'packages/scoring/scoring-rules/model-version.mjs',
 )

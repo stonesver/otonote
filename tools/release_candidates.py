@@ -28,6 +28,7 @@ from tools.immutable_files import link_or_copy
 from tools.bgm_catalog import project_bgm, read_bgm_inputs
 from tools.scoring_content import bind_scoring_rules
 from tools.formal_chart_projection import project_formal_charts
+from tools.costume_catalog import project_costumes
 
 
 def write_json(path: Path, value: object) -> None:
@@ -60,6 +61,8 @@ def compile_core(source: dict, destination: Path, locales: tuple[str, ...], root
         shutil.copytree(supplemental / 'data', destination / 'supplemental-data', ignore=shutil.ignore_patterns('.DS_Store'))
         for group in ('live2d', 'immersive', 'system-banners', 'mission-rewards', 'auto-stage', 'growth'):
             shutil.copytree(supplemental / 'public' / group, public / group, copy_function=link_or_copy, ignore=shutil.ignore_patterns('.DS_Store'))
+    if supplemental and (supplemental / 'public/costumes').is_dir():
+        shutil.copytree(supplemental / 'public/costumes', public / 'costumes', copy_function=link_or_copy)
     write_json(destination / 'supplemental-data/formal-scoring-rules.json',
                bind_scoring_rules(root / source['masterRoot'], source['contentReleaseId']))
     # Gallery is maintained separately. Freeze and validate it before lengthy
@@ -96,7 +99,12 @@ def compile_core(source: dict, destination: Path, locales: tuple[str, ...], root
                 root / source['masterRoot'], context.content_release_id, locale, story_inputs,
                 fallback_locale='ja' if source['region'] == 'jp' else None)
             bgm = project_bgm(source, root, public, locale, inputs=bgm_inputs)
+            live2d_path = destination / 'supplemental-data/live2d-catalog.json'
+            costumes = project_costumes(root / source['masterRoot'], build.catalog,
+                live2d=json.loads(live2d_path.read_text()) if live2d_path.is_file() else None,
+                icons_root=public / 'costumes')
             for data_root in (generated_data, public_data):
+                write_json(data_root / 'costumes.json', costumes)
                 write_json(data_root / 'story-library.json', story_library)
                 write_json(data_root / 'gallery.json', gallery)
                 write_json(data_root / 'bgm.json', bgm)

@@ -6,9 +6,10 @@ export const NAVIGATION_GROUPS = Object.freeze([
     {labelKey:"playerRankings",href:"/rankings/"}
   ] },
   { id: "catalog", labelKey: "navCatalog", href: "/catalog/",
-    matchPrefixes: ["/catalog/", "/characters/", "/cards/", "/database/"],
+    matchPrefixes: ["/catalog/", "/characters/", "/costumes/", "/cards/", "/database/"],
     children: [
       { labelKey: "characters", href: "/characters/" },
+      { labelKey: "costumes", href: "/costumes/" },
       { labelKey: "memberCards", href: "/cards/members/" },
       { labelKey: "supportCards", href: "/cards/supports/" },
       { labelKey: "skillArchive", href: "/database/skills/" },

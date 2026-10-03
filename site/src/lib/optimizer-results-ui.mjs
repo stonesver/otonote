@@ -1,8 +1,10 @@
+import {planningUiText} from './team-planning-translations.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 import {teamLineup,scoreComposition} from './score-visuals.mjs';
 import {scoringScenarioSearch} from './scoring-rules/scenario-search.mjs';
 import {toolRoute} from './tool-route.mjs';
-const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
+const ui=text=>planningUiText(text,typeof document==='undefined'?'zh-CN':document.documentElement.lang);
+const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=ui(text);if(cls)n.className=cls;return n;};
 const number=n=>n==null?'—':n.toLocaleString(undefined,{maximumFractionDigits:2});
 const growthFields={level:'等级',rank:'突破阶数',awake:'觉醒阶数',skillLevel:'演出技能',gekisouSkillLevel:'激奏技能'};
 export function recommendationScenarioLabel(result) {
@@ -24,7 +26,7 @@ function trainingDescription(change,workbench) {
   const kind=change.type??change.kind??(String(change.id).startsWith('support')?'support':'member');
   const card=workbench.cardFor?.(kind,change.id),name=change.name??card?.shortLabel??change.id;
   const fields=Array.isArray(change.fields)?change.fields:Object.entries(change.fields??change.changes??{}).map(([field,values])=>({field,...values}));
-  return `${name}：${fields.map(item=>`${growthFields[item.field]??item.field} ${item.from??'未记录'} → ${item.to??'—'}`).join('，')}`;
+  return `${name}：${fields.map(item=>`${ui(growthFields[item.field]??item.field)} ${item.from??ui('未记录')} → ${item.to??'—'}`).join('，')}`;
 }
 export function renderOptimizerResults(workbench,results,{mode,objective,live=false}={}) {
   const root=workbench.querySelector('[data-pairing-results]');root.replaceChildren();
@@ -54,7 +56,7 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
     const actions=el('div',null,'recommendation-actions'),apply=el('button','应用队伍');apply.type='button';
     apply.addEventListener('click',()=>{workbench.draft=structuredClone(result.draft);workbench.planningScenarios?.restore();workbench.commit();workbench.dispatchEvent(new CustomEvent('calculator-edit-team'));workbench.querySelector('#team-editor')?.scrollIntoView({block:'start',behavior:'auto'});});actions.append(apply);
     const save=el('button','保存预设');save.type='button';
-    save.addEventListener('click',()=>workbench.dispatchEvent(new CustomEvent('save-preset-candidate',{detail:{draft:result.draft,name:`${recommendationScenarioLabel(result)} · ${direction?.label??`${mode==='gekisou'?'激奏':'普通'}方案 ${i+1}`}`,onSaved:()=>{save.textContent='已保存，可在比较队伍中查看';},onError:message=>{save.textContent=message;}}})));actions.append(save);
+    save.addEventListener('click',()=>workbench.dispatchEvent(new CustomEvent('save-preset-candidate',{detail:{draft:result.draft,name:`${recommendationScenarioLabel(result)} · ${direction?.label??`${mode==='gekisou'?'激奏':'普通'}方案 ${i+1}`}`,onSaved:()=>{save.textContent=ui('已保存，可在比较队伍中查看');},onError:message=>{save.textContent=message;}}})));actions.append(save);
     if(planning?.trainingChanges?.length){const adjust=el('button','修改培养目标');adjust.type='button';adjust.addEventListener('click',()=>{workbench.querySelector('[data-planning-training]')?.scrollIntoView({block:'center',behavior:'auto'});workbench.querySelector('[data-planning-count]')?.focus();});actions.append(adjust);}
     if(objective!=='formation_power'){
       const link=el('a','查看分数明细 →');link.href=toolRoute(`/tools/song-calculator/${scoringScenarioSearch(result.draft,mode,result.scenario)}`,window.location.pathname);actions.append(link);

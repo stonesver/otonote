@@ -1,6 +1,8 @@
+import {planningUiText} from './team-planning-translations.mjs';
 /** Translate a short player-facing form into explicit, saved calculation assumptions. */
 const KINDS = new Set(['reference','selected','current','training','trial']);
 export const planningKindScope = kind => kind === 'reference' ? 'reference' : kind === 'selected' ? 'selected' : kind === 'trial' ? 'trial' : 'owned';
+export const planningObjectiveForGoal = goal => goal==='stable'?'minimum_song_score':'expected_song_score';
 export const legacyPlanningScope = kind => kind === 'reference' ? 'theoretical' : kind === 'selected' ? 'selected' : 'owned';
 export function defaultPlanningKind(inventory, draft) {
   if ((inventory?.memberCardIds?.length ?? 0) + (inventory?.supportCardIds?.length ?? 0)) return 'current';
@@ -75,6 +77,7 @@ export function updatePlanningCardPreference(constraints,{kind,id,preference}) {
 }
 export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
   const q=s=>workbench.querySelector(s);if(!q('[data-planning-kind]'))return null;
+  const ui=text=>planningUiText(text,workbench.data.locale),setText=(selector,text)=>{q(selector).textContent=ui(text);};
   const cards=[...workbench.data.memberCards,...workbench.data.supportCards];
   let targets={},allowed=new Set(),trial={memberCardIds:[],supportCardIds:[]},savedFingerprint='',restoring=false,restoredPerformance=null,restoredPerformanceValues='',versionError='',lockFingerprint='';
   const controls={kind:'planning-kind',unknownGrowth:'planning-unknown',growthMode:'planning-growth',maxTrainedCards:'planning-count',skillLevel:'planning-skill',gekisouSkillLevel:'planning-gekisou-skill',profile:'performance-profile',goal:'recommendation-goal',timingBiasMs:'performance-bias',timingSpreadMs:'performance-spread',missPercent:'performance-miss',startSeconds:'performance-start',endSeconds:'performance-end',explicit:'performance-explicit'};
@@ -90,15 +93,15 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
   }
   function fingerprint(){return JSON.stringify([workbench.draft.modifiers.planningScenario,workbench.draft.modifiers.performanceScenario,workbench.draft.modifiers.recommendationGoal]);}
   function persist(){const settings=read();Object.assign(workbench.draft.modifiers,settings);savedFingerprint=fingerprint();return settings;}
-  function notify(){if(restoring)return;try{persist();q('[data-planning-summary]').textContent=planningSummary(values());}catch(error){q('[data-planning-summary]').textContent=error.message;}onChange?.();}
-  const node=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
-  const cardName=card=>`${card.kind==='member'?'成员':'留影'} · ${card.shortLabel} ${card.relationLabel??''}`;
+  function notify(){if(restoring)return;try{persist();setText('[data-planning-summary]',planningSummary(values()));}catch(error){setText('[data-planning-summary]',error.message);}onChange?.();}
+  const node=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=ui(text);return n;};
+  const cardName=card=>`${workbench.data.locale==='en'?(card.kind==='member'?'Member':'Memory'):(card.kind==='member'?'成员':'留影')} · ${card.shortLabel} ${card.relationLabel??''}`;
   function renderTraining(){
     const inventory=getInventory(),owned=new Set([...inventory.memberCardIds,...inventory.supportCardIds]);
     const query=q('[data-planning-training-query]').value.toLocaleLowerCase();
     const filtered=cards.filter(card=>owned.has(card.id)&&(!query||cardName(card).toLocaleLowerCase().includes(query)));
     const root=q('[data-planning-training-cards]');root.replaceChildren();
-    q('[data-planning-training-count]').textContent=allowed.size?`允许培养 ${allowed.size} 张卡；最多实际提升 ${q('[data-planning-count]').value} 张。`:'未限定卡片；允许比较全部已录入卡的培养方案。';
+    setText('[data-planning-training-count]',allowed.size?`允许培养 ${allowed.size} 张卡；最多实际提升 ${q('[data-planning-count]').value} 张。`:'未限定卡片；允许比较全部已录入卡的培养方案。');
     for(const card of filtered.slice(0,40)){
       const row=node('div');row.className='planning-card-option';const label=node('label'),check=node('input');check.type='checkbox';check.checked=allowed.has(card.id);
       label.append(check,node('span',cardName(card)));row.append(label);
@@ -107,7 +110,7 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
         const details=node('details'),summary=node('summary','单独设置这张卡的目标');details.append(summary);
         const fields=node('div');fields.className='planning-fields';
         for(const [field,title,max] of [['level','等级',200],['rank',card.kind==='member'?'觉醒阶数':'突破阶数',5],...(card.kind==='member'?[['awake','特训阶数',5],['skillLevel','演出技能',5],['gekisouSkillLevel','激奏技能',5]]:[])]) {
-          const l=node('label');l.className='planning-field';const input=node('input');input.type='number';input.min='1';input.max=String(max);input.step='1';input.placeholder='沿用上方目标';input.value=targets[card.id]?.[field]??'';
+          const l=node('label');l.className='planning-field';const input=node('input');input.type='number';input.min='1';input.max=String(max);input.step='1';input.placeholder=ui('沿用上方目标');input.value=targets[card.id]?.[field]??'';
           input.addEventListener('change',()=>{if(!input.checkValidity()){input.reportValidity();notify();return;}targets[card.id]??={};if(input.value==='')delete targets[card.id][field];else targets[card.id][field]=Number(input.value);notify();});
           l.append(node('span',title),input);fields.append(l);
         }
@@ -155,10 +158,11 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
   }
   function refresh(){
     const v=values();q('[data-planning-training]').hidden=v.kind!=='training';q('[data-planning-trial]').hidden=v.kind!=='trial';q('[data-planning-missing]').hidden=v.kind==='reference';
-    q('[data-planning-note]').textContent={reference:'不用导入卡库。先看搭配思路；结果可能包含你还没有的卡。',selected:'只比较下方选中的成员与留影。没有填写养成时，可展开下面的选项按参考值计算。',current:'使用已导入或手动填写的养成。缺少资料的卡默认不参加推荐。',training:'从已录入卡中寻找值得练好的搭配，保留现在的卡库记录。',trial:'选择想试的卡，再和已录入或手选的卡一起配队。'}[v.kind];
-    q('[data-performance-note]').textContent=v.explicit.trim()?'按填写的演出记录比较。':v.profile==='ideal'?'理想发挥：无时机偏差、无漏按，用于查看顺利发挥时的方案。':v.profile==='practice'?'参考条件：时机波动 ±110 毫秒，另有 2% 漏按；不是对你个人水平的判断。':'参考条件：时机波动 ±65 毫秒，不额外加入漏按；FC 不代表全 JUST。';
-    if(v.timingSpreadMs!==''||v.missPercent!==''||Number(v.timingBiasMs)!==0||v.startSeconds!=='')q('[data-performance-note]').textContent+=' 已调整发挥条件，请展开上方设置查看。';
-    q('[data-planning-summary]').textContent=planningSummary(v);
+    setText('[data-planning-note]',{reference:'不用导入卡库。先看搭配思路；结果可能包含你还没有的卡。',selected:'只比较下方选中的成员与留影。没有填写养成时，可展开下面的选项按参考值计算。',current:'使用已导入或手动填写的养成。缺少资料的卡默认不参加推荐。',training:'从已录入卡中寻找值得练好的搭配，保留现在的卡库记录。',trial:'选择想试的卡，再和已录入或手选的卡一起配队。'}[v.kind]);
+    let performanceNote=v.explicit.trim()?'按填写的演出记录比较。':v.profile==='ideal'?'理想发挥：无时机偏差、无漏按，用于查看顺利发挥时的方案。':v.profile==='practice'?'参考条件：时机波动 ±110 毫秒，另有 2% 漏按；不是对你个人水平的判断。':'参考条件：时机波动 ±65 毫秒，不额外加入漏按；FC 不代表全 JUST。';
+    if(v.timingSpreadMs!==''||v.missPercent!==''||Number(v.timingBiasMs)!==0||v.startSeconds!=='')performanceNote+=' 已调整发挥条件，请展开上方设置查看。';
+    setText('[data-performance-note]',performanceNote);
+    setText('[data-planning-summary]',planningSummary(v));
     q('[data-recommendation-goal]').querySelector('[value="missions"]').disabled=q('[data-pairing-mode]').value!=='gekisou';
     if(v.goal==='missions'&&q('[data-pairing-mode]').value!=='gekisou')q('[data-recommendation-goal]').value='score';
   }
@@ -166,6 +170,7 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
     restoring=true;const v=planningSettingsValues(modifiers,defaultPlanningKind(getInventory(),workbench.draft));
     versionError=modifiers.planningScenario?.sourceReleaseId&&modifiers.planningScenario.sourceReleaseId!==workbench.data.sourceReleaseId?'这份情景来自其他资料版本，请恢复参考设置后重新选择。':'';
     for(const [key,selector] of Object.entries(controls))q(`[data-${selector}]`).value=v[key];
+    q('[data-pairing-objective]').value=planningObjectiveForGoal(v.goal);
     restoredPerformance=modifiers.performanceScenario?structuredClone(modifiers.performanceScenario):null;restoredPerformanceValues=performanceValues(values());
     targets=structuredClone(v.targets);allowed=new Set(v.allowedCardIds);trial=structuredClone(v.trialCardIds);q('[data-search-scope]').value=legacyPlanningScope(v.kind);
     renderTraining();renderTrial();renderLocks();refresh();savedFingerprint=fingerprint();restoring=false;
@@ -173,13 +178,13 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
   function sync(){if(fingerprint()!==savedFingerprint)restore();refresh();renderLocks();}
   for(const [key,selector] of Object.entries(controls))q(`[data-${selector}]`).addEventListener('change',()=>{
     if(key==='kind')q('[data-search-scope]').value=legacyPlanningScope(q('[data-planning-kind]').value);
-    if(key==='goal')q('[data-pairing-objective]').value=q('[data-recommendation-goal]').value==='stable'?'minimum_song_score':'expected_song_score';
+    if(key==='goal')q('[data-pairing-objective]').value=planningObjectiveForGoal(q('[data-recommendation-goal]').value);
     if(key==='kind'||key==='maxTrainedCards')renderTraining();refresh();notify();
   });
   q('[data-planning-training-query]').addEventListener('input',renderTraining);
   q('[data-planning-training-clear]').addEventListener('click',()=>{allowed.clear();targets={};renderTraining();notify();});
   q('[data-planning-trial-query]').addEventListener('input',renderTrial);
-  q('[data-planning-trial-add]').addEventListener('click',()=>{const card=cards.find(c=>c.id===q('[data-planning-trial-card]').value);if(!card){q('[data-planning-summary]').textContent='先在列表中选择一张试用卡。';return;}const list=trial[`${card.kind}CardIds`];if(!list.includes(card.id))list.push(card.id);renderTrial();notify();});
+  q('[data-planning-trial-add]').addEventListener('click',()=>{const card=cards.find(c=>c.id===q('[data-planning-trial-card]').value);if(!card){setText('[data-planning-summary]','先在列表中选择一张试用卡。');return;}const list=trial[`${card.kind}CardIds`];if(!list.includes(card.id))list.push(card.id);renderTrial();notify();});
   q('[data-planning-reset]').addEventListener('click',()=>{restore({});notify();});
   q('[data-search-scope]').addEventListener('change',()=>{const value=q('[data-search-scope]').value,current=q('[data-planning-kind]').value;if(value!==legacyPlanningScope(current)){q('[data-planning-kind]').value=value==='theoretical'?'reference':value==='selected'?'selected':'current';refresh();notify();}});
   q('[data-pairing-mode]').addEventListener('change',()=>{refresh();notify();});

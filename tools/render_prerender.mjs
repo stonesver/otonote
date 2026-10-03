@@ -4,6 +4,7 @@ import {resolve, join, dirname} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {prepareHtml, redirectHtml} from './prerender_html.mjs';
+import {prerenderLoadingArt} from './prerender_loading_art.mjs';
 import {localizeHtmlWithStats} from '../site/src/lib/html-localizer.ts';
 
 const [codeArg, storeArg, outputArg, locale = 'zh-CN', pointerArg, region = 'global'] = process.argv.slice(2);
@@ -51,6 +52,7 @@ if (!boot) throw Error('Missing renderer exports');
 const {renderToString, renderContext} = await import(new URL(boot, fileRoot));
 const bootstrap = await readFile(join(code, 'compiled/prerender/bootstrap.js'), 'utf8');
 const navigationScript = await readFile(join(code, 'compiled/prerender/navigation.js'), 'utf8');
+const loadingArt = await prerenderLoadingArt({store, contentRoot:content.root, codeRoot});
 const results = [];
 for (const route of app.routes) {
   // Story text is selected at module evaluation using the document URL. It
@@ -76,7 +78,7 @@ for (const route of app.routes) {
       count++; continue;
     }
     if (locale === 'en') html = localizeHtmlWithStats(html, 'en').html;
-    const prepared = prepareHtml(html, {app, codeRoot, contentRoot:content.root, base, pointer, bootstrap, navigationScript, css:route.css, stylesheet, locale, route:route.pattern, derivedRoot});
+    const prepared = prepareHtml(html, {app, codeRoot, contentRoot:content.root, base, pointer, bootstrap, navigationScript, loadingArt, css:route.css, stylesheet, locale, route:route.pattern, derivedRoot});
     const target = join(output, base, path, 'index.html');
     await mkdir(dirname(target), {recursive:true});
     await writeFile(target, prepared.html);

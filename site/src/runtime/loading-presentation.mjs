@@ -1,7 +1,13 @@
-// Fixed, small game-art decorations are embedded in the code release's entry
-// HTML. The loading shell never fetches images or content to locate its own art.
-// These original stamps contain no lettering: all copy stays in localized HTML.
+// Stable decoration keys shared by cold entry, navigation and tool readiness.
+// Cold entry embeds its art; prerender uses checked, pinned content media.
+// The original stamps contain no lettering: copy stays in localized HTML.
 export const loadingArtFiles = ['stamps-1000000008.webp', 'stamps-1000000004.webp'];
+
+// Always present in a clean code build. Game decorations belong to the pinned
+// content release and are selected only after their availability is checked.
+export function fallbackLoadingArt(codeRoot) {
+  return Object.fromEntries(loadingArtFiles.map(file => [file, codeRoot + 'loading/brand-fallback.svg']));
+}
 
 const scenes = {
   home: [0, '开演前，先打个招呼。', 'A little hello before the show.'],

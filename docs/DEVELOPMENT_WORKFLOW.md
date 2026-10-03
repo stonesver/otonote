@@ -87,6 +87,8 @@ Python/Node/系统工具由另行审查的 digest 固定基础镜像提供；程
 
 ## 发布设置与执行
 
+维护者本机的现有网页部署配置位于 `/Users/stone/Documents/data/otonote/private/deployment/code-deploy.json`。该路径仅用于定位本地文件；实际配置内容继续保存在仓库外，不复制进源码或发布产物。执行发布时通过 `--config` 指定此文件。
+
 `tools.deploy_code` 只读取检出目录外、权限为 `0600` 的私有 JSON。仓库不存这份文件；结构如下，全部值由部署操作者在受保护位置填写：
 
 ```json

@@ -10,7 +10,7 @@ import { validateSongSkillProfile, songSkillProfileKey } from './song-skill-prof
 /** A neutral, ordinary-live comparison using the same note core and replay as
  * the team calculator. "Replay" describes precision, not real-play certainty.
  * No formation, conditional skill, event or Gekisou bonus is inferred. */
-export function calculateSongSkillReplay({ rules, chart, skills, power = 100000, frameRate = 60 }) {
+export function calculateSongSkillReplay({ rules, chart, skills, power = 100000, frameRate = 60, includeTrace = false }) {
   validateSongSkillProfile(skills);
   if (!Number.isSafeInteger(power) || power < 1 || power > 10000000) throw new Error('无效的比较综合力');
   if (!scoringRulesAvailable(rules, chart.sourceReleaseId)) throw new Error('计分规则与谱面版本不一致');
@@ -50,7 +50,15 @@ export function calculateSongSkillReplay({ rules, chart, skills, power = 100000,
     if (score > maximum) { maximum = score; bestOrder = [...order]; }
     if (score < minimum) { minimum = score; worstOrder = [...order]; }
   }
-  return { mode: 'ordinary', precision: 'replay', profileKey, skills: skills.map(skill => ({ ...skill })),
+  const traceOrder = (order, kind) => {
+    const commands = liveSkillCommands(order, resolved, timeline.skillTimes, frameRate);
+    const replay = replayScoreTimeline({ events: timeline.events, commands, frameRate,
+      scoreNote(event, state) { const factor = Math.fround(state.general + state.perfect);
+        return { score: calculateFormalNoteCore({ ...params(event), scoreUpFactor: factor }).score, scoreUpFactor: factor }; } });
+    return { kind, order, score: replay.score, commands, notes: replay.notes.map(({ result, ...note }) => ({ ...note, ...result })) };
+  };
+  return { ...(includeTrace ? { skillPlayback: { skills: resolved.map((s,i)=>({...s,slotIndex:i})), skillTimes: timeline.skillTimes, frameRate,
+    variants: [traceOrder(bestOrder, 'best'), traceOrder(worstOrder, 'worst')] } } : {}), mode: 'ordinary' , precision: 'replay', profileKey, skills: skills.map(skill => ({ ...skill })),
     power, baseScore, distribution: summarizeScoreDistribution(scores), bestOrder, worstOrder,
     modelVersion: SCORE_MODEL_VERSION, chartHash: timeline.chartHash, chartId: chart.id,
     trackId: chart.trackId, difficulty: chart.difficulty, sourceReleaseId: rules.sourceReleaseId,

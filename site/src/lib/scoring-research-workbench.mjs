@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 import {readToolPresets} from './tool-presets.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createPersonalGrowthStore, applyPersonalGrowth} from './personal-growth-store.mjs';
@@ -91,6 +92,7 @@ class ScoringResearchWorkbench extends HTMLElement {
     this.querySelector('[data-score-song-name]').textContent=this.draft.selectedSongId?`${this.trackById.get(this.draft.selectedSongId)?.title??''} · ${this.draft.selectedDifficulty?.toUpperCase()??''}`:this.labels.song.chooseDifficulty;
 
     this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();
+    this.querySelector('[data-skill-activation]')?.replaceChildren();
     this.loadedSnapshot=null;this.loadedChart=null;
     const summary = deriveTeamDraftSummary(this.draft, {
       memberCards: this.data.memberCards,
@@ -161,6 +163,7 @@ class ScoringResearchWorkbench extends HTMLElement {
   }
 
   async renderSongScore(chart, snapshot, issues) {
+    this.querySelector('[data-skill-activation]')?.replaceChildren();
     const request=++this.scoreRequest;
     this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();
     const output = this.querySelector("[data-song-score]");
@@ -193,6 +196,7 @@ class ScoringResearchWorkbench extends HTMLElement {
         const result = await this.calculateInWorker({mode:'gekisou',rules:this.data.formalRules,chart:{...chart,sourceReleaseId:this.data.sourceReleaseId},scenario,draft:this.draft});
         if(request!==this.scoreRequest)return;
         output.textContent = format(result.expectedScore);
+        this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
         details.textContent = interpolate(labels.gekisouEstimate, {power:format(result.power),samples:result.sampleCount,min:format(result.minimumScore),max:format(result.maximumScore),error:format(result.standardError),share:format(result.rankingBonusShare*100)});
         if (inputWarnings.length) details.textContent += ' ' + inputWarnings.join(' ');
         const distribution=result.scoreDistribution;
@@ -212,6 +216,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       const result = await this.calculateInWorker({mode:'ordinary',rules:this.data.formalRules,chart:{...chart,sourceReleaseId:this.data.sourceReleaseId},draft:this.draft,performance});
       if(request!==this.scoreRequest)return;
       output.textContent = format(result.expectedScore);
+      this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
       const comboSummary = this.querySelector("[data-scoring-event-count]");
       if (comboSummary) comboSummary.textContent = String(result.chart.eventCount);
       details.textContent = interpolate(performance?labels.replayBreakdown:labels.breakdown, { base: format(result.baseScore), gain: format(result.skillScoreGain), min: format(result.minimumScore), max: format(result.maximumScore) });

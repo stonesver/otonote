@@ -202,7 +202,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const noteScore = total - rankingBonus;
       const score = pipeline.apply('fixed_score', total, { draft, order, sections });
       if (!Number.isSafeInteger(score) || score < 0) throw new Error('Invalid Gekisou score');
-      const result = { score, noteScore, rankingBonus, outsideScore, sections, eventFixedScore: score - total, ...(trace ? { notes, luckEvents: replay.luckEvents, skillTransitions: replay.transitions, factorCommands: commands } : {}) };
+      const result = { score, noteScore, rankingBonus, outsideScore, sections, eventFixedScore: score - total, ...(trace ? { notes, luckEvents: replay.luckEvents, skillTransitions: replay.transitions, factorCommands: commands, commands: ordinaryCommands } : {}) };
       if (cacheKey !== null) orderCache.set(cacheKey, result);
       return result;
     }
@@ -232,6 +232,8 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       }
       standardError = Math.sqrt(varianceSum / (batches * orders.length ** 2));
     }
+    const bestTrace = includeTrace ? run(best.order, best.seed, true) : null;
+    const worstTrace = includeTrace ? run(worst.order, worst.seed, true) : null;
     return { status: 'estimated', modelVersion: SCORE_MODEL_VERSION, scorePrecision, verificationStatus: 'source_informed_frame_replay', optimizerEligible: !referenceProfile,
       score: expectedScore, expectedScore, minimumScore: minimum, maximumScore: maximum, power: formation.total.total,
       scenario, event: pipeline.context, sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
@@ -243,7 +245,11 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       effects: effects.map(e => ({ sourceCardId: e.sourceCardId, slotIndex: e.slotIndex, type: e.definition._skillEffectType, active: e.active, missionType: e.missionType,
         contribution: [12004, 12006].includes(e.definition._skillEffectType) ? 'no_score_change_under_ap' : 'simulated' })),
       bestOrder: best.order, worstOrder: worst.order, warnings,
-      ...(includeTrace ? { bestSample: run(best.order, best.seed, true), bestSampleSeed: best.seed } : {}) };
+      ...(includeTrace ? { bestSample: bestTrace, bestSampleSeed: best.seed,
+        skillPlayback: { skills: perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
+          randomSampling, effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex, type: e.definition._skillEffectType, active: e.active })),
+          variants: [{ kind: 'best', order: [...best.order], seed: best.seed, ...bestTrace },
+            { kind: 'worst', order: [...worst.order], seed: worst.seed, ...worstTrace }] } } : {}) };
   }
 
   // Safe, deliberately loose envelope for the ideal model: released score-up

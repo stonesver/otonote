@@ -1,3 +1,4 @@
+import {skillActivation} from './skill-activation-view.mjs';
 import {createToolCardPicker} from './tool-card-picker.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createTeamDraft,parseTeamDraftSearch,serializeTeamDraftSearch} from './team-draft.mjs';
@@ -103,7 +104,7 @@ class APGradeTool extends HTMLElement{
    const draft={...this.draft,selectedSongId:r.trackId,selectedDifficulty:r.difficulty};
    const links=el('div');links.className='ap-result-actions';const use=el('a','带入活动收益 →');use.href=toolRoute('/tools/event-efficiency/',location.pathname)+eventToolSearch(draft,{mode:r.mode,eventId:r.eventId||undefined,scoreRank:r.scoreRank,basis,...this.eventContext});links.append(use);
    if(r.mode==='ordinary'){const detail=el('a','查看分数明细');detail.href=toolRoute('/tools/song-calculator/',location.pathname)+serializeTeamDraftSearch(draft);links.append(detail);}
-   card.append(links);root.append(card);
+   card.append(links,skillActivation(this,draft,{mode:r.mode,eventId:r.eventId}));root.append(card);
   }
   if(!rows.length)root.append(el('p',this.rows?'没有符合搜索的歌曲。':'完成队伍后，点击计算查看各首歌的预估档位。'));
   this.q('page').textContent=`${this.page+1} / ${pages}`;this.q('prev').disabled=this.page===0;this.q('next').disabled=this.page===pages-1;

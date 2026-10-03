@@ -104,6 +104,8 @@
 [data-shell=sidebar] .team-workbench .team-picker-tile>.team-picker-card {display:flex;flex-direction:column;align-items:stretch;grid-template-columns:none;min-width:0;border:0;border-radius:0;width:100%;box-sizing:border-box;padding-bottom:40px;height:100%;}
 [data-shell=sidebar] .team-workbench .team-picker-tile .card-identity>img {width:64px;height:76px;max-width:100%;object-fit:contain;flex-shrink:0;}
 .team-workbench .team-picker-tile>.card-skill-trigger {position:absolute;right:10px;bottom:9px;}
+.team-workbench .team-picker-tile>.card-place-direct {position:absolute;left:10px;bottom:9px;width:auto;max-width:calc(100% - 90px);min-height:30px;padding:5px 10px;font:600 11px var(--font-body);border:1px solid #cfc5d4;border-radius:6px;background:#fff;color:var(--calc-accent);cursor:pointer;}
+.team-workbench .team-picker-tile>.card-place-direct:disabled {opacity:.5;cursor:default;}
 .team-workbench .card-skill-trigger {font:600 11px var(--font-body);padding:6px 11px;border:1px solid #cfc5d4;background:#fff;color:#763b63;border-radius:6px;cursor:pointer;width:fit-content;}
 .team-workbench .card-skill-trigger[aria-expanded=true] {background:#763b63;color:#fff;}
 .team-workbench .score-lineup {grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}

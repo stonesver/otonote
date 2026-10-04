@@ -4,7 +4,7 @@ import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {createTeamDraft,parseTeamDraftSearch} from '../src/lib/team-draft.mjs';
 import {createPersonalGrowthStore} from '../src/lib/personal-growth-store.mjs';
 import {registerToolTeamContext,refreshToolTeamGrowth,toolTeamInputState} from '../src/lib/shared-team-context.mjs';
-import {prepareCurrentTeamGrowthEdit} from '../src/lib/shared-team-workspace.mjs';
+import {prepareCurrentTeamGrowthEdit,teamCardSelectionReason} from '../src/lib/shared-team-workspace.mjs';
 import {createPlanningSettings} from '../src/lib/team-planning-scenario-ui.mjs';
 const rules=createSharedTeamRules();
 const context={region:'global',serverId:'global-hmt'};
@@ -71,4 +71,23 @@ test('editing one current-growth skill snapshots latest growth for every teammat
  prepareCurrentTeamGrowthEdit(saved,profile.inventory);
  assert.equal(saved.modifiers.growth['member-card-1'].skillLevel,2);
  assert.deepEqual(profile.inventory,before);
+});
+
+test('replacement permits same-character variants in their own slot, never across slots, even without display metadata',()=>{
+ const localRules=createSharedTeamRules();localRules.tables.MemberCard.push({...localRules.tables.MemberCard[0],_id:7});
+ const members=localRules.tables.MemberCard.map(row=>({id:`member-card-${row._id}`,characterIds:[`character-${row._characterID}`]}));
+ const d=createTeamDraft({slots:[1,2,3,4,5].map(id=>({memberCardId:`member-card-${id}`,supportCardId:`support-card-${id}`}))});
+ const options={draft:d,restrictions:{rules:localRules},memberCards:members};const before=structuredClone(d);
+ for(let slot=0;slot<5;slot++){
+   const expected=slot===0?'':/位置 1/;
+   const reason=teamCardSelectionReason(members.at(-1),{kind:'member',slot},options);
+   if(typeof expected==='string')assert.equal(reason,expected);else assert.match(reason,expected);
+ }
+ assert.equal(teamCardSelectionReason(members[5],{kind:'member',slot:0},options),'');
+ assert.equal(teamCardSelectionReason(members[0],{kind:'member',slot:0},options),'');
+ assert.equal(teamCardSelectionReason({id:'support-card-1',characterIds:['character-1']},{kind:'support',slot:0},options),'');
+ assert.match(teamCardSelectionReason({id:'support-card-1'},{kind:'support',slot:4},options),/位置 1/);
+ assert.equal(teamCardSelectionReason({id:'support-card-6',characterIds:['character-1']},{kind:'support',slot:0},options),'');
+ assert.match(teamCardSelectionReason(members.at(-1),{kind:'member',slot:0},{...options,restrictions:{rules:localRules,allowedMemberIds:[]}}),/不允许/);
+ assert.deepEqual(d,before);
 });

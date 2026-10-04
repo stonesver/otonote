@@ -41,6 +41,28 @@ export function prepareCurrentTeamGrowthEdit(draft,inventory) {
   }
   draft.modifiers.growth=growth;
 }
+/** Evaluate a replacement in its destination, excluding the card it replaces. */
+export function teamCardSelectionReason(card,target,{draft,restrictions={},memberCards=[],locale='zh-CN'}={}) {
+  const next=copy(draft??createTeamDraft()),slot=Number(target.slot),en=locale==='en';
+  if(!Number.isInteger(slot)||slot<0||slot>=5)return en?'Choose a valid slot':'请选择有效位置';
+  next.slots[slot][`${target.kind}CardId`]=card.id;
+  const check=checkTeamCompatibility(next,{...restrictions,requireComplete:false});
+  const issue=check.issues.find(i=>i.slot===slot&&i.kind===target.kind&&!['incomplete_team','missing_card','empty_slot','duplicate_card','duplicate_character'].includes(i.code));
+  if(issue)return issue.message;
+  const characterOf=id=>{
+    const record=restrictions.rules?.tables?.MemberCard?.find(row=>`member-card-${row._id}`===id);
+    const display=id===card.id?card:memberCards.find(row=>row.id===id);
+    const value=record?._characterID??display?.characterId??display?.characterIds?.[0];
+    return value==null?null:String(value).replace(/^character-/, '');
+  };
+  const character=target.kind==='member'?characterOf(card.id):null;
+  const occupied=next.slots.findIndex((entry,index)=>index!==slot&&(
+    entry[`${target.kind}CardId`]===card.id||target.kind==='member'&&character!=null&&characterOf(entry.memberCardId)===character));
+  if(occupied>=0)return target.kind==='member'
+    ?(en?`This character is in slot ${occupied+1}. Replace them in that slot.`:`此角色已在位置 ${occupied+1} 使用，请到该位置替换。`)
+    :(en?`This snap is in slot ${occupied+1}. Replace it in that slot.`:`这张留影已在位置 ${occupied+1} 使用，请到该位置替换。`);
+  return '';
+}
 function download(value,name) {
   const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
   const link=element('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -162,13 +184,7 @@ export async function setupSharedTeamWorkspace(shell) {
     if(context.isDirty?.()){const choice=await ask(say('当前工具的队伍有未保存修改','The current tool has unsaved team changes'),[[say('保存后切换','Save before switching'),'save'],[say('放弃修改并切换','Switch without saving'),'discard'],[say('取消','Cancel'),'cancel']]);if(choice==='cancel')return;if(choice==='save'){await guardEditor(()=>{edit(context.getDraft(),null,say('我的队伍','My team'),true);pendingSave={afterSave:()=>{context.markSaved?.();applyTeam(draft);}};});return;}}
     try{applying=true;await context.applyDraft(copy(draft),{includePerformance});context.markSaved?.();renderCurrent();feedback(say('队伍已用于当前工具，歌曲与活动设置保留。','Team applied. Song and event settings were kept.'));}catch(error){feedback(error.message,{tone:'error'});}finally{applying=false;}
   }
-  function cardReason(card,target){
-    const draft=copy(editing??createTeamDraft());const slot=Math.max(0,target.slot);draft.slots[slot][`${target.kind}CardId`]=card.id;
-    const check=checkTeamCompatibility(draft,{...restrictions(),requireComplete:false});const issue=check.issues.find(i=>i.slot===slot&&i.kind===target.kind&&!['incomplete_team','missing_card','empty_slot'].includes(i.code));
-    if(issue)return issue.message;
-    if(target.slot>=0&&draft.slots.some((s,i)=>i!==slot&&(target.kind==='support'?s.supportCardId===card.id:data.memberCards.find(c=>c.id===s.memberCardId)?.characterId===card.characterId)))return say('已在其他位置使用','Already used in another slot');
-    return '';
-  }
+  function cardReason(card,target){return teamCardSelectionReason(card,target,{draft:editing??createTeamDraft(),restrictions:restrictions(),memberCards:data.memberCards,locale:data.locale});}
   shell.data=data;
   const picker=createToolCardPicker({root:shell,getCards:kind=>data[`${kind}Cards`],getDraft:()=>editing,getOwned:kind=>profile()?.inventory?.[`${kind}CardIds`]??[],getCardState:card=>resolveTeamCardGrowth({card,draft:editing,inventory:profile()?.inventory,rules:data.formalRules}),conflict:cardReason,onChoose:(card,target)=>{
     editing.slots[target.slot][`${target.kind}CardId`]=card.id;

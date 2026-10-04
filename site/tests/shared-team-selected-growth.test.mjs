@@ -4,6 +4,8 @@ import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {createTeamDraft,parseTeamDraftSearch} from '../src/lib/team-draft.mjs';
 import {createPersonalGrowthStore} from '../src/lib/personal-growth-store.mjs';
 import {registerToolTeamContext,refreshToolTeamGrowth,toolTeamInputState} from '../src/lib/shared-team-context.mjs';
+import {prepareCurrentTeamGrowthEdit} from '../src/lib/shared-team-workspace.mjs';
+import {createPlanningSettings} from '../src/lib/team-planning-scenario-ui.mjs';
 const rules=createSharedTeamRules();
 const context={region:'global',serverId:'global-hmt'};
 function environment(t){
@@ -48,4 +50,25 @@ test('song input state clears obsolete shared-card errors and changes reference 
  const missing=structuredClone(actual);delete missing.modifiers.growth['member-card-1'].level;assert.equal(toolTeamInputState(missing,known).growthIsReference,true);
  assert.equal(toolTeamInputState(actual,known).growthIsReference,false);
  const invalidSong=structuredClone(actual);invalidSong.selectedSongId='music-999999';assert.ok(toolTeamInputState(invalidSong,known).inputIssues.some(issue=>issue.code==='unknown_song'));
+});
+
+test('editing one current-growth skill snapshots latest growth for every teammate, preserving unknowns',t=>{
+ const {personal,profile,adapter}=environment(t),saved=team(profile.inventory,'owned');
+ // A saved team predates inventory upgrades and one removed card.
+ profile.inventory.growth['member-card-1'].level=2;
+ profile.inventory.growth['support-card-2'].level=3;
+ profile.inventory.memberCardIds=profile.inventory.memberCardIds.filter(id=>id!=='member-card-5');
+ delete profile.inventory.growth['member-card-5'];personal.save(profile);
+ const before=structuredClone(profile.inventory);
+ prepareCurrentTeamGrowthEdit(saved,profile.inventory);
+ saved.modifiers.growth['member-card-1'].skillLevel=2;
+ saved.modifiers.planningScenario=createPlanningSettings({kind:'selected'},{sourceReleaseId:rules.sourceReleaseId,draft:saved}).planningScenario;
+ const page=adapter();page.context.applyDraft(saved);
+ assert.equal(page.draft.modifiers.growth['member-card-1'].level,2);
+ assert.equal(page.draft.modifiers.growth['member-card-1'].skillLevel,2);
+ assert.equal(page.draft.modifiers.growth['support-card-2'].level,3);
+ assert.equal(page.draft.modifiers.growth['member-card-5'],undefined);
+ prepareCurrentTeamGrowthEdit(saved,profile.inventory);
+ assert.equal(saved.modifiers.growth['member-card-1'].skillLevel,2);
+ assert.deepEqual(profile.inventory,before);
 });

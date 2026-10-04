@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {inventoryImportDelta} from '../src/lib/shared-inventory-panel.mjs';
 import {createPersonalGrowthStore} from '../src/lib/personal-growth-store.mjs';
 import {createInventoryManager} from '../src/lib/inventory-manager.mjs';
 
-const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
+const rules=createSharedTeamRules();
 const context={region:'global',serverId:'global-hmt'};
 function setup(){
   const values=new Map(),storage={get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};

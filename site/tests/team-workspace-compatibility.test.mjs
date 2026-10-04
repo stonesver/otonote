@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {checkTeamCompatibility,mergeTeamForTool} from '../src/lib/team-workspace-compatibility.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
-const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
+const rules=createSharedTeamRules();
 const draft=()=>createTeamDraft({slots:[1,2,3,4,5].map(id=>({memberCardId:`member-card-${id}`,supportCardId:`support-card-${id}`}))});
 
 test('only explicit restrictions disable cards; bonus metadata never becomes a ban',()=>{

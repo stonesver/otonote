@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {createPersonalGrowthStore,applyPersonalGrowth,PERSONAL_GROWTH_FORMAT} from '../src/lib/personal-growth-store.mjs';
 import {createInventoryManager} from '../src/lib/inventory-manager.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
-const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
+const rules=createSharedTeamRules();
 const vipRanks=[{rank:1,requiredPoints:0},{rank:2,requiredPoints:2000}];
 const context={region:'global',serverId:'global-hmt'};
 function memory(){const entries=new Map();return {get length(){return entries.size;},key:i=>[...entries.keys()][i],getItem:k=>entries.get(k)??null,setItem:(k,v)=>entries.set(k,v),removeItem:k=>entries.delete(k)};}

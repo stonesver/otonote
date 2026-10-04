@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {createTeamWorkspaceStore} from '../src/lib/team-workspace-store.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
-const rules = JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json', import.meta.url)));
+const rules=createSharedTeamRules();
 const context = {region:'global', serverId:'global-hmt'};
 const draft = () => createTeamDraft({slots:[1,2,3,4,5].map(id => ({memberCardId:`member-card-${id}`,supportCardId:`support-card-${id}`}))});
 function memory(){const entries=new Map();return {get length(){return entries.size;},key:i=>[...entries.keys()][i],getItem:k=>entries.get(k)??null,setItem:(k,v)=>entries.set(k,v)};}

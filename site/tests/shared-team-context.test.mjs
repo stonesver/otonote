@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {syncEditedTeamPlanning} from '../src/lib/shared-team-workspace.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 import {createTeamWorkspaceStore} from '../src/lib/team-workspace-store.mjs';
 import {createPersonalGrowthStore} from '../src/lib/personal-growth-store.mjs';
 import {registerToolTeamContext,getActiveToolTeamContext,notifyToolTeamChanged,requestTeamSave,hasExplicitTeam} from '../src/lib/shared-team-context.mjs';
-const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
+const rules=createSharedTeamRules();
 const context={region:'global',serverId:'global-hmt'};
 const team=()=>createTeamDraft({slots:[1,2,3,4,5].map(id=>({memberCardId:`member-card-${id}`,supportCardId:`support-card-${id}`}))});
 function environment(t,search='?server=global-hmt'){

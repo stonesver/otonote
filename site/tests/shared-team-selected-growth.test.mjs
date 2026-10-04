@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {createTeamDraft,parseTeamDraftSearch} from '../src/lib/team-draft.mjs';
 import {createPersonalGrowthStore} from '../src/lib/personal-growth-store.mjs';
 import {registerToolTeamContext,refreshToolTeamGrowth,toolTeamInputState} from '../src/lib/shared-team-context.mjs';
-const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
+const rules=createSharedTeamRules();
 const context={region:'global',serverId:'global-hmt'};
 function environment(t){
  const entries=new Map(),doc=new EventTarget(),win=new EventTarget(),cleanups=[];

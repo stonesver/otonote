@@ -48,7 +48,7 @@ test('explicit legacy selection appends teams atomically and keeps every origina
 });
 test('backup import, deletion undo, and recent draft preserve complete state with increasing revisions', () => {
  const {store}=setup();store.saveTeam({name:'一队',draft:draft()});store.setRecentDraft(draft());const backup=store.exportWorkspace();
- const second=setup().store;second.importWorkspace(JSON.stringify(backup));assert.deepEqual(second.read().teams,backup.teams);assert.deepEqual(second.read().recentDraft,backup.recentDraft);
+ const second=setup().store;second.importWorkspace(JSON.stringify(backup),{replace:true});assert.deepEqual(second.read().teams,backup.teams);assert.deepEqual(second.read().recentDraft,backup.recentDraft);
  const before=second.checkpoint();const after=second.removeTeam(backup.teams[0].id);const restored=second.restore(before);
  assert.equal(restored.revision,after.revision+1);assert.deepEqual(restored.teams,backup.teams);
  second.restore(null);assert.equal(second.read().teams.length,0);assert.equal(second.read().recentDraft,null);
@@ -72,5 +72,30 @@ test('a validated replacement backup recovers corrupted storage without partial 
  const {store,storage}=setup();storage.setItem(store.key,'invalid-json');
  assert.throws(()=>store.read());const value=store.empty();value.teams=[{id:'recovered',name:'恢复',draft:draft()}];
  const valid=store.fromImport(value);assert.equal(storage.getItem(store.key),'invalid-json');
- store.importWorkspace(valid);assert.equal(store.read().teams[0].name,'恢复');
+ assert.throws(()=>store.importWorkspace(valid));assert.equal(storage.getItem(store.key),'invalid-json');
+ store.importWorkspace(valid,{replace:true});assert.equal(store.read().teams[0].name,'恢复');
+});
+
+test('default import appends fresh identities and preserves existing teams and recent draft', () => {
+ const {store}=setup();const original=store.saveTeam({name:'现有队伍',draft:draft()}).teams[0];
+ const recent=draft();recent.slots.reverse();store.setRecentDraft(recent);
+ const imported=store.exportWorkspace();imported.teams[0].name='导入的同 ID 队伍';imported.recentDraft=draft();
+ const result=store.importWorkspace(imported);
+ assert.equal(result.teams.length,2);assert.deepEqual(result.teams[0],original);
+ assert.notEqual(result.teams[1].id,original.id);assert.equal(result.teams[1].name,'导入的同 ID 队伍');
+ assert.deepEqual(result.recentDraft,recent);
+ const repeated=store.importWorkspace(imported);assert.equal(new Set(repeated.teams.map(team=>team.id)).size,3);
+ assert.deepEqual(repeated.teams[0],original);assert.deepEqual(repeated.recentDraft,recent);
+});
+test('import merging observes total capacity and revisions without changing the stored record', () => {
+ const {store,storage}=setup();store.saveTeam({name:'现有',draft:draft()});
+ const imported=store.empty();imported.teams=Array.from({length:100},(_,id)=>({id:String(id),name:`导入 ${id}`,draft:draft()}));
+ const before=store.checkpoint();assert.throws(()=>store.importWorkspace(imported),/100/);assert.equal(store.checkpoint(),before);
+ const stale=setup(storage).store;stale.read();store.setRecentDraft(draft());
+ assert.throws(()=>stale.importWorkspace({...imported,teams:imported.teams.slice(0,1)}),{code:'revision_conflict'});
+ assert.equal(store.read().teams.length,1);
+});
+test('partially filled recent draft retains unknown growth rather than promoting calculator defaults', () => {
+ const {store}=setup();const partial=createTeamDraft({slots:[{memberCardId:'member-card-1',supportCardId:'support-card-1'}],modifiers:{growth:{'member-card-1':{level:2}}}});
+ store.setRecentDraft(partial);assert.deepEqual(store.read().recentDraft,partial);
 });

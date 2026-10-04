@@ -132,7 +132,12 @@ export function createTeamWorkspaceStore({rules, context = currentServerContext(
     checkpoint() { checkServer(); return storage.getItem(key); },
     restore(checkpoint, options) { const restored = checkpoint === null ? empty() : validate(JSON.parse(checkpoint)); return mutate(() => restored, options); },
     fromImport(value) { return validate(typeof value === 'string' ? JSON.parse(value) : value); },
-    importWorkspace(value, options) { const imported = validate(typeof value === 'string' ? JSON.parse(value) : value); return mutate(() => imported, options, true); },
+    importWorkspace(value, {replace = false, expectedRevision} = {}) {
+      const imported = validate(typeof value === 'string' ? JSON.parse(value) : value);
+      return mutate(state => replace ? imported : {...state, teams:[...state.teams, ...imported.teams.map(team => ({
+        ...team, id:globalThis.crypto.randomUUID()
+      }))]}, {expectedRevision}, replace);
+    },
     exportWorkspace() { return read(); }
   };
 }

@@ -1,6 +1,6 @@
 # 卡库与队伍共用浮窗
 
-状态：本地实现与候选验证完成，待用户审阅。未推送、未上线。交付与验收记录见[完成报告](2026-10-05-shared-team-workspace-completion-report.md)。
+状态：本地实现与候选验证完成，已按用户后续授权推送并上线。交付与验收记录见[完成报告](2026-10-05-shared-team-workspace-completion-report.md)。
 
 ## 1. 玩家要完成什么
 

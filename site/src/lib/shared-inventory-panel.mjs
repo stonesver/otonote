@@ -58,7 +58,7 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     if(!pendingImport)return;ensureStore();
     if(pendingImport.key!==store.key||pendingImport.before!==store.checkpoint())throw Error(t('预览后资料有变化，请重新预览再导入。','The profile changed since preview. Preview the backup again.'));
     commit(pendingImport.profile,t('备份已导入。已存队伍保留，可撤销本次导入。','Backup imported. Saved teams are preserved. You can undo this import.'));
-    pendingImport=null;confirmImport.disabled=true;accountDirty=false;editor=null;editRoot.replaceChildren();renderAccount();
+    pendingImport=null;confirmImport.disabled=true;paste.value='';importPreview.replaceChildren();accountDirty=false;editor=null;editRoot.replaceChildren();renderAccount();
   }));confirmImport.disabled=true;
   const previewButton=button(t('预览导入','Preview import'),()=>act(prepareImport));
   const exportInput=button(t('另存当前导入内容','Save input as a file'),()=>download(paste.value,'otonote-pending-import.json'));
@@ -207,5 +207,10 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     catch(error){status.textContent=t('资料未载入，原记录仍保留。可导入有效备份恢复：','Profile not loaded; the original record is preserved. Import a valid backup to recover: ')+error.message;}
   }
   refresh();
-  return {refresh,destroy(){destroyed=true;fileRequest++;for(const remove of listeners)remove();root.replaceChildren();}};
+  return {
+    refresh,
+    // Closing the panel preserves these inputs; navigation/server changes must ask before discarding them.
+    hasUnsavedChanges(){return Boolean(editor||accountDirty||pendingImport||paste.value.trim()||file.files?.length);},
+    destroy(){destroyed=true;fileRequest++;for(const remove of listeners)remove();root.replaceChildren();}
+  };
 }

@@ -24,6 +24,8 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 
 ### 私有状态首次导入
 
+首次上传大体量私有状态前，可在 GitHub Actions 手动运行 **Probe R2 credentials read only**。它只对两个指定 bucket 做最多一条对象的列表请求，不读取对象内容、不写入或删除对象；成功后再执行下面的导入步骤。该检查只证明密钥与 bucket 权限可用，不证明生产状态或内容已经存在。
+
 在可访问真实输入的受控机器上，先将程序及选定的私有文件布置到**同一绝对根** `/srv/ournotes-updater/app`，与 Actions 中完全一致；不能只复制旧 `state.json` 而保留失效的路径。`tools.r2_state` 的清单记录 `root` 和精确的路径选择，恢复时会校验两者。服务器现有 Global 工作目录约 13 GB，其中 `sync-complete` 约 6.7 GB、`builds` 约 2.8 GB。工作流恢复前先读取清单大小，并要求在清单总字节数之外仍有 8 GiB 空闲；标准 runner 是否够用必须以真实检查为准，容量不足时改用更大 GitHub 托管 runner。为每服分别运行下面的命令；`--path` 必须与之后工作流使用的路径列表一模一样。
 
 JP 可先运行 `python3 -m tools.prepare_jp_r2_seed --metadata <已复制的global-metadata.v39.dat> --apk-root <已复制的三份split-APK目录> --unity-version-file <已复制的unity.ver> --output /srv/ournotes-updater/app/output/r2-jp`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。上述源文件留在受控机器，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。

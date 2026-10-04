@@ -1,0 +1,57 @@
+name: Probe R2 credentials read only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: content-r2-production
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check both bucket scopes without writing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            [[ -n "${!name}" ]] || { echo "Missing Environment Secret: $name" >&2; exit 1; }
+          done
+          python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
+          python - <<'PY'
+          import os
+          import boto3
+          from botocore.config import Config
+
+          client = boto3.client(
+              's3',
+              endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+              aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'],
+              aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'],
+              region_name='auto',
+              config=Config(signature_version='s3v4', retries={'mode': 'standard', 'max_attempts': 3}),
+          )
+          for bucket, prefix in (
+              ('otonote-production-state', 'state/'),
+              ('otonote-public-content', 'content/'),
+          ):
+              result = client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
+              if result['ResponseMetadata']['HTTPStatusCode'] != 200:
+                  raise SystemExit(f'{bucket}: unexpected R2 response')
+              print(f'{bucket}: scoped read/list verified')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(f'- `{bucket}`: scoped read/list verified. No object was changed.\n')
+          PY

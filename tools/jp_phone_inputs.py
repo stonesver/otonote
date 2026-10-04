@@ -18,9 +18,12 @@ from tools.global_remote_sync import read_json, write_json, file_hash
 from tools.resource_pipeline.catalog_adapter import CatalogAdapter
 from tools.resource_pipeline.golden import CURRENT_SITE_MASTER_TABLES, _master_aggregate, _master_row_count
 from tools.release_preflight import check_environment
+from tools.resource_pipeline.package_intake import build_package_set_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 JP_METADATA_SHA256 = '7a1b2ab310706f9301edc1cbf7d1b4785ecb764b75a1807f6d3bf3b5b7834bcf'
+JP_CERTIFICATE_SHA256 = '34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e'
+JP_REVIEWED_PACKAGE_SET_SHA256 = 'b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c'
 
 
 def extract_taxonomy(resources, output):
@@ -50,7 +53,8 @@ def extract_taxonomy(resources, output):
 
 
 class PhoneResources(CurrentResources):
-    def __init__(self, capture, master, metadata, apk, cache):
+    def __init__(self, capture, master, metadata, apk, cache, *, remote_client=None,
+                 observation=None, max_download_bytes=8_000_000_000):
         from analysis.crypto.decrypt_global_formal_scores import MetadataV39, field_bytes
         self.snapshot, self.master, self.metadata_path, self.apk, self.cache = map(Path, (capture, master, metadata, apk, cache))
         if file_hash(self.metadata_path) != JP_METADATA_SHA256:
@@ -60,7 +64,11 @@ class PhoneResources(CurrentResources):
         self.seed = field_bytes(self.metadata, 0x80000213, 8)
         catalog = self.snapshot / 'RemoteCatalog/catalog_main.bin'
         self.catalog = CatalogAdapter().parse(catalog)
-        self.report = {'catalogSha256': file_hash(catalog), 'observation': {'resourceVersion': 'jp-phone-20260930'}}
+        if observation and (observation.get('region') != 'jp' or observation.get('clientVersion') != '1.0.4'):
+            raise ValueError('JP client upgrade requires a reviewed decoder profile')
+        self.report = {'catalogSha256': file_hash(catalog), 'observation': observation or {'resourceVersion': 'jp-phone-20260930'}}
+        self.remote_client = remote_client
+        self.max_download_bytes = max_download_bytes
         self.locations, self.by_key = {}, defaultdict(list)
         for loc in self.catalog.locations:
             self.locations.setdefault(loc.primary_key, loc)
@@ -127,13 +135,28 @@ class PhoneResources(CurrentResources):
             self.used[name] = {'sha256': sha, 'byteSize': path.stat().st_size, 'origin': 'identical-catalog-local-cache',
                                'path': str(path), 'sourceCatalogSha256': catalog, 'expectedHash': loc.expected_hash}
             return path
+        elif getattr(self, 'remote_client', None) is not None:
+            from tools.jp_remote_sync import acquire, resource_identity
+            from tools.resource_pipeline.adapters.jp_public import asset_url
+            if self.downloaded + loc.expected_size > self.max_download_bytes:
+                raise ValueError('JP official CDN acquisition exceeds configured budget')
+            url = asset_url(self.report['observation']['resourceVersion'], loc.internal_id)
+            target = self.cache/'remote'/name
+            result = acquire(self.remote_client, url, target, loc.expected_size,
+                             identity=resource_identity(loc))
+            if not result['reused']: self.downloaded += result['byteSize']
+            self.used[name] = {'sha256': result['sha256'], 'byteSize': result['byteSize'],
+                               'origin': 'jp-official-cdn', 'path': str(target),
+                               'expectedHash': loc.expected_hash}
+            return target
         else:
             raise ValueError('JP capture missing unique resource: ' + name)
         self.used[name] = {'sha256': file_hash(path), 'byteSize': path.stat().st_size, 'origin': 'jp-installed-client', 'path': str(path)}
         return path
 
 
-def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse_cache=(), prepare_only=()):
+def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse_cache=(), prepare_only=(),
+          *, remote=False, unity_version_file=None, max_download_bytes=8_000_000_000):
     from tools.current_content_inputs import extract_images, extract_scores, extract_stories, extract_audio
     from tools.current_bgm_inputs import extract_bgm
     from tools.current_content_media import gallery, mission_images, live2d, immersive, auto_stage, costume_icons
@@ -147,13 +170,32 @@ def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse
             raise ValueError('Master decryption binding mismatch')
     stage = output.with_name('.' + output.name + '.working')
     stage.mkdir(parents=True, exist_ok=True)
-    resources = PhoneResources(capture, master, metadata, apk_root/'split_UnityDataAssetPack.apk', stage/'.cache')
+    package = build_package_set_manifest(apk_root, region='jp', channel='production')
+    if package['packageName'] != 'com.bushiroad.sirius' or package['certificateSha256'] != JP_CERTIFICATE_SHA256:
+        raise ValueError('JP package or signer identity changed')
+    observation = read_json(capture/'observation.json') if remote else None
+    remote_client = None
+    if remote:
+        from tools.jp_remote_sync import client_from_metadata
+        from tools.resource_pipeline.adapters.global_public import version_identity
+        if (package.get('packageSetSha256') != JP_REVIEWED_PACKAGE_SET_SHA256 or
+                observation.get('region') != 'jp' or observation.get('clientVersion') != package['versionName']
+                or package['versionName'] != '1.0.4' or package['versionCode'] != 10053):
+            raise ValueError('JP client upgrade requires a reviewed decoder profile')
+        remote_client = client_from_metadata(metadata, authorize_builtin_credentials=True)
+        if version_identity(remote_client.discover()) != version_identity(observation):
+            raise ValueError('JP version changed since verified snapshot')
+    resources = PhoneResources(capture, master, metadata, apk_root/'split_UnityDataAssetPack.apk', stage/'.cache',
+                               remote_client=remote_client, observation=observation,
+                               max_download_bytes=max_download_bytes)
     if reuse_catalog: resources.reuse_local(reuse_catalog, reuse_cache)
     fingerprint = {'catalog': resources.report['catalogSha256'], 'master': file_hash(master/'master-decrypt-report.json'),
-        'apks': {p.name:file_hash(p) for p in apk_root.glob('*.apk')}, 'metadata': file_hash(metadata)}
+        'apks': {p.name:file_hash(p) for p in apk_root.glob('*.apk')}, 'metadata': file_hash(metadata),
+        **({'observation': {key: observation[key] for key in ('clientVersion','masterVersion','resourceVersion','catalogHash')}} if remote else {})}
     if (stage/'.source.json').exists() and read_json(stage/'.source.json') != fingerprint: raise ValueError('source changed during JP intake')
     write_json(stage/'.source.json', fingerprint)
-    release = 'jp-prod-20260930-v1-0-4-10053-' + hashlib.sha256(json.dumps(fingerprint,sort_keys=True).encode()).hexdigest()[:12]
+    release = ('jp-prod-' + package['versionName'].replace('.', '-') + '-' + str(package['versionCode']) + '-'
+               + hashlib.sha256(json.dumps(fingerprint,sort_keys=True).encode()).hexdigest()[:12])
     source = {'id':'jp-production','region':'jp','channel':'production','contentReleaseId':release}
     counts = {}
     def module(name, folder, operation, extra=()):
@@ -204,12 +246,18 @@ def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse
         combined.extend({**r,'exported_file':group+'/'+r['exported_file']} for r in read_json(stage/group/'manifest.json')['assets'])
     write_json(assets, {'assets':combined})
     records=[{'logicalName':p.name,'sha256':file_hash(p)} for p in sorted((stage/'master').glob('*.json'))]
+    unity_path = Path(unity_version_file) if unity_version_file else capture/'il2cpp/unity.ver'
+    unity_version = unity_path.read_text().strip()
+    if not unity_version or len(unity_version) > 100: raise ValueError('invalid JP Unity identity')
     manifest={'schemaVersion':1,'identity':{k:source[k] for k in ('region','channel','contentReleaseId')},
-        'client':{'packageName':'com.bushiroad.sirius','versionName':'1.0.4','versionCode':10053,'unityVersion':(capture/'il2cpp/unity.ver').read_text().strip()},
+        'client':{'packageName':package['packageName'],'versionName':package['versionName'],
+                  'versionCode':package['versionCode'],'unityVersion':unity_version,
+                  'certificateSha256':package['certificateSha256']},
         'master':{'aggregateSha256':_master_aggregate(records)},
         'objects':{'assetManifest':{'sha256':file_hash(assets),'byteSize':assets.stat().st_size},'remoteCatalog':{'sha256':resources.report['catalogSha256']}},
         'statistics':{'masterTableCount':len(records),'criticalTableRows':{n:_master_row_count(read_json(stage/'master'/(n+'.json')),n) for n in CURRENT_SITE_MASTER_TABLES}},
-        'provenance':{'source':'adb-installed-client','capture':str(capture.relative_to(ROOT)),**fingerprint}}
+        'provenance':{'source':'official-jp-cdn' if remote else 'adb-installed-client',
+                      'capture':str(capture.relative_to(ROOT)),**fingerprint}}
     write_json(stage/'content-release.json',manifest)
     def final(name): return str((output/name).relative_to(ROOT))
     source.update(manifest=final('content-release.json'),manifestSha256=file_hash(stage/'content-release.json'),masterRoot=final('master'),assetManifest=final('combined-assets.json'),extractedRoot=str(output.relative_to(ROOT)))
@@ -222,6 +270,10 @@ def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse
     write_json(stage/'release-inputs.json',{'schemaVersion':1,'environments':[source]})
     write_json(stage/'intake-report.json',{'contentReleaseId':release,'modules':counts,'source':fingerprint})
     stage.rename(output)
+    if remote_client:
+        from tools.resource_pipeline.adapters.global_public import version_identity
+        if version_identity(remote_client.discover()) != version_identity(observation):
+            raise ValueError('JP version changed during content extraction')
     if check_environment(source,ROOT)['status'] != 'passed': raise ValueError('JP final input preflight failed')
     return read_json(output/'intake-report.json')
 
@@ -232,5 +284,12 @@ if __name__ == '__main__':
     parser.add_argument('--reuse-catalog',type=Path)
     parser.add_argument('--reuse-cache',type=Path,action='append',default=[])
     parser.add_argument('--prepare-only',action='append',default=[],choices=['master','images','taxonomy','scores','gallery','growth','missions','stage','scenes','stories','models','audio','bgm'])
+    parser.add_argument('--remote',action='store_true',help='Acquire missing resources from the observed official JP CDN')
+    parser.add_argument('--unity-version-file',type=Path,help='Pinned Unity identity from the verified JP client')
+    parser.add_argument('--max-download-bytes',type=int,default=8_000_000_000)
     args=parser.parse_args()
-    print(json.dumps(build(args.capture,args.master,args.metadata,args.apk_root,args.output,args.reuse_catalog,args.reuse_cache,args.prepare_only),ensure_ascii=False,indent=2))
+    if args.remote and not args.unity_version_file: parser.error('--remote requires --unity-version-file')
+    print(json.dumps(build(args.capture,args.master,args.metadata,args.apk_root,args.output,
+                           args.reuse_catalog,args.reuse_cache,args.prepare_only,
+                           remote=args.remote,unity_version_file=args.unity_version_file,
+                           max_download_bytes=args.max_download_bytes),ensure_ascii=False,indent=2))

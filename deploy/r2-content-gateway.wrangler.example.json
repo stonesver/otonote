@@ -1,0 +1,9 @@
+{
+  "name": "ournotes-content-gateway",
+  "main": "r2_content_gateway.mjs",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": true,
+  "r2_buckets": [
+    { "binding": "CONTENT", "bucket_name": "otonote-public-content" }
+  ]
+}

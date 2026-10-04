@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import struct
 import tempfile
+from uuid import uuid4
 
 from tools.global_remote_sync import file_hash, read_json, validate_manifest, write_json
 from tools.jp_phone_inputs import JP_METADATA_SHA256
@@ -136,9 +137,76 @@ def verify_capture(client, capture):
             'masterFilesVerified': len(rows), 'remoteResources': len(locations)}
 
 
+def snapshot(client, output):
+    """Acquire a fresh JP catalog and Master without using an Android device.
+
+    Resource bundles are subsequently acquired on demand by jp_phone_inputs.
+    The observed official version is checked again before the result is sealed.
+    """
+    from tools.resource_pipeline.adapters.global_public import version_identity
+    output = Path(output)
+    if output.exists():
+        raise ProtocolError('JP snapshot output must be a new directory')
+    first = client.discover()
+    if first.get('region') != 'jp' or first.get('clientVersion') != client.client_version:
+        raise ProtocolError('JP observation does not match the verified client')
+    from analysis.crypto.decrypt_master import decrypt_master_file, DEFAULT_SALT, DEFAULT_KEY, DEFAULT_IV
+    # A failed attempt may be retained for diagnosis without poisoning every
+    # later unattended retry of the same source identity.
+    stage = output.with_name('.' + output.name + '.working-' + uuid4().hex)
+    stage.mkdir(parents=True)
+    try:
+        wire = client.get(first['catalogUrl'], 64_000_000).body
+        catalog_bytes = decode_catalog(wire)
+        catalog = CatalogAdapter().parse_bytes(catalog_bytes)
+        catalog_dir = stage/'RemoteCatalog'; catalog_dir.mkdir()
+        (catalog_dir/'catalog_main.bin').write_bytes(catalog_bytes)
+        (catalog_dir/'catalog_main.cached_hash').write_text(first['resourceVersion'] + '\n')
+        manifest_bytes = client.get(first['masterManifestUrl'], 4_000_000).body
+        rows = validate_manifest(json.loads(manifest_bytes), first['masterVersion'])
+        master = stage/'Master'; master.mkdir()
+        (master/'MasterManifest.json').write_bytes(manifest_bytes)
+        clear = stage/'master-json'; clear.mkdir()
+        decrypted = []
+        for row in rows:
+            target = master/row['name']
+            acquire(client, first['masterManifestUrl'].rsplit('/', 1)[0] + '/' + row['name'],
+                    target, row['size'], expected_sha=row['hash'])
+            result = decrypt_master_file(target, clear/(target.stem+'.json'),
+                                         salt=DEFAULT_SALT, key=DEFAULT_KEY, iv=DEFAULT_IV)
+            # The stage is renamed when sealed. Keep durable relative paths in
+            # the receipt rather than paths that point to the old stage name.
+            result['source'] = 'Master/' + target.name
+            result['output'] = 'master-json/' + target.stem + '.json'
+            decrypted.append(result)
+        write_json(clear/'master-decrypt-report.json', {'results':decrypted,'failures':[]})
+        if version_identity(client.discover()) != version_identity(first):
+            raise ProtocolError('JP version changed during snapshot acquisition')
+        if client.get(first['masterManifestUrl'], 4_000_000).body != manifest_bytes:
+            raise ProtocolError('JP Master manifest changed during acquisition')
+        safe_observation = {key:first[key] for key in (
+            'schemaVersion', 'environmentId', 'region', 'observedAt',
+            'clientVersion', 'masterVersion', 'resourceVersion', 'catalogHash',
+            'apiRoot', 'cdnRoot', 'catalogUrl', 'masterManifestUrl')}
+        report = {'schemaVersion':1,'status':'verified_snapshot','region':'jp','observation':safe_observation,
+                  'catalogSha256':hashlib.sha256(catalog_bytes).hexdigest(),
+                  'masterManifestSha256':hashlib.sha256(manifest_bytes).hexdigest(),
+                  'masterFiles':len(rows),'catalogLocations':len(catalog.locations),
+                  'publicationReady':False}
+        write_json(stage/'observation.json', safe_observation)
+        write_json(stage/'report.json', report)
+        write_json(stage/'status.json', {'status':'verified_snapshot','finishedAt':utc_now()})
+        stage.rename(output)
+        return report
+    except BaseException:
+        # Keep a failed stage for diagnosis. It is never mistaken for a sealed
+        # snapshot because neither output nor verified status is created.
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('probe', 'verify-capture'))
+    parser.add_argument('action', choices=('probe', 'verify-capture', 'snapshot'))
     parser.add_argument('--metadata', type=Path, required=True)
     parser.add_argument('--allow-client-builtin-credentials', action='store_true')
     parser.add_argument('--capture', type=Path)
@@ -149,13 +217,16 @@ def main():
         if args.action == 'verify-capture':
             if not args.capture: parser.error('--capture is required for verify-capture')
             result = verify_capture(client, args.capture)
+        elif args.action == 'snapshot':
+            result = snapshot(client, args.output)
         else:
             result = client.discover()
     except (ProtocolError, TransportError, OSError, ValueError) as error:
-        write_json(args.output, {'status': 'blocked', 'region': 'jp', 'checkedAt': utc_now(),
-                                'latestVersionVerified': False, 'error': str(error)})
+        if args.action != 'snapshot':
+            write_json(args.output, {'status': 'blocked', 'region': 'jp', 'checkedAt': utc_now(),
+                                    'latestVersionVerified': False, 'error': str(error)})
         print(str(error)); return 1
-    write_json(args.output, result)
+    if args.action != 'snapshot': write_json(args.output, result)
     print(json.dumps(result, ensure_ascii=False)); return 0
 
 

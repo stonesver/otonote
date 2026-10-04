@@ -24,7 +24,7 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 
 ### 私有状态首次导入
 
-首次上传大体量私有状态前，已运行 [Probe R2 credentials read only](https://github.com/stonesver/otonote/actions/runs/37230824175)。它只对两个指定 bucket 做最多一条对象的列表请求，不读取对象内容、不写入或删除对象；结果证明密钥与 bucket 的读取/列举权限可用，不证明生产状态或内容已经存在。
+首次上传大体量私有状态前，已运行 [Probe R2 credentials read only](https://github.com/stonesver/otonote/actions/runs/37230824175)。它只对两个指定 bucket 做最多一条对象的列表请求，不读取对象内容、不写入或删除对象；结果证明密钥与 bucket 的读取/列举权限可用，不证明生产状态或内容已经存在。该工作流现在还会拉取已固定摘要的生产镜像并报告剩余磁盘；传入 `expected_restore_bytes` 可检查恢复字节数加 8 GiB 预留是否足够。它与生产工作流使用相同的 `CONTENT_R2_RUNNER_LABEL`。
 
 可以在本机建立临时 `$STAGED_ROOT`，从旧服务器只复制下方十条所选路径，并保留硬链接（例如使用 `rsync -aH`）；无需把 JP 种子或 Python 依赖写入旧服务器。检查点的 `--root` 指向本机副本，`--recorded-root /srv/ournotes-updater/app` 则把 Actions 将使用的绝对路径写入清单。旧 `state.json` 中的绝对路径不要改写；清单恢复时会核对记录的根和精确的路径选择。复制须在旧服生产任务静止期间完成，并在上传前核对源文件未变化。2026-10-05 实测收紧清单有约 **48.1 GB 逻辑文件字节**、约 **9.4 GB 独立 inode 字节**、约 18 万个文件；本机若未保留硬链接，实际占用可能接近逻辑字节数。硬链接保留版恢复按独立 inode 估算容量，另预留 8 GiB、仓库、镜像与新产出。旧服务器直接流式上传已有文件也无需再腾出整份数据空间；容量门槛发生在 Actions runner 恢复时。首次检查点前需使用支持约 66 MB 清单与硬链接恢复的新版 `tools.r2_state`。标准 runner 是否够用必须以真实清单和 `df` 检查为准，容量不足时改用更大 GitHub 托管 runner。影子运行前不要删除旧服原文件。`--path` 必须与之后工作流使用的路径列表一模一样。
 
@@ -35,13 +35,14 @@ JP 可在本机运行 `python3 -m tools.prepare_jp_r2_seed --metadata <本机glo
 Global 在本机暂存根中准备独立配置；旧服务器的 `global-update.server.json` 不变：
 
 ```bash
-cd "$STAGED_ROOT"
-cp config/global-update.server.json config/global-update.r2.json
+# 在已激活 Python 3.11+ 虚拟环境的仓库根运行；先设置本机暂存目录。
+export STAGED_ROOT="$HOME/Documents/data/otonote/private/r2-migration/stage"
 python3 - <<'PY'
-import json
+import json, os
 from pathlib import Path
-p = Path('config/global-update.r2.json')
-config = json.loads(p.read_text())
+p = Path(os.environ['STAGED_ROOT']) / 'config/global-update.r2.json'
+assert not p.exists(), 'R2 config already exists; review instead of overwriting'
+config = json.loads(p.with_name('global-update.server.json').read_text())
 assert isinstance(config.get('contentPublication'), dict) and not config.get('publication')
 config['contentPublication']['root'] = '/srv/ournotes-updater/app/output/r2-global-content'
 p.write_text(json.dumps(config, ensure_ascii=False, indent=2) + '\n')
@@ -49,7 +50,7 @@ PY
 ```
 
 ```bash
-cd "$STAGED_ROOT"
+# 仍从仓库根运行；暂存目录只存私有输入，不需要包含程序代码。
 python3 -m pip install -r tools/r2-requirements.txt
 # 先在环境中设置 R2_ACCOUNT_ID、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、R2_PRIVATE_BUCKET。
 python3 -m tools.r2_state current --root "$STAGED_ROOT" --region global

@@ -2,14 +2,20 @@ name: Probe R2 credentials read only
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_restore_bytes:
+        description: Verified private-state restore bytes; 0 reports capacity without a size gate
+        type: string
+        default: '0'
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   probe:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 15
     environment: content-r2-production
     env:
@@ -54,4 +60,35 @@ jobs:
               print(f'{bucket}: scoped read/list verified')
               with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
                   summary.write(f'- `{bucket}`: scoped read/list verified. No object was changed.\n')
+          PY
+      - name: Measure capacity after pulling the production image
+        env:
+          UPDATE_IMAGE: ${{ vars.OURNOTES_UPDATE_IMAGE }}
+          EXPECTED_RESTORE_BYTES: ${{ inputs.expected_restore_bytes }}
+          GHCR_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$UPDATE_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]] || {
+            echo 'Expected a reviewed updater image pinned by digest' >&2; exit 1;
+          }
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$UPDATE_IMAGE"
+          df -h "$GITHUB_WORKSPACE"
+          python - <<'PY'
+          import os, shutil
+          value = os.environ['EXPECTED_RESTORE_BYTES']
+          if not value.isdecimal():
+              raise SystemExit('expected_restore_bytes must be a nonnegative integer')
+          restore = int(value)
+          free = shutil.disk_usage(os.environ['GITHUB_WORKSPACE']).free
+          required = restore + 8 * 1024**3
+          message = (f'Runner free after image pull: {free:,} bytes; '
+                     f'private restore: {restore:,} bytes; '
+                     f'restore plus production reserve: {required:,} bytes')
+          print(message)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'\n{message}.\n')
+          if restore and free < required:
+              raise SystemExit('Runner capacity gate failed; select a larger hosted runner before production')
           PY

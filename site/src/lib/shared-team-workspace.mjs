@@ -32,6 +32,7 @@ export async function setupSharedTeamWorkspace(shell) {
   const en=document.documentElement.lang==='en',say=(zh,english)=>en?english:zh;
   let context=getActiveToolTeamContext(),data=await loadTeamWorkspaceData(context);
   data.locale??=en?'en':'zh-CN';
+  data.memberCards=data.memberCards.map(card=>({...card,kind:'member'}));data.supportCards=data.supportCards.map(card=>({...card,kind:'support'}));
   let store,profileStore,state,inventoryPanel,editing=null,editBaseline='',editingId=null,editingRevision,undo=null,pendingSave=null,origin=null;
   let activeTab='teams',applying=false;
   const status=element('p','','tw-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
@@ -100,7 +101,7 @@ export async function setupSharedTeamWorkspace(shell) {
     }
     if(!rows.length)list.append(element('p',say('还没有这类队伍。新建一队，或把工具算出的结果存到这里。','No teams yet. Create one or save a result from a calculator.')));
   }
-  function renderLegacy(){legacyBox.replaceChildren();const sources=run(()=>store.listLegacy())??[];if(!sources.length||state?.teams?.length)return;
+  function renderLegacy(){legacyBox.replaceChildren();const sources=run(()=>store.listLegacy())??[];if(!sources.length)return;
     legacyBox.append(element('p',say('发现旧版预设。选择需要带入的记录；原备份会保留。','Legacy presets found. Choose a source to import; original backups are kept.')));
     for(const source of sources){const b=button(`${source.sourceReleaseId} · ${source.count??'?'} ${say('队','teams')}`,()=>run(()=>{state=store.migrateLegacy(source.key,{expectedRevision:state.revision});renderList();renderLegacy();status.textContent=say('旧预设已带入，原记录保留。','Presets imported. Original records were kept.');}));if(source.error){b.disabled=true;b.title=source.error;}legacyBox.append(b);}
   }
@@ -133,7 +134,7 @@ export async function setupSharedTeamWorkspace(shell) {
     const ids={memberCardIds:editing.slots.map(s=>s.memberCardId).filter(Boolean),supportCardIds:editing.slots.map(s=>s.supportCardId).filter(Boolean)};
     if(['selected','trial'].includes(scenario.scope))scenario.selectedCardIds=ids;
     if(scenario.scope==='trial')scenario.trialCardIds=ids;
-    if(scenario.plan){const selected=new Set([...ids.memberCardIds,...ids.supportCardIds]);scenario.plan.targets=Object.fromEntries(Object.entries(scenario.plan.targets??{}).filter(([id])=>selected.has(id)));editing.modifiers.planningResult={...editing.modifiers.planningResult,selectedTrainingCardIds:[...new Set([...(editing.modifiers.planningResult?.selectedTrainingCardIds??[]),...Object.keys(scenario.plan.targets)])].filter(id=>selected.has(id))};}
+    if(scenario.plan){const selected=new Set([...ids.memberCardIds,...ids.supportCardIds]);scenario.plan.targets=Object.fromEntries(Object.entries(scenario.plan.targets??{}).filter(([id])=>selected.has(id)));editing.modifiers.planningResult={schemaVersion:1,sourceReleaseId:data.formalRules.sourceReleaseId,actualGrowth:copy(editing.modifiers.growth??{}),...editing.modifiers.planningResult,selectedTrainingCardIds:[...new Set([...(editing.modifiers.planningResult?.selectedTrainingCardIds??[]),...Object.keys(scenario.plan.targets)])].filter(id=>selected.has(id))};}
   }
   function edit(draft,id=null,name='',focusName=false){pendingSave=null;editing=copy(draft);editingId=id;editingRevision=state?.revision;editing._name=name;editBaseline=JSON.stringify(editing);renderEditor();switchTab('teams');if(focusName)editor.querySelector('[data-tw-name]')?.focus();else editor.scrollIntoView({block:'nearest'});}
   function renderEditor(){
@@ -160,11 +161,11 @@ export async function setupSharedTeamWorkspace(shell) {
     }editor.append(slots);
     const perf=element('label',null,'tw-check'),check=element('input');check.type='checkbox';check.dataset.twPerformance='';perf.append(check,say('应用时同时带入发挥设置','Include performance settings when applying'));editor.append(perf);
     const controls=element('div',null,'tw-actions');controls.append(button(say('存为新队伍','Save new team'),()=>saveEditor(false)));if(editingId)controls.append(button(say('更新这套队伍','Update this team'),()=>saveEditor(true)));
-    if(context)controls.append(button(say('用于当前工具','Use in this tool'),()=>{const d=copy(editing);delete d._name;applyTeam(d);}));controls.append(button(say('收起编辑','Close editor'),()=>guardEditor(()=>{pendingSave=null;editing=null;editor.replaceChildren();})));editor.append(controls);
+    if(context)controls.append(button(say('用于当前工具','Use in this tool'),()=>{syncPlanningCards();const d=copy(editing);delete d._name;applyTeam(d);}));controls.append(button(say('收起编辑','Close editor'),()=>guardEditor(()=>{pendingSave=null;editing=null;editor.replaceChildren();})));editor.append(controls);
   }
   function saveEditor(update=Boolean(editingId)){
     if(!editing)return false;try{syncPlanningCards();const draft=copy(editing),name=draft._name?.trim();delete draft._name;if(!name)throw Error(say('先给队伍起个名字。','Give the team a name first.'));
-      state=store.saveTeam({...(update&&editingId?{id:editingId}:{}),name,draft,expectedRevision:editingRevision});editingRevision=state.revision;editBaseline=JSON.stringify(editing);if(context&&JSON.stringify(context.getDraft().slots)===JSON.stringify(draft.slots)&&JSON.stringify(context.getDraft().modifiers)===JSON.stringify(draft.modifiers))context.markSaved?.();renderList();status.textContent=say('队伍已保存，各工具都可以选用。','Team saved and available to every tool.');const pending=pendingSave;pendingSave=null;pending?.onSaved?.();pending?.afterSave?.();return true;
+      state=store.saveTeam({...(update&&editingId?{id:editingId}:{}),name,draft,expectedRevision:editingRevision});if(!update||!editingId)editingId=state.teams.at(-1).id;editingRevision=state.revision;editBaseline=JSON.stringify(editing);renderEditor();if(context&&JSON.stringify(context.getDraft().slots)===JSON.stringify(draft.slots)&&JSON.stringify(context.getDraft().modifiers)===JSON.stringify(draft.modifiers))context.markSaved?.();renderList();status.textContent=say('队伍已保存，各工具都可以选用。','Team saved and available to every tool.');const pending=pendingSave;pendingSave=null;pending?.onSaved?.();pending?.afterSave?.();return true;
     }catch(error){status.replaceChildren(element('span',error.message));if(error.code==='revision_conflict'||/冲突|变化|changed|conflict/.test(error.message))status.append(button(say('保留修改，另存副本','Keep changes and save a copy'),()=>{state=store.read();editingRevision=state.revision;editingId=null;saveEditor(false);}));pendingSave?.onError?.(error.message);return false;}
   }
   function changed(){if(applying)return;context=getActiveToolTeamContext();renderCurrent();if(panel.open)renderList();}

@@ -17,23 +17,25 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 
 1. 在 Cloudflare R2 建好上述两个桶，均不要开启公开 bucket URL、`r2.dev` 或自定义公开域名。现有橙云代理主机名已足够，**不需要再建资源子域名**。
 2. 在 R2 管理页创建 **Object Read & Write** S3 API 凭据，只授权这两个桶。记录 Account ID、Access Key ID、Secret Access Key；密钥放 GitHub Environment，勿贴进聊天、仓库、工作流变量或日志。当前两套 Python 客户端共用一组凭据和默认 endpoint，故两个桶须在同一 Cloudflare 账户普通辖区。[R2 凭据步骤](https://developers.cloudflare.com/r2/api/tokens/)
-3. GitHub 仓库已创建 `content-r2-production` Environment，并把 deployment branches 限为 `main`；下方六个非敏感变量也已创建且两服开关均为 `false`。三个 R2 Secrets 已存在；尚需在该 Environment 下设置 `OURNOTES_CRI_KEY`、`OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX`。后三个 Master 值必须各为 32 字节的十六进制字符串；CRI key 必须是非零整数。仓库 `main` 当前尚未启用分支保护，应在启用生产前设置。工作流另检查 `github.ref`，PR 不运行生产 job。环境保护和环境 Secrets 的行为见 [GitHub 文档](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)。
-4. 准备现有 Global 更新器使用的**真实私有配置与生产镜像**。已只读确认服务器上的本地镜像是 `ournotes-global-update:20260928-v1`，但它的 `RepoDigests` 为空；`global-update.service` 当前为 `failed`、退出码 1，不能把旧服务健康视为迁移成功。首次 GHCR 发布的两次尝试分别因构建上下文路径错误与阿里云私有基础镜像拒绝匿名拉取而失败，都发生在推送前。当前发布工作流改为先从仓库 `Dockerfile.worker` 与固定摘要的公开 Node 基础镜像重建 resource worker，再以它构建 updater，避免向 GitHub 复制阿里云凭据。服务器构建目录中的 vgmstream 归档属于官方提交 `7dc938fa2f210943b37c7b6511852b516ef432ab`，其 SHA-256 与官方归档下载一致。手动运行 `.github/workflows/publish-update-image.yml`，它离线检查必要工具，以 `GITHUB_TOKEN` 推送到 GHCR，并在 run summary 给出 `仓库@sha256:<64 hex>`。**审核构建日志与摘要后**将该值填入 `OURNOTES_UPDATE_IMAGE` 仓库 Variable；不使用服务器本地标签。GitHub [容器镜像发布说明](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images) 和 [包访问权限说明](https://docs.github.com/en/packages/learn-github-packages/about-permissions-for-github-packages)可用于核对。若 GHCR 包未自动授予本仓库读取权，在该包的 **Manage Actions access** 中授予本仓库读取权，不要直接把镜像设为公开。镜像不存在或权限不足时内容任务会在产出前失败。
-5. Global 私有配置已定位在本机 `~/Documents/data/otonote/private/local-configuration/config/global-update.server.json`，服务器另有 `/srv/ournotes-updater/app/config/global-update.server.json`。它的 `contentPublication.root` 仍指向服务器旧内容目录。为保留旧服务的回退配置，在稳定根复制成独立的 `config/global-update.r2.json`，仅将 `contentPublication.root` 改为 `/srv/ournotes-updater/app/output/r2-global-content`，并确认没有整站 `publication`；不要修改旧配置。仓库 Variable `R2_GLOBAL_CONFIG_PATH` 设为 `config/global-update.r2.json`。该私有文件只进入私有状态桶，不提交到 Git。可选的 `R2_GLOBAL_DECODER_PROFILE_PATH` 是同一根下的相对路径；若需要 profile，须列入私有检查点。Global 的 APK 签名工具、decoder profile、baseline、input plan、initial observation/package 与私有工作目录均要在恢复后存在；公开内容库由本次任务在独立目录重新封存并上传，不列入私有检查点。`R2_GLOBAL_STATE_PATHS` 必须与首次检查点的 `--path` 完全一致；已确认旧配置引用了 `output/global-update-workflow`、`output/verification/global-remote-20260927`、`output/formal-inputs/global-current-complete-104-v4` 和 `runtime/apksig-9.4.1.jar`。若配置中的路径后续变化，先更新清单并重新做恢复演练。
-6. JP 首期检查点固定为 `output/r2-jp`，需包含二进制 `metadata.v39.dat`、`unity-version.txt`、`apks/`，以及后续 `workspace/`。公开内容的本地封存目录为独立的 `output/r2-jp-content`，不进入私有检查点。本机 `~/Documents/data/otonote/resources/input/jp/` 中的 1.0.4 三个 split APK、元数据及 Unity 身份已通过 `tools.prepare_jp_r2_seed` 验证；工具固定了签名证书 SHA-256 `34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e` 与整套 APK 的摘要 `b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c`。将这些源文件安全复制到受控机器后，在稳定根执行下方命令，避免复制约 4.6 GB 的整份手机缓存。新客户端版本或未知解码映射必须阻断。不能把未知网上 APK 自动设为可信输入。当前已用固定 1.0.4 本地元数据对官方入口作只读探测，返回 HTTP 403；这是未满足的真实环境关口，尚无 JP 无人值守成功证据。403 未解决前，JP job 应失败并保持公开指针不变。
+3. GitHub 仓库已创建 `content-r2-production` Environment，并把 deployment branches 限为 `main`；下方非敏感变量已创建且两服开关均为 `false`。三个 R2 Secrets 与 `OURNOTES_CRI_KEY`、`OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX` 已写入该 Environment，并通过 API 核对名称。Master 参数由两服可信加密样本及历史成功报告离线验证；CRI 参数由两服视频样本、Global 音频样本验证，值不进入仓库或本文。仓库 `main` 当前尚未启用分支保护，应在启用生产前设置。工作流另检查 `github.ref`，PR 不运行生产 job。环境保护和环境 Secrets 的行为见 [GitHub 文档](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)。
+4. Global 更新器镜像已通过 [发布工作流](https://github.com/stonesver/otonote/actions/runs/37230213563) 构建、推送并按摘要拉回验证，`OURNOTES_UPDATE_IMAGE` 仓库 Variable 已指向 `ghcr.io/stonesver/otonote-update@sha256:35d734d3273c0d3db7bb47aea2a421e5192503f1caf139c52590ded29ef30828`。构建使用固定摘要的公开 Node 基础镜像和官方 vgmstream 提交 `7dc938fa2f210943b37c7b6511852b516ef432ab`，不依赖旧服务器的本地镜像标签。仍须恢复真实私有配置与输入后，在 Actions 完成影子运行；旧服务器的 `global-update.service` 当前为 `failed`、退出码 1，不能把镜像发布当成生产验收。若 GHCR 包未自动授予本仓库读取权，在该包的 **Manage Actions access** 中授予本仓库读取权，不要直接把镜像设为公开。
+5. Global 私有配置已定位在本机 `~/Documents/data/otonote/private/local-configuration/config/global-update.server.json`，服务器另有 `/srv/ournotes-updater/app/config/global-update.server.json`。它的 `contentPublication.root` 仍指向服务器旧内容目录。为保留旧服务的回退配置，在本机暂存根复制成独立的 `config/global-update.r2.json`，仅将 `contentPublication.root` 改为 `/srv/ournotes-updater/app/output/r2-global-content`，并确认没有整站 `publication`；不要修改旧配置。仓库 Variable `R2_GLOBAL_CONFIG_PATH` 设为 `config/global-update.r2.json`。该私有文件只进入私有状态桶，不提交到 Git。可选的 `R2_GLOBAL_DECODER_PROFILE_PATH` 是同一根下的相对路径；若需要 profile，须列入私有检查点。Global 的 APK 签名工具、decoder profile、baseline、input plan、initial observation/package 与私有工作目录均要在恢复后存在；公开内容库由本次任务在独立目录重新封存并上传，不列入私有检查点。旧服务器现有续跑状态引用 `output/costume-release-inputs-20261003/release-inputs.json`；原五路径清单遗漏该目录。下方新清单含整个动态 `sync-complete`，使下一版本产生的新目录继续被纳入检查点，且保留旧 formal 输入作为初始回退。`builds` 与 `conversions` 可在恢复后重新生成，但暂不从旧服务器删除。`R2_GLOBAL_STATE_PATHS` 必须与首次检查点的 `--path` 完全一致；状态引用变动时先重新审计并更新清单。
+6. JP 首期检查点固定为 `output/r2-jp`，需包含二进制 `metadata.v39.dat`、`unity-version.txt`、`apks/`，以及后续 `workspace/`。公开内容的本地封存目录为独立的 `output/r2-jp-content`，不进入私有检查点。本机 `~/Documents/data/otonote/resources/input/jp/` 中的 1.0.4 三个 split APK、元数据及 Unity 身份已通过 `tools.prepare_jp_r2_seed` 验证；工具固定了签名证书 SHA-256 `34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e` 与整套 APK 的摘要 `b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c`。在本机暂存根生成种子即可，避免复制约 4.6 GB 的整份手机缓存。新客户端版本或未知解码映射必须阻断。不能把未知网上 APK 自动设为可信输入。当前已用固定 1.0.4 本地元数据对官方入口作只读探测，返回 HTTP 403；这是未满足的真实环境关口，尚无 JP 无人值守成功证据。403 未解决前，JP job 应失败并保持公开指针不变。
 
 ### 私有状态首次导入
 
-首次上传大体量私有状态前，可在 GitHub Actions 手动运行 **Probe R2 credentials read only**。它只对两个指定 bucket 做最多一条对象的列表请求，不读取对象内容、不写入或删除对象；成功后再执行下面的导入步骤。该检查只证明密钥与 bucket 权限可用，不证明生产状态或内容已经存在。
+首次上传大体量私有状态前，已运行 [Probe R2 credentials read only](https://github.com/stonesver/otonote/actions/runs/37230824175)。它只对两个指定 bucket 做最多一条对象的列表请求，不读取对象内容、不写入或删除对象；结果证明密钥与 bucket 的读取/列举权限可用，不证明生产状态或内容已经存在。
 
-在可访问真实输入的受控机器上，先将程序及选定的私有文件布置到**同一绝对根** `/srv/ournotes-updater/app`，与 Actions 中完全一致；不能只复制旧 `state.json` 而保留失效的路径。`tools.r2_state` 的清单记录 `root` 和精确的路径选择，恢复时会校验两者。服务器现有 Global 工作目录约 13 GB，其中 `sync-complete` 约 6.7 GB、`builds` 约 2.8 GB。工作流恢复前先读取清单大小，并要求在清单总字节数之外仍有 8 GiB 空闲；标准 runner 是否够用必须以真实检查为准，容量不足时改用更大 GitHub 托管 runner。为每服分别运行下面的命令；`--path` 必须与之后工作流使用的路径列表一模一样。
+可以在本机建立临时 `$STAGED_ROOT`，从旧服务器只复制下方十条所选路径，并保留硬链接（例如使用 `rsync -aH`）；无需把 JP 种子或 Python 依赖写入旧服务器。检查点的 `--root` 指向本机副本，`--recorded-root /srv/ournotes-updater/app` 则把 Actions 将使用的绝对路径写入清单。旧 `state.json` 中的绝对路径不要改写；清单恢复时会核对记录的根和精确的路径选择。复制须在旧服生产任务静止期间完成，并在上传前核对源文件未变化。2026-10-05 实测收紧清单有约 **48.1 GB 逻辑文件字节**、约 **9.4 GB 独立 inode 字节**、约 18 万个文件；本机若未保留硬链接，实际占用可能接近逻辑字节数。硬链接保留版恢复按独立 inode 估算容量，另预留 8 GiB、仓库、镜像与新产出。旧服务器直接流式上传已有文件也无需再腾出整份数据空间；容量门槛发生在 Actions runner 恢复时。首次检查点前需使用支持约 66 MB 清单与硬链接恢复的新版 `tools.r2_state`。标准 runner 是否够用必须以真实清单和 `df` 检查为准，容量不足时改用更大 GitHub 托管 runner。影子运行前不要删除旧服原文件。`--path` 必须与之后工作流使用的路径列表一模一样。
 
-JP 可先运行 `python3 -m tools.prepare_jp_r2_seed --metadata <已复制的global-metadata.v39.dat> --apk-root <已复制的三份split-APK目录> --unity-version-file <已复制的unity.ver> --output /srv/ournotes-updater/app/output/r2-jp`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。上述源文件留在受控机器，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。
+收紧依据、硬链接语义和失败回退见 [R2 状态设计](R2_STATE_DESIGN.md)。清单只减少传往 R2 的路径，不会清理旧服务器磁盘。
 
-Global 在服务器稳定根内准备独立配置，保留原文件作为回退：
+JP 可在本机运行 `python3 -m tools.prepare_jp_r2_seed --metadata <本机global-metadata.v39.dat> --apk-root <本机三份split-APK目录> --unity-version-file <本机unity.ver> --output "$STAGED_ROOT/output/r2-jp"`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。这些源文件留在本机，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。旧服务器现在约有 207 MB 可用空间，不能在该盘直接新建 JP 种子；其系统 `python3` 也只有 3.6。下面命令应在本机 Python 3.11+ 环境执行，安装 `tools/r2-requirements.txt` 到本机虚拟环境。R2 凭据只放本机受控环境或 GitHub Secrets，不写入仓库、命令参数或聊天。
+
+Global 在本机暂存根中准备独立配置；旧服务器的 `global-update.server.json` 不变：
 
 ```bash
-cd /srv/ournotes-updater/app
+cd "$STAGED_ROOT"
 cp config/global-update.server.json config/global-update.r2.json
 python3 - <<'PY'
 import json
@@ -47,21 +49,27 @@ PY
 ```
 
 ```bash
-cd /srv/ournotes-updater/app
+cd "$STAGED_ROOT"
 python3 -m pip install -r tools/r2-requirements.txt
 # 先在环境中设置 R2_ACCOUNT_ID、R2_ACCESS_KEY_ID、R2_SECRET_ACCESS_KEY、R2_PRIVATE_BUCKET。
-python3 -m tools.r2_state current --root /srv/ournotes-updater/app --region global
-python3 -m tools.r2_state checkpoint --root /srv/ournotes-updater/app --region global \
-  --expected-current none --path config/global-update.r2.json \
-  --path output/global-update-workflow \
-  --path output/verification/global-remote-20260927 \
+python3 -m tools.r2_state current --root "$STAGED_ROOT" --region global
+python3 -m tools.r2_state checkpoint --root "$STAGED_ROOT" --recorded-root /srv/ournotes-updater/app --region global \
+  --expected-current none \
+  --path config/global-update.r2.json \
+  --path output/global-update-workflow/state.json \
+  --path output/global-update-workflow/last-package.json \
+  --path output/global-update-workflow/sync-complete \
+  --path output/global-update-workflow/cache \
+  --path output/global-update-workflow/clients \
+  --path output/costume-release-inputs-20261003 \
   --path output/formal-inputs/global-current-complete-104-v4 \
+  --path output/verification/global-remote-20260927 \
   --path runtime/apksig-9.4.1.jar
-python3 -m tools.r2_state checkpoint --root /srv/ournotes-updater/app --region jp \
+python3 -m tools.r2_state checkpoint --root "$STAGED_ROOT" --recorded-root /srv/ournotes-updater/app --region jp \
   --expected-current none --path output/r2-jp
 ```
 
-Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方五条路径的 JSON 数组。若 `current` 已有指针，必须先审查旧清单，使用返回的 `currentSha256` 作为 `--expected-current`，不要覆盖现有状态。首次导入后应在另一干净目录的相同绝对根做恢复演练；恢复要求目标文件不存在，不能覆盖本地文件。可先用 `python3 -m tools.r2_state inspect --root /srv/ournotes-updater/app --region global` 加上相同的五个 `--path`，只读取得清单总字节数。
+Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 数组。若 `current` 已有指针，必须先审查旧清单，使用返回的 `currentSha256` 作为 `--expected-current`，不要覆盖现有状态。首次导入后应在隔离环境的相同绝对根做恢复演练；恢复要求目标文件不存在，不能覆盖本地文件。可用 `python3 -m tools.r2_state inspect --root /srv/ournotes-updater/app --region global` 加上相同的十个 `--path`，只读取得逻辑与实际恢复字节数。
 
 ## 工作流门禁与日常运行
 

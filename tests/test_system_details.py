@@ -149,6 +149,14 @@ class SystemDetailsTest(unittest.TestCase):
         for value in (None, "", "null", " NULL "):
             self.assertIsNone(configured_time(value))
 
+    def test_history_projection_keeps_distinct_prize_ids_for_same_card(self):
+        ctx = self.context({'MasterGachaPrize': [
+            {'_id': 101, '_groupId': 1, '_resourceType': 2, '_resourceId': 51, '_pickUpType': 1},
+            {'_id': 102, '_groupId': 2, '_resourceType': 2, '_resourceId': 51, '_pickUpType': 2}]})
+        result = enrich_systems({'gachaPools': [], 'vipRanks': [], 'studioUnits': [], 'evidence': []}, ctx.root, ctx.locale)
+        self.assertEqual([row['id'] for row in result['gachaHistoryPrizes']], [101, 102])
+        self.assertEqual([row['isPickup'] for row in result['gachaHistoryPrizes']], [False, True])
+
     def test_reward_preview_prioritizes_gems_cards_tickets_and_aggregates_stages(self):
         ctx = self.context({
             "MasterItem": [{"_id": identity, "_type": kind} for identity, kind in [(1, 12), (3, 14), (9, 2)]],

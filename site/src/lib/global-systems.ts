@@ -72,6 +72,8 @@ export interface GlobalSystems {
   sourceReleaseId: string;
   status: string;
   gachaPools: GachaPool[];
+  gachaHistoryPrizes?: {id: number; resourceType: number; resourceId: number;
+    groupId: number; isPickup: boolean}[];
   missions: MissionGroup[];
   vipRanks: VipRank[];
   vipDailyPoints?: { consecutiveDays: number; points: number }[];

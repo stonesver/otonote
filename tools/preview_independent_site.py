@@ -77,13 +77,15 @@ def handler(code, content, rendered=None, growth_upstream=None):
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(payload)))
+            self.send_header('Cache-Control', 'no-store')
             self.end_headers()
             self.wfile.write(payload)
 
         def proxy_growth(self):
             path = self.path.rstrip('/')
-            allowed = {'GET': '/api/growth-export/capabilities', 'POST': '/api/growth-export/read'}
-            if allowed.get(self.command) != path:
+            allowed = {'GET': {'/api/growth-export/capabilities'},
+                       'POST': {'/api/growth-export/read', '/api/growth-export/gacha-history'}}
+            if path not in allowed.get(self.command, set()):
                 self.growth_response(404, {'error': 'not_found'}); return
             if not upstream:
                 self.growth_response(503, {'error': 'login_service_unavailable'}); return
@@ -114,6 +116,7 @@ def handler(code, content, rendered=None, growth_upstream=None):
                 self.send_response(response.status)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(payload)))
+                self.send_header('Cache-Control', 'no-store')
                 if response.getheader('Retry-After'):
                     self.send_header('Retry-After', response.getheader('Retry-After'))
                 self.end_headers()

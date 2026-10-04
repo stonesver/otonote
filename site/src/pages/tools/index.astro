@@ -7,6 +7,7 @@ import '../../styles/tool-directory.css';
 const en=activeReleaseContext.locale==='en',say=(zh:string,english:string)=>en?english:zh;
 const href=(p:string)=>import.meta.env.BASE_URL==='/'?p:siteHref(p,activeReleaseContext);
 const items=[
+ {path:'gacha-history',mark:'✦',title:say('抽卡记录','Gacha history'),goal:say('这次是欧皇还是非酋？','How lucky was this round?'),description:say('BHK 登录查看各池记录、出货图表与趣味称号，导出分享成绩单。','Sign in with BHK to view pool history, draw charts and a shareable scorecard.'),input:say('港澳台服 BHK · 每次登录查询，不保存记录','TW/HK/MO BHK · Sign in each time; no saved history')},
  {path:'deck-builder',mark:'5＋5',title:say('卡组配队','Team builder'),goal:say('成员、留影与队长推荐','Lineup and leader recommendations'),description:say('选歌、选卡库，推荐成员、留影配对与队长。','Choose a song and card pool to compare lineups and leaders.'),input:say('使用我的卡库 / 当前队伍 / 全部卡牌','Your collection / current team / all cards')},
  {path:'song-ranking',mark:'♪',title:say('歌曲排行榜','Song rankings'),goal:say('歌曲得分与效率排行','Score and efficiency rankings'),description:say('直接比较得分、每秒效率与达档所需综合力。','Compare score, time efficiency and power needed for each grade.'),input:say('无需选卡，打开即可筛选','No team required')},
  {path:'song-calculator',mark:'分',title:say('歌曲计算','Song calculator'),goal:say('单曲分数与技能贡献','Song score and skill contributions'),description:say('带入队伍，选一首歌，查看平均分与技能贡献。','Select a team and song to see score estimates and skill contributions.'),input:say('使用已保存或配队页带入的队伍','Use a saved or linked team')},
@@ -27,7 +28,7 @@ const browseTools = [
    <a class="tools-library-link" href={href('/my-growth/')}><span class="tools-library-symbol" aria-hidden="true">＋</span><div><strong>{say('我的卡库与养成','My collection and growth')}</strong><span>{say('保存养成，在各工具中直接使用','Save your cards and use them across tools')}</span></div><span aria-hidden="true">↗</span></a>
   </header>
   <nav class="tools-task-grid" aria-label={say('可用工具','Available tools')}>
-   {[items[0],items[4],items[2],items[1],items[3],items[5]].map(item=><a class={`tools-task tools-task--${item.path}`} href={href(`/tools/${item.path}/`)} data-tool-state="available" data-navigation-title={item.title}>
+   {[items[1],items[5],items[0],items[3],items[2],items[4],items[6]].map(item=><a class={`tools-task tools-task--${item.path}`} href={href(`/tools/${item.path}/`)} data-tool-state="available" data-navigation-title={item.title}>
     <div class="tools-task-top"><span class="tools-task-glyph"><ToolGlyph kind={item.path}/></span><span class="tools-task-name">{item.title}</span><span class="tools-task-arrow" aria-hidden="true">↗</span></div>
     <div class="tools-task-copy"><h2>{item.goal}</h2><p>{item.description}</p></div>
     {item.path==='deck-builder' && <div class="tools-lineup" aria-hidden="true"><div class="tools-lineup-cards">{['♪','♫','✦','♫','♪'].map((mark,i)=><span style={`--card-index:${i}`}><i>{mark}</i><b>{i===2?'LEADER':'MEMBER'}</b><small>SUPPORT</small></span>)}</div><span class="tools-lineup-caption">MEMBER × SUPPORT</span></div>}

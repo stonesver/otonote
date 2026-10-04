@@ -46,6 +46,7 @@
 .tools-task--event-efficiency {background:#f8eee5;border-color:#e8d7c8;--tile-accent:#9a5b36;--tile-tint:#eedbca;}
 .tools-task--event-efficiency .tools-task-open {border-color:#e4cebd;}.tools-task--event-efficiency .tools-task-arrow {border-color:#dec4b0;}
 .tools-task--ap-grade {--tile-accent:#794560;--tile-tint:#f1e6ed;}
+.tools-task--gacha-history {--tile-accent:#9c6b1f;--tile-tint:#f4ead4;background:#fffdf6;}
 .tools-task--song-ranking {--tile-accent:#496d64;--tile-tint:#e6f0ec;}
 .tools-task--live2d {grid-column:1/-1;display:grid;grid-template-columns:170px 1fr 190px;align-items:center;gap:24px;padding:20px 24px;background:#f3f4f7;--tile-accent:#6c647f;--tile-tint:#e8e6ef;}
 .tools-task--live2d .tools-task-top {margin:0;}.tools-task--live2d .tools-task-arrow {display:none;}.tools-task--live2d h2 {font-size:16px;margin-bottom:5px;}.tools-task--live2d .tools-task-copy p {margin:0;font-size:11px;}.tools-task--live2d .tools-task-bottom {margin:0;gap:8px;}.tools-task--live2d .tools-task-open {padding-top:8px;}

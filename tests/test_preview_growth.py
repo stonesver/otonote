@@ -11,7 +11,7 @@ from unittest.mock import patch
 from tools.preview_independent_site import handler
 from tools.growth_login import Profile
 from tools.growth_web import GrowthGateway
-from tests.test_growth_web import FakeSdk, FakeGame
+from tests.test_growth_web import FakeSdk, FakeGame, FakeHistory
 
 
 class PreviewGrowthTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class PreviewGrowthTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         (self.root / 'code-release.json').write_text('{"codeId":"test"}')
         self.gateway = GrowthGateway(Profile('fake'), ['http://127.0.0.1:4338'],
-                                     sdk_factory=FakeSdk, game_factory=FakeGame)
+                                     sdk_factory=FakeSdk, game_factory=FakeGame, history_factory=FakeHistory)
         upstream = f'http://127.0.0.1:{self.gateway.server_port}'
         self.preview = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.root, self.root, growth_upstream=upstream))
         for server in (self.gateway, self.preview):
@@ -69,3 +69,11 @@ class PreviewGrowthTests(unittest.TestCase):
                          'http://127.0.0.1:1/path', 'http://user@127.0.0.1:1'):
             with self.assertRaises(ValueError):
                 handler(self.root, self.root, growth_upstream=upstream)
+
+    def test_stateless_history_passes_through_same_restricted_proxy(self):
+        status, headers, body = self.request('gacha-history')
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Cache-Control'], 'no-store')
+        self.assertEqual(json.loads(body)['snapshot']['format'], 'otonote-gacha-history')
+        self.assertNotIn(b'PRIVATE', body)
+        self.assertEqual(self.request('gacha-history', 'GET')[0], 404)

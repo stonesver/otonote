@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {syncEditedTeamPlanning} from '../src/lib/shared-team-workspace.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 import {createTeamWorkspaceStore} from '../src/lib/team-workspace-store.mjs';
 import {createPersonalGrowthStore} from '../src/lib/personal-growth-store.mjs';
@@ -71,4 +72,20 @@ test('applying a cultivation plan materializes the target and keeps the actual i
  planned.modifiers.planningScenario={scope:'owned',sourceReleaseId:rules.sourceReleaseId,unknownGrowth:'exclude',plan:{schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,enabled:true,mode:'current-cap',maxTrainedCards:1,allowedCardIds:['member-card-1'],targets:{'member-card-1':{skillLevel:3}}}};
  planned.modifiers.planningResult={schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,actualGrowth:structuredClone(profile.inventory.growth),selectedTrainingCardIds:['member-card-1']};
  page.context.applyDraft(planned);assert.equal(page.draft.modifiers.growth['member-card-1'].skillLevel,3);assert.equal(page.draft.modifiers.planningResult.actualGrowth['member-card-1'].skillLevel,1);assert.equal(personal.read().inventory.growth['member-card-1'].skillLevel,1);page.cleanup();
+});
+
+test('saving a recommended team keeps dormant targets inactive and round-trips the chosen training',t=>{
+ environment(t);const personal=createPersonalGrowthStore({rules,context}),profile=personal.empty();
+ for(const kind of ['member','support'])for(let id=1;id<=5;id++){const key=`${kind}-card-${id}`;profile.inventory[`${kind}CardIds`].push(key);profile.inventory.growth[key]={level:1,rank:1,...kind==='member'?{awake:1,skillLevel:1,gekisouSkillLevel:1}:{}};}
+ personal.save(profile);const page=adapter(),planned=team();planned.modifiers.growth=structuredClone(profile.inventory.growth);
+ planned.modifiers.planningScenario={scope:'selected',sourceReleaseId:rules.sourceReleaseId,unknownGrowth:'exclude',plan:{schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,enabled:true,mode:'current-cap',maxTrainedCards:1,allowedCardIds:['member-card-1'],targets:{'member-card-1':{skillLevel:3},'support-card-1':{level:20}}}};
+ planned.modifiers.planningResult={schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,actualGrowth:structuredClone(profile.inventory.growth),selectedTrainingCardIds:['member-card-1']};
+ syncEditedTeamPlanning(planned,rules.sourceReleaseId);
+ const state=page.context.store.saveTeam({name:'Challenge result',draft:planned});page.context.applyDraft(state.teams[0].draft);
+ assert.equal(page.draft.modifiers.growth['member-card-1'].skillLevel,3);
+ assert.equal(page.draft.modifiers.growth['support-card-1'].level,1);
+ assert.deepEqual(page.draft.modifiers.planningResult.selectedTrainingCardIds,['member-card-1']);
+ syncEditedTeamPlanning(planned,rules.sourceReleaseId,'support-card-1');page.context.applyDraft(planned);
+ assert.equal(page.draft.modifiers.growth['support-card-1'].level,20);
+ assert.equal(personal.read().inventory.growth['support-card-1'].level,1);page.cleanup();
 });

@@ -2,6 +2,28 @@ import {createTeamWorkspaceStore} from './team-workspace-store.mjs';
 import {checkTeamCompatibility, mergeTeamForTool} from './team-workspace-compatibility.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
 import {refreshPlanningPreset} from './preset-portfolio.mjs';
+import {validateTeamDraft} from './team-draft.mjs';
+
+/** A selected, non-training team is an explicit calculation input, not an actual-profile view. */
+export function hasSelectedGrowthOverrides(draft) {
+  const scenario=draft.modifiers?.planningScenario;
+  return scenario?.scope==='selected'&&(!scenario.plan||scenario.plan.enabled===false);
+}
+export function toolTeamInputState(draft,known) {
+  const scope=draft.modifiers?.planningScenario?.scope;
+  const missingGrowth=draft.slots.some(slot=>['member','support'].some(kind=>{
+    const id=slot[`${kind}CardId`];if(!id)return false;
+    const growth=draft.modifiers?.growth?.[id]??{};
+    return (kind==='member'?['level','rank','awake','skillLevel','gekisouSkillLevel']:['level','rank']).some(field=>growth[field]==null);
+  }));
+  const scenario=draft.modifiers?.planningScenario,actual=draft.modifiers?.planningResult?.actualGrowth;
+  const missingBaseline=actual&&(scope==='owned'||scenario?.plan&&scenario.plan.enabled!==false)&&draft.slots.some(slot=>[slot.memberCardId,slot.supportCardId].filter(Boolean).some(id=>!actual[id]));
+  return {inputIssues:validateTeamDraft(draft,known),growthIsReference:Boolean(['reference','trial'].includes(scope)||missingGrowth||missingBaseline)};
+}
+export function refreshToolTeamGrowth(rules,draft,inventory) {
+  if(hasSelectedGrowthOverrides(draft))return {draft:structuredClone(draft),planning:{missingActual:toolTeamInputState(draft).growthIsReference}};
+  return refreshPlanningPreset(rules,draft,inventory);
+}
 
 export const toolTeamLabel=(kind,locale)=>({deck:locale==='en'?'Deck builder':'配队工具',song:locale==='en'?'Song calculator':'歌曲计算'})[kind];
 let activeContext = null;
@@ -77,7 +99,7 @@ export function registerToolTeamContext(host, spec) {
     try{profile=profileStore.read();}catch(error){if(scenario?.scope==='owned')throw error;}
     if(scenario?.scope==='owned'&&next.slots.some(slot=>['member','support'].some(kind=>slot[`${kind}CardId`]&&!profile?.inventory[`${kind}CardIds`]?.includes(slot[`${kind}CardId`]))))throw new Error('这套实际队伍含有未记录为持有的卡，请补全卡库，或改用参考队伍。');
     if(scenario&&next.slots.every(slot=>slot.memberCardId&&slot.supportCardId)){
-      next=refreshPlanningPreset(spec.rules,next,profile?.inventory).draft;
+      next=refreshToolTeamGrowth(spec.rules,next,profile?.inventory).draft;
     }else if(profile&&!scenario){
       next.modifiers.growth??={};
       for(const slot of next.slots)for(const id of [slot.memberCardId,slot.supportCardId])if(id&&profile.inventory.growth[id])next.modifiers.growth[id]=structuredClone(profile.inventory.growth[id]);
@@ -103,7 +125,7 @@ export function registerToolTeamContext(host, spec) {
         draft.modifiers ??= {};
         for (const field of ['bandItems','bandItemTotals','characterRanks','tgwCardRank']) delete draft.modifiers[field];
         Object.assign(draft.modifiers, structuredClone(profile?.account??{}));
-        if (!scenario?.plan) {
+        if (!scenario?.plan&&!hasSelectedGrowthOverrides(draft)) {
           draft.modifiers.growth ??= {};
           for (const slot of draft.slots) for (const id of [slot.memberCardId,slot.supportCardId]) {
             if (!id)continue;
@@ -112,7 +134,7 @@ export function registerToolTeamContext(host, spec) {
           }
         }
         if (scenario && draft.slots.every(slot => slot.memberCardId && slot.supportCardId)) {
-          try{draft = refreshPlanningPreset(spec.rules, draft, profile?.inventory).draft;}
+          try{draft = refreshToolTeamGrowth(spec.rules, draft, profile?.inventory).draft;}
           catch(error){delete draft.modifiers.planningResult;context.inventoryError=error.message;}
         }
       }

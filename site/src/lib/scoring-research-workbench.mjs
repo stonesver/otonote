@@ -1,6 +1,5 @@
-import {refreshPlanningPreset} from './preset-portfolio.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
-import {toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
+import {refreshToolTeamGrowth,toolTeamInputState,toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createPersonalGrowthStore, applyPersonalGrowth} from './personal-growth-store.mjs';
 import {setupCalculatorSongPicker} from './calculator-song-picker.mjs';
@@ -48,11 +47,12 @@ class ScoringResearchWorkbench extends HTMLElement {
     if (this.data.vipRanks?.length) {
       known.tgwCardRanks = new Set(this.data.vipRanks.map((entry) => entry.rank));
     }
+    this.known=known;
     const parsed = parseTeamDraftSearch(window.location.search, known);
     this.draft = createTeamDraft(parsed.draft);
     try{applyPersonalGrowth(this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read());}
     catch(error){parsed.issues.push({code:'personal_growth_unavailable',severity:'warning',message:`${this.labels.song.growthUnavailable}${error.message}`});}
-    if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshPlanningPreset(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=Boolean(refreshed.planning?.missingActual);}catch(error){this.scenarioError=error.message;parsed.issues.push({code:'planning_unavailable',severity:'warning',message:error.message});}
+    if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshToolTeamGrowth(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=toolTeamInputState(this.draft,this.known).growthIsReference;}catch(error){this.scenarioError=error.message;parsed.issues.push({code:'planning_unavailable',severity:'warning',message:error.message});}
     this.inputIssues=parsed.issues;this.inputRequest=0;this.scoreRequest=0;
     this.shortcuts=setupQuickOptions(this);
     this.querySelector('[data-score-song-picker]').open=!this.draft.selectedSongId;
@@ -89,6 +89,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       invalidate:()=>{this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();},
       applyDraft:draft=>{
         this.draft=createTeamDraft(draft);this.scenarioError=null;
+        Object.assign(this,toolTeamInputState(this.draft,this.known));
         const profile=this.querySelector('[data-score-performance-profile]');
         profile.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
         this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);

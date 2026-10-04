@@ -13,6 +13,22 @@ import {toolRoute} from './tool-route.mjs';
 const element=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(text,action)=>{const b=element('button',text);b.type='button';b.addEventListener('click',action);return b;};
 const copy=value=>structuredClone(value);
+/** Keep a recommendation's chosen training subset when naming or saving it. */
+export function syncEditedTeamPlanning(draft,sourceReleaseId,changedTrainingId) {
+  const scenario=draft?.modifiers?.planningScenario;if(!scenario)return;
+  const ids={memberCardIds:draft.slots.map(s=>s.memberCardId).filter(Boolean),supportCardIds:draft.slots.map(s=>s.supportCardId).filter(Boolean)};
+  if(['selected','trial'].includes(scenario.scope))scenario.selectedCardIds=ids;
+  if(scenario.scope==='trial')scenario.trialCardIds=ids;
+  if(!scenario.plan)return;
+  const selected=new Set([...ids.memberCardIds,...ids.supportCardIds]),previous=draft.modifiers.planningResult;
+  scenario.plan.targets=Object.fromEntries(Object.entries(scenario.plan.targets??{}).filter(([id])=>selected.has(id)));
+  const trained=previous?.selectedTrainingCardIds??Object.keys(scenario.plan.targets);
+  draft.modifiers.planningResult={schemaVersion:1,sourceReleaseId,actualGrowth:copy(draft.modifiers.growth??{}),...previous,selectedTrainingCardIds:[...new Set([...trained,...(changedTrainingId?[changedTrainingId]:[])])].filter(id=>selected.has(id))};
+  if(changedTrainingId){
+    scenario.plan.maxTrainedCards=Math.max(scenario.plan.maxTrainedCards??1,draft.modifiers.planningResult.selectedTrainingCardIds.length);
+    if(scenario.plan.allowedCardIds)scenario.plan.allowedCardIds=[...new Set([...scenario.plan.allowedCardIds,changedTrainingId])];
+  }
+}
 function download(value,name) {
   const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
   const link=element('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -129,13 +145,7 @@ export async function setupSharedTeamWorkspace(shell) {
   }});
   // Put the chooser in the panel so stacked modal focus remains inside the workspace.
   panel.append(shell.querySelector('.ux-card-picker'));
-  function syncPlanningCards(){
-    const scenario=editing?.modifiers?.planningScenario;if(!scenario)return;
-    const ids={memberCardIds:editing.slots.map(s=>s.memberCardId).filter(Boolean),supportCardIds:editing.slots.map(s=>s.supportCardId).filter(Boolean)};
-    if(['selected','trial'].includes(scenario.scope))scenario.selectedCardIds=ids;
-    if(scenario.scope==='trial')scenario.trialCardIds=ids;
-    if(scenario.plan){const selected=new Set([...ids.memberCardIds,...ids.supportCardIds]);scenario.plan.targets=Object.fromEntries(Object.entries(scenario.plan.targets??{}).filter(([id])=>selected.has(id)));editing.modifiers.planningResult={schemaVersion:1,sourceReleaseId:data.formalRules.sourceReleaseId,actualGrowth:copy(editing.modifiers.growth??{}),...editing.modifiers.planningResult,selectedTrainingCardIds:[...new Set([...(editing.modifiers.planningResult?.selectedTrainingCardIds??[]),...Object.keys(scenario.plan.targets)])].filter(id=>selected.has(id))};}
-  }
+  const syncPlanningCards=changedTrainingId=>syncEditedTeamPlanning(editing,data.formalRules.sourceReleaseId,changedTrainingId);
   function edit(draft,id=null,name='',focusName=false){pendingSave=null;editing=copy(draft);editingId=id;editingRevision=state?.revision;editing._name=name;editBaseline=JSON.stringify(editing);renderEditor();switchTab('teams');if(focusName)editor.querySelector('[data-tw-name]')?.focus();else editor.scrollIntoView({block:'nearest'});}
   function renderEditor(){
     editor.replaceChildren();if(!editing)return;const manager=createInventoryManager(data.formalRules),name=element('input');name.type='text';name.maxLength=80;name.value=editing._name??'';name.placeholder=say('例如：日常稳分队','For example: steady daily team');name.dataset.twName='';name.addEventListener('input',()=>editing._name=name.value);
@@ -153,9 +163,10 @@ export async function setupSharedTeamWorkspace(shell) {
         if(card?.imageUrl){const img=element('img');img.src=card.imageUrl;img.alt='';choose.prepend(img);}row.append(choose);
         if(card){const growth=element('details');growth.append(element('summary',settings.kind==='training'?say('培养目标','Training target'):say('查看 / 调整养成','View / adjust growth')));const actual=profile()?.inventory?.growth?.[id],current=editing.modifiers.growth?.[id]??actual;
           growth.append(element('p',actual?say(`卡库记录 Lv.${actual.level}`,`Collection level ${actual.level}`):say('卡库未记录这张卡，计算时会说明参考假设。','This card is not recorded. Calculations will identify reference assumptions.')));
+          const trainingSelected=editing.modifiers.planningResult?.selectedTrainingCardIds;const target=settings.kind==='training'&&(!trainingSelected||trainingSelected.includes(id))?settings.targets[id]:current;
           const fields=kind==='member'?['level','rank','awake','skillLevel','gekisouSkillLevel']:['level','rank'];
           const labels={level:['等级','Level'],rank:['突破','Rank'],awake:['觉醒','Awakening'],skillLevel:['演出技能','Live skill'],gekisouSkillLevel:['激奏技能','Gekisou skill']};
-          for(const field of fields){const label=element('label',say(...labels[field])),input=element('select');input.append(new Option(say('未记录 / 沿用','Unknown / inherited'),''));for(const n of manager.choices(id,kind,field,{...(current??manager.preset(id,kind,'minimum')),...(settings.kind==='training'?settings.targets[id]:{})}))input.append(new Option(String(n),String(n)));input.value=String((settings.kind==='training'?settings.targets[id]?.[field]:current?.[field])??'');input.addEventListener('change',()=>{editing.modifiers.growth??={};editing.modifiers.growth[id]??={};if(settings.kind==='training'){const plan=editing.modifiers.planningScenario.plan;plan.targets??={};plan.targets[id]??={};if(input.value)plan.targets[id][field]=Number(input.value);else delete plan.targets[id][field];syncPlanningCards();}else{if(input.value)editing.modifiers.growth[id][field]=Number(input.value);else delete editing.modifiers.growth[id][field];if(settings.kind==='current')delete editing.modifiers.planningScenario;}if(['rank','awake'].includes(field))renderEditor(); });label.append(input);growth.append(label);}row.append(growth);
+          for(const field of fields){const label=element('label',say(...labels[field])),input=element('select');input.append(new Option(say('未记录 / 沿用','Unknown / inherited'),''));for(const n of manager.choices(id,kind,field,{...(current??manager.preset(id,kind,'minimum')),...(settings.kind==='training'?target:{})}))input.append(new Option(String(n),String(n)));input.value=String((settings.kind==='training'?target?.[field]:current?.[field])??'');input.addEventListener('change',()=>{editing.modifiers.growth??={};editing.modifiers.growth[id]??={};if(settings.kind==='training'){const plan=editing.modifiers.planningScenario.plan;plan.targets??={};if(editing.modifiers.planningResult?.selectedTrainingCardIds&&!editing.modifiers.planningResult.selectedTrainingCardIds.includes(id))plan.targets[id]=copy(current??{});plan.targets[id]??={};if(input.value)plan.targets[id][field]=Number(input.value);else delete plan.targets[id][field];syncPlanningCards(id);}else{if(input.value)editing.modifiers.growth[id][field]=Number(input.value);else delete editing.modifiers.growth[id][field];if(settings.kind==='current')delete editing.modifiers.planningScenario;}if(['rank','awake'].includes(field))renderEditor(); });label.append(input);growth.append(label);}row.append(growth);
         }pair.append(row);
       }slots.append(pair);
     }editor.append(slots);

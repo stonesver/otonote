@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   produce:
@@ -172,10 +173,13 @@ jobs:
           python -m tools.r2_content baseline --region "$REGION" > "$RUNNER_TEMP/public-before.json"
       - name: Validate restored input and runner capacity
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
           df -h "$STABLE_ROOT"
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker pull "$OURNOTES_UPDATE_IMAGE"
           if [[ "$REGION" == global ]]; then
             python - <<'PY'

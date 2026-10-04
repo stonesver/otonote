@@ -37,10 +37,10 @@ export function createToolCardPicker({root,getCards,getDraft,getOwned,conflict,o
     [...filters.children].forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.attribute===attribute)));
     grid.replaceChildren();
     for(const card of cards.slice(page*18,page*18+18)){
-      const b=node('button');b.type='button';b.disabled=conflict(card,target);b.setAttribute('aria-label',card.displayName+(b.disabled?say('，已在其他位置使用',', already used in another slot'):''));
+      const b=node('button');b.type='button';const reason=conflict(card,target);b.disabled=Boolean(reason);const explanation=typeof reason==='string'?reason:say('已在其他位置使用','Already used in another slot');b.setAttribute('aria-label',card.displayName+(b.disabled?' · '+explanation:''));if(b.disabled)b.title=explanation;
       b.setAttribute('aria-pressed',String(draft.slots[target.slot][`${target.kind}CardId`]===card.id));
       if(card.imageUrl){const img=node('img');img.src=card.imageUrl;img.alt='';img.loading='lazy';b.append(img);}
-      b.append(node('span',card.displayName));
+      b.append(node('span',card.displayName));if(b.disabled)b.append(node('small',explanation));
       b.addEventListener('click',()=>{
         onChoose(card,target);
         const slots=getDraft().slots;

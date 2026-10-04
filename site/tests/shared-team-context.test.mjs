@@ -50,3 +50,25 @@ test('quota failure preserves working input and saving a result requests naming 
  globalThis.localStorage.setItem=()=>{throw Error('storage full');};page.draft.slots.reverse();notifyToolTeamChanged(page.context);assert.equal(page.context.error,'storage full');assert.equal(page.draft.slots[0].memberCardId,'member-card-5');
  page.cleanup();assert.equal(getActiveToolTeamContext(),null);
 });
+test('applying saved actual teams uses latest growth; reference scenario materializes maximum growth',t=>{
+ environment(t);const personal=createPersonalGrowthStore({rules,context});const profile=personal.empty();profile.inventory.memberCardIds=['member-card-1'];profile.inventory.growth={'member-card-1':{level:2,rank:1,awake:1,skillLevel:1,gekisouSkillLevel:1}};personal.save(profile);
+ const page=adapter();const saved=team();saved.modifiers.growth={'member-card-1':{level:1,rank:1,awake:1,skillLevel:1,gekisouSkillLevel:1}};
+ page.context.applyDraft(saved);assert.equal(page.draft.modifiers.growth['member-card-1'].level,2);
+ const reference=team();reference.modifiers.planningScenario={scope:'reference',unknownGrowth:'reference',referenceGrowth:'maximum',sourceReleaseId:rules.sourceReleaseId};
+ page.context.applyDraft(reference);assert.ok(page.draft.modifiers.growth['member-card-1'].level>2);assert.equal(personal.read().inventory.growth['member-card-1'].level,2);
+ page.context.markSaved();page.draft.selectedSongId='music-1';assert.equal(page.context.isDirty(),false);page.cleanup();
+});
+test('removing owned cards clears old actual growth and blocks calculating that actual team',t=>{
+ const {win}=environment(t);const personal=createPersonalGrowthStore({rules,context}),profile=personal.empty();profile.inventory.memberCardIds=['member-card-1'];profile.inventory.growth={'member-card-1':{level:2,rank:1,awake:1,skillLevel:1,gekisouSkillLevel:1}};personal.save(profile);
+ const draft=createTeamDraft({slots:[{memberCardId:'member-card-1'}],modifiers:{growth:structuredClone(profile.inventory.growth),planningScenario:{scope:'owned'}}}),page=adapter(draft);
+ personal.save(personal.empty());win.dispatchEvent(new CustomEvent('personal-growth:changed',{detail:{key:personal.key}}));
+ assert.equal(page.draft.modifiers.growth['member-card-1'],undefined);assert.match(page.context.inventoryError,/未记录为持有/);assert.equal(page.invalidations,1);page.cleanup();
+});
+test('applying a cultivation plan materializes the target and keeps the actual inventory intact',t=>{
+ environment(t);const personal=createPersonalGrowthStore({rules,context}),profile=personal.empty();
+ for(const kind of ['member','support'])for(let id=1;id<=5;id++){const key=`${kind}-card-${id}`;profile.inventory[`${kind}CardIds`].push(key);profile.inventory.growth[key]={level:1,rank:1,...kind==='member'?{awake:1,skillLevel:1,gekisouSkillLevel:1}:{}};}
+ personal.save(profile);const page=adapter(),planned=team();planned.modifiers.growth=structuredClone(profile.inventory.growth);
+ planned.modifiers.planningScenario={scope:'owned',sourceReleaseId:rules.sourceReleaseId,unknownGrowth:'exclude',plan:{schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,enabled:true,mode:'current-cap',maxTrainedCards:1,allowedCardIds:['member-card-1'],targets:{'member-card-1':{skillLevel:3}}}};
+ planned.modifiers.planningResult={schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,actualGrowth:structuredClone(profile.inventory.growth),selectedTrainingCardIds:['member-card-1']};
+ page.context.applyDraft(planned);assert.equal(page.draft.modifiers.growth['member-card-1'].skillLevel,3);assert.equal(page.draft.modifiers.planningResult.actualGrowth['member-card-1'].skillLevel,1);assert.equal(personal.read().inventory.growth['member-card-1'].skillLevel,1);page.cleanup();
+});

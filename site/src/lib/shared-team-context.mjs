@@ -71,7 +71,17 @@ export function registerToolTeamContext(host, spec) {
     } catch (error) { feedback(error); }
   };
   context.applyDraft = (draft, options = {}) => {
-    const next = mergeTeamForTool(context.getDraft(), draft, options);
+    let next = mergeTeamForTool(context.getDraft(), draft, options);
+    const scenario=next.modifiers?.planningScenario;
+    let profile;
+    try{profile=profileStore.read();}catch(error){if(scenario?.scope==='owned')throw error;}
+    if(scenario?.scope==='owned'&&next.slots.some(slot=>['member','support'].some(kind=>slot[`${kind}CardId`]&&!profile?.inventory[`${kind}CardIds`]?.includes(slot[`${kind}CardId`]))))throw new Error('这套实际队伍含有未记录为持有的卡，请补全卡库，或改用参考队伍。');
+    if(scenario&&next.slots.every(slot=>slot.memberCardId&&slot.supportCardId)){
+      next=refreshPlanningPreset(spec.rules,next,profile?.inventory).draft;
+    }else if(profile&&!scenario){
+      next.modifiers.growth??={};
+      for(const slot of next.slots)for(const id of [slot.memberCardId,slot.supportCardId])if(id&&profile.inventory.growth[id])next.modifiers.growth[id]=structuredClone(profile.inventory.growth[id]);
+    }
     const compatibility=checkTeamCompatibility(next,context.getRestrictions());
     if(!compatibility.compatible)throw new Error(compatibility.issues.map(issue=>issue.message).join('；'));
     context.inventoryError=null;
@@ -98,7 +108,7 @@ export function registerToolTeamContext(host, spec) {
           for (const slot of draft.slots) for (const id of [slot.memberCardId,slot.supportCardId]) {
             if (!id)continue;
             if (profile?.inventory.growth[id]) draft.modifiers.growth[id] = structuredClone(profile.inventory.growth[id]);
-            else if(scenario?.scope==='owned')delete draft.modifiers.growth[id];
+            else if(scenario?.scope==='owned'){delete draft.modifiers.growth[id];if(draft.modifiers.planningResult?.actualGrowth)draft.modifiers.planningResult.actualGrowth[id]=null;}
           }
         }
         if (scenario && draft.slots.every(slot => slot.memberCardId && slot.supportCardId)) {

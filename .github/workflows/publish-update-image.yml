@@ -10,7 +10,7 @@ permissions:
 jobs:
   publish:
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 90
     environment: content-r2-production
     steps:
@@ -37,7 +37,11 @@ jobs:
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/otonote-update"
           tag="sha-${GITHUB_SHA}"
-          docker build --pull --file deploy/Dockerfile.global-update \
+          base="ournotes-resource-worker:build-${GITHUB_SHA}"
+          docker build --pull --file Dockerfile.worker --target worker \
+            --build-arg NODE_BASE_IMAGE=docker.io/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94 \
+            --tag "$base" .
+          docker build --file deploy/Dockerfile.global-update --build-arg "WORKER_BASE=$base" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --tag "$image:$tag" "$BUILD_CONTEXT"
           docker run --rm --network none --entrypoint /bin/sh "$image:$tag" -ec '

@@ -22,6 +22,7 @@ SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 REGIONS = {"global", "jp"}
 CHUNK = 1024 * 1024
 SMALL_LIMIT = 16 * 1024 * 1024
+MANIFEST_LIMIT = 128 * 1024 * 1024
 
 
 def canonical(value: object) -> bytes:
@@ -104,7 +105,22 @@ def inventory(root: Path, selections: list[str]) -> tuple[list[str], list[dict]]
                 raise ValueError(f"unsupported checkpoint file type: {relative}")
     if not files:
         raise ValueError("checkpoint has no regular files")
-    return sorted(directories), [files[name] for name in sorted(files)]
+    ordered = [files[name] for name in sorted(files)]
+    first_by_inode: dict[tuple[int, int], str] = {}
+    for entry in ordered:
+        source = _inside(root, entry["path"])
+        mode = source.lstat()
+        if not stat.S_ISREG(mode.st_mode):
+            raise ValueError(f"checkpoint source changed: {entry['path']}")
+        inode = (mode.st_dev, mode.st_ino)
+        first = first_by_inode.get(inode)
+        if first is None:
+            first_by_inode[inode] = entry["path"]
+        else:
+            if (files[first]["sha256"], files[first]["size"]) != (entry["sha256"], entry["size"]):
+                raise ValueError("hard-linked checkpoint source changed during inventory")
+            entry["hardlinkTo"] = first
+    return sorted(directories), ordered
 
 
 def object_key(sha: str) -> str:
@@ -139,11 +155,11 @@ def _manifest(bucket, root: Path, region: str, expected_paths: list[str]) -> dic
     pointer, _, _ = _pointer(bucket, region)
     if pointer is None:
         raise ValueError("private state pointer is missing")
-    item = bucket.read_small(pointer["manifest"])
+    item = bucket.read_manifest(pointer["manifest"])
     if item is None or digest(item[0]) != pointer["sha256"]:
         raise ValueError("private state manifest missing or damaged")
     manifest = json.loads(item[0])
-    if (not isinstance(manifest, dict) or manifest.get("schemaVersion") != 1
+    if (not isinstance(manifest, dict) or manifest.get("schemaVersion") not in (1, 2)
             or manifest.get("region") != region or manifest.get("root") != str(root)):
         raise ValueError("private state belongs to another ROOT or region")
     expected = sorted(set(safe_relative(name) for name in expected_paths))
@@ -162,6 +178,7 @@ def _manifest(bucket, root: Path, region: str, expected_paths: list[str]) -> dic
         if not any(directory == name or directory.startswith(name + "/") for name in expected):
             raise ValueError("private state directory outside restore allowlist")
         seen.add(directory)
+    file_by_path: dict[str, dict] = {}
     for entry in files:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise ValueError("invalid private state file")
@@ -172,39 +189,70 @@ def _manifest(bucket, root: Path, region: str, expected_paths: list[str]) -> dic
             raise ValueError("invalid or duplicate private state file")
         if not any(entry["path"] == name or entry["path"].startswith(name + "/") for name in expected):
             raise ValueError("private state file outside restore allowlist")
+        link_to = entry.get("hardlinkTo")
+        if link_to is not None:
+            if manifest["schemaVersion"] != 2 or not isinstance(link_to, str):
+                raise ValueError("invalid private state hard link")
+            source = file_by_path.get(link_to)
+            if (source is None or source.get("hardlinkTo") is not None
+                    or (source["sha256"], source["size"]) != (entry["sha256"], entry["size"])):
+                raise ValueError("invalid private state hard link")
+        file_by_path[entry["path"]] = entry
         seen.add(entry["path"])
     return manifest
 
 
-def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_current: str) -> dict:
+def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_current: str,
+               recorded_root: Path | None = None) -> dict:
     root = stable_root(root)
+    if recorded_root is None:
+        recorded_root = root
+    else:
+        recorded_root = Path(recorded_root)
+        if (not recorded_root.is_absolute() or str(recorded_root) != os.path.normpath(str(recorded_root))
+                or recorded_root.is_symlink()):
+            raise ValueError("recorded ROOT must be an absolute canonical path")
     region_name(region)
     if expected_current != "none" and not SHA256.fullmatch(expected_current):
         raise ValueError("expected current must be 'none' or SHA-256")
     paths = [safe_relative(name) for name in paths]
     directories, files = inventory(root, paths)
-    uploaded = reused = 0
-    for entry in files:
-        path = _inside(root, entry["path"])
-        key = object_key(entry["sha256"])
-        if bucket.put_file_new(key, path, entry["sha256"], entry["size"]):
-            uploaded += 1
-        else:
-            reused += 1
-        if not bucket.verify_file(key, entry["sha256"], entry["size"]):
-            raise ValueError("private state object missing or damaged")
-        if hash_file(path) != (entry["sha256"], entry["size"]):
-            raise ValueError("checkpoint source changed during upload")
-    manifest = {"schemaVersion": 1, "region": region, "root": str(root),
+    manifest = {"schemaVersion": 2, "region": region, "root": str(recorded_root),
                 "selections": sorted(set(paths)), "directories": directories, "files": files}
     manifest_bytes = canonical(manifest)
+    if len(manifest_bytes) > MANIFEST_LIMIT:
+        raise ValueError("private state manifest is too large")
+    uploaded = reused = 0
+    verified_objects: set[tuple[str, int]] = set()
+    for entry in files:
+        path = _inside(root, entry["path"])
+        identity = (entry["sha256"], entry["size"])
+        if identity not in verified_objects:
+            key = object_key(entry["sha256"])
+            if bucket.put_file_new(key, path, entry["sha256"], entry["size"]):
+                uploaded += 1
+            else:
+                reused += 1
+            if not bucket.verify_file(key, entry["sha256"], entry["size"]):
+                raise ValueError("private state object missing or damaged")
+            verified_objects.add(identity)
+        else:
+            reused += 1
+        if hash_file(path) != (entry["sha256"], entry["size"]):
+            raise ValueError("checkpoint source changed during upload")
+        if "hardlinkTo" in entry:
+            original = _inside(root, entry["hardlinkTo"])
+            source_stat, original_stat = path.lstat(), original.lstat()
+            if ((source_stat.st_dev, source_stat.st_ino) !=
+                    (original_stat.st_dev, original_stat.st_ino)):
+                raise ValueError("hard-linked checkpoint source changed during upload")
     manifest_sha = digest(manifest_bytes)
     manifest_key = f"state/manifests/{region}/{manifest_sha}.json"
-    if not bucket.put_small_new(manifest_key, manifest_bytes):
-        item = bucket.read_small(manifest_key)
+    if not bucket.put_manifest_new(manifest_key, manifest_bytes):
+        item = bucket.read_manifest(manifest_key)
         if item is None or item[0] != manifest_bytes:
             raise ValueError("immutable private state manifest conflict")
-    item = bucket.read_small(manifest_key)
+    item = bucket.read_manifest(manifest_key)
     if item is None or item[0] != manifest_bytes:
         raise ValueError("private state manifest readback failed")
     pointer = canonical({"schemaVersion": 1, "region": region, "manifest": manifest_key,
@@ -236,10 +284,22 @@ def restore(bucket, root: Path, region: str, expected_paths: list[str]) -> dict:
     stage = root / f".r2-state-stage-{uuid4().hex}"
     stage.mkdir(mode=0o700)
     try:
+        import shutil
+        staged_objects: dict[tuple[str, int], Path] = {}
         for entry in files:
             target = stage / entry["path"]
             target.parent.mkdir(parents=True, exist_ok=True)
-            bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
+            link_to = entry.get("hardlinkTo")
+            if link_to is not None:
+                os.link(stage / link_to, target)
+            else:
+                identity = (entry["sha256"], entry["size"])
+                cached = staged_objects.get(identity)
+                if cached is None:
+                    bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
+                    staged_objects[identity] = target
+                else:
+                    shutil.copyfile(cached, target)
         # All remote bytes are verified before any destination is changed.
         for name in directories:
             _inside(root, name).mkdir(parents=True, exist_ok=True)
@@ -250,7 +310,6 @@ def restore(bucket, root: Path, region: str, expected_paths: list[str]) -> dict:
                 raise ValueError("restore destination changed during download")
             os.replace(stage / entry["path"], destination)
     finally:
-        import shutil
         shutil.rmtree(stage)
     return {"status": "restored", "region": region, "files": len(files),
             "manifestSha256": digest(canonical(manifest))}
@@ -262,6 +321,7 @@ def inspect(bucket, root: Path, region: str, expected_paths: list[str]) -> dict:
     manifest = _manifest(bucket, root, region_name(region), expected_paths)
     return {"status": "ready", "region": region, "files": len(manifest["files"]),
             "totalBytes": sum(entry["size"] for entry in manifest["files"]),
+            "requiredBytes": sum(entry["size"] for entry in manifest["files"] if "hardlinkTo" not in entry),
             "manifestSha256": digest(canonical(manifest))}
 
 
@@ -295,7 +355,7 @@ class PrivateS3Bucket:
     def _precondition(cls, error):
         return error.response.get("ResponseMetadata", {}).get("HTTPStatusCode") == 412
 
-    def read_small(self, key: str):
+    def _read_control(self, key: str, limit: int):
         from botocore.exceptions import ClientError
         try:
             result = self.client.get_object(Bucket=self.bucket, Key=key)
@@ -305,16 +365,22 @@ class PrivateS3Bucket:
             raise
         body = result["Body"]
         try:
-            data = body.read(SMALL_LIMIT + 1)
+            data = body.read(limit + 1)
         finally:
             body.close()
-        if len(data) > SMALL_LIMIT:
+        if len(data) > limit:
             raise ValueError("private state control object is too large")
         return data, result["ETag"]
 
-    def put_small_new(self, key: str, data: bytes) -> bool:
+    def read_small(self, key: str):
+        return self._read_control(key, SMALL_LIMIT)
+
+    def read_manifest(self, key: str):
+        return self._read_control(key, MANIFEST_LIMIT)
+
+    def _put_control_new(self, key: str, data: bytes, limit: int) -> bool:
         from botocore.exceptions import ClientError
-        if len(data) > SMALL_LIMIT:
+        if len(data) > limit:
             raise ValueError("private state control object is too large")
         try:
             self.client.put_object(Bucket=self.bucket, Key=key, Body=data, ContentLength=len(data),
@@ -324,6 +390,12 @@ class PrivateS3Bucket:
             if self._precondition(error):
                 return False
             raise
+
+    def put_small_new(self, key: str, data: bytes) -> bool:
+        return self._put_control_new(key, data, SMALL_LIMIT)
+
+    def put_manifest_new(self, key: str, data: bytes) -> bool:
+        return self._put_control_new(key, data, MANIFEST_LIMIT)
 
     def replace_small(self, key: str, data: bytes, etag: str | None) -> None:
         from botocore.exceptions import ClientError
@@ -394,18 +466,27 @@ def main(argv=None) -> int:
     parser.add_argument("--region", choices=sorted(REGIONS), required=True)
     parser.add_argument("--path", action="append", default=[], help="ROOT-relative input path; repeat as needed")
     parser.add_argument("--expected-current", help="current pointer SHA-256 or 'none' for the first checkpoint")
+    parser.add_argument("--recorded-root", type=Path,
+                        help="checkpoint only: ROOT to record for Actions restore when source files are staged locally")
     args = parser.parse_args(argv)
     try:
         bucket = PrivateS3Bucket.from_environment()
         if args.action == "current":
+            if args.recorded_root is not None:
+                parser.error("--recorded-root is only valid for checkpoint")
             result = {"region": args.region, "currentSha256": current_sha(bucket, args.region)}
         elif args.action == "checkpoint":
             if args.expected_current is None:
                 parser.error("checkpoint requires --expected-current")
-            result = checkpoint(bucket, args.root, args.region, args.path, args.expected_current)
+            result = checkpoint(bucket, args.root, args.region, args.path, args.expected_current,
+                                args.recorded_root)
         elif args.action == "restore":
+            if args.recorded_root is not None:
+                parser.error("--recorded-root is only valid for checkpoint")
             result = restore(bucket, args.root, args.region, args.path)
         else:
+            if args.recorded_root is not None:
+                parser.error("--recorded-root is only valid for checkpoint")
             result = inspect(bucket, args.root, args.region, args.path)
         print(json.dumps(result, ensure_ascii=False))
         return 0

@@ -1,8 +1,10 @@
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools import r2_state
 
@@ -11,6 +13,9 @@ class FakePrivateBucket:
     def __init__(self):
         self.objects = {}
         self.conflict_at_replace = False
+        self.upload_calls = []
+        self.verify_calls = []
+        self.download_calls = []
 
     def read_small(self, key):
         data = self.objects.get(key)
@@ -22,6 +27,12 @@ class FakePrivateBucket:
         self.objects[key] = data
         return True
 
+    def put_manifest_new(self, key, data):
+        return self.put_small_new(key, data)
+
+    def read_manifest(self, key):
+        return self.read_small(key)
+
     def replace_small(self, key, data, etag):
         existing = self.objects.get(key)
         if self.conflict_at_replace or (r2_state.digest(existing) if existing is not None else None) != etag:
@@ -29,6 +40,7 @@ class FakePrivateBucket:
         self.objects[key] = data
 
     def put_file_new(self, key, path, sha, size):
+        self.upload_calls.append((key, sha, size))
         if key in self.objects:
             return False
         data = path.read_bytes()
@@ -38,13 +50,16 @@ class FakePrivateBucket:
         return True
 
     def verify_file(self, key, sha, size):
+        self.verify_calls.append((key, sha, size))
         data = self.objects.get(key)
         return data is not None and len(data) == size and r2_state.digest(data) == sha
 
     def download_file(self, key, target, sha, size):
-        if not self.verify_file(key, sha, size):
+        self.download_calls.append((key, sha, size))
+        data = self.objects.get(key)
+        if data is None or len(data) != size or r2_state.digest(data) != sha:
             raise ValueError("private state object missing or damaged")
-        target.write_bytes(self.objects[key])
+        target.write_bytes(data)
 
 
 class R2StateTest(unittest.TestCase):
@@ -64,6 +79,18 @@ class R2StateTest(unittest.TestCase):
 
     def _checkpoint(self, region="global", expected="none"):
         return r2_state.checkpoint(self.bucket, self.root, region, self.paths, expected)
+
+    def _stored_manifest(self, region="global"):
+        pointer = json.loads(self.bucket.objects[r2_state.pointer_key(region)])
+        return json.loads(self.bucket.objects[pointer["manifest"]])
+
+    def _replace_manifest(self, manifest, region="global"):
+        manifest_bytes = r2_state.canonical(manifest)
+        sha = r2_state.digest(manifest_bytes)
+        key = f"state/manifests/{region}/{sha}.json"
+        self.bucket.objects[key] = manifest_bytes
+        self.bucket.objects[r2_state.pointer_key(region)] = r2_state.canonical({
+            "schemaVersion": 1, "region": region, "manifest": key, "sha256": sha})
 
     def test_roundtrip_preserves_absolute_state_paths_at_same_root(self):
         result = self._checkpoint()
@@ -98,6 +125,12 @@ class R2StateTest(unittest.TestCase):
             self._checkpoint()
         self.assertNotIn(r2_state.pointer_key("global"), self.bucket.objects)
 
+    def test_oversize_manifest_fails_before_any_r2_write(self):
+        with patch.object(r2_state, "MANIFEST_LIMIT", 1):
+            with self.assertRaisesRegex(ValueError, "manifest is too large"):
+                self._checkpoint()
+        self.assertEqual(self.bucket.objects, {})
+
     def test_damaged_remote_object_prevents_any_restore_file(self):
         self._checkpoint()
         shutil.rmtree(self.root / "output")
@@ -124,6 +157,22 @@ class R2StateTest(unittest.TestCase):
                 r2_state.restore(self.bucket, Path(other).resolve(), "global", self.paths)
         with self.assertRaisesRegex(ValueError, "restore allowlist"):
             r2_state.restore(self.bucket, self.root, "global", ["output/global"])
+
+    def test_local_checkpoint_records_future_actions_root(self):
+        with tempfile.TemporaryDirectory() as destination:
+            actions_root = Path(destination).resolve()
+            r2_state.checkpoint(self.bucket, self.root, "global", self.paths, "none", actions_root)
+            self.assertEqual(self._stored_manifest()["root"], str(actions_root))
+            with self.assertRaisesRegex(ValueError, "another ROOT"):
+                r2_state.restore(self.bucket, self.root, "global", self.paths)
+            r2_state.restore(self.bucket, actions_root, "global", self.paths)
+            self.assertTrue((actions_root / "input/global/plan.json").is_file())
+
+    def test_recorded_root_rejects_relative_or_noncanonical_path(self):
+        for recorded in (Path("relative"), Path("/srv/other/../app")):
+            with self.subTest(recorded=recorded):
+                with self.assertRaisesRegex(ValueError, "recorded ROOT"):
+                    r2_state.checkpoint(self.bucket, self.root, "global", self.paths, "none", recorded)
 
     def test_forged_manifest_cannot_escape_allowlist(self):
         self._checkpoint()
@@ -155,8 +204,92 @@ class R2StateTest(unittest.TestCase):
         self.assertEqual(report["files"], 2)
         self.assertEqual(report["totalBytes"], sum(path.stat().st_size for path in (
             self.root / "output/global/state.json", self.root / "input/global/plan.json")))
+        self.assertEqual(report["requiredBytes"], report["totalBytes"])
         with self.assertRaisesRegex(ValueError, "restore allowlist"):
             r2_state.inspect(self.bucket, self.root, "global", ["input/global"])
+
+    def test_schema2_restores_original_hardlinks_and_reports_saved_space(self):
+        source = self.root / "input/global/plan.json"
+        linked = self.root / "input/global/plan-hardlink.json"
+        os.link(source, linked)
+        self._checkpoint()
+        manifest = self._stored_manifest()
+        self.assertEqual(manifest["schemaVersion"], 2)
+        entries = {entry["path"]: entry for entry in manifest["files"]}
+        pair = [entries[name] for name in ("input/global/plan.json", "input/global/plan-hardlink.json")]
+        self.assertEqual(sum("hardlinkTo" in entry for entry in pair), 1)
+        self.assertEqual(next(entry["hardlinkTo"] for entry in pair if "hardlinkTo" in entry),
+                         next(entry["path"] for entry in pair if "hardlinkTo" not in entry))
+        report = r2_state.inspect(self.bucket, self.root, "global", self.paths)
+        self.assertEqual(report["totalBytes"] - report["requiredBytes"], source.stat().st_size)
+        shutil.rmtree(self.root / "output")
+        shutil.rmtree(self.root / "input")
+        r2_state.restore(self.bucket, self.root, "global", self.paths)
+        self.assertEqual(source.stat().st_ino, linked.stat().st_ino)
+        self.assertEqual(source.read_bytes(), linked.read_bytes())
+
+    def test_equal_content_separate_files_remain_separate_after_restore(self):
+        source = self.root / "input/global/plan.json"
+        copy = self.root / "input/global/plan-copy.json"
+        copy.write_bytes(source.read_bytes())
+        self.assertNotEqual(source.stat().st_ino, copy.stat().st_ino)
+        self._checkpoint()
+        manifest = self._stored_manifest()
+        entries = {entry["path"]: entry for entry in manifest["files"]}
+        self.assertNotIn("hardlinkTo", entries["input/global/plan-copy.json"])
+        report = r2_state.inspect(self.bucket, self.root, "global", self.paths)
+        self.assertEqual(report["requiredBytes"], report["totalBytes"])
+        shutil.rmtree(self.root / "output")
+        shutil.rmtree(self.root / "input")
+        r2_state.restore(self.bucket, self.root, "global", self.paths)
+        self.assertEqual(source.read_bytes(), copy.read_bytes())
+        self.assertNotEqual(source.stat().st_ino, copy.stat().st_ino)
+
+    def test_object_transfer_occurs_once_per_unique_content(self):
+        source = self.root / "input/global/plan.json"
+        (self.root / "input/global/plan-copy.json").write_bytes(source.read_bytes())
+        os.link(source, self.root / "input/global/plan-hardlink.json")
+        self._checkpoint()
+        unique_content = {
+            (r2_state.digest(path.read_bytes()), path.stat().st_size)
+            for path in (source, self.root / "output/global/state.json")
+        }
+        self.assertEqual(len(self.bucket.upload_calls), len(unique_content))
+        self.assertEqual(len(self.bucket.verify_calls), len(unique_content))
+        self.assertEqual({(sha, size) for _, sha, size in self.bucket.upload_calls}, unique_content)
+        shutil.rmtree(self.root / "output")
+        shutil.rmtree(self.root / "input")
+        r2_state.restore(self.bucket, self.root, "global", self.paths)
+        self.assertEqual(len(self.bucket.download_calls), len(unique_content))
+        self.assertEqual({(sha, size) for _, sha, size in self.bucket.download_calls}, unique_content)
+
+    def test_malformed_hardlink_reference_rejects_before_destination_write(self):
+        source = self.root / "input/global/plan.json"
+        os.link(source, self.root / "input/global/plan-hardlink.json")
+        self._checkpoint()
+        manifest = self._stored_manifest()
+        alias = next(entry for entry in manifest["files"] if "hardlinkTo" in entry)
+        alias["hardlinkTo"] = "input/global/missing.json"
+        self._replace_manifest(manifest)
+        shutil.rmtree(self.root / "output")
+        shutil.rmtree(self.root / "input")
+        with self.assertRaises(ValueError):
+            r2_state.restore(self.bucket, self.root, "global", self.paths)
+        self.assertFalse((self.root / "output/global/state.json").exists())
+        self.assertFalse((self.root / "input/global/plan.json").exists())
+
+    def test_schema1_manifest_remains_restorable(self):
+        original = (self.root / "input/global/plan.json").read_bytes()
+        self._checkpoint()
+        manifest = self._stored_manifest()
+        manifest["schemaVersion"] = 1
+        self._replace_manifest(manifest)
+        shutil.rmtree(self.root / "output")
+        shutil.rmtree(self.root / "input")
+        report = r2_state.inspect(self.bucket, self.root, "global", self.paths)
+        self.assertEqual(report["requiredBytes"], report["totalBytes"])
+        r2_state.restore(self.bucket, self.root, "global", self.paths)
+        self.assertEqual((self.root / "input/global/plan.json").read_bytes(), original)
 
 
 if __name__ == "__main__":

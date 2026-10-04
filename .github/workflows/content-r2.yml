@@ -158,9 +158,11 @@ jobs:
           python -m tools.r2_state inspect --root "$STABLE_ROOT" --region "$REGION" "${args[@]}" > "$RUNNER_TEMP/state-size.json"
           python - "$RUNNER_TEMP/state-size.json" "$STABLE_ROOT" <<'PY'
           import json, shutil, sys
-          required = json.load(open(sys.argv[1]))['totalBytes'] + 8 * 1024**3
+          state = json.load(open(sys.argv[1]))
+          required = state['requiredBytes'] + 8 * 1024**3
           free = shutil.disk_usage(sys.argv[2]).free
-          print(f'Private restore plus production reserve: {required:,} bytes; runner free: {free:,} bytes')
+          print(f'Private state logical bytes: {state["totalBytes"]:,}; '
+                f'restore plus production reserve: {required:,}; runner free: {free:,}')
           if free < required:
               raise SystemExit('Runner disk is too small for the selected private state and production reserve')
           PY

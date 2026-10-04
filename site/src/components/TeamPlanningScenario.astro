@@ -1,0 +1,61 @@
+---
+const {part = 'cards'} = Astro.props;
+import '../styles/team-planning.css';
+---
+{part === 'cards' ? <div class="planning-panel" data-planning-panel>
+  <label class="planning-field"><span>这次怎么配？</span><select data-planning-kind>
+    <option value="reference">先看参考队伍</option>
+    <option value="selected">用我选的卡</option>
+    <option value="current">按当前养成配队</option>
+    <option value="training">看看练好后怎么配</option>
+    <option value="trial">试试这张卡</option>
+  </select></label>
+  <p data-planning-note class="calculator-scope-note" aria-live="polite"></p>
+  <div data-planning-training hidden>
+    <div class="planning-fields">
+      <label class="planning-field"><span>用哪些卡做培养计划</span><select data-planning-training-scope><option value="owned">已录入的卡库</option><option value="selected">当前手选的卡</option></select></label>
+      <label class="planning-field"><span>最多再练几张</span><select data-planning-count>{[1,2,3,5,10].map(n=><option value={n}>{n} 张（成员和留影合计）</option>)}</select></label>
+      <label class="planning-field"><span>等级目标</span><select data-planning-growth><option value="current-cap">保持突破、觉醒，升到当前上限</option><option value="maximum">全满养成参考（含突破、觉醒）</option></select></label>
+      <label class="planning-field"><span>成员演出技能</span><select data-planning-skill><option value="">保持当前等级</option>{[2,3,4,5].map(n=><option value={n}>升至 {n} 级</option>)}</select></label>
+      <label class="planning-field"><span>成员激奏技能</span><select data-planning-gekisou-skill><option value="">保持当前等级</option>{[2,3,4,5].map(n=><option value={n}>升至 {n} 级</option>)}</select></label>
+    </div>
+    <p class="calculator-scope-note">只改变本次计划，实际卡库不变。张数限制不代表材料够用；账号加成仍按原设置。</p>
+    <details><summary>指定愿意培养的卡、修改单卡目标</summary>
+      <label class="planning-field"><span>搜索可培养的卡</span><input type="search" data-planning-training-query placeholder="卡名、角色或乐队" /></label>
+      <p data-planning-training-count class="calculator-scope-note"></p>
+      <button type="button" data-planning-training-clear>允许培养当前范围内全部卡</button>
+      <div class="planning-card-list" data-planning-training-cards></div>
+    </details>
+  </div>
+  <div data-planning-trial hidden>
+    <label class="planning-field"><span>找一张想试的卡</span><input type="search" data-planning-trial-query placeholder="卡名、角色或乐队" /></label>
+    <label class="planning-field"><span>试用卡</span><select data-planning-trial-card><option value="">选择成员或留影</option></select></label>
+    <button type="button" data-planning-trial-add>加入本次试用</button>
+    <ul data-planning-trial-selected class="planning-trial-list"></ul>
+    <p class="calculator-scope-note">在卡库与当前所选卡中加入试用卡，试用卡按满养成参考。不会记录为已拥有。</p>
+  </div>
+  <details data-planning-missing><summary>没填养成的卡怎么处理？</summary>
+    <label class="planning-field"><span>养成资料缺失时</span><select data-planning-unknown><option value="exclude">暂不参加推荐</option><option value="reference">按满养成参考，结果标为参考方案</option></select></label>
+  </details>
+</div> : <div class="planning-panel" data-performance-panel>
+  <div class="planning-fields">
+    <label class="planning-field"><span>按什么发挥来比较？</span><select data-performance-profile><option value="steady">参考发挥</option><option value="practice">练习中的发挥</option><option value="ideal">理想发挥</option></select></label>
+    <label class="planning-field"><span>这次更看重什么？</span><select data-recommendation-goal><option value="score">冲高分</option><option value="stable">少掉分，求稳定</option><option value="missions">激奏段落任务</option></select></label>
+  </div>
+  <p data-performance-note class="calculator-scope-note" aria-live="polite"></p>
+  <details><summary>调整发挥条件或导入演出记录</summary>
+    <p class="calculator-scope-note">这里设置本次模拟，不会推断你的个人水平。相同的原始操作会用于比较不同队伍。</p>
+    <div class="planning-fields">
+      <label class="planning-field"><span>整体偏早 / 偏晚（毫秒）</span><input type="number" data-performance-bias value="0" min="-500" max="500" /></label>
+      <label class="planning-field"><span>时机波动（± 毫秒，留空沿用参考）</span><input type="number" data-performance-spread min="0" max="500" placeholder="沿用所选发挥" /></label>
+      <label class="planning-field"><span>额外漏按比例（%，留空沿用参考）</span><input type="number" data-performance-miss min="0" max="100" step="0.1" placeholder="沿用所选发挥" /></label>
+      <label class="planning-field"><span>较难区间开始（秒，可不填）</span><input type="number" data-performance-start min="0" step="0.1" /></label>
+      <label class="planning-field"><span>较难区间结束（秒）</span><input type="number" data-performance-end min="0" step="0.1" /></label>
+    </div>
+    <p class="calculator-scope-note">指定的较难区间按两倍时机波动比较；不指定时，各处使用相同条件。</p>
+    <label class="planning-field"><span>演出记录（JSON，可不填）</span><textarea data-performance-explicit rows="3" placeholder="粘贴与本谱面对应的完整演出记录"></textarea></label>
+    <p class="calculator-scope-note">填写后按这次演出比较，覆盖上面的发挥设置。只含判定统计的记录不能还原扩窗技能的效果。</p>
+  </details>
+  <p data-planning-summary class="planning-summary" aria-live="polite"></p>
+  <button type="button" data-planning-reset>恢复参考设置</button>
+</div>}

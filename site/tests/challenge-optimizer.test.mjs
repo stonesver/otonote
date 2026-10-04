@@ -52,3 +52,17 @@ test('challenge search rejects other songs, chart releases and missing actual gr
   const controller=new AbortController();controller.abort();
   assert.equal((await optimizeChallenge({...input,signal:controller.signal})).status,'cancelled');
 });
+
+test('saved player performance flows through challenge scoring with event power kept separate',async()=>{
+  const input=fixture();
+  Object.assign(input.chart,{bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+    notes:[100,200,1100,1200].map((tick,i)=>({id:`note-${i}`,type:'tap',tick,position:0,size:1}))});
+  input.draft.modifiers.performanceScenario={profile:'ideal',missRate:1,samples:1};
+  const result=await optimizeChallenge(input);
+  assert.ok(result.results.length);
+  for(const row of result.results){
+    assert.equal(row.expectedScore,0);assert.equal(row.maximumScore,0);
+    assert.equal(row.performanceScenario.missRate,1);
+    assert.ok(row.power>0);assert.equal(row.scenario.performanceScenario.missRate,1);
+  }
+});

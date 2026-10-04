@@ -13,6 +13,9 @@ import { resolveGekisouSkills, gekisouRankingBonus, gekisouComboFactor } from '.
 import { replayGekisouFrames } from './gekisou-frame-replay.mjs';
 import { gekisouSettlementActions } from './gekisou-score-settlement.mjs';
 import { createEventPipeline } from './event-rules.mjs';
+import { validateAgainstTimeline } from './formal-performance-replay.mjs';
+import { createComboReplay } from './formal-performance-state.mjs';
+import { createPerformanceScenario } from './performance-scenarios.mjs';
 import { stableSnapshotHash } from '../scoring-engine.mjs';
 
 const f32 = Math.fround;
@@ -39,7 +42,7 @@ export function normalizeGekisouScenario(input = {}) {
     timingModel: clock.frames ? 'explicit_clock_native_phase_order' : 'ideal_clock_native_phase_order', rankingModel: opponents.length ? 'opponent_section_results' : 'fixed_section_ranks' };
 }
 
-function compileEffects(rules, draft) {
+function compileEffects(rules, draft, dynamic = false) {
   const power = createFormationCalculator(rules);
   return resolveGekisouSkills(rules, draft).flatMap(skill => skill.effects.map(effect => {
     const row = effect.definition;
@@ -57,7 +60,7 @@ function compileEffects(rules, draft) {
     // never on every note of an otherwise sustained effect.
     const matchesStatic = c => {
       let match;
-      if (c._conditionType === 2001) match = 1000 >= c._conditionValues[0];
+      if (c._conditionType === 2001) return dynamic ? true : ((1000 >= c._conditionValues[0]) === Boolean(c._isPositive));
       else if (c._conditionType === 5000) match = c._conditionTargetIDs.some(id => {
         const t = rules.tables.SkillTarget.find(t => t._id === id);
         if (t?._skillTargetType !== 3 || !t._bandID) throw new Error('Unsupported skill band target');
@@ -73,6 +76,11 @@ function compileEffects(rules, draft) {
     return { ...effect, key: `${skill.kind}:${skill.slotIndex}:${row._id}`, missionType: skill.missionType,
       kind: skill.kind, slotIndex: skill.slotIndex, sourceCardId: skill.sourceCardId,
       active: staticallyActive && triggerLife, probability, trigger,
+      targets: row._skillTargetIDs.map(id => rules.tables.SkillTarget.find(t => t._id === id)).filter(t => t?._skillTargetType === 4).map(t => t._judgement),
+      ...(dynamic ? { eligible: life => {
+        const match = c => c._conditionType === 2001 ? ((life >= c._conditionValues[0]) === Boolean(c._isPositive)) : matchesStatic(c);
+        return (!conditions.length || conditions.some(set => set.conditions.every(match))) && trigger.filter(c => c._conditionType === 2001).every(match);
+      } } : {}),
       comboThreshold: trigger.find(c => c._conditionType === 7005)?._conditionValues[0] ?? 0,
       perfectInterval: trigger.find(c => c._conditionType === 1030)?._conditionValues[0] ?? 0 };
   }));
@@ -81,8 +89,8 @@ function compileEffects(rules, draft) {
 /** Conditional AP score calculator. Replays skill/Gekisou phases on an explicit
  * ideal clock, then resolves timestamped score commands. Device input order,
  * random stream and opponent outcomes remain separate scenario assumptions. */
-export function createGekisouSongCalculator(rules, chart, { scenario: inputScenario, eventAdapters = [], referenceProfile = null, scorePrecision = 'full' } = {}) {
-  const orders = skillOrdersFor(scorePrecision);
+export function createGekisouSongCalculator(rules, chart, { scenario: inputScenario, eventAdapters = [], referenceProfile = null, scorePrecision = 'full', performance = null, performanceScenario = null, performanceOrder = 'fixed' } = {}) {
+  let orders = skillOrdersFor(scorePrecision);
   // A neutral chart benchmark: identical live skills, no card-specific power
   // or Gekisou effects. Normal team calculations do not enter this branch.
   if (referenceProfile) {
@@ -93,7 +101,20 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     if (eventAdapters.length) throw new Error('Reference profile cannot use event adapters');
   }
   const scenario = normalizeGekisouScenario(inputScenario);
-  const timeline = prepareFormalChart(rules, chart);
+  const timeline = prepareFormalChart(rules, performance || performanceScenario ? { ...chart, sourceReleaseId: chart.sourceReleaseId ?? rules.sourceReleaseId } : chart);
+  if (performance && performanceScenario) throw new Error('请选择明确操作或发挥情景其中一种');
+  performance ??= performanceScenario ? createPerformanceScenario(rules, chart, performanceScenario) : null;
+  if (referenceProfile && performance) throw new Error('参考综合力基准不接受玩家操作');
+  const performanceInput = performance ? validateAgainstTimeline(timeline, performance, scenario.frameRate) : null;
+  if (performanceInput) {
+    scenario.frameRate = performanceInput.frameRate;
+    if (inputScenario?.frames && !performanceInput.clock.frames) throw new Error('逐帧时钟须放入玩家操作文件，不能与另一套输入帧混用');
+    if (performanceInput.clock.frames) scenario.frames = performanceInput.clock.frames;
+    else delete scenario.frames;
+    scenario.judgement = performance.version; scenario.life = 'replayed'; scenario.playerInput = 'explicit_operations';
+    if (!['fixed', 'sampled'].includes(performanceOrder)) throw new Error('未知技能顺序情景');
+    if (performanceOrder === 'fixed' && !performanceScenario) orders = [performanceInput.skillOrder];
+  }
   const music = rules.tables.LiveMusic.find(r => `music-${r._id}` === timeline.trackId);
   const missions = [1, 2, 3].map(i => music[`_gekisouMission${i}`]);
   const rawRanges = timeline.gekisouRanges;
@@ -103,6 +124,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
   const setting = key => Number(rules.tables.LiveSettings.find(r => r._key === key)?._value);
   const powerCalculator = createFormationCalculator(rules, { eventAdapters });
   const perfectSkills = createFormalSkillResolver(rules), justSkills = createFormalSkillResolver(rules, { judgement: 6 });
+  const dynamicSkills = performanceInput ? createFormalSkillResolver(rules, { dynamic: true }) : null;
   const judgementPercent = new Map(rules.tables.LiveJudgementParameter.map(r => [r._noteSimulateJudgement, r._scorePercent]));
   const warnings = [...timeline.warnings,
     '激奏按判定、技能、激奏更新的顺序逐帧重放；输入帧与同刻判定顺序为显式理想条件，分数与推荐是条件模拟。',
@@ -114,7 +136,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     scenario.confirmationDelayFrames.some(Boolean)
       ? `段落奖励使用上传前取得的区间分数，结果确认额外等待 ${scenario.confirmationDelayFrames.join(' / ')} 帧；延迟是输入条件，不是网络预测。`
       : '段落奖励使用上传前取得的区间分数；假设指定名次或对手结果在首个可确认帧到齐。',
-    scenario.timingOffsetMs === 0 ? 'AP＋零毫秒偏差：可判 JUST 的音符按 JUST；这比一般 AP 更理想。' : `AP＋固定 ${scenario.timingOffsetMs} 毫秒偏差；JUST 扩大和转换技能参与判定。`,
+    performanceInput ? (performance.version.includes('timing') ? '按相同原始偏差比较各队；判定窗口与转换技能分别生效。' : '按明确判定回放；没有原始偏差，无法据此衡量扩窗收益。') : scenario.timingOffsetMs === 0 ? 'AP＋零毫秒偏差：可判 JUST 的音符按 JUST；这比一般 AP 更理想。' : `AP＋固定 ${scenario.timingOffsetMs} 毫秒偏差；JUST 扩大和转换技能参与判定。`,
     'LUCK 按正式概率抽样，固定种子可复算；样本最低/最高分不是理论极值。至少两批才能估计抽样标准误。'];
 
   function calculate(draft, { includeTrace = false } = {}) {
@@ -124,11 +146,12 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       active: referenceProfile.skillSeconds > 0, rate: referenceProfile.skillPercent / 100, durationMs: referenceProfile.skillSeconds * 1000 }] }));
     const formation = referenceProfile ? { total: { total: referenceProfile.power } } : powerCalculator.calculate(draft);
     const perfect = referenceSkills || perfectSkills(draft), just = referenceSkills || justSkills(draft);
-    const effects = referenceProfile ? [] : compileEffects(rules, draft);
+    const effects = referenceProfile ? [] : compileEffects(rules, draft, Boolean(performanceInput));
+    const ordinarySkills = dynamicSkills?.(draft);
     const randomSampling = missions.includes(2) || effects.some(e => e.active && missions.includes(e.missionType) && e.probability < 100);
     // Ordinary skill order changes score commands, not the Gekisou frame
     // machine. Reuse deterministic history across all 120 order sweeps.
-    const deterministicReplay = randomSampling ? null : replayGekisouFrames(rules, timeline, ranges, effects, scenario, scenario.seed);
+    const deterministicReplay = randomSampling || performanceInput ? null : replayGekisouFrames(rules, timeline, ranges, effects, scenario, scenario.seed);
     const pipeline = createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
     const common = { totalPower: formation.total.total, scoreAdjustmentFactor: setting('note_score_adjustment_factor'),
       musicScoreLevelFactor: timeline.difficultyFactor, convertedNoteCount: timeline.convertedNoteCount,
@@ -136,12 +159,12 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     const orderCache = new Map(), referenceCache = new Map();
     const ownerSensitive = effects.some(e => e.active && [2000, 2001].includes(e.definition._skillEffectType));
     function run(order, seed, trace = false) {
-      const replay = !trace && deterministicReplay || replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace });
+      const replay = !trace && deterministicReplay || replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace, performanceInput, ordinarySkills, skillOrder: order });
       const states = replay.states.map(s => ({ ...s, noteScore: 0, finalNoteScore: 0 }));
       const comboViews = states.map(() => ({ history: [], length: 0 }));
-      const ordinaryCommands = liveSkillCommands(order, perfect, timeline.skillTimes, scenario.frameRate, just, replay.clock);
+      const ordinaryCommands = replay.ordinaryCommands ?? liveSkillCommands(order, perfect, timeline.skillTimes, scenario.frameRate, just, replay.clock);
       const commandKey = JSON.stringify(ordinaryCommands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c));
-      const cacheKey = !randomSampling && !trace && !eventAdapters.length && pipeline.context.id == null
+      const cacheKey = !performanceInput && !randomSampling && !trace && !eventAdapters.length && pipeline.context.id == null
         ? (ownerSensitive ? JSON.stringify(ordinaryCommands) : commandKey) : null;
       if (cacheKey !== null && orderCache.has(cacheKey)) return orderCache.get(cacheKey);
       const commands = [...ordinaryCommands, ...replay.commands.map(({ perfect, just, ...command }) => ({ ...command,
@@ -150,34 +173,39 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const frameActions = replay.comboUpdates.map(update => ({ frame: update.frame,
         run() { comboViews[update.sectionIndex - 1] = update; } }));
       frameActions.push(...gekisouSettlementActions(states, s => {
-        if (scenario.opponents.length) s.rank = rankGekisouSection({combo:s.combo,luckPoints:s.luck.state.bonusPoints,just:s.just,noteScore:s.noteScore,perfectCount:s.perfectCount}, scenario.opponents.map(o=>o.sections[s.index-1]), s.missionType);
+        if (scenario.opponents.length) s.rank = rankGekisouSection({combo:s.maxCombo,luckPoints:s.luck.state.bonusPoints,just:s.just,noteScore:s.noteScore,perfectCount:s.perfectCount}, scenario.opponents.map(o=>o.sections[s.index-1]), s.missionType);
         const bonus = gekisouRankingBonus(rules, { missions, sectionIndex: s.index, rank: s.rank, sectionScore: s.noteScore });
         s.rankingPercent = bonus.percent;
         return bonus.additionalScore;
       }, { confirmationDelayFrames: scenario.confirmationDelayFrames }));
+      const ordinaryCombo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
       const scoreReplay = replayScoreTimeline({ events: replay.events, commands, frameActions, frameRate: scenario.frameRate, clock: replay.clock,
+        beforeInputs: notes => { for (const note of notes) ordinaryCombo?.add(note.timeMs, note.judgement); },
         scoreNote(event, factor) {
           const s = states[event.sectionIndex - 1], judgement = event.judgement;
           const view = comboViews[event.sectionIndex - 1];
           const combo = s?.missionType === 1 ? gekisouTimingCombo(view.history, event.timeMs, view.length) : 0;
-          const comboFactor = s?.missionType === 1 ? f32(event.comboFactor * gekisouComboFactor(rules, combo)) : event.comboFactor;
-          const scoreUpFactor = f32(factor.general + (judgement === 6 ? factor.just : factor.perfect));
+          const ordinaryComboFactor = ordinaryCombo?.at(event.timeMs).comboFactor ?? event.comboFactor;
+          const comboFactor = s?.missionType === 1 ? f32(ordinaryComboFactor * gekisouComboFactor(rules, combo)) : ordinaryComboFactor;
+          const scoreUpFactor = f32(factor.general + (factor[{3:'good',4:'great',5:'perfect',6:'just'}[judgement]] ?? 0));
           const luckPercent = 100 + factor.luck;
-          const params = { ...common, noteFactorPercent: event.weight, judgementFactorPercent: judgementPercent.get(judgement),
+          const params = { ...common, currentLife: event.lifeAtInput ?? common.currentLife, noteFactorPercent: event.weight, judgementFactorPercent: judgementPercent.get(judgement),
             comboBonusFactor: comboFactor, scoreUpFactor, luckScoreFactorPercent: Math.min(200, luckPercent) };
           const score = calculateFormalNoteCore(pipeline.apply('note_score', params, { draft, note: event, sectionIndex: s?.index })).score;
           return { score, scoreUpFactor, comboFactor, luckPercent, combo };
         } });
-      let referenceSections = referenceCache.get(commandKey);
+      let referenceSections = !performanceInput && referenceCache.get(commandKey);
       if (!referenceSections) {
         const referenceStates = states.map(s => ({ ...s }));
+        const referenceCombo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
         replayScoreTimeline({ events: replay.events, commands: ordinaryCommands, frameRate: scenario.frameRate, clock: replay.clock,
           frameActions: gekisouSettlementActions(referenceStates),
+          beforeInputs: notes => { for (const note of notes) referenceCombo?.add(note.timeMs, note.judgement); },
           scoreNote: (event, factor) => calculateFormalNoteCore({ ...common, noteFactorPercent: event.weight,
-            judgementFactorPercent: 100, comboBonusFactor: event.comboFactor,
-            scoreUpFactor: f32(factor.general + factor.perfect), luckScoreFactorPercent: 100 }) });
+            judgementFactorPercent: performanceInput ? judgementPercent.get(event.judgement) : 100, currentLife: event.lifeAtInput ?? 1000, comboBonusFactor: referenceCombo?.at(event.timeMs).comboFactor ?? event.comboFactor,
+            scoreUpFactor: f32(factor.general + (performanceInput ? (factor[{3:'good',4:'great',5:'perfect',6:'just'}[event.judgement]] ?? 0) : factor.perfect)), luckScoreFactorPercent: 100 }) });
         referenceSections = referenceStates.map(s => s.noteScore);
-        referenceCache.set(commandKey, referenceSections);
+        if (!performanceInput) referenceCache.set(commandKey, referenceSections);
       }
       let total = scoreReplay.score, outsideScore = 0;
       const notes = trace ? [] : undefined;
@@ -194,7 +222,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const sections = states.map(s => {
         return { index: s.index, missionType: s.missionType, rank: s.rank, noteScore: s.noteScore,
           ordinaryReferenceScore: referenceSections[s.index - 1], rankingBonus: s.rankingBonus, totalScore: s.noteScore + s.rankingBonus,
-          rankingPercent: s.rankingPercent, combo: s.combo, just: s.just, rawJust: s.rawJust, perfectCount: s.perfectCount,
+          rankingPercent: s.rankingPercent, combo: s.maxCombo, currentCombo: s.combo, maxCombo: s.maxCombo, just: s.just, rawJust: s.rawJust, perfectCount: s.perfectCount,
           ...(trace ? { scoreQuery: s.scoreQuery, confirmationFrame: s.confirmationFrame, finalNoteScore: s.finalNoteScore, replayAdjustment: s.finalNoteScore - s.noteScore } : {}),
           luckPoints: s.luck.state.bonusPoints, luckCounts: [...s.luck.state.counts] };
       });
@@ -202,12 +230,12 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const noteScore = total - rankingBonus;
       const score = pipeline.apply('fixed_score', total, { draft, order, sections });
       if (!Number.isSafeInteger(score) || score < 0) throw new Error('Invalid Gekisou score');
-      const result = { score, noteScore, rankingBonus, outsideScore, sections, eventFixedScore: score - total, ...(trace ? { notes, luckEvents: replay.luckEvents, skillTransitions: replay.transitions, factorCommands: commands, commands: ordinaryCommands } : {}) };
+      const result = { score, performance: replay.performance, noteScore, rankingBonus, outsideScore, sections, eventFixedScore: score - total, ...(trace ? { notes, luckEvents: replay.luckEvents, skillTransitions: replay.transitions, stateTrace: replay.stateTrace, ordinarySkillTrace: replay.ordinarySkillTrace, skillTrace: replay.ordinarySkillTrace, factorCommands: commands, commands: ordinaryCommands } : {}) };
       if (cacheKey !== null) orderCache.set(cacheKey, result);
       return result;
     }
     const batches = randomSampling ? scenario.batches : 1;
-    const samples = [], sectionSums = ranges.map(() => ({ noteScore: 0, rankingBonus: 0, totalScore: 0, ordinaryReferenceScore: 0, combo: 0, just: 0, rawJust: 0, luckPoints: 0, perfectCount: 0, rank: 0 }));
+    const samples = [], sectionSums = ranges.map(() => ({ noteScore: 0, rankingBonus: 0, totalScore: 0, ordinaryReferenceScore: 0, combo: 0, currentCombo: 0, maxCombo: 0, just: 0, rawJust: 0, luckPoints: 0, perfectCount: 0, rank: 0 }));
     const rankCounts = ranges.map(()=>[0,0,0,0,0]);
     let sum = 0, bonusSum = 0, minimum = Infinity, maximum = -Infinity, best, worst;
     for (let batch = 0; batch < batches; batch++) for (const [index, order] of orders.entries()) {
@@ -236,17 +264,19 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     const worstTrace = includeTrace ? run(worst.order, worst.seed, true) : null;
     return { status: 'estimated', modelVersion: SCORE_MODEL_VERSION, scorePrecision, verificationStatus: 'source_informed_frame_replay', optimizerEligible: !referenceProfile,
       score: expectedScore, expectedScore, minimumScore: minimum, maximumScore: maximum, power: formation.total.total,
-      scenario, event: pipeline.context, sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
-      inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, scenario, distributionVersion: SCORE_DISTRIBUTION_VERSION, ...(scorePrecision === 'screen' ? { scorePrecision } : {}), ...(referenceProfile ? { referenceProfile } : {}) }),
+      scenario, referenceKind: performanceInput ? 'same_effective_judgements_without_gekisou_score_factors' : 'ordinary_ap_reference', event: pipeline.context, sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
+      inputHash: stableSnapshotHash({ draft, performance, performanceOrder, chartHash: timeline.chartHash, scenario, distributionVersion: SCORE_DISTRIBUTION_VERSION, ...(scorePrecision === 'screen' ? { scorePrecision } : {}), ...(referenceProfile ? { referenceProfile } : {}) }),
       sampleCount: samples.length, orderCount: orders.length, randomSampling, standardError,
       scoreDistribution: summarizeScoreDistribution(samples, { kind: randomSampling ? 'seed_samples' : 'skill_orders', complete: !randomSampling && scorePrecision === 'full' }),
       rankingBonus: bonusSum / samples.length, rankingBonusShare: sum ? bonusSum / sum : 0,
       sections: ranges.map((r, i) => ({ ...r, ...Object.fromEntries(Object.entries(sectionSums[i]).map(([k, v]) => [k, v / samples.length])), rankProbabilities:rankCounts[i].map(n=>n/samples.length), share: sum ? sectionSums[i].totalScore / sum : 0 })),
       effects: effects.map(e => ({ sourceCardId: e.sourceCardId, slotIndex: e.slotIndex, type: e.definition._skillEffectType, active: e.active, missionType: e.missionType,
-        contribution: [12004, 12006].includes(e.definition._skillEffectType) ? 'no_score_change_under_ap' : 'simulated' })),
-      bestOrder: best.order, worstOrder: worst.order, warnings,
+        contribution: !performanceInput && [12004, 12006].includes(e.definition._skillEffectType) ? 'no_score_change_under_ap' : 'simulated' })),
+      bestOrder: best.order, worstOrder: worst.order, warnings, skills: ordinarySkills ?? perfect,
+      chart: { id: timeline.chartId, level: timeline.level, eventCount: timeline.events.length, chartHash: timeline.chartHash,
+        difficultyFactor: timeline.difficultyFactor, convertedNoteCount: timeline.convertedNoteCount, masterFullCombo: timeline.masterFullCombo, skillTimes: timeline.skillTimes },
       ...(includeTrace ? { bestSample: bestTrace, bestSampleSeed: best.seed,
-        skillPlayback: { skills: perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
+        skillPlayback: { skills: ordinarySkills ?? perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
           randomSampling, ranges: ranges.map(({index,missionType,startMs,endMs})=>({index,missionType,startMs,endMs})),
           luckPointsByResult: [...rules.native.luckPointsByResult],
           effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex,

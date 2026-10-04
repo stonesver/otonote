@@ -1,3 +1,5 @@
+import {currentEventDraft,eventTeamSaveButton} from './event-team-view.mjs';
+import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 const fmt=n=>Math.round(n).toLocaleString('zh-CN');
 const el=(tag,text,className)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(className)node.className=className;return node;};
@@ -7,16 +9,7 @@ export function setupChallengeOptimizer(tool){
   let worker=null,key='',results=null;
   const cards=Object.fromEntries(['member','support'].map(kind=>[kind,new Map(tool.data[`${kind}Cards`].map(c=>[c.id,c]))]));
   const stop=()=>{worker?.terminate();worker=null;q('cancel').hidden=true;q('run').disabled=false;root.setAttribute('aria-busy','false');};
-  const currentDraft=()=>{
-    const draft=structuredClone(tool.draft);
-    draft.slots=tool.pairs.map(p=>({memberCardId:p.querySelector('[data-member]').value||null,supportCardId:p.querySelector('[data-support]').value||null}));
-    draft.modifiers.growth??={};
-    for(const [i,p] of tool.pairs.entries())for(const kind of ['member','support']){
-      const id=draft.slots[i][`${kind}CardId`];
-      if(id)draft.modifiers.growth[id]={...draft.modifiers.growth[id],rank:Number(p.querySelector(`[data-${kind}-rank]`).value)};
-    }
-    return draft;
-  };
+  const currentDraft=()=>currentEventDraft(tool);
   const fingerprint=()=>JSON.stringify({mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value});
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge';
@@ -49,21 +42,19 @@ export function setupChallengeOptimizer(tool){
       }
       card.append(list,skillActivation(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value)}));
       const apply=el('button','应用这支挑战队伍');apply.type='button';apply.addEventListener('click',()=>{
-        tool.draft=structuredClone(row.draft);
-        // The enclosing tool owns mode; do not leak challenge context into its ordinary calculators.
-        delete tool.draft.modifiers.event;
-        tool.pairs.forEach((p,i)=>{for(const kind of ['member','support']){const id=tool.draft.slots[i][`${kind}CardId`];p.querySelector(`[data-${kind}]`).value=id;p.querySelector(`[data-${kind}-rank]`).value=tool.draft.modifiers.growth?.[id]?.rank??1;}});
+        tool.teamWorkspaceContext.applyDraft(row.draft);
         tool.q('bonus-source').value='team';
         tool.q('team-status').textContent='已应用挑战出分候选（含队长、配对与养成）；奖励加成已按新队伍重算。稳定评分仍请按实打填写。';
         // Recompute the baseline after application; old deltas must not remain actionable.
         tool.render();q('status').textContent='队伍已应用到上方；可重新计算与新队伍比较。';
-      });card.append(apply);q('results').append(card);
+      });card.append(apply,eventTeamSaveButton(row.draft,`挑战队伍 ${index+1}`));q('results').append(card);
     }
   }
   q('run').addEventListener('click',()=>{
     if(worker)return;
     try{
       const draft=currentDraft();
+      assertToolTeamCompatible(tool.teamWorkspaceContext,draft);
       const chart=tool.data.charts.find(c=>c.trackId===draft.selectedSongId&&c.difficulty===(draft.selectedDifficulty??'expert'));
       if(!chart?.analysisDataUrl)throw Error('该难度没有可计算谱面，请重新选歌');
       const scope=q('scope').value;
@@ -88,5 +79,5 @@ export function setupChallengeOptimizer(tool){
   });
   q('cancel').addEventListener('click',()=>{stop();q('status').textContent='已停止。可调整条件后重新计算。';});
   root.addEventListener('change',event=>{event.stopPropagation();sync();});
-  return {sync,destroy:stop};
+  return {sync,invalidate:()=>{key='';stop();sync();},destroy:stop};
 }

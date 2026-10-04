@@ -1,0 +1,25 @@
+.planning-panel { display:grid; gap:.85rem; margin-block:1rem; }
+.planning-panel [hidden] { display:none !important; }
+.planning-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr)); gap:.8rem; }
+.planning-field { display:grid; gap:.35rem; min-width:0; }
+.planning-field > span { font-weight:650; font-size:.9rem; }
+.planning-field input,.planning-field select { width:100%; min-height:2.75rem; box-sizing:border-box; }
+.planning-panel button { min-height:2.75rem; justify-self:start; }
+.planning-panel details { padding-block:.5rem; }
+.planning-panel summary { cursor:pointer; padding-block:.35rem; }
+.planning-panel :is(input,select,button,summary):focus-visible { outline:2px solid var(--accent,#e05089); outline-offset:3px; }
+.planning-summary { padding:.75rem 1rem; border-inline-start:3px solid var(--accent,#e05089); background:var(--surface-soft,#f6f6f8); font-size:.9rem; line-height:1.65; }
+.planning-card-list { display:grid; gap:.5rem; max-height:28rem; overflow:auto; margin-top:.7rem; }
+.planning-card-option { border:1px solid var(--border,#ddd); padding:.7rem; border-radius:.5rem; }
+.planning-card-option > label { display:flex; gap:.6rem; align-items:center; min-height:2.5rem; }
+.planning-card-option input[type=checkbox] { width:1.1rem; height:1.1rem; flex-shrink:0; }
+.planning-card-option .planning-fields { margin-block:.5rem; }
+.planning-trial-list { padding-left:1.3rem; }
+.planning-trial-list li { margin-block:.5rem; }
+.planning-trial-list button { margin-left:.5rem; }
+.recommendation-scenario { display:inline-block; padding:.25rem .5rem; border:1px solid currentColor; border-radius:.3rem; font-size:.8rem; }
+.recommendation-reason,.recommendation-tradeoff { line-height:1.6; margin-block:.55rem; }
+.recommendation-training { padding:.8rem; border-inline-start:3px solid var(--accent,#e05089); background:var(--surface-soft,#f6f6f8); }
+.recommendation-training ul { margin-bottom:0; padding-left:1.2rem; }
+.recommendation-training li { margin-block:.35rem; overflow-wrap:anywhere; }
+@media(max-width:600px) { .planning-fields { grid-template-columns:1fr; } .planning-panel select { font-size:1rem; } }

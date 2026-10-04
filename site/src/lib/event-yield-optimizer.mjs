@@ -78,7 +78,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  };
  const eventAdapters=mode==='challenge'?[model.challengeAdapter(rules)]:[];
  if(scoreCache)await bindEventScoreCache(scoreCache,{rules,chart,draft:next});
- const result=await optimizePractical({rules,draft:next,chart,scope,inventory,objective:'expected_song_score',
+ const result=await optimizePractical({rules,draft:next,chart,scope,inventory,objective:'expected_song_score',performanceScenario:next.modifiers.performanceScenario,
    eventAdapters,extraProfiles,transformScore,candidateCache,scoreCache,pairCache:candidateCache,
    pairCacheKey:candidateCache?"power:"+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null,
    candidateCacheKey:candidateCache?eventCandidateKey(rules,next,inventory,scope,eventAdapters)+':reward-event='+eventId:null,

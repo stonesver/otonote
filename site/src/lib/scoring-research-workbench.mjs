@@ -1,5 +1,5 @@
 import {skillActivation} from './skill-activation-view.mjs';
-import {readToolPresets} from './tool-presets.mjs';
+import {refreshToolTeamGrowth,toolTeamInputState,toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createPersonalGrowthStore, applyPersonalGrowth} from './personal-growth-store.mjs';
 import {setupCalculatorSongPicker} from './calculator-song-picker.mjs';
@@ -47,17 +47,13 @@ class ScoringResearchWorkbench extends HTMLElement {
     if (this.data.vipRanks?.length) {
       known.tgwCardRanks = new Set(this.data.vipRanks.map((entry) => entry.rank));
     }
+    this.known=known;
     const parsed = parseTeamDraftSearch(window.location.search, known);
     this.draft = createTeamDraft(parsed.draft);
     try{applyPersonalGrowth(this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read());}
     catch(error){parsed.issues.push({code:'personal_growth_unavailable',severity:'warning',message:`${this.labels.song.growthUnavailable}${error.message}`});}
+    if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshToolTeamGrowth(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=toolTeamInputState(this.draft,this.known).growthIsReference;}catch(error){this.scenarioError=error.message;parsed.issues.push({code:'planning_unavailable',severity:'warning',message:error.message});}
     this.inputIssues=parsed.issues;this.inputRequest=0;this.scoreRequest=0;
-    const initialDraft=structuredClone(this.draft);
-    const presetSelect=this.querySelector('[data-score-preset]');
-    try {this.savedTeams=readToolPresets(this.data.formalRules);for(const [i,preset] of this.savedTeams.entries()){const o=new Option(preset.name,String(i));presetSelect.append(o);}}
-    catch(error){this.savedTeams=[];parsed.issues.push({code:'preset_unavailable',severity:'warning',message:error.message});}
-    presetSelect.disabled=!this.savedTeams.length;
-    presetSelect.addEventListener('change',()=>{const {selectedSongId,selectedDifficulty}=this.draft;this.draft=createTeamDraft(presetSelect.value===''?initialDraft:this.savedTeams[Number(presetSelect.value)].draft);if(selectedSongId)Object.assign(this.draft,{selectedSongId,selectedDifficulty});try{applyPersonalGrowth(this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read());}catch{}this.songPicker.sync();this.refreshInput();});
     this.shortcuts=setupQuickOptions(this);
     this.querySelector('[data-score-song-picker]').open=!this.draft.selectedSongId;
 
@@ -74,13 +70,37 @@ class ScoringResearchWorkbench extends HTMLElement {
       this.refreshInput();
     }});
     const recalculate=()=>{this.scenarioError=null;if(this.loadedSnapshot)this.renderSongScore(this.loadedChart,this.loadedSnapshot,this.inputIssues);};
+    const profileSelect=this.querySelector('[data-score-performance-profile]');
+    profileSelect.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
+    this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);
+    profileSelect.addEventListener('change',()=>{
+      if(profileSelect.value==='saved'){if(this.savedPerformanceScenario)this.draft.modifiers.performanceScenario=structuredClone(this.savedPerformanceScenario);else delete this.draft.modifiers.performanceScenario;return this.refreshInput();}
+      if(profileSelect.value==='legacy')delete this.draft.modifiers.performanceScenario;
+      else this.draft.modifiers.performanceScenario={profile:profileSelect.value,seed:20261004};
+      this.refreshInput();
+    });
+    this.querySelector('[data-performance-reset]').addEventListener('click',()=>{delete this.draft.modifiers.performanceScenario;profileSelect.value='legacy';});
     this.querySelector('[data-scoring-mode]').addEventListener('change',recalculate);
     this.querySelector('[data-gekisou-scenario]').addEventListener('change',recalculate);
     this.performanceInput=setupPerformanceInput(this,{rules:this.data.formalRules,getChart:()=>this.loadedChart,recalculate,labels:this.labels.performance});
+    this.teamWorkspaceCleanup=registerToolTeamContext(this, {
+      data:this.data, rules:this.data.formalRules, label:toolTeamLabel('song',this.data.locale),
+      getDraft:()=>this.draft, getRestrictions:()=>({}),
+      invalidate:()=>{this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();},
+      applyDraft:draft=>{
+        this.draft=createTeamDraft(draft);this.scenarioError=null;
+        Object.assign(this,toolTeamInputState(this.draft,this.known));
+        const profile=this.querySelector('[data-score-performance-profile]');
+        profile.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
+        this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);
+        this.songPicker?.sync();this.refreshInput();
+      }
+    });
     await this.refreshInput();
   }
 
   async refreshInput() {
+    notifyToolTeamChanged(this.teamWorkspaceContext);
     const team=this.querySelector('[data-score-team]');team.replaceChildren();
     let selected=0;
     for(const [i,slot] of this.draft.slots.entries()){
@@ -89,6 +109,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       const caption=document.createElement('small');caption.textContent=i===2?this.labels.song.leader:`${this.labels.song.slot} ${i+1}`;item.append(caption);team.append(item);
     }
     this.querySelector('[data-score-team-note]').textContent=selected===10?this.labels.song.teamReady:this.labels.song.teamIncomplete.replace('{selected}',String(selected));
+    if(this.growthIsReference)this.querySelector('[data-score-team-note]').textContent+=' '+this.labels.song.referenceGrowthAssumption;
     this.querySelector('[data-score-song-name]').textContent=this.draft.selectedSongId?`${this.trackById.get(this.draft.selectedSongId)?.title??''} · ${this.draft.selectedDifficulty?.toUpperCase()??''}`:this.labels.song.chooseDifficulty;
 
     this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();
@@ -150,10 +171,11 @@ class ScoringResearchWorkbench extends HTMLElement {
     this.renderSongScore(chart, snapshot, this.inputIssues);
   }
 
-  disconnectedCallback(){this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
+  disconnectedCallback(){this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
 
   calculateInWorker(payload) {
     return new Promise((resolve,reject)=>{
+      assertToolTeamCompatible(this.teamWorkspaceContext);
       const worker=new Worker(new URL('./song-calculation-worker.mjs',import.meta.url),{type:'module'});
       this.scoreWorker=worker;this.rejectScore=reject;
       worker.onmessage=({data})=>{worker.terminate();if(this.scoreWorker===worker){this.scoreWorker=null;this.rejectScore=null;}data.error?reject(new Error(data.error)):resolve(data.result);};
@@ -177,7 +199,7 @@ class ScoringResearchWorkbench extends HTMLElement {
     const format = (n) => n == null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
     const interpolate = (template, values) => template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
     this.querySelector('[data-gekisou-scenario]').hidden = this.querySelector('[data-scoring-mode]')?.value !== 'gekisou';
-    this.querySelector('[data-performance-settings]').hidden = this.querySelector('[data-scoring-mode]')?.value === 'gekisou';
+    this.querySelector('[data-performance-settings]').hidden = false;
     this.querySelector('[data-score-result-title]').textContent=labels.resultTitle;
     this.querySelector('[data-score-result-assumption]').textContent=labels.resultAssumption;
     this.querySelector('[data-performance-summary]').hidden=true;
@@ -193,9 +215,11 @@ class ScoringResearchWorkbench extends HTMLElement {
           ranks:[...this.querySelectorAll('[data-gekisou-rank]')].map(n=>Number(n.value)),
           confirmationDelayFrames:[...this.querySelectorAll('[data-gekisou-confirmation]')].map(n=>Number(n.value)),
           batches:Number(this.querySelector('[data-gekisou-batches]').value),seed:Number(this.querySelector('[data-gekisou-seed]').value) };
-        const result = await this.calculateInWorker({mode:'gekisou',rules:this.data.formalRules,chart:{...chart,sourceReleaseId:this.data.sourceReleaseId},scenario,draft:this.draft});
+        const performance=this.performanceInput?.value??null;
+        const result = await this.calculateInWorker({mode:'gekisou',rules:this.data.formalRules,chart:{...chart,sourceReleaseId:this.data.sourceReleaseId},scenario,draft:this.draft,performance});
         if(request!==this.scoreRequest)return;
         output.textContent = format(result.expectedScore);
+        if(result.performanceScenario)this.querySelector('[data-score-result-assumption]').textContent=labels.savedPerformanceAssumption;
         this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
         details.textContent = interpolate(labels.gekisouEstimate, {power:format(result.power),samples:result.sampleCount,min:format(result.minimumScore),max:format(result.maximumScore),error:format(result.standardError),share:format(result.rankingBonusShare*100)});
         if (inputWarnings.length) details.textContent += ' ' + inputWarnings.join(' ');
@@ -216,6 +240,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       const result = await this.calculateInWorker({mode:'ordinary',rules:this.data.formalRules,chart:{...chart,sourceReleaseId:this.data.sourceReleaseId},draft:this.draft,performance});
       if(request!==this.scoreRequest)return;
       output.textContent = format(result.expectedScore);
+      if(result.performanceScenario)this.querySelector('[data-score-result-assumption]').textContent=labels.savedPerformanceAssumption;
       this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
       const comboSummary = this.querySelector("[data-scoring-event-count]");
       if (comboSummary) comboSummary.textContent = String(result.chart.eventCount);

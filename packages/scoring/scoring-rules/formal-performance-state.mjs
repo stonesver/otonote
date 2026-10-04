@@ -86,3 +86,71 @@ export function createComboReplay(bonusRows) {
   }
   return { add, at, get state() { return entries.at(-1) ?? { combo: 0, maxCombo: 0, allPerfect: true, fullCombo: true }; } };
 }
+
+/** Shared ordinary-skill lifecycle for both live modes. Call convert before
+ * note damage, then advance after this frame's inputs. Recovery is phase 1;
+ * life-conditioned score skills are phase 2; converters expire after input. */
+export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, clock, life, skillEndFrame, onFactor = () => {}, withoutSkills = false }) {
+  const triggers = new Map(), endings = new Map(), converters = [], skillTrace = [], commands = [];
+  let recoveryAmount = 0, lastFrame = 0;
+  const enqueue = (map, frame, value) => { if (!map.has(frame)) map.set(frame, []); map.get(frame).push(value); lastFrame = Math.max(lastFrame, frame); };
+  for (let i = 0; i < 5; i++) enqueue(triggers, clock.indexAt(skillTimes[i]), { slot: skillOrder[i], startMs: skillTimes[i] });
+  const matches = condition => condition.kind === 'life_at_least'
+    ? (life.at(currentTime) >= condition.threshold) === Boolean(condition.positive) : condition.active;
+  const fields = { 3: 'good', 4: 'great', 5: 'perfect', 6: 'just' };
+  let currentTime = 0;
+  const addFactor = (command, frame) => { const full = { ...command, arrivalFrame: frame }; commands.push(full); onFactor(full); };
+  function endAt(effect, startMs, entry) {
+    if (!(effect.durationRawMs > 0) || !Number.isFinite(effect.durationRawMs)) throw new Error(`不支持的持续技能时长：${effect.id}`);
+    const end = skillEndFrame(clock, startMs, effect.durationRawMs);
+    enqueue(endings, end.frame, { ...entry, timeMs: end.timeMs });
+  }
+  return {
+    commands, skillTrace, converters,
+    get lastFrame() { return lastFrame; }, get recoveryAmount() { return recoveryAmount; },
+    convert(judgement) {
+      for (const converter of converters) {
+        if (!converter.active || converter.remaining === 0 || !converter.effect.targets.includes(judgement) || converter.effect.value === judgement) continue;
+        if (converter.remaining !== null && --converter.remaining === 0) converter.active = false;
+        return { judgement: converter.effect.value, convertedBy: { slotIndex: converter.slot, effectId: converter.effect.id, kind: 'ordinary' } };
+      }
+      return { judgement, convertedBy: null };
+    },
+    advance(frame) {
+      currentTime = clock.at(frame).timeMs;
+      let changed = false;
+      const fired = withoutSkills ? [] : (triggers.get(frame) ?? []).sort((a, b) => a.slot - b.slot);
+      for (const { slot, startMs } of fired) for (const effect of skills[slot].supportEffects.filter(e => e.type === 3001)) {
+        const active = matches(effect.condition);
+        skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, active });
+        if (active) { life.add({ timeMs: startMs, kind: 2, value: effect.value, overHeal: true }); recoveryAmount += effect.value; changed = true; }
+      }
+      for (const { slot, startMs } of fired) for (const effect of skills[slot].liveEffects) {
+        const currentLife = effect.condition.kind === 'life_at_least' ? life.at(currentTime) : null, active = matches(effect.condition);
+        skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, currentLife, active });
+        if (!active) continue;
+        const rate = Math.fround(Math.floor(Math.fround(Math.fround(effect.rate) * 100000)) / 100000);
+        if (effect.type !== 2000 && effect.targets.some(target => !fields[target])) throw new Error(`不支持的得分判定目标：${effect.id}`);
+        const delta = effect.type === 2000 ? { general: rate } : Object.fromEntries(effect.targets.map(target => [fields[target], rate]));
+        const ownerId = slot * 100 + 1;
+        addFactor({ timeMs: startMs, ownerId, ...delta }, frame);
+        endAt(effect, startMs, { kind: 'score', ownerId, delta, slot, effectId: effect.id });
+        changed = true;
+      }
+      for (const ending of (endings.get(frame) ?? []).sort((a, b) => a.slot - b.slot)) {
+        if (ending.kind === 'score') addFactor({ timeMs: ending.timeMs, ownerId: ending.ownerId,
+          ...Object.fromEntries(Object.entries(ending.delta).map(([key, value]) => [key, -value])) }, frame);
+        else ending.converter.active = false;
+        changed = true;
+      }
+      for (const { slot, startMs } of fired) for (const effect of skills[slot].supportEffects.filter(e => e.type === 12006)) {
+        const active = matches(effect.condition);
+        skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, active });
+        if (!active) continue;
+        const converter = { slot, effect, active: true, remaining: effect.limitCount > 0 ? effect.limitCount : null };
+        converters.push(converter); endAt(effect, startMs, { kind: 'conversion', slot, converter }); changed = true;
+      }
+      return changed;
+    },
+  };
+}

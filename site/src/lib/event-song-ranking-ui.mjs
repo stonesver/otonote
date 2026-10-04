@@ -1,3 +1,4 @@
+import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 import {eventSongCandidates,eventSongYield,sortEventSongs} from './event-song-ranking.mjs';
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
@@ -62,7 +63,7 @@ export function setupEventSongRanking(tool){
  q('run').addEventListener('click',()=>{
   if(worker||context.conditional||context.options.rewardBP==null)return;
   rows=null;failures=[];page=0;
-  try{worker=new Worker(new URL('./event-song-ranking-worker.mjs',import.meta.url),{type:'module'});
+  try{assertToolTeamCompatible(tool.teamWorkspaceContext);worker=new Worker(new URL('./event-song-ranking-worker.mjs',import.meta.url),{type:'module'});
    const active=worker;
    q('cancel').hidden=false;q('run').disabled=true;q('status').textContent=`正在计算 0 / ${candidates.length} 张谱面…`;render();
    worker.addEventListener('message',({data})=>{
@@ -77,5 +78,5 @@ export function setupEventSongRanking(tool){
  q('cancel').addEventListener('click',()=>{stop();render();q('status').textContent='已停止计算；可调整条件后重新比较。';});
  root.addEventListener('change',e=>{e.stopPropagation();page=0;if(e.target===q('sort'))render();else sync();});
  for(const [name,delta] of [['prev',-1],['next',1]])q(name).addEventListener('click',()=>{page+=delta;render();});
- return {sync,destroy:stop};
+ return {sync,invalidate:()=>{key='';stop();sync();},destroy:stop};
 }

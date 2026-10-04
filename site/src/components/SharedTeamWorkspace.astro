@@ -1,0 +1,59 @@
+---
+import '../styles/shared-team-workspace.css';
+const en = Astro.props.locale === 'en';
+---
+<div data-team-workspace-shell>
+  <button type="button" class="tw-launcher" data-team-workspace-open aria-haspopup="dialog" aria-expanded="false">{en ? 'Cards & teams' : '卡库与队伍'}</button>
+  <dialog class="tw-panel" data-team-workspace-panel aria-labelledby="tw-title">
+    <header class="tw-heading"><div><small>OTONOTE / MY TEAMS</small><h2 id="tw-title">{en ? 'Cards & teams' : '卡库与队伍'}</h2></div><button type="button" data-team-workspace-close aria-label={en?'Close':'关闭'}>×</button></header>
+    <div class="tw-body" data-team-workspace-body><p role="status">{en?'Loading your collection…':'正在读取卡库与队伍…'}</p></div>
+  </dialog>
+</div>
+<script>
+  import {installWorkspaceDismiss} from '../lib/workspace-dismiss.mjs';
+  const shell = document.querySelector('[data-team-workspace-shell]');
+  if (shell) {
+    const panel = shell.querySelector('dialog')!;
+    const launcher = shell.querySelector('[data-team-workspace-open]')!;
+    const body = shell.querySelector('[data-team-workspace-body]')!;
+    let workspace, ready = false, request = 0;
+    const stopLoadingDismiss = installWorkspaceDismiss(panel, launcher, () => { if (!ready) panel.close(); });
+    panel.addEventListener('close', () => {
+      request++;
+      document.body.classList.remove('tw-is-open');
+      launcher.setAttribute('aria-expanded', 'false');
+    });
+    const open = async (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined;
+      const currentRequest = ++request;
+      if (!panel.open) {
+        if (matchMedia('(min-width: 1680px)').matches) panel.show(); else panel.showModal();
+        document.body.classList.add('tw-is-open');
+        launcher.setAttribute('aria-expanded', 'true');
+      }
+      if (!ready) body.setAttribute('aria-busy', 'true');
+      try {
+        workspace ??= import('../lib/shared-team-workspace.mjs').then(m => m.setupSharedTeamWorkspace(shell));
+        const instance = await workspace;
+        ready = true;
+        stopLoadingDismiss();
+        body.removeAttribute('aria-busy');
+        if (currentRequest === request && panel.open) await instance.open(detail?.tab, event.type === 'team-workspace:save' ? detail : null);
+      } catch (error) {
+        workspace = null;
+        body.removeAttribute('aria-busy');
+        const message = error instanceof Error ? error.message : String(error);
+        const en = document.documentElement.lang === 'en';
+        const notice = document.createElement('p'); notice.setAttribute('role', 'alert');
+        notice.textContent = en ? `Could not open: ${message}` : `暂时无法打开：${message}`;
+        const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = en ? 'Try again' : '重新加载';
+        retry.addEventListener('click', () => open(event));
+        body.replaceChildren(notice, retry);
+      }
+    };
+    launcher.addEventListener('click', open);
+    document.addEventListener('team-workspace:open', open);
+    document.addEventListener('team-workspace:save', open);
+    shell.querySelector('[data-team-workspace-close]')?.addEventListener('click', () => panel.close());
+  }
+</script>

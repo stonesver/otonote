@@ -22,7 +22,7 @@ export const scoringCapability = {
     comboBonusRowCount: scoringEvidence.masterEvidence.comboBonus.rowCount,
     scoreRankRowCount: scoringEvidence.masterEvidence.scoreRank.rowCount,
     skillEffectRowCount: scoringEvidence.masterEvidence.skillEffect.rowCount,
-    nativeMethodCount: scoringEvidence.nativeEvidence.reduce(
+    nativeMethodCount: (scoringEvidence.nativeEvidence as Array<{ methodCount: number }>).reduce(
       (total, entry) => total + entry.methodCount,
       0
     )
@@ -30,7 +30,7 @@ export const scoringCapability = {
   blockers: [
     "同刻音符判定顺序与技能触发采用理想输入假设，尚未完整模拟帧内执行顺序",
     "谱面重建连击数与 Master 对照；总数吻合不等于完整逐帧核验",
-    "目前限普通非活动演出、全 Perfect、满生命、无辅助模式"
+    "参考发挥样本不能代替个人实战记录；整曲结果仍需按具体输入条件理解"
   ],
   goConditions: [
     "从参考正式包还原常量与调用规则；难度增量已独立解码为 0.005",

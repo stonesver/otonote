@@ -4,17 +4,16 @@ import { createFormalSkillResolver } from './formal-skills.mjs';
 import { createFrameClock, skillEndFrame } from './formal-frame-clock.mjs';
 import { createScoreReplay } from './formal-score-replay.mjs';
 import { calculateFormalNoteCore } from './formal-note-core.mjs';
-import { createLifeReplay, createComboReplay } from './formal-performance-state.mjs';
+import { createLifeReplay, createComboReplay, createOrdinarySkillLifecycle } from './formal-performance-state.mjs';
 import { createEventPipeline } from './event-rules.mjs';
 import { summarizeScoreDistribution } from './score-distribution.mjs';
 import { stableSnapshotHash } from '../scoring-engine.mjs';
 import { SCORE_MODEL_VERSION } from './model-version.mjs';
+import { TIMING_PERFORMANCE_VERSION, resolveTimingJudgement } from './performance-scenarios.mjs';
 
 export const PERFORMANCE_VERSION = 'ournotes-performance-v1';
 const f32 = Math.fround;
 const judgementField = { 3: 'good', 4: 'great', 5: 'perfect', 6: 'just' };
-const matches = (condition, life) => condition.kind === 'life_at_least'
-  ? (life >= condition.threshold) === Boolean(condition.positive) : condition.active;
 const chartWithRelease = (rules, chart) => ({ ...chart, sourceReleaseId: chart.sourceReleaseId ?? rules.sourceReleaseId });
 
 export function createPerformanceTemplate(rules, chart, { frameRate = 60 } = {}) {
@@ -25,8 +24,8 @@ export function createPerformanceTemplate(rules, chart, { frameRate = 60 } = {})
       timeMs: event.timeMs, judgement: 5, inputFrame: clock.indexAt(event.timeMs) })) };
 }
 
-function validateAgainstTimeline(timeline, performance, defaultFrameRate) {
-  if (!performance || performance.version !== PERFORMANCE_VERSION) throw new Error('判定文件版本不受支持');
+export function validateAgainstTimeline(timeline, performance, defaultFrameRate) {
+  if (!performance || ![PERFORMANCE_VERSION, TIMING_PERFORMANCE_VERSION].includes(performance.version)) throw new Error('判定文件版本不受支持');
   if (performance.chartId !== timeline.chartId || performance.chartHash !== timeline.chartHash) throw new Error('判定文件与当前谱面或模型不匹配，请重新下载模板');
   const allowed = new Set(['version', 'chartId', 'chartHash', 'frameRate', 'frames', 'skillOrder', 'judgements']);
   for (const key of Object.keys(performance)) if (!allowed.has(key)) throw new Error(`不支持的判定文件字段：${key}`);
@@ -37,15 +36,17 @@ function validateAgainstTimeline(timeline, performance, defaultFrameRate) {
   if (!Array.isArray(performance.judgements) || performance.judgements.length !== timeline.events.length) throw new Error(`判定文件须包含全部 ${timeline.events.length} 个计分事件`);
   const seen = new Set();
   const judgements = performance.judgements.map((row, sequence) => {
-    if (!row || Object.keys(row).some(key => !['scoreIndex', 'timeMs', 'judgement', 'inputFrame'].includes(key))) throw new Error(`第 ${sequence + 1} 条判定包含未知字段`);
+    if (!row || Object.keys(row).some(key => !(performance.version === TIMING_PERFORMANCE_VERSION ? ['scoreIndex', 'timeMs', 'timingOffsetMs', 'missed', 'inputFrame'] : ['scoreIndex', 'timeMs', 'judgement', 'inputFrame']).includes(key))) throw new Error(`第 ${sequence + 1} 条判定包含未知字段`);
     if (!Number.isInteger(row.scoreIndex) || row.scoreIndex < 0 || row.scoreIndex >= timeline.events.length || seen.has(row.scoreIndex)) throw new Error(`第 ${sequence + 1} 条计分事件编号重复或无效`);
     seen.add(row.scoreIndex);
     const event = timeline.events[row.scoreIndex];
     if (row.timeMs !== event.timeMs) throw new Error(`计分事件 ${row.scoreIndex} 的谱面时间不匹配`);
-    if (!Number.isInteger(row.judgement) || row.judgement < 1 || row.judgement > 6) throw new Error(`计分事件 ${row.scoreIndex} 的判定须为 1 至 6`);
+    if (performance.version !== TIMING_PERFORMANCE_VERSION && (!Number.isInteger(row.judgement) || row.judgement < 1 || row.judgement > 6)) throw new Error(`计分事件 ${row.scoreIndex} 的判定须为 1 至 6`);
     if (!Number.isSafeInteger(row.inputFrame) || row.inputFrame < 0 || row.inputFrame >= 100000) throw new Error(`计分事件 ${row.scoreIndex} 的输入帧无效`);
+    if (performance.version === TIMING_PERFORMANCE_VERSION && (!Number.isSafeInteger(row.timingOffsetMs) || Math.abs(row.timingOffsetMs) > 3000 || typeof row.missed !== 'boolean')) throw new Error('原始操作需要有效偏差与漏击标记');
+    if (performance.version === TIMING_PERFORMANCE_VERSION && clock.indexAt(event.timeMs + row.timingOffsetMs) !== row.inputFrame) throw new Error('原始操作的输入帧与偏差不一致');
     clock.at(row.inputFrame);
-    return { ...event, originalJudgement: row.judgement, inputFrame: row.inputFrame, inputSequence: sequence };
+    return { ...event, ...(performance.version === TIMING_PERFORMANCE_VERSION ? { timingOffsetMs: row.timingOffsetMs, missed: row.missed } : { originalJudgement: row.judgement }), inputFrame: row.inputFrame, inputSequence: sequence };
   });
   // The array order is authoritative for simultaneous input. It is not sorted
   // by note identity and cannot be recovered from per-judgement percentages.
@@ -75,7 +76,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   const maximumLife = setting('life_base');
   const musicLengthMs = Math.max(...timeline.events.map(event => event.timeMs), ...timeline.skillTimes);
 
-  function run(draft, { includeTrace = false, withoutSkills = false } = {}) {
+  function run(draft, { includeTrace = false, withoutSkills = false, skillOrder = input.skillOrder } = {}) {
     if (draft.slots?.length !== 5 || draft.slots.some(slot => !slot.memberCardId || !slot.supportCardId)) throw new Error('请选择五张成员卡和五张留影');
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error('歌曲或难度与载入谱面不一致');
     const power = formation.calculate(draft), skills = resolve(draft);
@@ -93,39 +94,21 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       return { ...comboAtScore, scoreUpFactor, score: noteValue(event, comboAtScore.comboFactor, scoreUpFactor),
         baseScore: noteValue(event, comboAtScore.comboFactor, 1) };
     } });
-    const arrivals = new Map(), endings = new Map(), triggers = new Map(), converters = [], skillTrace = [], stateTrace = [], factorCommands = [];
+    const arrivals = new Map(), stateTrace = [], factorCommands = [];
     const addFactor = command => { replay.addFactor(command); if (includeTrace) factorCommands.push(command); };
-    const enqueue = (map, frame, value) => { if (!map.has(frame)) map.set(frame, []); map.get(frame).push(value); };
-    for (const event of judgements) enqueue(arrivals, event.inputFrame, event);
-    for (let i = 0; i < 5; i++) enqueue(triggers, clock.indexAt(timeline.skillTimes[i]), { slot: skillOrder[i], startMs: timeline.skillTimes[i] });
-    let lastFrame = Math.max(...arrivals.keys(), ...triggers.keys()), convertedCount = 0, lowestLife = maximumLife, totalDamage = 0, recoveryAmount = 0;
+    for (const event of judgements) { if (!arrivals.has(event.inputFrame)) arrivals.set(event.inputFrame, []); arrivals.get(event.inputFrame).push(event); }
+    const lifecycle = createOrdinarySkillLifecycle({ skills, skillTimes: timeline.skillTimes, skillOrder, clock, life, skillEndFrame, onFactor: addFactor, withoutSkills });
+    const { converters, skillTrace } = lifecycle;
+    let lastFrame = Math.max(...arrivals.keys(), lifecycle.lastFrame), convertedCount = 0, lowestLife = maximumLife, totalDamage = 0;
     const counts = Object.fromEntries([1,2,3,4,5,6].map(j => [j, 0]));
     const conversionCounts = new Map();
-    function endAt(effect, startMs, entry) {
-      if (!(effect.durationRawMs > 0) || !Number.isFinite(effect.durationRawMs)) throw new Error(`不支持的持续技能时长：${effect.id}`);
-      const ending = skillEndFrame(clock, startMs, effect.durationRawMs);
-      enqueue(endings, ending.frame, { ...entry, timeMs: ending.timeMs });
-      lastFrame = Math.max(lastFrame, ending.frame);
-    }
-    function deltaFor(effect) {
-      const rate = f32(Math.floor(f32(f32(effect.rate) * 100000)) / 100000);
-      if (effect.type === 2000) return { general: rate };
-      if (effect.targets.some(target => !judgementField[target])) throw new Error(`不支持的得分判定目标：${effect.id}`);
-      return Object.fromEntries(effect.targets.map(target => [judgementField[target], rate]));
-    }
     for (let frame = 0; frame <= lastFrame; frame++) {
       const nowMs = clock.at(frame).timeMs;
       let changed = false;
       for (const inputNote of arrivals.get(frame) ?? []) {
-        let judgement = inputNote.originalJudgement, convertedBy = null;
-        for (const converter of converters) {
-          if (!converter.active || converter.remaining === 0 || !converter.effect.targets.includes(judgement) || converter.effect.value === judgement) continue;
-          judgement = converter.effect.value;
-          if (converter.remaining !== null && --converter.remaining === 0) converter.active = false;
-          convertedBy = { slotIndex: converter.slot, effectId: converter.effect.id };
-          conversionCounts.set(converter.effect.id, (conversionCounts.get(converter.effect.id) ?? 0) + 1);
-          break;
-        }
+        const originalJudgement = resolveTimingJudgement(rules, inputNote);
+        const { judgement, convertedBy } = lifecycle.convert(originalJudgement);
+        if (convertedBy) conversionCounts.set(convertedBy.effectId, (conversionCounts.get(convertedBy.effectId) ?? 0) + 1);
         if (convertedBy) convertedCount++;
         counts[judgement]++;
         combo.add(inputNote.timeMs, judgement);
@@ -136,49 +119,12 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
         // after this note's damage; later bucket replay must not re-query it.
         const lifeAtInput = life.at(inputNote.timeMs);
         lowestLife = Math.min(lowestLife, lifeAtInput);
-        replay.addNote({ ...inputNote, judgement, convertedBy, lifeAtInput });
+        replay.addNote({ ...inputNote, originalJudgement, judgement, convertedBy, lifeAtInput });
         changed = true;
       }
       replay.calculate(nowMs);
-      const fired = withoutSkills ? [] : (triggers.get(frame) ?? []).sort((a, b) => a.slot - b.slot);
-      // Phase 1 recovery appliers run before phase 2 score-condition checks.
-      for (const { slot, startMs } of fired) {
-        for (const effect of skills[slot].supportEffects.filter(e => e.type === 3001)) {
-          const active = matches(effect.condition, effect.condition.kind === 'life_at_least' ? life.at(nowMs) : 0);
-          skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, active });
-          if (active) { life.add({ timeMs: startMs, kind: 2, value: effect.value, overHeal: true }); recoveryAmount += effect.value; changed = true; }
-        }
-      }
-      for (const { slot, startMs } of fired) {
-        for (const effect of skills[slot].liveEffects) {
-          const currentLife = effect.condition.kind === 'life_at_least' ? life.at(nowMs) : null, active = matches(effect.condition, currentLife);
-          skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, currentLife, active });
-          if (!active) continue;
-          const delta = deltaFor(effect), ownerId = slot * 100 + 1;
-          addFactor({ timeMs: startMs, ownerId, ...delta });
-          endAt(effect, startMs, { kind: 'score', ownerId, delta, slot, effectId: effect.id });
-          changed = true;
-        }
-      }
-      // Existing converters participate in this frame's input, then expire in
-      // the skill phase. Newly activated converters begin with the next input.
-      for (const ending of (endings.get(frame) ?? []).sort((a, b) => a.slot - b.slot)) {
-        if (ending.kind === 'score') addFactor({ timeMs: ending.timeMs, ownerId: ending.ownerId,
-          ...Object.fromEntries(Object.entries(ending.delta).map(([key, value]) => [key, -value])) });
-        else ending.converter.active = false;
-        changed = true;
-      }
-      for (const { slot, startMs } of fired) {
-        for (const effect of skills[slot].supportEffects.filter(e => e.type === 12006)) {
-          const active = matches(effect.condition, effect.condition.kind === 'life_at_least' ? life.at(nowMs) : 0);
-          skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, active });
-          if (!active) continue;
-          const converter = { slot, effect, active: true, remaining: effect.limitCount > 0 ? effect.limitCount : null };
-          converters.push(converter);
-          endAt(effect, startMs, { kind: 'conversion', slot, converter });
-          changed = true;
-        }
-      }
+      changed = lifecycle.advance(frame) || changed;
+      lastFrame = Math.max(lastFrame, lifecycle.lastFrame);
       const currentLife = life.at(nowMs);
       lowestLife = Math.min(lowestLife, currentLife);
       replay.calculate(nowMs);
@@ -195,20 +141,20 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
     const notes = includeTrace ? replay.notes.slice().sort((a, b) => a.scoreIndex - b.scoreIndex).map(({ result, sequence, ...note }) => ({ ...note, ...result,
       cumulativeScore: cumulativeScore += result.score })) : undefined;
     const { combo: finalCombo, maxCombo, allPerfect, fullCombo } = combo.state;
-    const finalState = { combo: finalCombo, maxCombo, allPerfect, fullCombo, life: life.at(finalMs), lowestLife, totalDamage, recoveryAmount,
+    const finalState = { combo: finalCombo, maxCombo, allPerfect, fullCombo, life: life.at(finalMs), lowestLife, totalDamage, recoveryAmount: lifecycle.recoveryAmount,
       judgementCounts: counts, convertedCount, conversions: [...conversionCounts].map(([effectId, count]) => ({ effectId, count })) };
     return { status: 'estimated', modelVersion: SCORE_MODEL_VERSION, scorePrecision: 'explicit_performance',
-      verificationStatus: timeline.verificationStatus, scenario: 'ordinary_explicit_judgements_no_assist',
+      verificationStatus: timeline.verificationStatus, scenario: performance.version === TIMING_PERFORMANCE_VERSION ? 'ordinary_raw_timing_no_assist' : 'ordinary_explicit_judgements_no_assist',
       timingModel: { frameRate: input.frameRate, clock: clock.kind, scoreBucketMs: 40 },
       sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion, event: eventPipeline.context,
-      inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, performance, modelVersion: SCORE_MODEL_VERSION }),
+      inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, performance, skillOrder, modelVersion: SCORE_MODEL_VERSION }),
       power: power.total.total, baseScore, expectedScore: score, minimumScore: score, maximumScore: score,
       skillScoreGain: noteTotal - baseScore, eventFixedScoreGain: score - noteTotal, orderCount: 1,
       scoreDistribution: summarizeScoreDistribution([score], { complete: false }), bestOrder: skillOrder, worstOrder: skillOrder, skills,
       chart: { id: timeline.chartId, level: timeline.level, difficultyFactor: timeline.difficultyFactor, convertedNoteCount: timeline.convertedNoteCount,
         eventCount: timeline.events.length, masterFullCombo: timeline.masterFullCombo, skillTimes: timeline.skillTimes, chartHash: timeline.chartHash },
       performance: { version: PERFORMANCE_VERSION, eventCount: judgements.length, skillOrder, ...finalState },
-      warnings: ['结果仅对应导入的明确判定、输入帧和技能顺序；输入时机与判定是否能由真实操作产生未作推断。',
+      warnings: [performance.version === TIMING_PERFORMANCE_VERSION ? '按原始偏差与规则表窗口计算判定；未重建触屏命中、长条按压和客户端输入调度。' : '结果仅对应导入的明确判定、输入帧和技能顺序；明确判定不用于推算扩窗收益。',
         '生命、连击、转换次数与技能条件按客户端代码回放；不包含激奏、辅助模式或其他未支持技能。',
         ...timeline.warnings.filter(warning => warning.includes('不一致'))],
       ...(includeTrace ? { bestOrderNotes: notes, bestOrderFixedScore: score - noteTotal, stateTrace, skillTrace,
@@ -216,8 +162,10 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
           variants: [{ kind: 'explicit', order: skillOrder, score, notes, commands: factorCommands, skillTrace }] } } : {}) };
   }
   function calculate(draft, options = {}) {
-    const baseline = run(draft, { withoutSkills: true });
-    const result = run(draft, { includeTrace: Boolean(options.includeTrace) });
+    const order = options.skillOrder ?? input.skillOrder;
+    if (!Array.isArray(order) || order.length !== 5 || new Set(order).size !== 5 || order.some(i => !Number.isInteger(i) || i < 0 || i > 4)) throw new Error('技能顺序必须是 0 至 4 的完整排列');
+    const baseline = run(draft, { withoutSkills: true, skillOrder: order });
+    const result = run(draft, { includeTrace: Boolean(options.includeTrace), skillOrder: order });
     // A second explicit scenario removes score, conversion and recovery
     // effects together; the gain includes their resulting combo/life changes.
     result.baseScore = baseline.expectedScore - baseline.eventFixedScoreGain;

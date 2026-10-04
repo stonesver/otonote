@@ -133,7 +133,7 @@ export function liveSkillCommands(order, perfectSkills, times, frameRate, justSk
  * frameActions run after scoring; callers can update count-history views,
  * query endpoints, or enqueue a fixed award without a second scoring engine.
  */
-export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNote, frameActions = [], clock: clockInput = null }) {
+export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNote, frameActions = [], clock: clockInput = null, beforeInputs = () => {} }) {
   const clock = clockInput ?? createFrameClock({ frameRate });
   const arrivals = new Map();
   function enqueue(frame, kind, value) {
@@ -160,6 +160,7 @@ export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNot
       if (frame > previousFrame + 2) replay.calculate(clock.at(frame - 1).timeMs);
     }
     entries.before.forEach(replay.addFactor);
+    beforeInputs(entries.notes, frame);
     entries.notes.forEach(replay.addNote);
     replay.calculate(clock.at(frame).timeMs);
     if (entries.skill.length) {

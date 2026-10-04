@@ -22,6 +22,7 @@ const cards=(rows: any[],kind:string)=>rows.map(c=>({...c,imageUrl:getAsset(c.th
 const charts=catalog.musicCharts.map(({id,trackId,difficulty,level,duration,analysisDataUrl})=>({id,trackId,difficulty,level,duration,analysisDataUrl}));
 const data=JSON.stringify({rules:formalRules,vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[],memberCards:cards(catalog.memberCards,'member'),supportCards:cards(catalog.supportCards,'support'),tracks:catalog.musicTracks,charts}).replaceAll('<','\\u003c');
 const rankLabels=['D','C','B','A','S','SS'];
+const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1 && a.code <= 5).map(a => ({...a, visual: filterVisual('attribute', String(a.code))}));
 ---
 <BaseLayout title="活动收益计算">
 <div class="tool-studio" data-tool-kind="event-efficiency">
@@ -35,6 +36,7 @@ const rankLabels=['D','C','B','A','S','SS'];
   <p class="event-hint" data-mode-hint></p>
   <div class="event-layout"><div class="event-main">
    <section class="event-panel" id="event-team" aria-labelledby="event-team-title"><header class="event-panel-heading"><span class="event-step-number">1</span><div><h2 id="event-team-title">准备活动队伍</h2><p>从实际卡库比较能力、技能、活动加成与谱面，先估算档位，再计算奖励；也可手动搭配。</p></div></header>
+    <div class="event-controls"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div><p data-team-workspace-status role="status"></p><div class="tool-team-strip" data-team-workspace-summary></div>
     <div class="event-controls event-pool-controls"><label class="event-grow">从哪里选卡<select data-pool><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><button class="event-primary" type="button" data-suggest>推荐队伍＋歌曲收益</button></div>
     <p class="event-hint" data-pool-hint></p><p data-team-status role="status"></p>
     <section class="event-recommendations" data-yield-optimizer aria-labelledby="event-yield-title">
@@ -45,7 +47,7 @@ const rankLabels=['D','C','B','A','S','SS'];
      <div data-yield-song-filters>
       <div class="event-controls event-option-row">
        <label>演奏乐队<select data-yield-band data-quick><option value="">全部乐队</option>{catalog.bands.map(b=>{const visual=filterVisual('band',b.id);return <option value={b.id} data-icon={visual.icon} data-icon-only={visual.iconOnly} data-round={visual.round}>{b.displayName}</option>;})}</select></label>
-       <label>歌曲属性<select data-yield-attribute data-quick><option value="">全部属性</option>{catalog.cardTaxonomy.attributes.filter(a=>a.code>=1&&a.code<=5).map(a=>{const visual=filterVisual('attribute',String(a.code));return <option value={a.code} data-icon={visual.icon} data-icon-only={visual.iconOnly}>{a.names[catalog.release.locale]}</option>;})}</select></label>
+       <label>歌曲属性<select data-yield-attribute data-quick><option value="">全部属性</option>{attributeFilters.map(a=><option value={a.code} data-icon={a.visual.icon} data-icon-only={a.visual.iconOnly}>{a.names[catalog.release.locale]}</option>)}</select></label>
       </div>
       <p class="event-hint">仅筛选普通演出的歌曲；同时选择乐队与属性时，只比较同时符合条件的歌曲。</p>
      </div>
@@ -61,10 +63,8 @@ const rankLabels=['D','C','B','A','S','SS'];
      </details>
      <div class="event-controls"><button type="button" class="event-primary" data-yield-run>计算队伍＋歌曲收益方案</button><button type="button" data-yield-continue hidden>继续完整比较</button><button type="button" data-yield-cancel hidden>停止收益配队</button></div><p role="status" data-yield-status></p><div data-yield-results></div>
     </section>
-    <details class="event-details" data-team-manual><summary>查看 / 手动更换队伍卡片</summary><div class="event-team">{[0,1,2,3,4].map(i=><div class="event-pair"><div class="event-slot-number">{i===2?'队长':`位置 ${i+1}`}</div>{['member','support'].map(kind=><div class="event-card-slot"><select hidden data-member={kind==='member'?true:undefined} data-support={kind==='support'?true:undefined} aria-label={`位置 ${i+1} ${kind==='member'?'成员':'留影'}`}><option value="">未选择</option>{(kind==='member'?catalog.memberCards:catalog.supportCards).map(c=><option value={c.id}>{c.displayName}</option>)}</select><button type="button" class="event-card-button" data-open-card={kind} data-slot={i}><span class="event-card-placeholder">＋</span><span>选择{kind==='member'?'成员':'留影'}</span></button><label class="event-card-rank">突破<select data-member-rank={kind==='member'?true:undefined} data-support-rank={kind==='support'?true:undefined} aria-label={`位置 ${i+1} ${kind==='member'?'成员':'留影'}突破`}>{[1,2,3,4,5].map(r=><option value={r}>{r}</option>)}</select><span data-card-bonus={kind}>待选择</span></label></div>)}</div>)}</div>
-    </details>
     <details class="event-details event-quick-bonus"><summary>直接填写游戏加成</summary><h2>游戏编队页显示的加成</h2><label>加成来源<select data-bonus-source><option value="team">队伍加成</option><option value="manual">手动填写</option></select></label><div data-manual-wrap hidden class="event-controls"><label>游戏显示的道具加成（%）<input data-manual-bonus data-quick="0,50,100,200" placeholder="例如 100" type="number" min="0" max="100000" step="0.01" value="0" /></label><label>游戏显示的活动 pt 加成（%）<input data-manual-point-bonus data-quick="0,50,100,200" placeholder="例如 100" type="number" min="0" max="100000" step="0.01" value="0" /></label></div><p>道具加成与活动 pt 加成分别填写，不要相加；若自动加成与游戏编队页不一致，请以游戏显示值为准。保留完整队伍时，仍可估算歌曲评分。</p>    <div class="event-grade"><label>通常能打到的评分<select data-rank data-quick>{rankLabels.map((r,i)=><option value={i+2} selected={r==='A'}>{r}</option>)}</select></label><p data-rank-hint>先按游戏里稳定达到的评分比较，不必使用偶尔打出的最高分。</p></div></details>
-    <p data-bonus class="event-feedback" role="status"></p><a href={href('/tools/deck-builder/')}>导入或管理我的卡库 →</a>
+    <p data-bonus class="event-feedback" role="status"></p><button type="button" data-open-team-workspace="inventory">导入或管理我的卡库</button>
    </section>
    <section class="event-panel" id="event-song" aria-labelledby="event-song-title"><header class="event-panel-heading"><span class="event-step-number">2</span><div><h2 id="event-song-title">选择歌曲与稳定评分</h2><p>选你能稳定完成的谱面。排行榜帮助筛歌，实际奖励看结算评分档位。</p></div></header>
     <p class="event-links"><a href={href('/tools/ap-grade/')} data-ap-link>用当前队伍打开独立 AP 档位预测 →</a></p>

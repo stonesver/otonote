@@ -41,6 +41,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
       { labelKey: "songRanking", href: "/tools/song-ranking/" },
       { labelKey: "apGrade", href: "/tools/ap-grade/" },
       { labelKey: "eventEfficiency", href: "/tools/event-efficiency/" },
+      { labelKey: "gachaHistory", href: "/tools/gacha-history/" },
       { labelKey: "resourceFinder", href: "/tools/resources/" },
     ] }
 ]);

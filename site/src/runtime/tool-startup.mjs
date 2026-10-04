@@ -1,6 +1,6 @@
 export const toolTags = ['personal-growth-workbench', 'team-draft-workbench',
   'scoring-research-workbench', 'live2d-workbench', 'song-ranking',
-  'event-efficiency-tool', 'ap-grade-tool'];
+  'event-efficiency-tool', 'ap-grade-tool', 'gacha-history-tool'];
 // Component display:grid/flex rules must not override the initial hidden state.
 export const toolPendingStyle = '[data-tool-pending] { display: none !important; }';
 

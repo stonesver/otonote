@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 from tools.growth_export import ExportError
 from tools.growth_login import GameClient, LoginError, Profile, SdkClient
+from tools.gacha_history import GachaHistoryClient
 
 ROOT = '/api/growth-export/'
 
@@ -24,7 +25,8 @@ ROOT = '/api/growth-export/'
 class GrowthGateway(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, profile, origins, port=0, sdk_factory=SdkClient, game_factory=GameClient):
+    def __init__(self, profile, origins, port=0, sdk_factory=SdkClient, game_factory=GameClient,
+                 history_factory=GachaHistoryClient):
         self.origins = set(origins)
         if not self.origins:
             raise ValueError('at_least_one_origin_required')
@@ -37,6 +39,7 @@ class GrowthGateway(ThreadingHTTPServer):
                 raise ValueError('invalid_origin')
             self.hosts.add(p.netloc)
         self.profile, self.sdk_factory, self.game_factory = profile, sdk_factory, game_factory
+        self.history_factory = history_factory
         self.nonce = secrets.token_urlsafe(32)
         self.capacity = threading.BoundedSemaphore(2)
         self.connections = threading.BoundedSemaphore(16)
@@ -72,13 +75,13 @@ class GrowthGateway(ThreadingHTTPServer):
             self.starts.append(now)
             return True
 
-    def read_growth(self, account, password):
+    def read_growth(self, account, password, *, history=False):
         stage = 'discovering'
         def progress(value):
             nonlocal stage
             stage = value
         try:
-            game = self.game_factory()
+            game = (self.history_factory if history else self.game_factory)()
             host = game.discover()
             stage = 'sdk_login'
             sdk = self.sdk_factory(self.profile)
@@ -124,13 +127,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {'error': 'origin_refused'})
         if self.path.rstrip('/') != ROOT + 'capabilities':
             return self.reply(404, {'error': 'not_found'})
-        return self.reply(200, {'enabled': True, 'region': 'TW/HK/MO', 'nonce': self.server.nonce})
+        return self.reply(200, {'enabled': True, 'region': 'TW/HK/MO', 'nonce': self.server.nonce,
+                               'gachaHistory': True})
 
     def do_POST(self):
         if (not self.valid_source() or self.headers.get('Origin') not in self.server.origins
                 or self.headers.get('X-Growth-Nonce') != self.server.nonce):
             return self.reply(403, {'error': 'origin_refused'})
-        if self.path.rstrip('/') != ROOT + 'read':
+        if self.path.rstrip('/') not in (ROOT + 'read', ROOT + 'gacha-history'):
             return self.reply(404, {'error': 'not_found'})
         if (self.headers.get('Content-Type') != 'application/json'
                 or self.headers.get('Transfer-Encoding') or len(self.headers.get_all('Content-Length', [])) != 1):
@@ -153,7 +157,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(429, {'error': 'rate_limited'})
             account, password = body.pop('account'), body.pop('password')
             body.clear()
-            status, result = self.server.read_growth(account, password)
+            status, result = self.server.read_growth(
+                account, password, history=self.path.rstrip('/') == ROOT + 'gacha-history')
             account = password = ''
             self.reply(status, result)
         finally:

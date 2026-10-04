@@ -17,6 +17,7 @@ OtoNote 是 BanG Dream! Our Notes 的非官方玩家资料站，提供角色与�
 | 阅读剧情 | [剧情](https://ournotes.stonebg.cn/global/zh-CN/stories/) | 选择故事和章节；支持的章节可选取台词生成分享长图。 |
 | 比较配队 | [卡组配队](https://ournotes.stonebg.cn/global/zh-CN/tools/deck-builder/) | 选择成员卡、留影和养成参数，再比较不同编成。 |
 | 估算歌曲得分 | [歌曲计算](https://ournotes.stonebg.cn/global/zh-CN/tools/song-calculator/) | 确认曲目、谱面与计算条件，结合工具中的规则说明阅读结果。 |
+| 查看抽卡记录 | [抽卡记录](https://ournotes.stonebg.cn/global/zh-CN/tools/gacha-history/) | 港澳台 BHK 登录查询各池记录与出货图表，生成趣味分享图片。每次重新登录，不保存或积累历史；只包含官方本次返回的记录。 |
 | 核对资料版本 | [更新记录](https://ournotes.stonebg.cn/global/zh-CN/updates/) | 查看当前资料的游戏版本、生成时间与整理状态。 |
 
 ## 服装图鉴

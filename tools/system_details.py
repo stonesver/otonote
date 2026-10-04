@@ -241,6 +241,13 @@ def enrich_systems(result, root, locale):
         lots[row["_lotGroupId"]].append(row)
     for row in ctx.rows("MasterGachaPrize"):
         prizes[row["_groupId"]].append(row)
+    # Keep exact prize identities: the display list below intentionally merges
+    # duplicate rewards across groups, while account history refers to _id.
+    result["gachaHistoryPrizes"] = [
+        {"id": row["_id"], "resourceType": row["_resourceType"], "resourceId": row["_resourceId"],
+         "groupId": row["_groupId"], "isPickup": row.get("_pickUpType") == 2}
+        for row in ctx.rows("MasterGachaPrize") if row.get("_id")
+    ]
     for pool in result["gachaPools"]:
         row = ctx.entity("MasterGacha", pool["id"])
         pool["startAt"], pool["endAt"] = configured_time(pool["startAt"]), configured_time(pool["endAt"])

@@ -8,6 +8,8 @@ from tools.growth_export import extract_growth
 from tools.growth_login import LoginError, Profile, SdkIdentity
 from tools.growth_web import GrowthGateway, ROOT
 from tests.test_growth_export import account_response
+from tests.test_gacha_history import execution
+from tools.gacha_history import extract_history
 
 
 class FakeSdk:
@@ -28,9 +30,16 @@ class FakeGame:
         return extract_growth(account_response())
 
 
+class FakeHistory(FakeGame):
+    def export(self, identity, device, host, progress):
+        progress('reading_gacha_history')
+        return extract_history(execution(51, 51))
+
+
 class GrowthWebTests(unittest.TestCase):
     def setUp(self):
-        self.server = GrowthGateway(Profile('fake'), ['http://127.0.0.1:4342'], sdk_factory=FakeSdk, game_factory=FakeGame)
+        self.server = GrowthGateway(Profile('fake'), ['http://127.0.0.1:4342'], sdk_factory=FakeSdk,
+                                    game_factory=FakeGame, history_factory=FakeHistory)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
     def tearDown(self):
@@ -76,6 +85,22 @@ class GrowthWebTests(unittest.TestCase):
         self.assertEqual(status,200);self.assertEqual(json.loads(data)['nonce'],self.server.nonce)
         self.assertNotIn('Access-Control-Allow-Origin',headers)
         self.assertEqual(self.request(body=json.dumps({'account':'a','password':'b','url':'https://evil.invalid'}))[0],400)
+
+    def test_history_is_uncached_requires_fresh_login_and_has_no_download_endpoint(self):
+        with patch.object(FakeSdk, 'login', wraps=FakeSdk(Profile('fake')).login) as login:
+            for _ in range(2):
+                status, headers, data = self.request(path='gacha-history')
+                self.assertEqual(status, 200)
+                self.assertEqual(headers['Cache-Control'], 'no-store')
+                self.assertEqual(json.loads(data)['snapshot']['format'], 'otonote-gacha-history')
+                self.assertNotIn(b'PRIVATE', data)
+                self.assertNotIn(b'FAKE', data)
+            self.assertEqual(login.call_count, 2)
+        self.assertEqual(self.request(path='gacha-history', method='GET')[0], 404)
+        with patch.object(FakeSdk, 'login') as login:
+            self.assertEqual(self.request(path='gacha-history', delta={'Origin':'https://evil.invalid'})[0], 403)
+            self.assertEqual(self.request(path='gacha-history', body=json.dumps({'account':'a','password':'b','session':'reuse'}))[0], 400)
+            login.assert_not_called()
 
 
 if __name__=='__main__':

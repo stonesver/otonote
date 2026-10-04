@@ -1,0 +1,64 @@
+name: Publish reviewed updater image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: content-r2-production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare pinned build context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/otonote-updater-image"
+          mkdir -p "$context"
+          cp package.json package-lock.json "$context/"
+          curl --fail --location --retry 3 --silent --show-error \
+            'https://github.com/vgmstream/vgmstream/archive/7dc938fa2f210943b37c7b6511852b516ef432ab.tar.gz' \
+            --output "$context/vgmstream.tar.gz"
+          printf '%s  %s\n' \
+            aa9d78ad656dcef23e753e799f7a88802ebe9c4805b19e141f448f2c21ac868c \
+            "$context/vgmstream.tar.gz" | sha256sum --check
+          printf 'BUILD_CONTEXT=%s\n' "$context" >> "$GITHUB_ENV"
+      - name: Build and check local image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/otonote-update"
+          tag="sha-${GITHUB_SHA}"
+          docker build --pull --file deploy/Dockerfile.global-update \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --tag "$image:$tag" "$BUILD_CONTEXT"
+          docker run --rm --network none --entrypoint /bin/sh "$image:$tag" -ec '
+            for name in python3 node ffmpeg vgmstream-cli java javac curl; do command -v "$name"; done
+            python3 -c "import UnityPy, PIL, py3rijndael, elftools"
+          '
+          printf 'IMAGE=%s\nTAG=%s\n' "$image" "$tag" >> "$GITHUB_ENV"
+      - name: Push image and verify its digest
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG" | tee "$RUNNER_TEMP/image-push.log"
+          digest="$(sed -nE 's/.*digest: (sha256:[a-f0-9]{64}).*/\1/p' "$RUNNER_TEMP/image-push.log" | tail -1)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'Image push returned no digest' >&2; exit 1; }
+          docker pull "$IMAGE@$digest"
+          printf 'Set repository Variable `OURNOTES_UPDATE_IMAGE` to `%s@%s` after reviewing this run.\n' \
+            "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Log out of GHCR
+        if: always()
+        shell: bash
+        run: docker logout ghcr.io || true

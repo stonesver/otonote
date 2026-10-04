@@ -1,5 +1,5 @@
 # Build context: vgmstream.tar.gz from the pinned official commit, package.json, package-lock.json.
-ARG WORKER_BASE=registry.example.com/otonote/ournotes-resource-worker@sha256:9e83a3c7f1294e525ca783536000ab133fdf4a001c64b884ae25f88ff13538db
+ARG WORKER_BASE=crpi-thkewd16qu1tdfsq.cn-shenzhen.personal.cr.aliyuncs.com/stonesver/ournotes-resource-worker@sha256:9e83a3c7f1294e525ca783536000ab133fdf4a001c64b884ae25f88ff13538db
 FROM ${WORKER_BASE} AS audio-builder
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends cmake build-essential && rm -rf /var/lib/apt/lists/*

@@ -1,0 +1,278 @@
+name: Content production to R2
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Edition to produce
+        required: true
+        type: choice
+        options: [global, jp]
+      mode:
+        description: Shadow uploads immutable files; promote also switches current.json
+        required: true
+        default: shadow
+        type: choice
+        options: [shadow, promote]
+  schedule:
+    # UTC; separate runs and concurrency groups for the two editions.
+    - cron: '17 0,4,8,12,16,20 * * *' # Global
+    - cron: '47 2,6,10,14,18,22 * * *' # JP
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  produce:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (
+        (github.event_name == 'schedule' &&
+          ((github.event.schedule == '17 0,4,8,12,16,20 * * *' && vars.CONTENT_R2_ENABLED_GLOBAL == 'true') ||
+           (github.event.schedule == '47 2,6,10,14,18,22 * * *' && vars.CONTENT_R2_ENABLED_JP == 'true'))) ||
+        (github.event_name == 'workflow_dispatch' &&
+          ((inputs.region == 'global' && vars.CONTENT_R2_ENABLED_GLOBAL == 'true') ||
+           (inputs.region == 'jp' && vars.CONTENT_R2_ENABLED_JP == 'true')))
+      )
+    runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
+    timeout-minutes: 330
+    environment: content-r2-production
+    concurrency:
+      group: content-r2-${{ github.event_name == 'workflow_dispatch' && inputs.region || (github.event.schedule == '17 0,4,8,12,16,20 * * *' && 'global' || 'jp') }}
+      cancel-in-progress: false
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_PRIVATE_BUCKET: otonote-production-state
+      R2_PUBLIC_BUCKET: otonote-public-content
+      OURNOTES_CRI_KEY: ${{ secrets.OURNOTES_CRI_KEY }}
+      OURNOTES_MASTER_SALT_HEX: ${{ secrets.OURNOTES_MASTER_SALT_HEX }}
+      OURNOTES_MASTER_KEY_HEX: ${{ secrets.OURNOTES_MASTER_KEY_HEX }}
+      OURNOTES_MASTER_IV_HEX: ${{ secrets.OURNOTES_MASTER_IV_HEX }}
+      OURNOTES_UPDATE_IMAGE: ${{ vars.OURNOTES_UPDATE_IMAGE }}
+      GLOBAL_STATE_PATHS: ${{ vars.R2_GLOBAL_STATE_PATHS }}
+      GLOBAL_CONFIG_PATH: ${{ vars.R2_GLOBAL_CONFIG_PATH }}
+      GLOBAL_DECODER_PROFILE_PATH: ${{ vars.R2_GLOBAL_DECODER_PROFILE_PATH }}
+      AUTO_PROMOTE_GLOBAL: ${{ vars.CONTENT_R2_AUTO_PROMOTE_GLOBAL }}
+      AUTO_PROMOTE_JP: ${{ vars.CONTENT_R2_AUTO_PROMOTE_JP }}
+      STABLE_ROOT: /srv/ournotes-updater/app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select region and publication mode
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_REGION: ${{ inputs.region }}
+          INPUT_MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == schedule ]]; then
+            if [[ "$SCHEDULE" == '17 0,4,8,12,16,20 * * *' ]]; then region=global; auto="$AUTO_PROMOTE_GLOBAL"
+            elif [[ "$SCHEDULE" == '47 2,6,10,14,18,22 * * *' ]]; then region=jp; auto="$AUTO_PROMOTE_JP"
+            else exit 1; fi
+            if [[ "$auto" == true ]]; then mode=promote; else mode=shadow; fi
+          else
+            region="$INPUT_REGION"
+            mode="$INPUT_MODE"
+          fi
+          [[ "$region" == global || "$region" == jp ]]
+          [[ "$mode" == shadow || "$mode" == promote ]]
+          printf 'REGION=%s\nMODE=%s\n' "$region" "$mode" >> "$GITHUB_ENV"
+          printf 'Region: `%s`; mode: `%s`; run: `%s`\n\n' "$region" "$mode" "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check required external configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY OURNOTES_UPDATE_IMAGE; do
+            [[ -n "${!name}" ]] || { echo "Missing environment setting: $name" >&2; exit 1; }
+          done
+          [[ "$OURNOTES_UPDATE_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]] || {
+            echo 'OURNOTES_UPDATE_IMAGE must be an existing, reviewed image pinned by SHA-256 digest' >&2; exit 1;
+          }
+          for name in OURNOTES_MASTER_SALT_HEX OURNOTES_MASTER_KEY_HEX OURNOTES_MASTER_IV_HEX; do
+            [[ "${!name}" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+              echo "Missing or invalid 32-byte key: $name" >&2; exit 1;
+            }
+          done
+          python - <<'PY'
+          import os
+          try:
+              valid = int(os.environ['OURNOTES_CRI_KEY'], 0) != 0
+          except ValueError:
+              valid = False
+          if not valid:
+              raise SystemExit('Missing or invalid nonzero OURNOTES_CRI_KEY')
+          PY
+          if [[ "$REGION" == global ]]; then
+            [[ -n "$GLOBAL_STATE_PATHS" && -n "$GLOBAL_CONFIG_PATH" ]] || {
+              echo 'Global state selections and private updater configuration must be seeded first' >&2; exit 1;
+            }
+          fi
+      - name: Install R2 client and prepare stable ROOT
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$STABLE_ROOT"
+          cp -a "$GITHUB_WORKSPACE/." "$STABLE_ROOT/"
+          mkdir -p "$STABLE_ROOT/output/tmp"
+          cd "$STABLE_ROOT"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from tools.r2_state import safe_relative
+          if os.environ['REGION'] == 'global':
+              paths = json.loads(os.environ['GLOBAL_STATE_PATHS'])
+              if not isinstance(paths, list) or not paths or any(not isinstance(path, str) for path in paths):
+                  raise SystemExit('State selections must be a nonempty JSON array of paths')
+              config = safe_relative(os.environ['GLOBAL_CONFIG_PATH'])
+              if not any(config == path or config.startswith(path + '/') for path in paths):
+                  raise SystemExit('Global state selections must include the private config')
+          else:
+              paths = ['output/r2-jp']
+          paths = [safe_relative(path) for path in paths]
+          Path(os.environ['RUNNER_TEMP'], 'r2-state-paths').write_text('\n'.join(paths) + '\n')
+          PY
+      - name: Restore last verified private state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          mapfile -t paths < "$RUNNER_TEMP/r2-state-paths"
+          args=()
+          for path in "${paths[@]}"; do args+=(--path "$path"); done
+          python -m tools.r2_state current --root "$STABLE_ROOT" --region "$REGION" > "$RUNNER_TEMP/state-before.json"
+          python - "$RUNNER_TEMP/state-before.json" <<'PY'
+          import json, sys
+          if json.load(open(sys.argv[1]))['currentSha256'] == 'none':
+              raise SystemExit('Private state has not been seeded; no production run is permitted')
+          PY
+          python -m tools.r2_state inspect --root "$STABLE_ROOT" --region "$REGION" "${args[@]}" > "$RUNNER_TEMP/state-size.json"
+          python - "$RUNNER_TEMP/state-size.json" "$STABLE_ROOT" <<'PY'
+          import json, shutil, sys
+          required = json.load(open(sys.argv[1]))['totalBytes'] + 8 * 1024**3
+          free = shutil.disk_usage(sys.argv[2]).free
+          print(f'Private restore plus production reserve: {required:,} bytes; runner free: {free:,} bytes')
+          if free < required:
+              raise SystemExit('Runner disk is too small for the selected private state and production reserve')
+          PY
+          python -m tools.r2_state restore --root "$STABLE_ROOT" --region "$REGION" "${args[@]}"
+      - name: Capture public pointer baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          python -m tools.r2_content baseline --region "$REGION" > "$RUNNER_TEMP/public-before.json"
+      - name: Validate restored input and runner capacity
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          df -h "$STABLE_ROOT"
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$OURNOTES_UPDATE_IMAGE"
+          if [[ "$REGION" == global ]]; then
+            python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from tools.r2_state import safe_relative
+          from tools.global_update import load_config
+          config = safe_relative(os.environ['GLOBAL_CONFIG_PATH'])
+          profile = os.environ['GLOBAL_DECODER_PROFILE_PATH']
+          if profile and not (Path(os.environ['STABLE_ROOT']) / safe_relative(profile)).is_file():
+              raise SystemExit('Global decoder profile is absent from restored private state')
+          loaded = load_config(Path(config))
+          publication = loaded.get('contentPublication')
+          if not isinstance(publication, dict) or loaded.get('publication'):
+              raise SystemExit('Global configuration must enable contentPublication only')
+          root = Path(publication['root'])
+          if not root.is_absolute() or not root.is_relative_to(Path(os.environ['STABLE_ROOT'])):
+              raise SystemExit('Global content store must be under stable ROOT')
+          if not (Path(os.environ['STABLE_ROOT']) / 'output').resolve() in root.resolve().parents:
+              raise SystemExit('Global content store must be under output/')
+          Path(os.environ['RUNNER_TEMP'], 'content-store').write_text(str(root))
+          PY
+          else
+            for path in metadata.v39.dat unity-version.txt; do
+              [[ -f "$STABLE_ROOT/output/r2-jp/$path" ]] || { echo "JP seed missing $path" >&2; exit 1; }
+            done
+            [[ -d "$STABLE_ROOT/output/r2-jp/apks" ]] || { echo 'JP seed missing apks/' >&2; exit 1; }
+            printf '%s' "$STABLE_ROOT/output/r2-jp-content" > "$RUNNER_TEMP/content-store"
+          fi
+      - name: Produce and seal local content
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          store="$(cat "$RUNNER_TEMP/content-store")"
+          # The image and the private inputs are provisioned separately; neither is fabricated in CI.
+          common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
+                  --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env GITHUB_SHA
+                  --env OURNOTES_CRI_KEY
+                  --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
+                  --env OURNOTES_MASTER_IV_HEX)
+          if [[ "$REGION" == global ]]; then
+            if [[ -n "$GLOBAL_DECODER_PROFILE_PATH" ]]; then
+              export OURNOTES_BUNDLE_DECODER_PROFILE="$STABLE_ROOT/$GLOBAL_DECODER_PROFILE_PATH"
+              common+=(--env OURNOTES_BUNDLE_DECODER_PROFILE)
+            fi
+            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+              python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
+          else
+            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+              python3 -m tools.jp_update \
+              --metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat" \
+              --apk-root "$STABLE_ROOT/output/r2-jp/apks" \
+              --unity-version-file "$STABLE_ROOT/output/r2-jp/unity-version.txt" \
+              --workspace "$STABLE_ROOT/output/r2-jp/workspace" \
+              --content-store "$store" > "$RUNNER_TEMP/production.json"
+          fi
+          python -m tools.r2_content upload --region "$REGION" --store "$store" > "$RUNNER_TEMP/upload.json"
+      - name: Checkpoint private production state
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          mapfile -t paths < "$RUNNER_TEMP/r2-state-paths"
+          args=()
+          for path in "${paths[@]}"; do args+=(--path "$path"); done
+          expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/state-before.json")"
+          python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
+            --expected-current "$expected" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
+      - name: Promote verified public pointer
+        if: env.MODE == 'promote'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          store="$(cat "$RUNNER_TEMP/content-store")"
+          expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/public-before.json")"
+          python -m tools.r2_content promote --region "$REGION" --store "$store" \
+            --expected-current "$expected" --source-run "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
+            > "$RUNNER_TEMP/promotion.json"
+      - name: Record run result
+        if: always()
+        shell: bash
+        run: |
+          {
+            printf 'Workflow result: `%s`. The Actions run is the last-attempt record.\n\n' "$JOB_STATUS"
+            if [[ -f "$RUNNER_TEMP/state-after.json" ]]; then
+              printf 'Private state checkpoint: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/state-after.json")"
+            fi
+            if [[ -f "$RUNNER_TEMP/promotion.json" ]]; then
+              printf 'Public promotion: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/promotion.json")"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          JOB_STATUS: ${{ job.status }}

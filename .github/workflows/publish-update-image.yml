@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           context="$RUNNER_TEMP/otonote-updater-image"
           mkdir -p "$context"
-          cp package.json package-lock.json "$context/"
+          cp site/package.json site/package-lock.json "$context/"
           curl --fail --location --retry 3 --silent --show-error \
             'https://github.com/vgmstream/vgmstream/archive/7dc938fa2f210943b37c7b6511852b516ef432ab.tar.gz' \
             --output "$context/vgmstream.tar.gz"

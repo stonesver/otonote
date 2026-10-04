@@ -1,6 +1,6 @@
 import {refreshPlanningPreset} from './preset-portfolio.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
-import {readToolPresets} from './tool-presets.mjs';
+import {toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createPersonalGrowthStore, applyPersonalGrowth} from './personal-growth-store.mjs';
 import {setupCalculatorSongPicker} from './calculator-song-picker.mjs';
@@ -54,12 +54,6 @@ class ScoringResearchWorkbench extends HTMLElement {
     catch(error){parsed.issues.push({code:'personal_growth_unavailable',severity:'warning',message:`${this.labels.song.growthUnavailable}${error.message}`});}
     if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshPlanningPreset(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=Boolean(refreshed.planning?.missingActual);}catch(error){this.scenarioError=error.message;parsed.issues.push({code:'planning_unavailable',severity:'warning',message:error.message});}
     this.inputIssues=parsed.issues;this.inputRequest=0;this.scoreRequest=0;
-    const initialDraft=structuredClone(this.draft);
-    const presetSelect=this.querySelector('[data-score-preset]');
-    try {this.savedTeams=readToolPresets(this.data.formalRules);for(const [i,preset] of this.savedTeams.entries()){const o=new Option(preset.name,String(i));presetSelect.append(o);}}
-    catch(error){this.savedTeams=[];parsed.issues.push({code:'preset_unavailable',severity:'warning',message:error.message});}
-    presetSelect.disabled=!this.savedTeams.length;
-    presetSelect.addEventListener('change',()=>{const {selectedSongId,selectedDifficulty}=this.draft;this.draft=createTeamDraft(presetSelect.value===''?initialDraft:this.savedTeams[Number(presetSelect.value)].draft);if(selectedSongId)Object.assign(this.draft,{selectedSongId,selectedDifficulty});try{applyPersonalGrowth(this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read());}catch{}if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshPlanningPreset(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=Boolean(refreshed.planning?.missingActual);}catch(error){this.scenarioError=error.message;}this.querySelector('[data-score-performance-profile]').value=this.draft.modifiers.performanceScenario?'saved':'legacy';this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);this.songPicker.sync();this.refreshInput();});
     this.shortcuts=setupQuickOptions(this);
     this.querySelector('[data-score-song-picker]').open=!this.draft.selectedSongId;
 
@@ -89,10 +83,23 @@ class ScoringResearchWorkbench extends HTMLElement {
     this.querySelector('[data-scoring-mode]').addEventListener('change',recalculate);
     this.querySelector('[data-gekisou-scenario]').addEventListener('change',recalculate);
     this.performanceInput=setupPerformanceInput(this,{rules:this.data.formalRules,getChart:()=>this.loadedChart,recalculate,labels:this.labels.performance});
+    this.teamWorkspaceCleanup=registerToolTeamContext(this, {
+      data:this.data, rules:this.data.formalRules, label:toolTeamLabel('song',this.data.locale),
+      getDraft:()=>this.draft, getRestrictions:()=>({}),
+      invalidate:()=>{this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();},
+      applyDraft:draft=>{
+        this.draft=createTeamDraft(draft);this.scenarioError=null;
+        const profile=this.querySelector('[data-score-performance-profile]');
+        profile.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
+        this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);
+        this.songPicker?.sync();this.refreshInput();
+      }
+    });
     await this.refreshInput();
   }
 
   async refreshInput() {
+    notifyToolTeamChanged(this.teamWorkspaceContext);
     const team=this.querySelector('[data-score-team]');team.replaceChildren();
     let selected=0;
     for(const [i,slot] of this.draft.slots.entries()){
@@ -163,10 +170,11 @@ class ScoringResearchWorkbench extends HTMLElement {
     this.renderSongScore(chart, snapshot, this.inputIssues);
   }
 
-  disconnectedCallback(){this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
+  disconnectedCallback(){this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
 
   calculateInWorker(payload) {
     return new Promise((resolve,reject)=>{
+      assertToolTeamCompatible(this.teamWorkspaceContext);
       const worker=new Worker(new URL('./song-calculation-worker.mjs',import.meta.url),{type:'module'});
       this.scoreWorker=worker;this.rejectScore=reject;
       worker.onmessage=({data})=>{worker.terminate();if(this.scoreWorker===worker){this.scoreWorker=null;this.rejectScore=null;}data.error?reject(new Error(data.error)):resolve(data.result);};

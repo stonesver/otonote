@@ -33,23 +33,9 @@
 
   <h4>已保存的队伍</h4>
   <ul data-preset-list class="preset-list"></ul>
-  <details class="preset-add"><summary>添加队伍</summary>
-    <div class="preset-controls">
-      <label>队伍名称 <input data-preset-name placeholder="例如：原队、JUST 单判卡" maxlength="80" /></label>
-      <button type="button" data-preset-save>保存当前队伍</button>
-      <button type="button" data-preset-edit>手动编辑队伍</button>
-    </div>
-    <div class="preset-controls">
-      <button type="button" data-preset-inventory>录入我的卡库</button>
-      <button type="button" data-preset-generate>按当前场景生成候选</button>
-    </div>
-    <p>沿用上方的卡片范围与养成目标，生成综合力起点；之后按相同发挥比较。</p>
-  </details>
+  <div class="preset-controls"><button type="button" data-preset-edit>打开卡库与队伍</button><button type="button" data-preset-generate>按当前场景生成候选</button></div>
+  <p>生成的候选用于本次比较，点击“存为队伍”后才会保留到队伍库。</p>
   <p data-preset-storage-status aria-live="polite"></p>
-  <details><summary>备份或导入候选队伍</summary><div class="preset-controls">
-    <button type="button" data-preset-export>导出候选</button>
-    <label>导入候选 <input type="file" data-preset-import accept="application/json,.json" /></label>
-  </div><p>候选保存在当前浏览器；更换设备前请导出备份。卡库更新后，需要重新生成或保存候选。</p></details>
 
   <h4>开始比较</h4>
   <div class="preset-controls">
@@ -58,7 +44,7 @@
     <button type="button" data-preset-report disabled>导出结果</button>
   </div>
   <details class="preset-replacement"><summary>只想知道换一张卡值不值？</summary>
-    <ol><li>把原队「保存当前队伍」，作为比较基准。</li><li>点击原队的「载入编辑」，在第二步替换成员或留影。</li><li>点击顶部「比较队伍 / 换卡」，选择原队作为基准，点击「比较当前队伍与基准」。当前队伍不必另存。</li></ol>
+    <ol><li>在浮窗中把原队存为队伍，作为比较基准。</li><li>在浮窗编辑当前队伍，替换成员或留影后用于本页。</li><li>在下方选择原队，比较当前队伍与基准。当前队伍不必另存。</li></ol>
     <div class="preset-controls">
       <label>换卡比较基准 <select data-preset-baseline data-quick-native aria-label="换卡比较基准"></select></label>
       <button type="button" data-preset-compare>比较当前队伍与基准</button>

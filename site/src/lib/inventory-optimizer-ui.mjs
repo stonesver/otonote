@@ -6,7 +6,9 @@ import {summarizeSearchSpace,formatCombinationCount,readOptimizerConstraints} fr
 import {optimizerReadiness,recommendedWorkerCount} from './optimizer-guidance.mjs';
 import {renderOptimizerResults} from './optimizer-results-ui.mjs';
 import { readGekisouOpponentInputs } from './gekisou-opponent-inputs.mjs';
-import {setupInventoryEditor} from './inventory-editor-ui.mjs';
+import {createPersonalGrowthStore} from './personal-growth-store.mjs';
+import {createInventoryManager} from './inventory-manager.mjs';
+import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import { createFormationCalculator } from './scoring-rules/formation-power.mjs';
 const format = n => n == null ? '—' : n.toLocaleString(undefined, {maximumFractionDigits: 2});
 function download(name, value) {
@@ -20,10 +22,10 @@ export function setupInventoryOptimizer(workbench) {
   const calculator=createFormationCalculator(rules);
   let worker, request=0, lastResult, scenarios;
   const progress=q('[data-pairing-progress]');
-  const editor=setupInventoryEditor(workbench,{
-    onChange:()=>{scenarios?.refreshInventory();invalidate();workbench.dispatchEvent(new CustomEvent('preset-inventory-changed'));progress.textContent=ui('卡库已更新，请重新搜索。');},
-    onUse:()=>{q('[data-search-scope]').value='owned';q('[data-search-scope]').dispatchEvent(new Event('change',{bubbles:true}));workbench.dispatchEvent(new CustomEvent('calculator-use-inventory'));q('[data-calculator-guidance]').scrollIntoView({block:'center'});}
-  });
+  const inventoryManager=createInventoryManager(rules);
+  const profileStore=createPersonalGrowthStore({rules,vipRanks:workbench.data.vipRanks});
+  const editor={get inventory(){try{return profileStore.read()?.inventory??inventoryManager.empty();}catch{return inventoryManager.empty();}},validate:inventoryManager.validate};
+  workbench.cardInventory=editor.inventory;
   scenarios=setupTeamPlanningScenarios(workbench,{getInventory:()=>editor.inventory,onChange:()=>{invalidate();progress.textContent=ui('条件已更新，请重新比较。');}});
   workbench.planningScenarios=scenarios;
   function publish(extra={}) {workbench.optimizerState={...workbench.optimizerState,...extra};workbench.dispatchEvent(new CustomEvent('optimizer-ui-state',{detail:workbench.optimizerState}));}
@@ -59,8 +61,8 @@ export function setupInventoryOptimizer(workbench) {
     q('[data-calculator-guidance]').dataset.ready=String(state.ready);
     q('[data-optimize-pairing]').disabled=Boolean(worker)||!state.ready;
     q('[data-inventory-scope-note]').textContent=ui(q('[data-search-scope]').value==='owned'
-      ?`已保存 ${inventory.memberCardIds.length} 张成员、${inventory.supportCardIds.length} 张留影。展开下方卡库修改养成。`
-      :q('[data-search-scope]').value==='theoretical'?'无需手动选卡。参考卡片按满养成搜索，账号加成单独设置。':'只比较下方选中的成员与留影；不会自动加入其他卡。');
+      ?`已保存 ${inventory.memberCardIds.length} 张成员、${inventory.supportCardIds.length} 张留影。打开“卡库与队伍”修改养成。`
+      :q('[data-search-scope]').value==='theoretical'?'无需手动选卡。参考卡片按满养成搜索，账号加成单独设置。':'只比较当前队伍的成员与留影；不会自动加入其他卡。');
     publish({...state,hasResults:Boolean(lastResult?.results.length),finished:Boolean(lastResult),running:Boolean(worker),space});
   }
   function invalidate() {stop();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent=ui('等待开始');guide();}
@@ -73,6 +75,7 @@ export function setupInventoryOptimizer(workbench) {
     stop();const current=request;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;
     q('[data-pairing-results]').replaceChildren();
     try {
+      assertToolTeamCompatible(workbench.teamWorkspaceContext);
       const settings=scenarios?.persist()??{};
       const scope=q('[data-search-scope]').value,objective=q('[data-pairing-objective]').value;
       const mode=q('[data-pairing-mode]').value,gekisouScenario={

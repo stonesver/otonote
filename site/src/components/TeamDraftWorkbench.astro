@@ -9,7 +9,6 @@ import SelectionFilters from "./SelectionFilters.astro";
 import "../styles/calculator-workflow.css";
 import "../styles/score-visuals.css";
 import CalculatorSongPicker from "./CalculatorSongPicker.astro";
-import InventoryEditor from "./InventoryEditor.astro";
 import PresetPortfolio from "./PresetPortfolio.astro";
 import CalculatorStrategyGuide from "./CalculatorStrategyGuide.astro";
 import GekisouOpponentInputs from "./GekisouOpponentInputs.astro";
@@ -111,7 +110,8 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     </select></label>
 <TeamPlanningScenario part="cards" />
       <p class="calculator-scope-note" data-inventory-scope-note></p>
-    <InventoryEditor attributes={attributes.map(a=>({value:a,label:getCardAttribute(a)?.names[catalog.release.locale] ?? String(a)}))} rarities={rarities.map(r=>({value:r,label:getCardRarity(r)?.label ?? String(r)}))} />
+    <div class="calculator-links"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div>
+    <p data-team-workspace-status role="status"></p><div class="tool-team-strip" data-team-workspace-summary></div>
       <details class="journey-manual" hidden><summary>编辑当前五名成员和五张留影</summary>
   <div class="team-workbench-grid" id="team-editor">
     <section class="team-builder">

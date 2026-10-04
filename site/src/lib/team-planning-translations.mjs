@@ -1,5 +1,16 @@
 /** Shared by build-time HTML translation and this tool's dynamic labels. */
 export const teamPlanningEnglish = {
+  '卡库与队伍':'Cards & teams',
+  '打开卡库与队伍':'Open cards & teams',
+  '存为队伍':'Save team',
+  '编辑当前队伍':'Edit current team',
+  '在浮窗中管理':'Manage in the panel',
+  '生成的候选用于本次比较，点击“存为队伍”后才会保留到队伍库。':'Generated candidates are for this comparison. Choose “Save team” to keep them in your team library.',
+  '在浮窗中把原队存为队伍，作为比较基准。':'Save the original team in the panel as your comparison baseline.',
+  '在浮窗编辑当前队伍，替换成员或留影后用于本页。':'Edit the current team in the panel, replace a member or memory, and apply it to this page.',
+  '在下方选择原队，比较当前队伍与基准。当前队伍不必另存。':'Select the original team below to compare it with the current team. You do not need to save the current team first.',
+  '还没有保存队伍。打开“卡库与队伍”添加，或生成候选后比较。':'No saved teams yet. Add one in Cards & teams, or generate candidates to compare.',
+
   '等级':'Level',
   '突破阶数':'Breakthrough stage',
   '觉醒阶数':'Awakening stage',

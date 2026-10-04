@@ -1,10 +1,10 @@
 import {planningUiText,translatePlanningSubtree} from './team-planning-translations.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
-import {scopedStorageKey, currentServerContext, assertAccountServer} from './game-servers.mjs';
+import {createTeamWorkspaceStore} from './team-workspace-store.mjs';
+import {requestTeamSave,openTeamWorkspace,assertToolTeamCompatible} from './shared-team-context.mjs';
 import {teamLineup,scoreComposition,scoreRanking,replacementSummary} from './score-visuals.mjs';
 import { preparePresetDraft, comparePresetReplacement, refreshPlanningPreset } from './preset-portfolio.mjs';
-import { stableSnapshotHash } from './scoring-engine.mjs';
 import { createInventoryManager } from './inventory-manager.mjs';
 
 const el = (tag, text = '') => { const node = document.createElement(tag); node.textContent = text; return node; };
@@ -27,57 +27,28 @@ export function setupPresetPortfolio(workbench) {
   const ui = text => planningUiText(text,workbench.data.locale);
   const translate = node => translatePlanningSubtree(node,workbench.data.locale);
   if (!q('[data-preset-run]')) return null;
-  const rules = workbench.data.formalRules, key = scopedStorageKey('presets',rules.sourceReleaseId);
+  const rules = workbench.data.formalRules, store=createTeamWorkspaceStore({rules});
   const storageStatus = q('[data-preset-storage-status]'), status = q('[data-preset-status]'), results = q('[data-preset-results]');
-  let candidates = [], worker, request = 0, report, abort, storageBlocked = false;
-  const busyButtons = ['save', 'generate', 'run', 'compare', 'import'];
+  let candidates = [], generated = [], worker, request = 0, report, abort;
+  const busyButtons = ['generate', 'run', 'compare'];
   function finish() { worker?.terminate(); worker = null; busyButtons.forEach(s => q(`[data-preset-${s}]`).disabled = false); q('[data-preset-cancel]').disabled = true; }
   function invalidate() {
     request++; abort?.abort(); finish(); report = null; results.replaceChildren(); q('[data-preset-report]').disabled = true;
     syncSongSelection();
     status.textContent = ui('输入已更新，可重新比较这首歌。');
   }
-  function persist(next) {
-    assertAccountServer(currentServerContext().serverId);
-    if (storageBlocked) throw new Error('原候选备份无法读取，未覆盖。请先导出当前候选，检查浏览器存储。');
-    if (next.length > 100) throw new Error('最多保存 100 支候选，请先删除重复候选');
-    localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, ...currentServerContext(), sourceReleaseId: rules.sourceReleaseId, candidates: next }));
-    candidates = next; invalidate(); renderCandidates();
-    storageStatus.textContent = ui(`已在本浏览器保存 ${candidates.length} 支候选。`);
-  }
-  function validateFile(value) {
-    assertAccountServer(value?.serverId);
-    if (value?.schemaVersion !== 1 || value.sourceReleaseId !== rules.sourceReleaseId || !Array.isArray(value.candidates) || value.candidates.length > 100) throw new Error('候选文件格式或版本不一致');
-    const ids = new Set();
-    return value.candidates.map(c => {
-      if (typeof c.id !== 'string' || !c.id || ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || c.sourceReleaseId !== rules.sourceReleaseId) throw new Error('候选名称、ID 或版本无效');
-      ids.add(c.id); preparePresetDraft(rules, c.draft, { maximizeTrainable: false }); return c;
-    });
-  }
-  function add(draft, name) {
-    preparePresetDraft(rules, draft, { maximizeTrainable: false });
-    const id = `saved-${stableSnapshotHash({ slots: draft.slots, modifiers: draft.modifiers })}`;
-    const candidate = { id, name: (name || `预设 ${candidates.length + 1}`).slice(0, 80), sourceReleaseId: rules.sourceReleaseId, draft: structuredClone(draft) };
-    const next = candidates.filter(c => c.id !== id); next.push(candidate); persist(next);
+  function refreshCandidates() {
+    try {candidates=[...store.read().teams,...generated];storageStatus.textContent='';}
+    catch(error){candidates=[...generated];storageStatus.textContent=error.message;}
+    renderCandidates();
   }
   function renderCandidates() {
     const root = q('[data-preset-list]'), select = q('[data-preset-baseline]'), previous = select.value;
     root.replaceChildren(); select.replaceChildren();
     for (const candidate of candidates) {
-      const row = el('li'), load = el('button', '载入编辑'), remove = el('button', '删除'); load.type = remove.type = 'button';
-      const option = entity('option', candidate.name); option.value = candidate.id; select.append(option);
-      load.addEventListener('click', () => {
-        try {
-          const { selectedSongId, selectedDifficulty } = workbench.draft;
-          const inventory=createPersonalGrowthStore({rules,vipRanks:workbench.data.vipRanks}).read()?.inventory;
-          const refreshed=refreshPlanningPreset(rules,candidate.draft,inventory);
-          workbench.draft = { ...refreshed.draft, selectedSongId, selectedDifficulty };
-          workbench.planningScenarios?.restore(workbench.draft.modifiers); workbench.commit();
-          q('[data-preset-baseline]').value = candidate.id;
-          workbench.dispatchEvent(new CustomEvent('calculator-edit-team'));
-        } catch(error) {storageStatus.textContent=ui(`队伍未载入：${error.message}`);}
-      });
-      remove.addEventListener('click', () => { try { persist(candidates.filter(c => c.id !== candidate.id)); } catch (e) { storageStatus.textContent = ui(e.message); } });
+      const row=el('li'), option=entity('option',candidate.name);option.value=candidate.id;select.append(option);
+      const action=el('button',generated.includes(candidate)?'存为队伍':'在浮窗中管理');action.type='button';
+      action.addEventListener('click',()=>generated.includes(candidate)?requestTeamSave(candidate.draft,candidate.name):openTeamWorkspace());
       let label = '已保存队伍';
       try {
         const inventory = createPersonalGrowthStore({rules,vipRanks:workbench.data.vipRanks}).read()?.inventory;
@@ -86,31 +57,18 @@ export function setupPresetPortfolio(workbench) {
           : planning.missingActual ? '参考队伍 · 实际养成未齐全' : '当前养成';
         if (candidate.draft.modifiers?.planningScenario?.scope === 'trial') label = `试用卡 · ${label}`;
       } catch { label = '条件需检查，载入后查看'; }
-      row.append(entity('strong', candidate.name),el('span',label), load, remove); root.append(row);
+      row.append(entity('strong', candidate.name),el('span',label), action); root.append(row);
     }
     translate(root);
     if (candidates.some(c => c.id === previous)) select.value = previous;
-    if (!candidates.length) root.append(el('li', '还没有保存队伍。展开下方「添加队伍」，或先用「帮我配一队」获取推荐。'));
+    if (!candidates.length) root.append(el('li', '还没有保存队伍。打开“卡库与队伍”添加，或生成候选后比较。'));
   }
-  try { const saved = localStorage.getItem(key); if (saved) candidates = validateFile(JSON.parse(saved)); }
-  catch (error) { storageBlocked = true; storageStatus.textContent = ui(`候选未载入：${error.message}。原备份保留，未覆盖。`); }
-  renderCandidates();
-  q('[data-preset-edit]').addEventListener('click',()=>workbench.dispatchEvent(new CustomEvent('calculator-edit-team')));
-  q('[data-preset-inventory]').addEventListener('click',()=>workbench.dispatchEvent(new CustomEvent('calculator-open-inventory')));
-  q('[data-preset-save]').addEventListener('click', () => { try { add(workbench.draft, q('[data-preset-name]').value.trim()); } catch (e) { storageStatus.textContent = ui(e.message); } });
-  workbench.addEventListener('save-preset-candidate', event => {
-    try { add(event.detail.draft, event.detail.name); event.detail.onSaved?.(); } catch (e) { storageStatus.textContent = ui(e.message); event.detail.onError?.(e.message); }
-  });
-  q('[data-preset-export]').addEventListener('click', () => download('otonote-presets.json', { schemaVersion: 1, ...currentServerContext(), sourceReleaseId: rules.sourceReleaseId, candidates }));
-  q('[data-preset-import]').addEventListener('change', async event => {
-    invalidate(); const token = request, file = event.target.files?.[0]; if (!file) return;
-    try {
-      if (file.size > 5_000_000) throw new Error('候选文件过大（最多 5 MB）');
-      const imported = validateFile(JSON.parse(await file.text())); if (token !== request) return;
-      const merged = new Map(candidates.map(c => [c.id, c])); imported.forEach(c => merged.set(c.id, c)); persist([...merged.values()]);
-    } catch (e) { if (token === request) storageStatus.textContent = ui(e.message); }
-    finally { event.target.value = ''; }
-  });
+  refreshCandidates();
+  q('[data-preset-edit]').addEventListener('click',()=>openTeamWorkspace());
+  const storedChanged=()=>{invalidate();refreshCandidates();};
+  window.addEventListener('team-workspace:changed',storedChanged);
+  const storageChanged=event=>{if(event.key===store.key)storedChanged();};
+  window.addEventListener('storage',storageChanged);
   function syncSongSelection() {
     q('[data-preset-song]').value = workbench.draft.selectedSongId ?? '';
     q('[data-preset-difficulty]').value = workbench.draft.selectedDifficulty ?? '';
@@ -190,6 +148,7 @@ export function setupPresetPortfolio(workbench) {
     invalidate(); const token = request; abort = new AbortController();
     busyButtons.forEach(s => q(`[data-preset-${s}]`).disabled = true); q('[data-preset-cancel]').disabled = false;
     try {
+      assertToolTeamCompatible(workbench.teamWorkspaceContext);
       const songs = songList(), mode = q('[data-preset-mode]').value, maxWindowCards = Number(q('[data-preset-window]').value);
       let payload, baselineId;
       if (type === 'generate') {
@@ -230,7 +189,7 @@ export function setupPresetPortfolio(workbench) {
         try {
           if (data.type === 'error') throw new Error(data.error);
           if (type === 'generate') {
-            const merged = new Map(candidates.map(c => [c.id, c])); data.result.candidates.forEach(c => merged.set(c.id, c)); persist([...merged.values()]);
+            generated=data.result.candidates;refreshCandidates();
             status.textContent = ui(`生成 ${data.result.candidates.length} 支候选。${data.result.warning} ${data.result.skipped.join('；')}`);
           } else {
             const comparison = type === 'compare' ? comparePresetReplacement(data.result.matrix, [baselineId], baselineId, 'current-replacement') : null;
@@ -253,5 +212,5 @@ export function setupPresetPortfolio(workbench) {
     });
   }
   workbench.addEventListener('preset-inventory-changed', () => { invalidate(); renderCandidates(); });
-  return { invalidate, disconnect: () => { request++; abort?.abort(); finish(); } };
+  return { invalidate, disconnect: () => { window.removeEventListener('team-workspace:changed',storedChanged);window.removeEventListener('storage',storageChanged);request++; abort?.abort(); finish(); } };
 }

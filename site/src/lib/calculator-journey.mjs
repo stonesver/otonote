@@ -1,3 +1,4 @@
+import {openTeamWorkspace} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 /** Bind the single current layout; the template owns all controls and panels. */
 export function setupCalculatorJourney(workbench) {
@@ -18,7 +19,7 @@ export function setupCalculatorJourney(workbench) {
     listen(button, 'click', () => {
       select.value = button.dataset.choice;
       select.dispatchEvent(new Event('change', {bubbles: true}));
-      if (select === q('[data-search-scope]') && select.value === 'owned') q('[data-inventory-editor]').open = true;
+      if (select === q('[data-search-scope]') && select.value === 'owned') openTeamWorkspace('inventory');
     });
   }
   function refresh() {
@@ -30,9 +31,7 @@ export function setupCalculatorJourney(workbench) {
       button.setAttribute('aria-pressed', String(select.value === button.dataset.choice));
     }
     const scope = q('[data-search-scope]').value;
-    q('[data-inventory-editor]').hidden = scope !== 'owned';
-    manual.hidden = scope !== 'selected' && !manualRequested && workbench.planningScenarios?.kind !== 'trial';
-    if (scope === 'selected') manual.open = true;
+    manual.hidden = true;
     savedPanel.hidden = !savedMode;
     panels.forEach(panel => { panel.hidden = savedMode; });
     automatic.setAttribute('aria-pressed', String(!savedMode));
@@ -46,14 +45,13 @@ export function setupCalculatorJourney(workbench) {
   }
   listen(automatic, 'click', () => { savedMode = false; refresh(); });
   listen(saved, 'click', () => { savedMode = true; refresh(); });
-  listen(q('[data-team-slots]'), 'click', () => { q('.journey-card-picker').open = true; });
+  listen(q('[data-team-slots]'), 'click', () => openTeamWorkspace());
   listen(workbench, 'optimizer-ui-state', refresh);
   listen(workbench, 'change', refresh);
   listen(workbench, 'calculator-edit-team', () => {
-    if(workbench.planningScenarios){savedMode=false;manualRequested=true;refresh();manual.open=true;panels[1].scrollIntoView({block:'start',behavior:'auto'});}
-    else editInventory('selected');
+    openTeamWorkspace();
   });
-  listen(workbench, 'calculator-open-inventory', () => editInventory('owned'));
+  listen(workbench, 'calculator-open-inventory', () => openTeamWorkspace('inventory'));
   listen(workbench, 'calculator-use-inventory', () => {
     savedMode = false; refresh(); panels[2].scrollIntoView({block: 'start', behavior: 'auto'});
   });

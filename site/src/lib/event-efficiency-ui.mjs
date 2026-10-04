@@ -3,7 +3,7 @@ import {currentEventDraft} from './event-team-view.mjs';
 import {eventToolSearch} from './ap-grade.mjs';
 import {setupEventYieldOptimizer} from './event-yield-ui.mjs';
 import {setupChallengeOptimizer} from './challenge-optimizer-ui.mjs';
-import {setupEventCardPicker} from './event-card-picker.mjs';
+import {registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupEventSongRanking} from './event-song-ranking-ui.mjs';
 import {setupCalculatorSongPicker} from './calculator-song-picker.mjs';
 import {createEventEfficiency, planChallengeSpending} from './scoring-rules/event-efficiency.mjs';
@@ -12,24 +12,23 @@ import {createPersonalGrowthStore, applyPersonalGrowth} from './personal-growth-
 import {toolRoute} from './tool-route.mjs';
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2});
 const ranks=['D','C','B','A','S','SS'];
-const id=value=>Number(value.split('-').at(-1));
+const id=value=>Number(value?.split('-').at(-1));
 const percent=node=>{if(node.value.trim()==='')throw Error('请填写游戏显示的加成；没有加成时填 0。');const n=Number(node.value);if(!Number.isFinite(n)||n<0||n>100000)throw Error('加成应为 0–100000%');return Math.round(n*100);};
 class EventEfficiencyTool extends HTMLElement {
  connectedCallback(){
   if(this.ready)return;this.ready=true;
   this.data=JSON.parse(this.querySelector('[data-event-inputs]').textContent);
-  this.q=s=>this.querySelector(`[data-${s}]`);this.pairs=[...this.querySelectorAll('.event-pair')];
+  this.q=s=>this.querySelector(`[data-${s}]`);
   this.draft=createTeamDraft(parseTeamDraftSearch(location.search,{memberCardIds:new Set(this.data.memberCards.map(c=>c.id)),supportCardIds:new Set(this.data.supportCards.map(c=>c.id)),musicTrackIds:new Set(this.data.tracks.map(t=>t.id))}).draft);
   this.personalGrowthStore=createPersonalGrowthStore({rules:this.data.rules,vipRanks:this.data.vipRanks});
   try{applyPersonalGrowth(this.draft,this.personalGrowthStore.read());}catch(error){this.q('team-status').textContent=`个人养成未载入：${error.message}`;}
-  this.pairs.forEach((p,i)=>{for(const kind of ['member','support']){const card=this.draft.slots[i][`${kind}CardId`];p.querySelector(`[data-${kind}]`).value=card??'';p.querySelector(`[data-${kind}-rank]`).value=this.draft.modifiers.growth?.[card]?.rank??1;}});
   if(this.draft.selectedSongId)this.q('song').value=this.draft.selectedSongId;
   const linked=new URLSearchParams(location.search);
   for(const [param,field] of [['eventMode','mode'],['eventId','event'],['scoreRank','rank'],['boost','boost'],['cost','cost']]){
    const value=linked.get(param),node=this.q(field);if(value!=null&&[...node.options].some(o=>o.value===value))node.value=value;
   }
   if(['expectedScore','minimumScore','maximumScore'].includes(linked.get('apBasis')))for(const selector of ['[data-rec-score-basis]','[data-yield-basis]'])this.querySelector(selector).value=linked.get('apBasis');
-  this.cardPicker=setupEventCardPicker(this);
+
   this.songRanking=setupEventSongRanking(this);
   this.challengeOptimizer=setupChallengeOptimizer(this);
   this.yieldOptimizer=setupEventYieldOptimizer(this);
@@ -43,9 +42,17 @@ class EventEfficiencyTool extends HTMLElement {
   this.shortcuts=setupQuickOptions(this);
   this.addEventListener('input',event=>{if(event.target.matches('[data-manual-bonus],[data-manual-point-bonus],[data-budget],[data-start-cp]'))this.render();});
   setTask(this.draft.slots.some(s=>s.memberCardId||s.supportCardId)?'team':'quick');
+  this.teamWorkspaceCleanup=registerToolTeamContext(this,{
+   data:this.data,rules:this.data.rules,label:'活动队伍',getDraft:()=>currentEventDraft(this),
+   getRestrictions:()=>this.q('mode').value==='challenge'?{
+    allowedTrackIds:this.data.rules.tables.ChallengeMusic.filter(row=>row._eventId===Number(this.q('event').value)).map(row=>`music-${row._liveMusicId}`)
+   }:{},
+   invalidate:()=>{this.songRanking?.invalidate();this.challengeOptimizer?.invalidate();this.yieldOptimizer?.invalidate();},
+   applyDraft:draft=>{this.draft=createTeamDraft(draft);this.q('bonus-source').value='team';this.dataset.task='team';for(const button of this.querySelectorAll('[data-event-task]'))button.setAttribute('aria-pressed',String(button.dataset.eventTask==='team'));this.render();}
+  });
   if(linked.has('apBasis'))this.q('team-status').textContent='已带入 AP 预测的队伍、歌曲和估计档位，可按实打调整。';
  }
- disconnectedCallback(){this.shortcuts?.destroy();this.songRanking?.destroy();this.challengeOptimizer?.destroy();this.yieldOptimizer?.destroy();}
+ disconnectedCallback(){this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.songRanking?.destroy();this.challengeOptimizer?.destroy();this.yieldOptimizer?.destroy();}
  model(){return createEventEfficiency({tables:this.data.rules.tables,sourceReleaseId:this.data.rules.sourceReleaseId,eventId:Number(this.q('event').value)});}
  suggest(){this.yieldOptimizer?.run();}
  render(){
@@ -64,23 +71,21 @@ class EventEfficiencyTool extends HTMLElement {
   const allowed=mode==='challenge'?this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`):null;
   if(allowed&&!allowed.includes(this.q('song').value)){this.q('song').value='';this.draft.selectedSongId=null;this.draft.selectedDifficulty=null;this.q('song-disclosure').open=true;this.songPicker?.sync();}
   this.q('selected-song').textContent=this.q('song').value?`${this.q('song').selectedOptions[0].textContent} · ${(this.draft.selectedDifficulty??'expert').toUpperCase()}`:'选择一首歌曲';
-  this.cardPicker?.sync();this.q('save').disabled=true;this.q('copy-bonus').disabled=true;
+  this.q('save').disabled=true;this.q('copy-bonus').disabled=true;
   for(const key of ['value','bonus','point-bonus','badges','points','cp'])this.q('summary-'+key).textContent='—';
   this.q('summary-unit').textContent=mode==='challenge'?'徽章 / 挑战 pt':'徽章 / 火';
   this.q('summary-title').textContent='先准备活动队伍';this.q('summary-context').textContent='选择五组卡牌，或直接填写加成。';this.q('next-step').textContent='推荐候选后，确认卡片突破与稳定评分。';
   this.q('result-caption').textContent='完成队伍或填写加成后，即可查看收益。';
   try{
    const model=this.model();
-   const slots=this.pairs.map(p=>({memberId:id(p.querySelector('[data-member]').value),supportId:id(p.querySelector('[data-support]').value),memberRank:Number(p.querySelector('[data-member-rank]').value),supportRank:Number(p.querySelector('[data-support-rank]').value)}));
-   if(!manual){const missing=slots.reduce((n,s)=>n+Number(!s.memberId)+Number(!s.supportId),0);if(missing)throw Error(`还差 ${missing} 张卡片。可点击「推荐队伍＋歌曲收益」，或逐个位置选卡。`);const members=slots.map(s=>this.data.rules.tables.MemberCard.find(c=>c._id===s.memberId)?._characterID);if(new Set(members).size!==5)throw Error('一支队伍只能使用五位不同角色，请更换重复角色的成员卡。');if(new Set(slots.map(s=>s.supportId)).size!==5)throw Error('同一张留影不能放入多个位置，请更换重复留影。');}
+   if(!manual)assertToolTeamCompatible(this.teamWorkspaceContext);
+   const slots=this.draft.slots.map(slot=>({memberId:id(slot.memberCardId),supportId:id(slot.supportCardId),memberRank:this.draft.modifiers.growth?.[slot.memberCardId]?.rank??1,supportRank:this.draft.modifiers.growth?.[slot.supportCardId]?.rank??1}));
+   if(!manual){const missing=slots.reduce((n,s)=>n+Number(!s.memberId)+Number(!s.supportId),0);if(missing)throw Error(`还差 ${missing} 张卡片。可点击「推荐队伍＋歌曲收益」，或打开“卡库与队伍”选择。`);const members=slots.map(s=>this.data.rules.tables.MemberCard.find(c=>c._id===s.memberId)?._characterID);if(new Set(members).size!==5)throw Error('一支队伍只能使用五位不同角色，请更换重复角色的成员卡。');if(new Set(slots.map(s=>s.supportId)).size!==5)throw Error('同一张留影不能放入多个位置，请更换重复留影。');}
    let teamBonuses;try{teamBonuses=model.teamBonus(slots);this.canEstimateTeam=true;}catch(error){if(!manual)throw error;}
    const bonuses=manual?{rewardBP:percent(this.q('manual-bonus')),eventPointBP:percent(this.q('manual-point-bonus'))}:teamBonuses;
    const bp=bonuses.rewardBP,pointBP=bonuses.eventPointBP;this.rewardBP=bp;this.eventPointBP=pointBP;
    this.q('bonus').textContent=`道具加成 +${fmt(bp/100)}% · 活动 pt 加成 +${fmt(pointBP/100)}%。两者分别计算，挑战 pt 不受这两项加成影响。`;
-   this.draft.slots=this.pairs.map(p=>({memberCardId:p.querySelector('[data-member]').value,supportCardId:p.querySelector('[data-support]').value}));
    this.draft.selectedSongId=this.q('song').value;this.draft.selectedDifficulty??='expert';
-   this.draft.modifiers.growth??={};
-   for(const [i,s] of slots.entries())for(const kind of ['member','support']){const key=this.draft.slots[i][`${kind}CardId`];if(!key)continue;this.draft.modifiers.growth[key]={...this.draft.modifiers.growth[key],rank:s[`${kind}Rank`]};}
    this.q('score-link').href=toolRoute('/tools/song-calculator/',location.pathname)+serializeTeamDraftSearch(this.draft);
    this.q('score-link').hidden=!this.canEstimateTeam||mode==='challenge'||!this.draft.selectedSongId;
    if(mode==='gekisou')this.q('score-link').href+='&scoreMode=gekisou';
@@ -109,7 +114,7 @@ class EventEfficiencyTool extends HTMLElement {
    this.q('cycle').textContent=`普通阶段 ${normalPlays} 次，消耗 ${normalPlays*boost} 火，预算余 ${budget-normalPlays*boost} 火；挑战 ${plan.plays} 次（${plan.consumption.map(r=>r.cost+' pt × '+r.plays).join('，')||'挑战 pt 不足'}）。共 ${fmt(badges)} 徽章、${fmt(points)} 活动 pt；剩余 ${plan.remainingCP} 挑战 pt。${start?'总收益含已有挑战 pt，不能全归为本次耗火收益。':normalPlays?`折合 ${fmt(badges/(normalPlays*boost))} 徽章 / 火。`:''}`;
   }catch(e){this.q('cycle').textContent=e.message;}
   }catch(e){this.q('bonus').textContent=e.message;this.q('score-link').hidden=true;}
-  finally{this.q('ap-link').href=toolRoute('/tools/ap-grade/',location.pathname)+eventToolSearch(currentEventDraft(this),{mode:mode==='challenge'?'challenge':'ordinary',eventId:Number(this.q('event').value),boost:Number(this.q('boost').value),cost:Number(this.q('cost').value)});this.songRanking?.sync();this.challengeOptimizer?.sync();this.yieldOptimizer?.sync();}
+  finally{notifyToolTeamChanged(this.teamWorkspaceContext);this.q('ap-link').href=toolRoute('/tools/ap-grade/',location.pathname)+eventToolSearch(currentEventDraft(this),{mode:mode==='challenge'?'challenge':'ordinary',eventId:Number(this.q('event').value),boost:Number(this.q('boost').value),cost:Number(this.q('cost').value)});this.songRanking?.sync();this.challengeOptimizer?.sync();this.yieldOptimizer?.sync();}
  }
 }
 if(!customElements.get('event-efficiency-tool'))customElements.define('event-efficiency-tool',EventEfficiencyTool);

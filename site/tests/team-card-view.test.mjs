@@ -21,7 +21,7 @@ test('unknown fields stay visibly unknown and game icon URLs are reused without 
  assert.equal(view.tagName,'span');assert.equal(view.className,'tw-card-view');
  const nodes=all(view),stats=nodes.filter(node=>node.className==='tw-card-stat');assert.equal(stats.length,5);
  assert.equal(stats[0].children.at(-1).textContent,'Lv.2');assert.equal(stats[1].children.at(-1).textContent,'—');
- assert.ok(nodes.some(node=>node.src==='/rank.png'));assert.ok(nodes.some(node=>node.src==='/attribute.png'));assert.ok(nodes.some(node=>node.src==='/band.png'));
+ assert.ok(nodes.some(node=>node.className==='tw-card-stat-label'&&node.textContent==='突破'));assert.ok(nodes.some(node=>node.src==='/attribute.png'));assert.ok(nodes.some(node=>node.src==='/band.png'));
  assert.equal(nodes.some(node=>['button','input','select','a'].includes(node.tagName)),false);
  const support=createTeamCardView({...card,kind:'support'},{data:{document},compact:true});assert.equal(all(support).filter(node=>node.className==='tw-card-stat').length,2);
  assert.ok(all(support).some(node=>node.textContent==='养成未记录'));

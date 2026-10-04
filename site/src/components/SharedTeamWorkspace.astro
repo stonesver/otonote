@@ -10,25 +10,50 @@ const en = Astro.props.locale === 'en';
   </dialog>
 </div>
 <script>
+  import {installWorkspaceDismiss} from '../lib/workspace-dismiss.mjs';
   const shell = document.querySelector('[data-team-workspace-shell]');
   if (shell) {
-    let workspace;
+    const panel = shell.querySelector('dialog')!;
+    const launcher = shell.querySelector('[data-team-workspace-open]')!;
+    const body = shell.querySelector('[data-team-workspace-body]')!;
+    let workspace, ready = false, request = 0;
+    const stopLoadingDismiss = installWorkspaceDismiss(panel, launcher, () => { if (!ready) panel.close(); });
+    panel.addEventListener('close', () => {
+      request++;
+      document.body.classList.remove('tw-is-open');
+      launcher.setAttribute('aria-expanded', 'false');
+    });
     const open = async (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined;
+      const currentRequest = ++request;
+      if (!panel.open) {
+        if (matchMedia('(min-width: 1680px)').matches) panel.show(); else panel.showModal();
+        document.body.classList.add('tw-is-open');
+        launcher.setAttribute('aria-expanded', 'true');
+      }
+      if (!ready) body.setAttribute('aria-busy', 'true');
       try {
         workspace ??= import('../lib/shared-team-workspace.mjs').then(m => m.setupSharedTeamWorkspace(shell));
-        await (await workspace).open(detail?.tab, event.type === 'team-workspace:save' ? detail : null);
+        const instance = await workspace;
+        ready = true;
+        stopLoadingDismiss();
+        body.removeAttribute('aria-busy');
+        if (currentRequest === request && panel.open) await instance.open(detail?.tab, event.type === 'team-workspace:save' ? detail : null);
       } catch (error) {
         workspace = null;
+        body.removeAttribute('aria-busy');
         const message = error instanceof Error ? error.message : String(error);
-        const body = shell.querySelector('[data-team-workspace-body]');
-        if(body) body.textContent = document.documentElement.lang === 'en' ? `Could not open: ${message}` : `暂时无法打开：${message}`;
-        const panel = shell.querySelector('dialog'); if(panel && !panel.open)panel.showModal();
+        const en = document.documentElement.lang === 'en';
+        const notice = document.createElement('p'); notice.setAttribute('role', 'alert');
+        notice.textContent = en ? `Could not open: ${message}` : `暂时无法打开：${message}`;
+        const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = en ? 'Try again' : '重新加载';
+        retry.addEventListener('click', () => open(event));
+        body.replaceChildren(notice, retry);
       }
     };
-    shell.querySelector('[data-team-workspace-open]')?.addEventListener('click', open);
+    launcher.addEventListener('click', open);
     document.addEventListener('team-workspace:open', open);
     document.addEventListener('team-workspace:save', open);
-    shell.querySelector('[data-team-workspace-close]')?.addEventListener('click', () => shell.querySelector('dialog')?.close());
+    shell.querySelector('[data-team-workspace-close]')?.addEventListener('click', () => panel.close());
   }
 </script>

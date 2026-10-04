@@ -56,7 +56,7 @@ export function createToolCardPicker({root,getCards,getDraft,getOwned=()=>[],get
     for(const [index,card] of cards.slice(page*18,page*18+18).entries()){
       const b=node('button');b.type='button';b.dataset.cardId=card.id;const reason=conflict(card,target);b.disabled=Boolean(reason);const explanation=typeof reason==='string'?reason:say('已在其他位置使用','Already used in another slot');b.setAttribute('aria-label',(card.displayName??card.shortLabel??card.id)+(b.disabled?' · '+explanation:''));if(b.disabled)b.title=explanation;
       b.setAttribute('aria-pressed',String(draft?.slots?.[target.slot]?.[`${target.kind}CardId`]===card.id));
-      b.append(createTeamCardView(card,{...states.get(card.id),kind:target.kind,locale:en?'en':'zh-CN',data:root.data??{}}));if(b.disabled)b.append(node('small',explanation));
+      b.append(createTeamCardView(card,{...states.get(card.id),kind:target.kind,locale:en?'en':'zh-CN',data:root.data??{},compact:true}));if(b.disabled)b.append(node('small',explanation));
       b.addEventListener('click',()=>{
         onChoose(card,target);
         const slots=getDraft().slots;

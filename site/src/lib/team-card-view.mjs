@@ -45,7 +45,7 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
   const doc=data.document??globalThis.document,en=locale==='en',say=(zh,english)=>en?english:zh;
   const node=(tag,text,cls)=>{const value=doc.createElement(tag);if(text!=null)value.textContent=text;if(cls)value.className=cls;return value;};
   const appendImage=(container,url,alt,fallback)=>{const image=node('img');image.alt=alt;image.loading='lazy';image.addEventListener('error',()=>image.replaceWith(fallback),{once:true});image.src=url;container.append(image);};
-  const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.source=source;
+  const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.source=source;root.title=card.displayName??card.shortLabel??card.id;
   const art=node('span',null,'tw-card-art');
   if(card.imageUrl)appendImage(art,card.imageUrl,'',node('span','—','tw-card-no-art'));
   else art.append(node('span','—','tw-card-no-art'));
@@ -68,7 +68,7 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
     ['skillLevel','演出技能','Live skill'],['gekisouSkillLevel','激奏技能','Gekisou skill']];
   for(const [field,zh,english,icon] of fields){
     const value=Number.isInteger(growth?.[field])?growth[field]:'—',label=say(zh,english),stat=node('span',null,'tw-card-stat');stat.dataset.field=field;stat.title=`${label} ${value}`;
-    if(icon&&data.growthIcons?.[icon])appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',label,'tw-card-stat-label'));
+    if(icon&&data.growthIcons?.[icon]&&!['rank','awake'].includes(field))appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',label,'tw-card-stat-label'));
     stat.append(node('span',field==='level'?`Lv.${value}`:String(value),'tw-card-stat-value'));stats.append(stat);
   }
   body.append(stats);

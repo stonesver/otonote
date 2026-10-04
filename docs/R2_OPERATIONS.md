@@ -72,6 +72,7 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方五条路径的 JSON 
 | 名称 | 值 |
 | --- | --- |
 | `OURNOTES_UPDATE_IMAGE` | 已验证存在的生产镜像，必须固定 `@sha256:` 摘要 |
+| `CONTENT_R2_RUNNER_LABEL` | 可选；缺省 `ubuntu-latest`，容量检查失败时填实际开通的 GitHub 托管大容量 runner 标签 |
 | `R2_GLOBAL_CONFIG_PATH` | 私有配置的根相对路径 |
 | `R2_GLOBAL_STATE_PATHS` | 精确恢复路径的 JSON 数组 |
 | `R2_GLOBAL_DECODER_PROFILE_PATH` | 可选，Global 私有 decoder profile 的根相对路径 |

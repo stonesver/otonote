@@ -35,7 +35,7 @@ jobs:
           ((inputs.region == 'global' && vars.CONTENT_R2_ENABLED_GLOBAL == 'true') ||
            (inputs.region == 'jp' && vars.CONTENT_R2_ENABLED_JP == 'true')))
       )
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 330
     environment: content-r2-production
     concurrency:

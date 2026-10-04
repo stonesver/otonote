@@ -8,9 +8,10 @@ const card={id:'member-card-1',kind:'member',displayName:'Synthetic member',shor
 const actual={level:1,rank:1,awake:1,skillLevel:1,gekisouSkillLevel:1};
 const inventory=()=>({memberCardIds:[card.id],supportCardIds:[],growth:{[card.id]:structuredClone(actual)}});
 const draft=()=>createTeamDraft({slots:[{memberCardId:card.id}],modifiers:{growth:{[card.id]:structuredClone(actual)}}});
-class Element {
- constructor(tag){this.tagName=tag;this.children=[];this.dataset={};this.textContent='';}
- append(...children){this.children.push(...children);}
+class Element extends EventTarget {
+ constructor(tag){super();this.tagName=tag;this.children=[];this.dataset={};this.textContent='';}
+ append(...children){for(const child of children)child.parent=this;this.children.push(...children);}
+ replaceWith(node){const index=this.parent.children.indexOf(this);this.parent.children.splice(index,1,node);node.parent=this.parent;}
 }
 const document={createElement:tag=>new Element(tag)};
 const all=node=>[node,...node.children.flatMap(child=>typeof child==='string'?[]:all(child))];
@@ -47,4 +48,20 @@ test('only selected training is shown; dormant targets remain actual even when a
  let result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.equal(result.source,'training');assert.equal(result.growth.skillLevel,5);
  delete d.modifiers.planningResult.selectedTrainingCardIds;result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.equal(result.source,'training');
  d.modifiers.planningScenario.plan.allowedCardIds=[];assert.equal(resolveTeamCardGrowth({card,draft:d,inventory:owned,rules}).source,'actual');assert.deepEqual(owned.growth[card.id],actual);
+});
+
+test('failed art keeps a placeholder and failed game icons retain labels and numeric values',()=>{
+ const view=createTeamCardView(card,{growth:{level:2,rank:3},data:{document,growthIcons:{memberLevel:'/missing-level.png'},filterVisualOptions:{attribute:[{value:'1',label:'Red',icon:'/missing-attribute.png'}]}}});
+ const images=all(view).filter(node=>node.tagName==='img');assert.equal(images.length,3);
+ for(const image of images)image.dispatchEvent(new Event('error'));
+ const nodes=all(view);assert.equal(nodes.some(node=>node.tagName==='img'),false);
+ assert.ok(nodes.some(node=>node.className==='tw-card-no-art'&&node.textContent==='—'));
+ assert.ok(nodes.some(node=>node.className==='tw-card-stat-label'&&node.textContent==='等级'));
+ assert.ok(nodes.some(node=>node.textContent==='Lv.2'));assert.ok(nodes.some(node=>node.textContent==='属性 Red'));
+});
+test('unscoped editor input displays supplied growth without rewriting actual records; owned remains actual',()=>{
+ const d=draft(),owned=inventory();d.modifiers.growth[card.id].level=2;
+ let result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.equal(result.growth.level,2);assert.equal(result.source,'selected');assert.equal(owned.growth[card.id].level,1);
+ d.modifiers.growth[card.id]={};result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.deepEqual(result,{growth:{},source:'unknown'});
+ d.modifiers.planningScenario={scope:'owned'};result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.equal(result.growth.level,1);assert.equal(result.source,'actual');
 });

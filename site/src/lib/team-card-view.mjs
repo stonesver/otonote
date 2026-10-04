@@ -19,7 +19,8 @@ export function resolveTeamCardGrowth({card,draft,inventory,rules}) {
   if(reference)return {growth:copy(supplied),source:'reference'};
   if(scenario?.scope==='owned'&&!training&&!actual)return {growth:{},source:'unknown'};
   const explicitlySelected=scenario?.scope==='selected'&&!training;
-  const baseline=explicitlySelected?(supplied??actual):(actual??previous?.actualGrowth?.[id]??supplied);
+  const unsavedInput=!scenario&&supplied!==undefined;
+  const baseline=explicitlySelected||unsavedInput?(supplied??actual):(actual??previous?.actualGrowth?.[id]??supplied);
   if(training&&rules){
     const selected=previous?.selectedTrainingCardIds;
     const active=selected!==undefined?selected.includes(id):Object.hasOwn(scenario.plan.targets??{},id);
@@ -35,16 +36,18 @@ export function resolveTeamCardGrowth({card,draft,inventory,rules}) {
     }
   }
   if(!baseline||!Object.keys(baseline).length)return {growth:{},source:'unknown'};
-  return {growth:copy(baseline),source:explicitlySelected&&supplied?'selected':actual?'actual':supplied||previous?.actualGrowth?.[id]?'selected':'unknown'};
+  const differsFromActual=unsavedInput&&Object.keys({...actual,...supplied}).some(field=>actual?.[field]!==supplied?.[field]);
+  return {growth:copy(baseline),source:explicitlySelected&&supplied||differsFromActual?'selected':actual?'actual':supplied||previous?.actualGrowth?.[id]?'selected':'unknown'};
 }
 
 /** Noninteractive card content safe to place inside a caller-owned button or list item. */
 export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN',data={},compact=false,source='unknown'}={}) {
   const doc=data.document??globalThis.document,en=locale==='en',say=(zh,english)=>en?english:zh;
   const node=(tag,text,cls)=>{const value=doc.createElement(tag);if(text!=null)value.textContent=text;if(cls)value.className=cls;return value;};
+  const appendImage=(container,url,alt,fallback)=>{const image=node('img');image.alt=alt;image.loading='lazy';image.addEventListener('error',()=>image.replaceWith(fallback),{once:true});image.src=url;container.append(image);};
   const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.source=source;
   const art=node('span',null,'tw-card-art');
-  if(card.imageUrl){const image=node('img');image.src=card.imageUrl;image.alt='';image.loading='lazy';art.append(image);}
+  if(card.imageUrl)appendImage(art,card.imageUrl,'',node('span','—','tw-card-no-art'));
   else art.append(node('span','—','tw-card-no-art'));
   root.append(art);
   const body=node('span',null,'tw-card-body');body.append(node('span',card.shortLabel??card.displayName??card.id,'tw-card-name'));
@@ -53,8 +56,9 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
   for(const group of ['attribute','band','rarity'])for(const value of facets[group]){
     const option=options[group].find(row=>row.value===value),label=option?.label??value;
     const chip=node('span',null,`tw-card-${group}`);chip.title=label;
-    if(option?.icon){const image=node('img');image.src=option.icon;image.alt=label;image.loading='lazy';chip.append(image);}
-    else chip.textContent=group==='attribute'?say(`属性 ${label}`,`Attribute ${label}`):group==='band'?say(`乐队 ${label}`,`Band ${label}`):label;
+    const fallback=group==='attribute'?say(`属性 ${label}`,`Attribute ${label}`):group==='band'?say(`乐队 ${label}`,`Band ${label}`):label;
+    if(option?.icon)appendImage(chip,option.icon,label,node('span',fallback));
+    else chip.textContent=fallback;
     meta.append(chip);
   }
   body.append(meta);
@@ -64,7 +68,7 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
     ['skillLevel','演出技能','Live skill'],['gekisouSkillLevel','激奏技能','Gekisou skill']];
   for(const [field,zh,english,icon] of fields){
     const value=Number.isInteger(growth?.[field])?growth[field]:'—',label=say(zh,english),stat=node('span',null,'tw-card-stat');stat.dataset.field=field;stat.title=`${label} ${value}`;
-    if(icon&&data.growthIcons?.[icon]){const image=node('img');image.src=data.growthIcons[icon];image.alt=label;image.loading='lazy';stat.append(image);}else stat.append(node('span',label,'tw-card-stat-label'));
+    if(icon&&data.growthIcons?.[icon])appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',label,'tw-card-stat-label'));
     stat.append(node('span',field==='level'?`Lv.${value}`:String(value),'tw-card-stat-value'));stats.append(stat);
   }
   body.append(stats);

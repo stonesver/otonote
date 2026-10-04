@@ -12,3 +12,13 @@
 算法版本由 `scoring-rules/model-version.mjs` 声明；规则文件另有 `ruleSetVersion` 和 `sourceReleaseId`。内容清单和排行缓存指纹覆盖实际共享实现。目录迁移没有改变算法版本或数值行为。
 
 离线边界验证：`node --test site/tests/shared-scoring-package.test.mjs`。现有计分、原生回放和 Worker 测试继续通过网站兼容入口验证同一份实现。
+
+## 发挥与养成场景
+
+`performance-scenarios.mjs` 规范化有版本的原始操作条件；`performance-scenario-calculator.mjs` 将同一批样本用于普通或激奏。玩家样本、技能顺序、LUCK 随机和对手条件分别记录。明确判定不能反推出原始时机；参考输入不等于实机回放。
+
+`formal-performance-state.mjs` 是普通技能生命条件、消耗与转换的共用状态。激奏任务、普通连击和结算保持各自语义，COMBO 排名使用最大任务连击。活动适配器在同一演出流程中作用于其确认环节，奖励换算仍独立。证据及边界见[机制审计](../../docs/plans/2026-10-04-performance-mechanism-evidence.md)。
+
+`growth-scenarios.mjs` 解析持有、实际、参考与目标养成，先生成满足培养数量的变体，再交给候选搜索。保存目标不会写入个人实际卡库。搜索、Worker 和展示仍在网站层，核心模块不依赖 DOM 或个人存储。
+
+新增离线场景验证：`node --test site/tests/performance-scenarios.test.mjs site/tests/growth-scenarios.test.mjs site/tests/team-planning-integration.test.mjs`。数据基线和算法版本分开绑定，更新情景或规则必须重算。

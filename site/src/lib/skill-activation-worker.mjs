@@ -4,6 +4,7 @@ import {createFormalSkillResolver} from './scoring-rules/formal-skills.mjs';
 import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
 import {calculateSongSkillReplay} from './song-skill-replay.mjs';
 import {checkedJson} from '../runtime/content.mjs';
+import {createScenarioSongCalculator} from '../../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
 
 self.addEventListener('message', async ({data}) => {
   try {
@@ -37,7 +38,9 @@ self.addEventListener('message', async ({data}) => {
       draft.modifiers.event = {id:eventId, sourceReleaseId:rules.sourceReleaseId};
       eventAdapters = [model.challengeAdapter(rules)];
     } else delete draft.modifiers.event;
-    const calculator = mode === 'gekisou' ? createGekisouSongCalculator(rules,chart,{scenario}) : createFormalSongCalculator(rules,chart,{eventAdapters});
+    const performanceScenario = draft.modifiers?.performanceScenario;
+    const calculator = performanceScenario ? createScenarioSongCalculator(rules,chart,{mode:mode==='gekisou'?'gekisou':'ordinary',performanceScenario,scenario,eventAdapters})
+      : mode === 'gekisou' ? createGekisouSongCalculator(rules,chart,{scenario,eventAdapters}) : createFormalSongCalculator(rules,chart,{eventAdapters});
     self.postMessage({result:calculator.calculate(draft,{includeTrace:true})});
   } catch (error) { self.postMessage({error:String(error.message ?? error)}); }
 });

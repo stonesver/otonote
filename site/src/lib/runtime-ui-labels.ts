@@ -71,7 +71,7 @@ export type RuntimeUiLabels = {
       growthUnavailable: string; leader: string; slot: string;
       teamReady: string; teamIncomplete: string; chooseDifficulty: string;
       readingChart: string; workerFailed: string; resultTitle: string;
-      resultAssumption: string; chooseChart: string; completeTeam: string;
+      resultAssumption: string; savedPerformanceAssumption: string; referenceGrowthAssumption: string; chooseChart: string; completeTeam: string;
       calculating: string; calculatingDetail: string; replayTitle: string;
       replayAssumption: string; replayScenario: string; rankingLink: string;
       replayBreakdown: string; replayOrder: string; replayState: string;
@@ -265,6 +265,8 @@ const zhCN: RuntimeUiLabels = {
       readingChart: "读取谱面…",
       workerFailed: "后台计算失败，请重新选择模式再试。",
       resultTitle: "当前歌曲期望分数",
+      referenceGrowthAssumption: "这份队伍含参考或缺失的养成，分数不能当作当前实际可用成绩。",
+      savedPerformanceAssumption: "使用保存的发挥条件；可在下方查看本次计算条件。",
       resultAssumption: "默认全 Perfect（AP）、满生命。不同技能顺序会带来分数变化，以下显示参考平均分和范围。",
       chooseChart: "请选择歌曲和难度。",
       completeTeam: "还没有完整队伍。先自动配队，或在编队页选满 5 张成员和 5 张留影。",
@@ -468,6 +470,8 @@ const en: RuntimeUiLabels = {
       readingChart: "Loading chart…",
       workerFailed: "Background calculation failed. Select a mode again to retry.",
       resultTitle: "Expected song score",
+      referenceGrowthAssumption: "This team contains reference or missing growth records; its score does not describe a confirmed current team.",
+      savedPerformanceAssumption: "Using the saved performance scenario; see calculation conditions below.",
       resultAssumption: "Assumes all Perfect (AP) and full life. Skill order changes the score; the mean and range below are estimates.",
       chooseChart: "Choose a song and difficulty.",
       completeTeam: "Your team is incomplete. Use team recommendations or select 5 members and 5 snaps in Team Builder.",

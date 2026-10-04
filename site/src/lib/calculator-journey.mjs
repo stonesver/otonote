@@ -1,6 +1,9 @@
+import {openTeamWorkspace} from './shared-team-context.mjs';
+import {planningUiText} from './team-planning-translations.mjs';
 /** Bind the single current layout; the template owns all controls and panels. */
 export function setupCalculatorJourney(workbench) {
   const q = selector => workbench.querySelector(selector);
+  const ui=text=>planningUiText(text,workbench.data.locale);
   const root = q('.calculator-journey');
   if (!root) return null;
   const events = new AbortController();
@@ -11,26 +14,24 @@ export function setupCalculatorJourney(workbench) {
   const choices = [...root.querySelectorAll('[data-choices]')].map(group => ({
     select: q(`[data-${group.dataset.choices}]`), buttons: [...group.querySelectorAll('[data-choice]')]
   }));
-  let savedMode = false;
+  let savedMode = false, manualRequested = false;
   for (const {select, buttons} of choices) for (const button of buttons) {
     listen(button, 'click', () => {
       select.value = button.dataset.choice;
       select.dispatchEvent(new Event('change', {bubbles: true}));
-      if (select === q('[data-search-scope]') && select.value === 'owned') q('[data-inventory-editor]').open = true;
+      if (select === q('[data-search-scope]') && select.value === 'owned') openTeamWorkspace('inventory');
     });
   }
   function refresh() {
     const state = workbench.optimizerState ?? {};
     q('.journey-context').textContent = state.songReady
-      ? `${q('[data-song-selection]').textContent} · ${q(savedMode ? '[data-preset-mode]' : '[data-pairing-mode]').value === 'gekisou' ? '激奏演出' : '普通自由演出'}`
-      : '先选歌，再用你的卡库找一套配队。';
+      ? `${q('[data-song-selection]').textContent} · ${q(savedMode ? '[data-preset-mode]' : '[data-pairing-mode]').value === 'gekisou' ? ui('激奏演出') : ui('普通自由演出')}`
+      : ui('先选歌，再选择卡片和这次想比较的条件。');
     for (const {select, buttons} of choices) for (const button of buttons) {
       button.setAttribute('aria-pressed', String(select.value === button.dataset.choice));
     }
     const scope = q('[data-search-scope]').value;
-    q('[data-inventory-editor]').hidden = scope !== 'owned';
-    manual.hidden = scope !== 'selected';
-    if (scope === 'selected') manual.open = true;
+    manual.hidden = true;
     savedPanel.hidden = !savedMode;
     panels.forEach(panel => { panel.hidden = savedMode; });
     automatic.setAttribute('aria-pressed', String(!savedMode));
@@ -44,15 +45,17 @@ export function setupCalculatorJourney(workbench) {
   }
   listen(automatic, 'click', () => { savedMode = false; refresh(); });
   listen(saved, 'click', () => { savedMode = true; refresh(); });
-  listen(q('[data-team-slots]'), 'click', () => { q('.journey-card-picker').open = true; });
+  listen(q('[data-team-slots]'), 'click', () => openTeamWorkspace());
   listen(workbench, 'optimizer-ui-state', refresh);
   listen(workbench, 'change', refresh);
-  listen(workbench, 'calculator-edit-team', () => editInventory('selected'));
-  listen(workbench, 'calculator-open-inventory', () => editInventory('owned'));
+  listen(workbench, 'calculator-edit-team', () => {
+    openTeamWorkspace();
+  });
+  listen(workbench, 'calculator-open-inventory', () => openTeamWorkspace('inventory'));
   listen(workbench, 'calculator-use-inventory', () => {
     savedMode = false; refresh(); panels[2].scrollIntoView({block: 'start', behavior: 'auto'});
   });
-  q('[data-search-scope]').value = workbench.draft.slots.every(slot => slot.memberCardId && slot.supportCardId) ? 'selected' : 'owned';
+  if (!workbench.planningScenarios) q('[data-search-scope]').value = workbench.draft.slots.every(slot => slot.memberCardId && slot.supportCardId) ? 'selected' : (workbench.cardInventory?.memberCardIds?.length ? 'owned' : 'theoretical');
   q('[data-search-scope]').dispatchEvent(new Event('change', {bubbles: true}));
   q('[data-search-effort]').value = 'practical';
   q('[data-search-effort]').dispatchEvent(new Event('change', {bubbles: true}));

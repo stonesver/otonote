@@ -16,6 +16,14 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
   };
   const manager = createInventoryManager(rules);
   const key = `ournotes:personal-growth:${context.region}:${context.serverId ?? 'unselected'}`;
+  const notify = profile => {
+    // Storage events only reach other documents. Tools in this document need the same invalidation signal.
+    try {
+      if (typeof globalThis.window?.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') {
+        globalThis.window.dispatchEvent(new CustomEvent('personal-growth:changed', {detail:{key, profile:structuredClone(profile), revision:storage.getItem(key)}}));
+      }
+    } catch { /* Notification errors must not turn a successful durable save into a reported failure. */ }
+  };
   const checkServer = () => assertAccountServer(context.serverId, context);
   const inventory = value => {
     if (!object(value) || !Array.isArray(value.memberCardIds) || !Array.isArray(value.supportCardIds)) throw Error('卡库格式无效');
@@ -76,6 +84,7 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
   function save(value) {
     const next = validate(value);
     storage.setItem(key, JSON.stringify(next)); // Single atomic write; legacy backups are never deleted.
+    notify(next);
     return next;
   }
   function fromImport(value) {
@@ -93,7 +102,12 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
   }
   return {key, empty, read, save, validate, fromImport,
     checkpoint() { return storage.getItem(key); },
-    restore(checkpoint) { checkServer(); if(checkpoint===null)storage.removeItem(key);else storage.setItem(key,checkpoint); },
+    restore(checkpoint) {
+      checkServer(); if(checkpoint===null)storage.removeItem(key);else storage.setItem(key,checkpoint);
+      // Restoring a previously corrupt backup is supported; consumers must re-read and show the error.
+      let profile=null;try {profile=read();}catch {}
+      notify(profile);
+    },
     saveInventory(value) { return save({...read() ?? empty(), inventory:value}); },
     saveAccount(value) { return save({...read() ?? empty(), account:account(value)}); }
   };

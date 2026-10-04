@@ -7,6 +7,7 @@ import RegionLocaleSwitcher from "../components/RegionLocaleSwitcher.astro";
 import UnifiedSearch from "../components/UnifiedSearch.astro";
 import TransitionPreview from "../components/TransitionPreview.astro";
 import SiteFooter from "../components/SiteFooter.astro";
+import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
 import pageFirstRenderScript from "../lib/page-first-render.mjs?raw";
 import { activeReleaseContext } from "../lib/release-context";
 import { logicalPath, siteHref } from "../lib/site-context";
@@ -251,6 +252,7 @@ const htmlLanguage = activeReleaseContext.locale;
       <span data-unavailable-path></span>
     </aside>
 
+    {pathname.startsWith("/tools/") && <SharedTeamWorkspace locale={activeReleaseContext.locale} />}
     <main id="main-content" data-page-kind={pathname === "/" ? "home" : "module"} tabindex="-1">
       {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
       <slot />

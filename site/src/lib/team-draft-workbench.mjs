@@ -1,4 +1,5 @@
-import {setupCalculatorCardPicker} from './calculator-card-picker.mjs';
+import {createPersonalGrowthStore,applyPersonalGrowth} from './personal-growth-store.mjs';
+import {toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged} from './shared-team-context.mjs';
 import {skillPeek,destroySkillPopover} from './calculator-card-ui.mjs';
 import {setupCalculatorSongPicker} from './calculator-song-picker.mjs';
 import {setupCalculatorJourney} from './calculator-journey.mjs';
@@ -34,16 +35,24 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
       }
       const parsed = parseTeamDraftSearch(window.location.search, this.known);
       this.draft = parsed.draft;
+      try{applyPersonalGrowth(this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read());}catch(error){this.profileError=error.message;}
       this.parseIssues = parsed.issues.filter((issue) => issue.code === "invalid_modifiers");
       this.activeSlot = 0;
       this.pickerKind = "member";
       this.productionPower = setupProductionPower(this);
-      this.cardPicker=setupCalculatorCardPicker(this);
+
       this.bindEvents();
       this.songPicker=setupCalculatorSongPicker(this,{getSelection:()=>this.draft,onSelect:selection=>{Object.assign(this.draft,selection);this.commit();}});
       this.journey=setupCalculatorJourney(this);
       this.quickOptions=setupQuickOptions(this);
       this.render();
+      this.teamWorkspaceCleanup = registerToolTeamContext(this, {
+        data:this.data, rules:this.data.formalRules, label:toolTeamLabel('deck',this.data.locale),
+        getDraft:()=>this.draft, getRestrictions:()=>({}),
+        invalidate:()=>this.productionPower?.changed(),
+        applyDraft:draft=>{this.draft=createTeamDraft(draft);this.planningScenarios?.restore(this.draft.modifiers);this.commit();},
+        onInventoryChange:()=>this.planningScenarios?.refreshInventory()
+      });
     }
 
     bindEvents() {
@@ -170,6 +179,7 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
       const query = serializeTeamDraftSearch(this.draft);
       window.history.replaceState(null, "", `${window.location.pathname}${query}${window.location.hash}`);
       this.render();
+      notifyToolTeamChanged(this.teamWorkspaceContext);
     }
 
     render() {
@@ -182,7 +192,7 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
       this.quickOptions?.sync();
     }
 
-    disconnectedCallback() { destroySkillPopover(this); this.productionPower?.disconnect(); this.journey?.disconnect(); this.quickOptions?.destroy(); }
+    disconnectedCallback() { this.teamWorkspaceCleanup?.(); destroySkillPopover(this); this.productionPower?.disconnect(); this.journey?.disconnect(); this.quickOptions?.destroy(); }
   }
 
   if (!customElements.get("team-draft-workbench")) {

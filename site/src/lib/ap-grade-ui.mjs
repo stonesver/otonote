@@ -1,9 +1,8 @@
 import {skillActivation} from './skill-activation-view.mjs';
-import {createToolCardPicker} from './tool-card-picker.mjs';
+import {registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createTeamDraft,parseTeamDraftSearch,serializeTeamDraftSearch} from './team-draft.mjs';
 import {createPersonalGrowthStore,applyPersonalGrowth} from './personal-growth-store.mjs';
-import {scopedStorageKey,assertAccountServer} from './game-servers.mjs';
 import {preparePresetDraft} from './preset-portfolio.mjs';
 import {eventSongCandidates} from './event-song-ranking.mjs';
 import {applyAPBasis,eventToolSearch,AP_BASES} from './ap-grade.mjs';
@@ -22,31 +21,21 @@ class APGradeTool extends HTMLElement{
   if([...this.q('event').options].some(o=>o.value===params.get('eventId')))this.q('event').value=params.get('eventId');
   if(AP_BASES.includes(params.get('apBasis')))this.q('basis').value=params.get('apBasis');
   this.eventContext={boost:params.get('boost')??1,cost:params.get('cost')??200};
-  this.q('owned').checked=!!this.profile;
-  this.presets=[];
-  try{
-   const raw=localStorage.getItem(scopedStorageKey('presets',d.rules.sourceReleaseId));
-   if(raw){const saved=JSON.parse(raw);assertAccountServer(saved.serverId);
-    if(saved.schemaVersion!==1||saved.sourceReleaseId!==d.rules.sourceReleaseId||!Array.isArray(saved.candidates)||saved.candidates.length>100)throw Error('已保存队伍版本不一致');
-    for(const c of saved.candidates){if(typeof c.name!=='string'||c.sourceReleaseId!==d.rules.sourceReleaseId)continue;preparePresetDraft(d.rules,c.draft,{maximizeTrainable:false});this.presets.push(c);}
-   }
-   for(const [i,c] of this.presets.entries()){const o=el('option',c.name);o.value=String(i);this.q('presets').append(o);}
-  }catch(e){this.q('status').textContent=`已保存队伍未载入：${e.message}`;}
-  this.q('presets').disabled=!this.presets.length;
-  this.q('presets').addEventListener('change',()=>{if(this.q('presets').value==='')return;this.draft=createTeamDraft(this.presets[Number(this.q('presets').value)].draft);applyPersonalGrowth(this.draft,this.profile);this.invalidate();this.renderTeam();});
-  this.q('owned').addEventListener('change',()=>this.renderTeam());
   for(const k of ['mode','event','difficulty','level','eco'])this.q(k).addEventListener('change',()=>this.invalidate());
   for(const k of ['basis','sort'])this.q(k).addEventListener('change',()=>{this.page=0;this.renderRows();});
   this.q('query').addEventListener('input',()=>{this.page=0;this.renderRows();});
   this.q('run').addEventListener('click',()=>this.run());this.q('cancel').addEventListener('click',()=>{this.stop();this.q('status').textContent='已停止判档计算。';});
   for(const [k,delta] of [['prev',-1],['next',1]])this.q(k).addEventListener('click',()=>{this.page+=delta;this.renderRows();});
-  this.cardPicker=createToolCardPicker({root:this,getCards:kind=>d[`${kind}Cards`],getDraft:()=>this.draft,getOwned:kind=>this.profile?.inventory[`${kind}CardIds`]??[],
-   conflict:(card,{kind,slot})=>{const used=this.draft.slots.filter((_,i)=>i!==slot).map(s=>s[`${kind}CardId`]);if(kind==='support')return used.includes(card.id);const character=id=>d.rules.tables.MemberCard.find(c=>`member-card-${c._id}`===id||c._id===Number(id?.split('-').at(-1)))?._characterID;return used.filter(Boolean).some(id=>character(id)===character(card.id));},
-   onChoose:(card,{kind,slot})=>{this.draft.slots[slot][`${kind}CardId`]=card.id;applyPersonalGrowth(this.draft,this.profile);this.invalidate();this.renderTeam();}});
   this.shortcuts=setupQuickOptions(this);
   this.renderTeam();this.renderRows();this.q('event-wrap').hidden=this.q('mode').value!=='challenge';
+  this.teamWorkspaceCleanup=registerToolTeamContext(this,{
+   data:this.data,rules:this.data.rules,label:'AP 达档',getDraft:()=>this.draft,
+   getRestrictions:()=>({}),invalidate:()=>this.invalidate(),
+   applyDraft:draft=>{this.draft=createTeamDraft(draft);this.renderTeam();},
+   onInventoryChange:profile=>{this.profile=profile;}
+  });
  }
- disconnectedCallback(){this.stop();this.shortcuts?.destroy();}
+ disconnectedCallback(){this.teamWorkspaceCleanup?.();this.stop();this.shortcuts?.destroy();}
  stop(){this.worker?.terminate();this.worker=null;this.q('cancel').hidden=true;this.q('run').disabled=false;this.removeAttribute('aria-busy');}
  invalidate(){this.stop();this.rows=null;this.page=0;this.q('failures').replaceChildren();this.q('status').textContent='队伍或谱面范围改变，请重新计算。';this.q('event-wrap').hidden=this.q('mode').value!=='challenge';this.renderRows();}
  renderTeam(){
@@ -58,16 +47,17 @@ class APGradeTool extends HTMLElement{
     const preview=this.data[`${kind}Cards`].find(c=>c.id===id),button=el('button');button.type='button';button.className='ap-card-choice';button.dataset.chooseSlot=String(i);button.dataset.chooseKind=kind;
     button.setAttribute('aria-label',`位置 ${i+1} ${kind==='member'?'成员':'留影'}：${preview?.displayName??'未选择'}`);
     if(preview?.imageUrl){const img=el('img');img.src=preview.imageUrl;img.alt='';img.loading='lazy';button.append(img);}
-    button.append(el('span',preview?.displayName??`＋ 选择${kind==='member'?'成员':'留影'}`));button.addEventListener('click',()=>this.cardPicker.open(kind,i));
+    button.append(el('span',preview?.displayName??`＋ 选择${kind==='member'?'成员':'留影'}`));button.dataset.openTeamWorkspace='teams';
     const g=this.draft.modifiers.growth?.[id]??{},meta=el('span',id?`Lv.${g.level??'默认上限'} · 突破 ${g.rank??1}${kind==='member'?` · 技能 ${g.skillLevel??1}`:''}`:'');meta.className='ap-card-meta';label.append(button,meta);row.append(label);
    }root.append(row);
   }
-  this.q('growth').textContent=this.profile?'已读取本区服保存的卡库与账号加成。上方显示此次计算采用的等级、突破和技能。':'尚未导入养成；未设置的卡片使用计算器默认值。建议先导入养成，或在配队页完善设置。';
-  this.q('edit').href=toolRoute('/tools/deck-builder/',location.pathname)+serializeTeamDraftSearch(this.draft);
+  this.q('growth').textContent=this.profile?'已读取本区服保存的卡库与账号加成。上方显示此次计算采用的等级、突破和技能。':'尚未导入养成；未设置的卡片使用计算器默认值。可在“卡库与队伍”中导入或补全养成。';
+  notifyToolTeamChanged(this.teamWorkspaceContext);
  }
  run(){
   if(this.worker)return;
   try{
+   assertToolTeamCompatible(this.teamWorkspaceContext);
    preparePresetDraft(this.data.rules,this.draft,{maximizeTrainable:false});
    const mode=this.q('mode').value,eventId=Number(this.q('event').value),level=Number(this.q('level').value);
    if(!Number.isInteger(level)||level<1||level>40)throw Error('最高等级需为 1–40 的整数');

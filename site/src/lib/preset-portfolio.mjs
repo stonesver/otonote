@@ -3,6 +3,34 @@ import { createFormalSongCalculator } from './scoring-rules/formal-song-score.mj
 import { createGekisouSongCalculator, normalizeGekisouScenario } from './scoring-rules/gekisou-song-score.mjs';
 import { resolveGekisouSkills } from './scoring-rules/gekisou-rules.mjs';
 import { stableSnapshotHash } from './scoring-engine.mjs';
+import { createScenarioSongCalculator } from '../../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
+import { normalizePerformanceScenario } from '../../../packages/scoring/scoring-rules/performance-scenarios.mjs';
+import { resolveGrowthScenario, prepareGrowthCandidate } from '../../../packages/scoring/scoring-rules/growth-scenarios.mjs';
+
+/** Refresh actual records independently of the saved cultivation goal. */
+export function refreshPlanningPreset(rules, draft, inventory) {
+  if (!draft.modifiers?.planningScenario) {
+    const incomplete = draft.slots.some(slot => ['member','support'].some(kind => {
+      const value = draft.modifiers?.growth?.[slot[`${kind}CardId`]] ?? {};
+      return (kind === 'member' ? ['level','rank','awake','skillLevel','gekisouSkillLevel'] : ['level','rank']).some(field => value[field] == null);
+    }));
+    const prepared = preparePresetDraft(rules,draft,{maximizeTrainable:false});
+    // Defaults can calculate a reference, but must not become actual records on save.
+    if (incomplete) prepared.modifiers.growth = structuredClone(draft.modifiers?.growth ?? {});
+    return {draft:prepared,planning:incomplete ? {kind:'reference',missingActual:true,actualTeamAvailable:false,trainedCardCount:0,trainingCountComplete:false,legacyReference:true} : null};
+  }
+  const settings = draft.modifiers.planningScenario;
+  const resolved = resolveGrowthScenario(rules,draft,{...settings,inventory,
+    // Saved owned plans can still be inspected offline from their exact cards.
+    ...(settings.scope==='owned' && !inventory ? {scope:'selected',selectedCardIds:{memberCardIds:draft.slots.map(s=>s.memberCardId),supportCardIds:draft.slots.map(s=>s.supportCardId)}} : {})});
+  const trainedCardIds=draft.modifiers.planningResult?.selectedTrainingCardIds??draft.modifiers.planningResult?.changedCards?.map(c=>c.id)??[];
+  const prepared=prepareGrowthCandidate(rules,resolved,draft,{trainedCardIds});
+  prepared.targetDraft.modifiers.planningResult.selectedTrainingCardIds=trainedCardIds;
+  const c=prepared.comparison;
+  const hypothetical = ['reference','trial'].includes(settings.scope);
+  return {draft:prepared.targetDraft,planning:{kind:hypothetical?settings.scope:c.trainedCardCount?'training':c.actualTeamAvailable?'current':'reference',
+    trainedCardCount:hypothetical?0:c.trainedCardCount,trainingCountComplete:!hypothetical&&c.trainingCountComplete,changes:c.changedCards,actualTeamAvailable:c.actualTeamAvailable,missingActual:!c.actualTeamAvailable}};
+}
 
 export function preparePresetDraft(rules, draft, { maximizeTrainable = true } = {}) {
   const result = structuredClone(draft), calculator = createFormationCalculator(rules);
@@ -105,32 +133,36 @@ export function comparePresetReplacement(matrix, selectedIds, beforeId, afterId)
     improvedSongs: rows.filter(r => r.delta > 0).length, worsenedSongs: rows.filter(r => r.delta < 0).length };
 }
 
-export async function evaluatePresetPool({ rules, candidates, songs, mode = 'gekisou', scenario,
+export async function evaluatePresetPool({ rules, candidates, songs, mode = 'gekisou', scenario, performanceScenario, inventory,
   limit = 3, maximizeTrainable = true, maxWindowCards = 1 }, { onProgress, yieldControl = async () => {} } = {}) {
   if (!['ordinary', 'gekisou'].includes(mode)) throw new Error('请选择普通或激奏模式');
   const normalizedScenario = mode === 'gekisou' ? normalizeGekisouScenario(scenario) : null;
-  if (![0, 1].includes(maxWindowCards)) throw new Error('判卡上限只能为 0 或 1');
+  if (!Number.isInteger(maxWindowCards)||maxWindowCards<0||maxWindowCards>5) throw new Error('扩窗卡上限应为 0–5');
+  const performance = performanceScenario ? normalizePerformanceScenario(performanceScenario) : null;
   if (!Array.isArray(candidates) || !candidates.length || candidates.length > 100) throw new Error('请准备 1–100 支候选预设');
   if (!Array.isArray(songs) || !songs.length) throw new Error('曲池不能为空');
   const ids = new Set(), omitted = [];
   const prepared = candidates.flatMap(c => {
     if (typeof c.id !== 'string' || !c.id || ids.has(c.id)) throw new Error('预设 ID 无效或重复'); ids.add(c.id);
     if (c.sourceReleaseId !== rules.sourceReleaseId) throw new Error(`${c.name}: 预设版本不一致`);
-    const draft = preparePresetDraft(rules, c.draft, { maximizeTrainable });
+    const refreshed = refreshPlanningPreset(rules,c.draft,inventory);
+    const draft = c.draft.modifiers?.planningScenario ? refreshed.draft : preparePresetDraft(rules,c.draft,{maximizeTrainable});
     const windowCards = presetWindowCardCount(rules, draft);
     if (mode === 'gekisou' && windowCards > maxWindowCards) { omitted.push({ id: c.id, reason: `含 ${windowCards} 张扩窗卡，超过上限` }); return []; }
-    return [{ ...c, draft, windowCards }];
+    return [{ ...c, draft, windowCards, planning:refreshed?.planning??null }];
   });
   if (!prepared.length) throw new Error('没有符合判卡上限的预设');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('保留队伍数无效');
   const seen = new Set(), summaries = [], scores = [], warnings = new Set();
+  for (const candidate of prepared) if (candidate.planning?.legacyReference) warnings.add(`${candidate.name}：旧预设没有完整养成记录，缺失项采用计算默认参考值；请补齐后再当作实际队伍比较。`);
   for (const [s, song] of songs.entries()) {
     const chart = song.chart, weight = song.weight ?? 1;
     if (!chart || chart.trackId !== song.trackId || chart.sourceReleaseId !== rules.sourceReleaseId) throw new Error('曲池谱面缺失或版本不一致');
     if (!Number.isFinite(weight) || weight <= 0) throw new Error('曲池权重必须为正数');
     const key = `${chart.trackId}:${chart.difficulty}`;
     if (seen.has(key)) throw new Error('曲池包含重复歌曲与难度'); seen.add(key);
-    const calculator = mode === 'gekisou' ? createGekisouSongCalculator(rules, chart, { scenario: normalizedScenario }) : createFormalSongCalculator(rules, chart);
+    const calculator = performance ? createScenarioSongCalculator(rules,chart,{mode,scenario:normalizedScenario,performanceScenario:performance})
+      : mode === 'gekisou' ? createGekisouSongCalculator(rules, chart, { scenario: normalizedScenario }) : createFormalSongCalculator(rules, chart);
     const master = rules.tables.LiveMusic.find(m => `music-${m._id}` === song.trackId);
     if (!master) throw new Error('曲池歌曲不存在');
     summaries.push({ trackId: chart.trackId, difficulty: chart.difficulty, weight, title: song.title ?? chart.trackId,
@@ -149,9 +181,9 @@ export async function evaluatePresetPool({ rules, candidates, songs, mode = 'gek
   }
   const matrix = { candidates: prepared, songs: summaries, scores };
   return { schemaVersion: 1, sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
-    inputHash: stableSnapshotHash({ rules: stableSnapshotHash(rules), candidates: prepared, songs, mode, scenario: normalizedScenario, limit, maximizeTrainable, maxWindowCards }),
-    mode, scenario: normalizedScenario, maximizeTrainable, maxWindowCards, matrix, omitted,
+    inputHash: stableSnapshotHash({ rules: stableSnapshotHash(rules), candidates: prepared, songs, mode, scenario: normalizedScenario, performance,limit, maximizeTrainable, maxWindowCards }),
+    mode, scenario: normalizedScenario, performanceScenario:performance,maximizeTrainable, maxWindowCards, matrix, omitted,
     portfolio: selectPresetPortfolio(matrix, Math.min(limit, prepared.length)),
     warnings: [...(songs.length > 1 ? ['默认等权是比较条件，不代表服务器抽选概率。', '多曲推荐采用贪心覆盖，不保证全卡库最优。'] : ['仅比较已保存的候选队伍，不保证全卡库最优。']),
-      '按 AP 模拟；FC 中的非 PERFECT 判定尚未逐音符输入。', ...warnings] };
+      performance ? '所有队伍使用相同的参考发挥样本；培养计划按各自保存的目标计算。' : '按 AP 模拟；FC 中的非 PERFECT 判定尚未逐音符输入。', ...warnings] };
 }

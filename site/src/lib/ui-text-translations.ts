@@ -1,3 +1,4 @@
+import { teamPlanningEnglish } from "./team-planning-translations.mjs";
 import { uiDictionaries } from "./ui-i18n.ts";
 
 const coreTranslations = Object.fromEntries(
@@ -9,6 +10,7 @@ const coreTranslations = Object.fromEntries(
 
 export const englishExactTranslations: Record<string, string> = {
   ...coreTranslations,
+  ...teamPlanningEnglish,
   // Tool filter controls and chart-comparison wording. Exact matches only.
   "含 COMBO": "Has COMBO",
   "含 LUCK": "Has LUCK",

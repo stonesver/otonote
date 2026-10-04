@@ -45,6 +45,14 @@ flowchart LR
 | `packaging/growth-tool/` | 本机运行的养成导出工具 | [工具说明](../packaging/growth-tool/README.md) |
 | `tests/`、`site/tests/` | Python 与 Node 验证 | 使用合成样例的离线检查，以及需另行提供资源的集成检查 |
 
+## 个人演出与配队
+
+配队页将卡片范围、培养目标、玩家发挥和推荐方向交给 `production-optimizer-worker`。规划入口调用 `team-planning-optimizer`，先检查培养变体，再用 `practical-optimizer` 生成并复算候选。不同方向比较整队结果，支配方案和重复队伍不另占一张推荐卡。
+
+纯计算来自共享包的 `growth-scenarios`、`performance-scenarios` 和 `performance-scenario-calculator`。普通、激奏及挑战适配共享输入；收益模块从分数估计档位再换算活动收益。个人搜索没有新增后端接口。详情回放与推荐沿用相同发挥条件；预设保留计划语义，更新实际卡库后重新计算差额。
+
+用户说明见[使用指南](USER_GUIDE.md)，设计范围和验收条件见[演出与配队设计](plans/2026-10-04-performance-and-team-planning-design.md)。
+
 ## 网页与内容如何配合
 
 页面使用 Astro 模板和 TypeScript。仓库保留传统 Astro 静态投影构建，但公开源码的默认预览入口是 `scripts/build-web-client.sh --preview`。它编译页面、交互脚本及 Worker，不读取整套游戏快照。共享样式和品牌信息由网站层统一管理。
@@ -92,3 +100,11 @@ python3 tools/preview_independent_site.py \
 随后访问 `http://127.0.0.1:4340/global/zh-CN/`。上面的内容目录不是克隆后自动生成的示例数据，不能用空目录获得完整站点。`npm run dev` 仍需要本地数据投影与版本配置，不能代替缺少快照时的独立构建。
 
 基础离线检查、贡献流程见[参与贡献](../CONTRIBUTING.md)。正式候选的固定验证、不可变产物与发布流程见[开发流程](DEVELOPMENT_WORKFLOW.md)，运行期维护见[运行维护](OPERATIONS.md)。
+
+## 共用卡库与队伍浮窗
+
+`team-workspace-store` 按区服长期保存命名队伍和最近草稿，使用稳定队伍 ID 与修订号；内容版本只用于校验，不作为队伍库身份。`personal-growth-store` 继续保存实际卡库和账号养成，培养目标仅存在队伍中。旧预设迁移由玩家明确选取来源，保留旧记录。
+
+`shared-team-context` 是工具页与浮窗的接口：读取或应用队伍、声明限制、作废计算结果。它保留页面歌曲与活动条件，并监听同页养成通知和跨标签页变化。已打开的工具持有各自工作副本，不会因另一页换队而自动改队。`team-workspace-compatibility` 共用禁用原因与输入检查，活动加成不得被转为硬限制。
+
+`SharedTeamWorkspace` 只挂载轻量入口，首次打开才加载浮窗和卡库管理；非计算工具通过 `shared-team-data` 按需读取当前内容快照。`shared-inventory-panel` 负责实际养成、导入预览与撤销；`shared-team-workspace` 负责命名队伍、配对、队长和培养场景编辑。所有个人数据仍保存在浏览器，不新增账号数据后台。

@@ -7,40 +7,35 @@
     <label>模式 <select data-preset-mode><option value="gekisou">激奏</option><option value="ordinary">普通</option></select></label>
   </div>
   <p data-preset-selection aria-live="polite" class="preset-selection"></p>
+  <details class="preset-condition-details"><summary>想准备几套队伍应对多首歌？</summary>
+    <label><input type="checkbox" data-preset-use-pool /> 比较下面选择的歌曲</label>
+    <div class="preset-controls">
+      <label>曲池（最多 12 首）<select data-preset-pool multiple size="6" aria-label="选择曲池歌曲"></select></label>
+      <label>最多保留几套 <select data-preset-limit>{[1,2,3,4,5].map(n=><option value={n} selected={n===3}>{n} 套</option>)}</select></label>
+    </div>
+    <p>各曲使用上方所选难度，并在比较时同等对待；这不是游戏选歌概率。</p>
+  </details>
   <details class="preset-condition-details"><summary>判定、名次与养成设置</summary>
   <div class="preset-controls">
-    <label data-preset-window-label>判卡上限 <select data-preset-window><option value="1">0 或 1 张</option><option value="0">不用扩窗卡</option></select></label>
-    <label><input type="checkbox" data-preset-maximize checked /> 等级、成员技能按上限计算</label>
+    <label data-preset-window-label>扩窗卡 <select data-preset-window><option value="5">不限制张数</option><option value="1">最多 1 张</option><option value="0">不用扩窗卡</option></select></label>
+    <label>比较时的发挥 <select data-preset-performance><option value="steady">参考发挥</option><option value="practice">较多失误</option><option value="ideal">理想发挥</option></select></label>
+    <label><input type="checkbox" data-preset-maximize /> 旧预设的等级、成员技能按上限计算</label>
   </div>
-  <p>觉醒、突破沿用队伍的实际记录；留影技能随突破计算。勾选上限不会提高觉醒或突破。</p>
+  <p>默认按队伍保存的养成计算；培养计划保留自己的目标，卡库更新后会重新核对。上限选项只作用于没有培养计划的旧预设。</p>
   <fieldset data-preset-scenario>
     <legend>激奏比较条件</legend>
     <label>平常偏差（ms）<input type="number" data-preset-offset min="-50" max="50" value="5" /></label>
     <label>各段假设名次 <select data-preset-rank>{[1,2,3,4,5].map(n=><option value={n} selected={n===3}>{n} 名</option>)}</select></label>
     <label>LUCK 抽样批数 <input type="number" data-preset-batches min="2" max="32" value="2" /></label>
-    <p>初次使用可保留默认值。偏差填平常观察到的典型毫秒数，用于粗略比较判卡；不是个人 JUST 命中率预测。按 AP 模拟，FC 可作近似参考。</p>
+    <p>所有队伍使用相同的参考操作样本，不把 FC 当作固定 JUST 命中率。偏差用于调整样本的整体早晚。</p>
     <p>所有队伍采用相同的假设名次。加数量技能的抢榜收益不能完整计入，请同时查看各段任务数。</p>
   </fieldset></details>
 
   <h4>已保存的队伍</h4>
   <ul data-preset-list class="preset-list"></ul>
-  <details class="preset-add"><summary>添加队伍</summary>
-    <div class="preset-controls">
-      <label>队伍名称 <input data-preset-name placeholder="例如：原队、JUST 单判卡" maxlength="80" /></label>
-      <button type="button" data-preset-save>保存当前队伍</button>
-      <button type="button" data-preset-edit>手动编辑队伍</button>
-    </div>
-    <div class="preset-controls">
-      <button type="button" data-preset-inventory>录入我的卡库</button>
-      <button type="button" data-preset-generate>从个人卡库生成候选</button>
-    </div>
-    <p>已有卡库可直接生成；也可保存手动队伍或自动配队结果。生成时等级、成员技能按上限，觉醒与突破保持实际值。</p>
-  </details>
+  <div class="preset-controls"><button type="button" data-preset-edit>打开卡库与队伍</button><button type="button" data-preset-generate>按当前场景生成候选</button></div>
+  <p>生成的候选用于本次比较，点击“存为队伍”后才会保留到队伍库。</p>
   <p data-preset-storage-status aria-live="polite"></p>
-  <details><summary>备份或导入候选队伍</summary><div class="preset-controls">
-    <button type="button" data-preset-export>导出候选</button>
-    <label>导入候选 <input type="file" data-preset-import accept="application/json,.json" /></label>
-  </div><p>候选保存在当前浏览器；更换设备前请导出备份。卡库更新后，需要重新生成或保存候选。</p></details>
 
   <h4>开始比较</h4>
   <div class="preset-controls">
@@ -49,7 +44,7 @@
     <button type="button" data-preset-report disabled>导出结果</button>
   </div>
   <details class="preset-replacement"><summary>只想知道换一张卡值不值？</summary>
-    <ol><li>把原队「保存当前队伍」，作为比较基准。</li><li>点击原队的「载入编辑」，在第二步替换成员或留影。</li><li>点击顶部「比较队伍 / 换卡」，选择原队作为基准，点击「比较当前队伍与基准」。当前队伍不必另存。</li></ol>
+    <ol><li>在浮窗中把原队存为队伍，作为比较基准。</li><li>在浮窗编辑当前队伍，替换成员或留影后用于本页。</li><li>在下方选择原队，比较当前队伍与基准。当前队伍不必另存。</li></ol>
     <div class="preset-controls">
       <label>换卡比较基准 <select data-preset-baseline data-quick-native aria-label="换卡比较基准"></select></label>
       <button type="button" data-preset-compare>比较当前队伍与基准</button>

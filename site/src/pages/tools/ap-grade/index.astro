@@ -28,11 +28,11 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
  <p class="event-links"><a href={href('/tools/song-ranking/')+(href('/tools/song-ranking/').includes('?')?'&':'?')+'view=grade'}>无需选卡：查看各首歌的达档综合力与分数线 →</a></p>
  {available?<ap-grade-tool class="event-workbench ap-workbench">
   <script is:inline type="application/json" data-ap-inputs set:html={data}></script>
-  <section class="event-panel ap-lineup-panel"><h2><span class="studio-step">1</span>确认当前队伍</h2><p>选择已保存队伍，或点击卡面连续填入成员和留影。自动读取本区服已保存养成。</p>
-   <div class="event-controls"><label>已保存队伍<select data-ap-presets data-quick-native><option value="">选择一支队伍</option></select></label><label class="event-eco" hidden><input data-ap-owned type="checkbox" />只显示已拥有卡片</label></div>
-   <div class="ap-team" data-ap-team></div><p class="ap-lineup-hint">左右滑动查看五个位置 · 点击卡位即可更换</p>
+  <section class="event-panel ap-lineup-panel"><h2><span class="studio-step">1</span>确认当前队伍</h2><p>在“卡库与队伍”选择或编辑编成，自动读取本区服已保存养成。</p>
+   <div class="event-controls"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div><p data-team-workspace-status role="status"></p>
+   <div class="ap-team" data-ap-team></div><p class="ap-lineup-hint">左右滑动查看五个位置 · 点击卡面打开共用队伍面板</p>
    <p data-ap-growth class="event-hint"></p>
-   <div class="event-links"><a data-ap-edit href={href('/tools/deck-builder/')}>编辑队伍与养成 →</a><a href={href('/my-growth/')}>导入或管理养成 →</a></div>
+   <div class="event-links"><button type="button" data-open-team-workspace="inventory">导入或管理养成</button></div>
   </section>
   <section class="event-panel ap-settings-panel"><h2><span class="studio-step">2</span>预测歌曲档位</h2>
    <div class="ap-option-groups">

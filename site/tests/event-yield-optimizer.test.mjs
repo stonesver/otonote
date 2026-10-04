@@ -162,3 +162,22 @@ test('raw AP cache reuses simulations when budget, basis or objective changes wi
  assert.equal(repeat.practical.scoreCalculations,0);
  assert.deepEqual(repeat.results,cold.results);
 });
+
+test('event yield uses saved non-AP performance and invalidates score caches when it changes',async()=>{
+ const input=fixture(),scoreCache=new Map(),candidateCache=new Map();
+ Object.assign(input.chart,{bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+   notes:[100,200,1100,1200].map((tick,i)=>({id:`note-${i}`,type:'tap',tick,position:0,size:1}))});
+ input.draft.modifiers.performanceScenario={profile:'ideal',samples:1};
+ const options={...input,mode:'ordinary',includeChallenge:false,scoreCache,candidateCache};
+ const healthy=await optimizeEventYield(options),healthyContext=scoreCache.get('$context');
+ assert.ok(healthy.results[0].expectedScore>0);
+ input.draft.modifiers.performanceScenario={profile:'ideal',missRate:1,samples:1};
+ const missed=await optimizeEventYield(options);
+ assert.notEqual(scoreCache.get('$context'),healthyContext);
+ assert.equal(missed.practical.candidateCacheHit,false);
+ assert.ok(missed.results.length);
+ for(const row of missed.results){
+   assert.equal(row.expectedScore,0);assert.equal(row.estimatedScore,0);assert.equal(row.reward.scoreRank,2);
+   assert.equal(row.performanceScenario.missRate,1);
+ }
+});

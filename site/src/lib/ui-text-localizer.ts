@@ -1,3 +1,4 @@
+import { translateTeamPlanningText } from "./team-planning-translations.mjs";
 import {
   englishExactTranslations,
   englishFragmentTranslations
@@ -19,6 +20,8 @@ export const translateUiText = (value: string) => {
   const exact = englishExactTranslations[normalized];
   if (exact) return withOriginalSpacing(exact);
 
+  const planning = translateTeamPlanningText(normalized);
+  if (planning !== normalized) return withOriginalSpacing(planning);
   let translated = normalized;
   const episode = translated.match(/^第\s*(\d+)\s*集$/);
   if (episode) return withOriginalSpacing(`Episode ${episode[1]}`);

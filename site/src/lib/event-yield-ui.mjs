@@ -1,5 +1,6 @@
+import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {eventSongCandidates} from './event-song-ranking.mjs';
-import {currentEventDraft,applyEventPlan,eventTeamDetails,eventElement as el} from './event-team-view.mjs';
+import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
 import {EVENT_YIELD_GOAL_LABELS} from './event-yield-goals.mjs';
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:1}),grades=['D','C','B','A','S','SS'];
 
@@ -29,7 +30,7 @@ export function setupEventYieldOptimizer(tool){
    for(const [i,row] of result.rows.entries()){
      const article=el('article',null,'challenge-opt-result');article.append(el('h4',`${i+1}. ${row.song.title} · ${row.song.difficulty.toUpperCase()} · ${grades[row.reward.scoreRank-2]}`));
      if(row.recommendationGoals?.length)article.append(el('strong',row.recommendationGoals.map(goal=>EVENT_YIELD_GOAL_LABELS[goal]).join(' / ')));
-     article.append(el('p',`AP ${fmt(row.estimatedScore)} 分 · 估计档位范围 ${grades[row.minimumRank-2]}–${grades[row.maximumRank-2]} · 综合力 ${fmt(row.power)} · ${row.song.seconds==null?'时长未知':fmt(row.song.seconds)+' 秒'}`,'event-hint'));
+     article.append(el('p',`${row.performanceScenario?'当前发挥':'AP'} ${fmt(row.estimatedScore)} 分 · 估计档位范围 ${grades[row.minimumRank-2]}–${grades[row.maximumRank-2]} · 综合力 ${fmt(row.power)} · ${row.song.seconds==null?'时长未知':fmt(row.song.seconds)+' 秒'}`,'event-hint'));
      article.append(el('p',`道具加成 +${fmt(row.bonuses.rewardBP/100)}% · 活动 pt 加成 +${fmt(row.bonuses.eventPointBP/100)}%`));
      article.append(el('p',`每次：${fmt(row.reward.badges)} 道具 · ${fmt(row.reward.eventPoints)} 活动 pt · ${fmt(row.reward.challengePoints)} 挑战 pt`));
      if(row.reward.mode==='ordinary'){
@@ -38,7 +39,7 @@ export function setupEventYieldOptimizer(tool){
        article.append(el('p',`${row.startingCP?'含已有挑战 pt 的预算比值':'完整方案每火'}：${fmt(row.total.badges/row.spentFire)} 道具 / ${fmt(row.total.eventPoints/row.spentFire)} 活动 pt`,'event-hint'));
      }else article.append(el('strong',`每挑战 pt：${fmt(row.reward.badges/row.reward.challengeCost)} 道具 · ${fmt(row.reward.eventPoints/row.reward.challengeCost)} 活动 pt`));
      article.append(eventTeamDetails(tool,row));
-     const apply=el('button',row.reward.mode==='challenge'?'应用挑战收益队伍和歌曲':'应用普通队伍、歌曲和估计档位');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));article.append(apply);
+     const apply=el('button',row.reward.mode==='challenge'?'应用挑战收益队伍和歌曲':'应用普通队伍、歌曲和估计档位');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));article.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));
      if(row.continuation){
        const section=el('section',null,'event-recommendations');section.append(el('h4','后续挑战 · 独立队伍'));
        section.append(el('p',`普通阶段小计：${fmt(row.normalPlays*row.reward.badges)} 道具 · ${fmt(row.normalPlays*row.reward.eventPoints)} 活动 pt`));
@@ -47,10 +48,10 @@ export function setupEventYieldOptimizer(tool){
        for(const stage of row.continuation.stages){
          const r=stage.row;
          section.append(el('h5',`${r.song.title} · ${r.song.difficulty.toUpperCase()} · ${grades[r.reward.scoreRank-2]} 档 · ${stage.cost} 挑战 pt × ${stage.plays} 次`));
-         section.append(el('p',`活动内综合力 ${fmt(r.power)} · AP ${fmt(r.estimatedScore)} 分 · 估计档位范围 ${grades[r.minimumRank-2]}–${grades[r.maximumRank-2]}`,'event-hint'));
+         section.append(el('p',`活动内综合力 ${fmt(r.power)} · ${r.performanceScenario?'当前发挥':'AP'} ${fmt(r.estimatedScore)} 分 · 估计档位范围 ${grades[r.minimumRank-2]}–${grades[r.maximumRank-2]}`,'event-hint'));
          section.append(el('p',`道具加成 +${fmt(r.bonuses.rewardBP/100)}% · 活动 pt 加成 +${fmt(r.bonuses.eventPointBP/100)}%；每次 ${fmt(stage.reward.badges)} 道具 · ${fmt(stage.reward.eventPoints)} 活动 pt`));
          section.append(eventTeamDetails(tool,r));
-         const use=el('button','应用这支后续挑战队伍');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});section.append(use);
+         const use=el('button','应用这支后续挑战队伍');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});section.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));
        }article.append(section);
      }
      q('results').append(article);
@@ -60,7 +61,7 @@ export function setupEventYieldOptimizer(tool){
  function run(depth=q('depth').value){
    if(worker)return;
    try{
-     const c=context();c.searchDepth=depth;if(c.mode==='gekisou')throw Error('激奏请手填团队结算档位');
+     const c=context();assertToolTeamCompatible(tool.teamWorkspaceContext,c.draft);c.searchDepth=depth;if(c.mode==='gekisou')throw Error('激奏请手填团队结算档位');
      if(c.mode==='ordinary'&&(!Number.isInteger(c.liveBoost)||c.liveBoost<1||!Number.isInteger(c.budget)||c.budget<c.liveBoost||c.budget>10000))throw Error('普通收益配队需消耗至少 1 火，预算不少于单次耗火且不超过 10000 火。');
      if(!Number.isInteger(c.startingCP)||c.startingCP<0||c.startingCP>1000000)throw Error('已有挑战 pt 需为 0 至 1000000 的整数。');
      const needsInventory=c.scope==='owned'||c.mode==='ordinary'&&c.includeChallenge&&c.challengeScope==='owned';
@@ -92,5 +93,5 @@ export function setupEventYieldOptimizer(tool){
  }
  q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop();q('continue').hidden=!result;q('status').textContent=result?'已停止。保留已完成的方案，仍有谱面未比较；继续时会复用计算缓存。':'已停止收益配队计算。';});
  root.addEventListener('change',event=>{event.stopPropagation();sync();});
- return {sync,run,destroy:stop};
+ return {sync,run,invalidate:()=>{key='';stop();sync();},destroy:stop};
 }

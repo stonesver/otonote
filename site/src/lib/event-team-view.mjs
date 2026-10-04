@@ -1,17 +1,14 @@
+import {requestTeamSave} from './shared-team-context.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 export const eventElement=(tag,text,className)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(className)node.className=className;return node;};
 export function currentEventDraft(tool){
- const draft=structuredClone(tool.draft);draft.modifiers??={};draft.modifiers.growth??={};
- draft.slots=tool.pairs.map(p=>({memberCardId:p.querySelector('[data-member]').value||null,supportCardId:p.querySelector('[data-support]').value||null}));
- for(const [i,p] of tool.pairs.entries())for(const kind of ['member','support']){const id=draft.slots[i][`${kind}CardId`];if(id)draft.modifiers.growth[id]={...draft.modifiers.growth[id],rank:Number(p.querySelector(`[data-${kind}-rank]`).value)};}
- return draft;
+ return structuredClone(tool.draft);
 }
 export function applyEventPlan(tool,row,mode){
  tool.draft=structuredClone(row.draft);delete tool.draft.modifiers.event;
  tool.q('mode').value=mode;tool.q('song').value=row.song.trackId;tool.q('rank').value=String(row.reward.scoreRank);
- tool.pairs.forEach((p,i)=>{for(const kind of ['member','support']){const id=tool.draft.slots[i][`${kind}CardId`];p.querySelector(`[data-${kind}]`).value=id;p.querySelector(`[data-${kind}-rank]`).value=tool.draft.modifiers.growth?.[id]?.rank??1;}});
  tool.q('bonus-source').value='team';tool.q('song-disclosure').open=false;tool.songPicker?.reset();tool.songPicker?.sync();tool.render();
- tool.q('team-status').textContent='已应用收益方案的队伍、歌曲与 AP 估计档位；可按实打情况调整档位。';
+ tool.q('team-status').textContent='已应用收益方案的队伍、歌曲与当前条件下的估计档位；可按实打情况调整档位。';
 }
 export function eventTeamDetails(tool,row){
  const el=eventElement,details=el('details',null,'event-details'),list=el('ol',null,'challenge-opt-pairs');
@@ -24,4 +21,9 @@ export function eventTeamDetails(tool,row){
      cell.append(el('span',`${c?.displayName??id} · Lv.${g.level??'默认上限'} / 突破 ${g.rank??1}${kind==='member'?` / 技能 ${g.skillLevel??1}`:''}`));item.append(cell);
    }list.append(item);
  }details.append(list,skillActivation(tool,row.draft,{mode:row.reward.mode,eventId:Number(tool.q('event').value)}));return details;
+}
+
+export function eventTeamSaveButton(draft, name) {
+ const button=eventElement('button',document.documentElement.lang==='en'?'Save team':'存为队伍');button.type='button';
+ button.addEventListener('click',()=>requestTeamSave(draft,name));return button;
 }

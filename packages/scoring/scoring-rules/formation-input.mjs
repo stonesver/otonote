@@ -1,4 +1,5 @@
 import { createFormationCalculator, requireInteger } from "./formation-power.mjs";
+import { resolveGrowthScenario } from "./growth-scenarios.mjs";
 
 export function canonicalCardId(value, kind) {
   const match = new RegExp(`^(?:${kind}-(?:card-)?)?([0-9]+)$`).exec(String(value));
@@ -22,7 +23,25 @@ export function createInventory(rules, input = {}) {
     memberCardIds: ids("member"), supportCardIds: ids("support") };
 }
 
-export function resolveSearchInput(rules, draft, { scope = "selected", inventory, constraints = {},
+/** New planning calls expose the resolved scenario; optimizers must enumerate
+ * its feasible growth variants before pruning candidates. Legacy calls retain
+ * their established defaults. */
+export function resolveSearchInput(rules, draft, options = {}) {
+  if (options.planningScenario || ['reference', 'trial'].includes(options.scope)
+    || options.plan || options.unknownGrowth || options.selectedCardIds) {
+    const scenario = resolveGrowthScenario(rules, draft, {
+      ...options, ...options.planningScenario, inventory: options.inventory
+    });
+    const input = resolveLegacySearchInput(rules, scenario.currentDraft, {
+      scope: 'owned', inventory: scenario.inventory, constraints: options.constraints ?? {}
+    });
+    return { ...input, scope: scenario.scope, growthScenario: scenario,
+      assumptions: [...input.assumptions, ...scenario.assumptions] };
+  }
+  return resolveLegacySearchInput(rules, draft, options);
+}
+
+function resolveLegacySearchInput(rules, draft, { scope = "selected", inventory, constraints = {},
   theoreticalGrowth = "maximum" } = {}) {
   const calculator = createFormationCalculator(rules);
   if (!draft?.slots || draft.slots.length !== 5) throw new Error("Exactly five slots required");

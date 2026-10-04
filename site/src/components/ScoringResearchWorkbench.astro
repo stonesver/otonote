@@ -48,7 +48,7 @@ const clientData = JSON.stringify({
 
 {rulesAvailable ? <scoring-research-workbench class="scoring-research-workbench">
   <script is:inline type="application/json" data-scoring-research-data set:html={clientData}></script>
-  <div class="score-preparation"><section class="tool-saved-team"><h2>用哪支队伍计算？</h2><label>已保存队伍<select data-score-preset data-quick-native><option value="">使用当前带入的队伍</option></select></label><p data-score-team-note role="status"></p><div class="tool-team-strip" data-score-team></div><div class="calculator-links"><a href="#song-result">查看计算结果 ↓</a><a href="/tools/deck-builder/" data-edit-scoring-draft>编辑 / 创建队伍 →</a><a href="/tools/event-efficiency/" data-event-efficiency-link>带入活动收益 →</a></div></section>
+  <div class="score-preparation"><section class="tool-saved-team"><h2>用哪支队伍计算？</h2><div class="calculator-links"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div><p data-team-workspace-status role="status"></p><p data-score-team-note role="status"></p><div class="tool-team-strip" data-score-team></div><div class="calculator-links"><a href="#song-result">查看计算结果 ↓</a><button type="button" data-open-team-workspace="teams">编辑当前队伍</button><a href="/tools/event-efficiency/" data-event-efficiency-link>带入活动收益 →</a></div></section>
   <details class="tool-song-disclosure" data-score-song-picker open><summary>选择或更换歌曲 <span data-score-song-name>点击难度选定谱面</span></summary><CalculatorSongPicker /></details>
   <div class="calculator-song-fields" hidden><label>歌曲<select data-calculator-song><option value="">选择歌曲</option>{catalog.musicTracks.map(track=><option value={track.id}>{track.title}</option>)}</select></label><label>难度<select data-calculator-difficulty><option value="">选择难度</option>{['easy','normal','hard','expert'].map(d=><option value={d}>{d.toUpperCase()}</option>)}</select></label></div>
   </div><section class="score-output" id="song-result" aria-label="歌曲计算结果与演出设置">
@@ -65,7 +65,8 @@ const clientData = JSON.stringify({
     </dl>
   </section>
   <label>演出模式 <select data-scoring-mode data-quick><option value="ordinary">普通自由演出</option><option value="gekisou">激奏演出</option></select></label>
-  <details class="calculator-extra" data-performance-settings><summary>逐音符判定回放 <span>可选，普通演出</span></summary><div class="calculator-extra-body">
+  <label>按什么发挥计算？ <select data-score-performance-profile><option value="saved">沿用队伍保存的发挥</option><option value="steady">参考发挥</option><option value="practice">练习中的发挥</option><option value="ideal">理想发挥</option><option value="legacy">全 Perfect、满生命参考</option></select></label>
+  <details class="calculator-extra" data-performance-settings><summary>逐音符判定回放 <span>可选，指定操作与技能顺序</span></summary><div class="calculator-extra-body">
     <label>判定条件 <select data-performance-mode><option value="ap">全 Perfect、满生命参考</option><option value="explicit">使用输入的逐音符判定</option></select></label>
     <p>模板包含当前谱面的全部计分节点。修改 judgement 和 inputFrame 后应用，按指定技能顺序回放一次。1＝Miss、2＝Bad、3＝Good、4＝Great、5＝Perfect、6＝Just。帧序号从 0 开始；scoreIndex、timeMs 与谱面标识请保留。</p>
     <div class="scoring-research-actions"><button type="button" data-performance-template>下载当前谱面模板</button><label>导入 JSON <input type="file" accept="application/json,.json" data-performance-file /></label></div>
@@ -73,7 +74,7 @@ const clientData = JSON.stringify({
     <div class="scoring-research-actions"><button type="button" data-performance-apply>应用并计算</button><button type="button" data-performance-reset>恢复 AP 参考</button></div>
     <p data-performance-status role="status">尚未导入判定。模板是可编辑的模拟输入，不是实战记录。</p>
   </div></details>
-  <details class="calculator-extra" data-gekisou-scenario hidden><summary>调整激奏情景 <span>AP、满生命、无辅助</span></summary><div class="calculator-extra-body">
+  <details class="calculator-extra" data-gekisou-scenario hidden><summary>调整激奏情景 <span>名次、对手与随机条件</span></summary><div class="calculator-extra-body">
     <label>固定判定偏差（毫秒）<input data-gekisou-offset type="number" min="-50" max="50" step="1" value="0" /></label>
     {[1, 2, 3].map(i => <label>第 {i} 段名次 <select data-gekisou-rank>{[1, 2, 3, 4, 5].map(rank => <option value={rank}>{rank}</option>)}</select></label>)}
     {[1, 2, 3].map(i => <label>第 {i} 段结果确认额外等待（帧）<input data-gekisou-confirmation type="number" min="0" max="3600" step="1" value="0" /></label>)}
@@ -118,7 +119,7 @@ const clientData = JSON.stringify({
   </details>
   <details class="tool-help"><summary>配队攻略与估算说明</summary><ScoringModelNotice /><CalculatorStrategyGuide ruleVersion={formalRules.ruleSetVersion} /></details>
   <details class="scoring-snapshot-details">
-    <summary>查看输入、技能与逐音符计分 JSON（最高分顺序）</summary>
+    <summary>查看输入、技能与逐音符计分 JSON（本次样本）</summary>
     <pre data-scoring-snapshot-json>{}</pre>
   </details>
 </scoring-research-workbench> : <ScoringUnavailable />}

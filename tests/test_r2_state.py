@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -212,7 +213,7 @@ class R2StateTest(unittest.TestCase):
         source = self.root / "input/global/plan.json"
         linked = self.root / "input/global/plan-hardlink.json"
         os.link(source, linked)
-        self._checkpoint()
+        r2_state.checkpoint(self.bucket, self.root, "global", self.paths, "none", workers=2)
         manifest = self._stored_manifest()
         self.assertEqual(manifest["schemaVersion"], 2)
         entries = {entry["path"]: entry for entry in manifest["files"]}
@@ -224,7 +225,7 @@ class R2StateTest(unittest.TestCase):
         self.assertEqual(report["totalBytes"] - report["requiredBytes"], source.stat().st_size)
         shutil.rmtree(self.root / "output")
         shutil.rmtree(self.root / "input")
-        r2_state.restore(self.bucket, self.root, "global", self.paths)
+        r2_state.restore(self.bucket, self.root, "global", self.paths, workers=2)
         self.assertEqual(source.stat().st_ino, linked.stat().st_ino)
         self.assertEqual(source.read_bytes(), linked.read_bytes())
 
@@ -290,6 +291,64 @@ class R2StateTest(unittest.TestCase):
         self.assertEqual(report["requiredBytes"], report["totalBytes"])
         r2_state.restore(self.bucket, self.root, "global", self.paths)
         self.assertEqual((self.root / "input/global/plan.json").read_bytes(), original)
+
+    def test_concurrent_checkpoint_failure_never_writes_manifest_or_pointer(self):
+        class FailingBucket(FakePrivateBucket):
+            def __init__(self):
+                super().__init__()
+                self.barrier = threading.Barrier(2, timeout=5)
+
+            def verify_file(self, key, sha, size):
+                self.barrier.wait()
+                return False if sha == failed_sha else super().verify_file(key, sha, size)
+
+        failed_sha = r2_state.digest((self.root / "input/global/plan.json").read_bytes())
+        bucket = FailingBucket()
+        with self.assertRaisesRegex(ValueError, "missing or damaged"):
+            r2_state.checkpoint(bucket, self.root, "global", self.paths, "none", workers=2)
+        self.assertEqual(len(bucket.upload_calls), 2)
+        self.assertFalse(any(key.startswith("state/manifests/") for key in bucket.objects))
+        self.assertNotIn(r2_state.pointer_key("global"), bucket.objects)
+
+    def test_concurrent_restore_failure_never_writes_destination(self):
+        self._checkpoint()
+        shutil.rmtree(self.root / "output")
+        shutil.rmtree(self.root / "input")
+
+        class FailingBucket(FakePrivateBucket):
+            def __init__(self, objects):
+                super().__init__()
+                self.objects = objects
+                self.barrier = threading.Barrier(2, timeout=5)
+                self.failure_signaled = threading.Event()
+                self.other_transfer_finished = threading.Event()
+
+            def download_file(self, key, target, sha, size):
+                self.barrier.wait()
+                if sha == failed_sha:
+                    target.write_bytes(b"partial")
+                    self.failure_signaled.set()
+                    raise ValueError("injected concurrent download failure")
+                if not self.failure_signaled.wait(5):
+                    raise AssertionError("other transfer did not fail")
+                super().download_file(key, target, sha, size)
+                self.other_transfer_finished.set()
+
+        failed_sha = r2_state.digest(b'{"files": []}\n')
+        bucket = FailingBucket(self.bucket.objects)
+        with self.assertRaisesRegex(ValueError, "injected concurrent download failure"):
+            r2_state.restore(bucket, self.root, "global", self.paths, workers=2)
+        self.assertTrue(bucket.other_transfer_finished.is_set())
+        self.assertFalse((self.root / "output/global/state.json").exists())
+        self.assertFalse((self.root / "input/global/plan.json").exists())
+        self.assertFalse(list(self.root.glob(".r2-state-stage-*")))
+
+    def test_parallel_worker_count_is_bounded(self):
+        for workers in (0, 17, True):
+            with self.subTest(workers=workers):
+                with self.assertRaisesRegex(ValueError, "workers must be between"):
+                    r2_state.checkpoint(self.bucket, self.root, "global", self.paths,
+                                        "none", workers=workers)
 
 
 if __name__ == "__main__":

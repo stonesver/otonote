@@ -89,10 +89,19 @@ def generate_image_derivatives(
     catalog: Mapping[str, Any],
     public_root: Path,
 ) -> dict[str, list[dict[str, Any]]]:
+    assets = list(catalog.get("assets", []))
+    asset_ids = [str(asset["id"]) for asset in assets]
+    target_root = public_root / "media/responsive"
+    # Asset IDs name all widths and their temporary files. Check both IDs and
+    # normalized paths before mkdir/conversion/cache writes; path aliases must
+    # not let separate workers own the same target.
+    target_names = [(target_root / f"{asset_id}-320w.webp").resolve()
+                    for asset_id in asset_ids]
+    if len(asset_ids) != len(set(asset_ids)) or len(target_names) != len(set(target_names)):
+        raise MediaDerivativeError("duplicate image asset output")
     Image = _load_pillow()
     from tools.conversion_cache import restore as cache_restore, save as cache_save, image_recipe
     from tools.media_parallel import map_images
-    target_root = public_root / "media/responsive"
     target_root.mkdir(parents=True, exist_ok=True)
     def convert(asset):
         asset_id = str(asset["id"])
@@ -132,7 +141,7 @@ def generate_image_derivatives(
                     _variant(target, public_root, actual_width, actual_height)
                 )
         return asset_id, variants
-    return dict(map_images(convert, catalog.get("assets", [])))
+    return dict(map_images(convert, assets))
 
 
 def generate_audio_previews(

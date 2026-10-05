@@ -1,0 +1,131 @@
+name: Bootstrap sealed legacy content in R2
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Shadow uploads and verifies both releases; promote also updates both public pointers
+        required: true
+        default: shadow
+        type: choice
+        options: [shadow, promote]
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    environment: content-r2-production
+    concurrency:
+      group: legacy-public-r2-bootstrap
+      cancel-in-progress: false
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_PRIVATE_BUCKET: otonote-production-state
+      R2_PUBLIC_BUCKET: otonote-public-content
+      LEGACY_ROOT: /srv/ournotes-legacy-bootstrap
+      EVIDENCE_DIR: ${{ runner.temp }}/legacy-r2-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare the isolated restore root
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            [[ -n "${!name}" ]] || { echo "Missing R2 setting: $name" >&2; exit 1; }
+          done
+          python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
+          sudo install -d -o "$(id -u)" -g "$(id -g)" "$LEGACY_ROOT"
+          mkdir -p "$EVIDENCE_DIR"
+      - name: Restore and validate both pinned legacy releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m tools.r2_legacy_bootstrap restore --root "$LEGACY_ROOT" --workers 8 \
+            > "$EVIDENCE_DIR/restore.json"
+      - name: Capture each public pointer baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          for region in global jp; do
+            python -m tools.r2_content baseline --region "$region" \
+              > "$EVIDENCE_DIR/baseline-$region.json"
+          done
+          python - "$EVIDENCE_DIR" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+          evidence = Path(sys.argv[1])
+          restored = json.loads((evidence / 'restore.json').read_text())
+          for region in ('global', 'jp'):
+              baseline = json.loads((evidence / f'baseline-{region}.json').read_text())
+              allowed = {'none', restored['releases'][region]['pointerSha256']}
+              if baseline['currentSha256'] not in allowed:
+                  raise SystemExit(f'{region} public pointer already selects another release')
+          PY
+      - name: Upload and read back both sealed releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for region in global jp; do
+            python -m tools.r2_content upload --region "$region" \
+              --store "$LEGACY_ROOT/content" --workers 8 \
+              > "$EVIDENCE_DIR/upload-$region.json"
+          done
+      - name: Preflight both pointer promotions
+        if: inputs.mode == 'promote'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for region in global jp; do
+            expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$EVIDENCE_DIR/baseline-$region.json")"
+            python -m tools.r2_content promote --dry-run --region "$region" \
+              --store "$LEGACY_ROOT/content" --workers 8 \
+              --expected-current "$expected" --source-run "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_$region" \
+              > "$EVIDENCE_DIR/preflight-$region.json"
+          done
+      - name: Promote Global then JP with their captured baselines
+        if: inputs.mode == 'promote'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for region in global jp; do
+            expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$EVIDENCE_DIR/baseline-$region.json")"
+            python -m tools.r2_content promote --region "$region" \
+              --store "$LEGACY_ROOT/content" --workers 8 \
+              --expected-current "$expected" --source-run "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_$region" \
+              > "$EVIDENCE_DIR/promotion-$region.json"
+          done
+      - name: Record bootstrap result
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          {
+            printf 'Legacy R2 bootstrap: `%s`; requested mode: `%s`.\n\n' "$JOB_STATUS" "$MODE"
+            printf 'This transports existing sealed releases. It does not validate JP unattended updates.\n\n'
+            for name in restore upload-global upload-jp preflight-global preflight-jp promotion-global promotion-jp; do
+              if [[ -f "$EVIDENCE_DIR/$name.json" ]]; then
+                printf '%s: `%s`.\n\n' "$name" "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "complete"))' "$EVIDENCE_DIR/$name.json")"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-r2-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/legacy-r2-evidence/*.json
+          if-no-files-found: ignore
+          retention-days: 14

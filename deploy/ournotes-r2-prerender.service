@@ -1,0 +1,18 @@
+[Unit]
+Description=OurNotes R2 content materialization and staged prerender
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/ournotes/r2-prerender.env
+EnvironmentFile=/etc/ournotes/r2-content-readonly.env
+ExecStart=/usr/local/libexec/ournotes/run-r2-prerender.sh
+TimeoutStartSec=2h
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0022
+
+[Install]
+WantedBy=multi-user.target

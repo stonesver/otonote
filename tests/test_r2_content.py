@@ -2,6 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 
 from tools import r2_content
@@ -66,6 +67,81 @@ def fixture(root: Path, region="global", release_id="a" * 24, channel="productio
 
 
 class R2PublicationTests(unittest.TestCase):
+    def test_new_object_readback_damage_prevents_manifest(self):
+        class DamagedReadback(MemoryBucket):
+            def get(self, key):
+                result = super().get(key)
+                if key.endswith("/en/catalog.json") and result is not None:
+                    return b"damaged after upload", result[1]
+                return result
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture(root)
+            bucket = DamagedReadback()
+            with self.assertRaisesRegex(ValueError, "different bytes"):
+                r2_content.upload_release(bucket, root, "global")
+            self.assertIn("content/releases/" + "a" * 24 + "/en/catalog.json", bucket.objects)
+            self.assertNotIn("content/releases/" + "a" * 24 + "/manifest.json", bucket.objects)
+            self.assertNotIn("content/current.json", bucket.objects)
+
+    def test_concurrent_upload_failure_never_writes_manifest(self):
+        class ConcurrentDamage(MemoryBucket):
+            def __init__(self):
+                super().__init__()
+                self.barrier = threading.Barrier(2, timeout=5)
+
+            def get(self, key):
+                if key.endswith(("/en/catalog.json", "/zh-CN/catalog.json")):
+                    self.barrier.wait()
+                result = super().get(key)
+                if key.endswith("/en/catalog.json") and result is not None:
+                    return b"damaged", result[1]
+                return result
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture(root)
+            bucket = ConcurrentDamage()
+            with self.assertRaisesRegex(ValueError, "different bytes"):
+                r2_content.upload_release(bucket, root, "global", workers=2)
+            self.assertNotIn("content/releases/" + "a" * 24 + "/manifest.json", bucket.objects)
+            self.assertNotIn("content/current.json", bucket.objects)
+
+    def test_concurrent_promote_failure_never_writes_journal_or_pointer(self):
+        class ConcurrentMissing(MemoryBucket):
+            def __init__(self, objects, etags):
+                super().__init__()
+                self.objects, self.etags = objects, etags
+                self.barrier = threading.Barrier(2, timeout=5)
+
+            def matches(self, key, expected_sha, expected_size):
+                if key.endswith(("/en/catalog.json", "/zh-CN/catalog.json")):
+                    self.barrier.wait()
+                item = self.get(key)
+                return (not key.endswith("/en/catalog.json") and item is not None
+                        and len(item[0]) == expected_size and sha(item[0]) == expected_sha)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture(root)
+            original = MemoryBucket()
+            r2_content.upload_release(original, root, "global")
+            bucket = ConcurrentMissing(original.objects, original.etags)
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                r2_content.promote(bucket, root, "global", "none", source_run="test", workers=2)
+            self.assertFalse(any(key.startswith("content/promotions/") for key in bucket.objects))
+            self.assertNotIn("content/current.json", bucket.objects)
+
+    def test_parallel_worker_count_is_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture(root)
+            for workers in (0, 17, True):
+                with self.subTest(workers=workers):
+                    with self.assertRaisesRegex(ValueError, "workers must be between"):
+                        r2_content.upload_release(None, root, "global", dry_run=True, workers=workers)
+
     def test_preview_channel_cannot_enter_public_bucket(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -80,11 +156,11 @@ class R2PublicationTests(unittest.TestCase):
             root = Path(temporary)
             pointer = fixture(root)
             bucket = MemoryBucket()
-            upload = r2_content.upload_release(bucket, root, "global")
+            upload = r2_content.upload_release(bucket, root, "global", workers=2)
             self.assertEqual(upload["files"], 4)
             self.assertEqual(upload["uploaded"], 4)
             self.assertNotIn("content/releases/" + "a" * 24 + "/.receipt.json", bucket.objects)
-            result = r2_content.promote(bucket, root, "global", "none", source_run="test-1")
+            result = r2_content.promote(bucket, root, "global", "none", source_run="test-1", workers=2)
             self.assertEqual(result["status"], "published")
             self.assertEqual(bucket.objects["content/current.json"], pointer.read_bytes())
             self.assertEqual(r2_content.promote(bucket, root, "global", sha(pointer.read_bytes()), source_run="test-2")["status"], "unchanged")

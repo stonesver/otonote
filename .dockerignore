@@ -22,6 +22,11 @@ analysis/crypto/*
 !tools/
 !tools/**
 
+!deploy/
+deploy/*
+!deploy/Dockerfile.r2-prerender
+!deploy/promote_r2_prerender.py
+
 !catalog/
 catalog/*
 !catalog/baselines/

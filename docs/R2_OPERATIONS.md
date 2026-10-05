@@ -8,9 +8,12 @@
 - JP 首次私有检查点已上传并逐对象回读校验，6 个文件共 **234,502,644 字节**，清单 SHA-256 为 `3c6f151cd263ac843e873ea97292d73043f3f1a8934a123f002f289b0d39d2e1`。
 - [JP 首轮影子运行](https://github.com/stonesver/otonote/actions/runs/37245779173) 已在全新 GitHub runner 成功恢复这 6 个文件、检查容量并拉取固定镜像。生产阶段官方版本 RPC 返回 **HTTP 403**；没有进入公开内容上传、私有新检查点或公开指针晋级。该结果证明首次恢复链路可用，不能视为 JP 自动追新验收。
 - JP 协议解析已按受信任 1.0.4 APK 校正：`x-asset-version` 是 JSON，非空 `live` 中选择不超过当前客户端版本的最高 `minClientVersion` 对应的 Android 身份；不回退到 `history` 冒充当前版本。服务端 CDN 密码仅在官方 CDN 根精确匹配时更新到内存，观察回执不记录该值。解析修正和 25 项 JP 测试通过不代表 403 已解决；对公开正常 gRPC 请求形状的一次验证仍被拒绝，需官方客户端成功请求的脱敏证据才能继续确定入口条件。[公开协议对照](https://github.com/haneoka-gakuen/haneoka/blob/d6b214d5c785132e89169412b6e0ce8191e43a6d/scripts/ingest/version_api.py)
+- 站点所有者随后报告手机日服提示更新，但实时官方商店详情仍显示 1.0.4，APK 下载页仍为 10053；未找到更高版本的证据。本机暂未连接 ADB 设备，须核对手机实际版本、提示原文与网络出口。该提示不能单独证明 RPC 403 是版本原因；出口访问策略和正常请求条件仍待确认。
 - 首轮手动任务启动后，已将 `CONTENT_R2_ENABLED_JP` 恢复为 `false`；两服自动晋级均保持关闭。旧服务器数据与定时器尚未切换。
 
 本机首次上传使用另建的、仅授权私有状态桶的临时 S3 凭据，保存在仓库外的权限 `600` 文件中；GitHub 原有凭据继续供 Actions 使用。两服首次上传及恢复验收完成后撤销临时凭据，切勿先撤销仍供 Actions 使用的原凭据。
+
+公开桶预渲染只读凭据也已完成实际读/列举验证，两服公开指针当时均不存在；这不是公开内容发布验收。
 
 ## 两个 bucket 的用途
 
@@ -110,9 +113,19 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 
 
 ## 现有域名的只读 Worker Route
 
+### 保留现有网页引用的旧快照
+
+旧 Global/JP 网页（包括当时保留的 previous HTML）分别引用 `ac630c24b69b23fd89da8821`、`98d922dbc6fca1d5d8d991d8`。启用覆盖整个 `/content/*` 的 Route 前，必须让这些固定地址在 R2 可读，不能只上传新的 current 快照。
+
+`tools.r2_legacy_bootstrap` 用私有桶固定命名空间 `migration/legacy-public/` 中转这两份原样封存快照，与正常 Global/JP 生产状态完全分开。本机先组装独立 ROOT/content，仅含两份指定 release（含私有封存回执）及 `current.json`、`jp/current.json`，再执行 `python3 -m tools.r2_legacy_bootstrap seed --root <本机旧快照暂存根> --workers 16`。工具校验两服固定身份、封存清单和全部文件；首次检查点默认要求空基线。它不会把旧 JP 快照视为自动追新成功。
+
+随后从 main 手动运行 **Bootstrap sealed legacy content in R2**，先选 `shadow`。工作流检查 runner 实际恢复容量，从私有命名空间恢复并重验两服，在 Actions 内使用已有双桶凭据完成公开对象上传和完整回读；`.receipt.json` 不进入公开桶。显式 `promote` 才会校验两服后依次 CAS 更新指针，并拒绝用这两份旧指针覆盖未知新版本。两服 CAS 不是一个事务，任一失败须先检查运行证据；Route 仍保持未切换直到两服均通过验收。更早打开的历史标签页引用另需按保留策略核查。
+
 仓库提供 `deploy/r2_content_gateway.mjs` 和 `deploy/r2-content-gateway.wrangler.example.json`。在控制台选择 **Start with Hello World**，名称 `ournotes-content-gateway`，创建后将 `worker.js` 全部替换为网关代码。Worker 的 R2 变量名必须为 `CONTENT`，绑定 **`otonote-public-content`**；绝不绑定私有状态桶。先在其 `workers.dev` 测试地址验证允许的 GET/HEAD 和拒绝的私有路径；在真实快照可读且浏览器验收之前，不添加线上 Route。空桶时 `/content/current.json` 返回 404 是预期结果。
 
-现有服务器预渲染前，使用单独的 **仅可读取公开桶对象** 的 R2 API 凭据运行 `python3 -m tools.materialize_r2_content --store <现有本地内容库> --region all`。该命令只物化两服清单、清单引用的数据文件、画廊清单和两张加载图；普通媒体继续留在 R2。它会在校验后才更新本地指针，然后沿用现有 `tools.publish_prerender`。服务器凭据不要复用 Actions 的写入密钥。
+现有服务器预渲染前，使用单独的 **仅可读取公开桶对象** 的 R2 API 凭据运行 `python3 -m tools.materialize_r2_content --store /srv/ournotes-r2-prerender-content --region all`。该命令只物化两服清单、清单引用的数据文件、画廊清单和两张加载图；普通媒体继续留在 R2。物化目录必须独立于旧 Nginx 完整内容库，避免提前切换源站指针而缺少媒体。服务器凭据不要复用 Actions 的写入密钥。
+
+[预渲染服务部署示例](../deploy/r2-prerender.README.md)提供独立物化、双服暂存 HTML 验收和指针推广。**Publish R2 prerender image** 工作流从 main 构建固定摘要镜像并提供带 SHA-256 的短期离线归档，可从本机流式导入旧服务器，服务器无需保存镜像压缩包或持有 GHCR 凭据。示例未自动启用；启用前须测算并满足旧服务器实际增量空间，停用旧预渲染 timer 防止竞争，验证两服 staged HTML，再启用新 timer。回退须先使用旧完整内容库恢复可用旧 HTML、确认媒体可读，再撤 Worker Route，最后恢复旧 timer。
 
 切换时，在 Cloudflare 控制台进入 **Workers & Pages → 选择该 Worker → Settings → Domains & Routes → Add → Route**，选择 `stonebg.cn` zone，填写 `ournotes.stonebg.cn/content/*`，保存。`ournotes.stonebg.cn` 现有橙云 DNS 记录已满足 Route 前提。该 Route 仅接管 `/content/*`；网页与其他路径继续走现有源站。Cloudflare [Route 官方步骤](https://developers.cloudflare.com/workers/configuration/routing/routes/)和 [R2 Worker binding](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)可对照操作。
 

@@ -1,0 +1,126 @@
+name: Publish R2 prerender image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    if: github.repository == 'stonesver/otonote' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify clean main checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+
+      - name: Build image and check offline runtime
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=ghcr.io/stonesver/otonote-r2-prerender
+          tag="sha-$GITHUB_SHA"
+          docker build --pull --file deploy/Dockerfile.r2-prerender \
+            --build-arg "SOURCE_REVISION=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --tag "$image:$tag" .
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,size=64m \
+            "$image:$tag" python3 -c \
+            'import boto3, botocore, tools.materialize_r2_content, tools.publish_prerender, tools.r2_content; print("Python R2/prerender imports OK")'
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,size=64m \
+            "$image:$tag" node --input-type=module -e '
+              import {readFile} from "node:fs/promises";
+              import {createHash} from "node:crypto";
+              const [major, minor] = process.versions.node.split(".").map(Number);
+              if (major < 22 || (major === 22 && minor < 20)) throw Error("Node is too old");
+              if (!createHash("sha256").update("ready").digest("hex") || !readFile) throw Error("Node runtime unavailable");
+              console.log("Offline Node runtime OK");
+            '
+          [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image:$tag")" == "$GITHUB_SHA" ]]
+          printf 'image=%s\ntag=%s\n' "$image" "$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Push and verify immutable digest
+        id: push
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.build.outputs.image }}
+          TAG: ${{ steps.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG" | tee "$RUNNER_TEMP/r2-prerender-push.log"
+          digest=$(sed -nE 's/.*digest: (sha256:[a-f0-9]{64}).*/\1/p' "$RUNNER_TEMP/r2-prerender-push.log" | tail -1)
+          [[ $digest =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'Push returned no digest' >&2; exit 1; }
+          docker pull "$IMAGE@$digest"
+          local_id=$(docker image inspect --format '{{.Id}}' "$IMAGE:$TAG")
+          remote_id=$(docker image inspect --format '{{.Id}}' "$IMAGE@$digest")
+          [[ $local_id == "$remote_id" && $local_id =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE@$digest")" == "$GITHUB_SHA" ]]
+          image_size=$(docker image inspect --format '{{.Size}}' "$IMAGE@$digest")
+          printf 'digest=%s\nimage_id=%s\nimage_size=%s\n' "$digest" "$remote_id" "$image_size" >> "$GITHUB_OUTPUT"
+
+      - name: Save compressed Docker image for offline transfer
+        id: archive
+        shell: bash
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+          TAG: ${{ steps.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          name="otonote-r2-prerender-${GITHUB_SHA}.docker.tar.gz"
+          archive="$RUNNER_TEMP/$name"
+          docker save "$IMAGE:$TAG" | gzip -1 > "$archive"
+          (cd "$RUNNER_TEMP" && sha256sum "$name" > "$name.sha256")
+          archive_bytes=$(stat -c %s "$archive")
+          archive_sha=$(cut -d ' ' -f 1 "$archive.sha256")
+          printf 'archive=%s\nchecksum=%s\narchive_bytes=%s\narchive_sha=%s\n' \
+            "$archive" "$archive.sha256" "$archive_bytes" "$archive_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload short-lived offline image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: r2-prerender-image-${{ github.sha }}
+          path: |
+            ${{ steps.archive.outputs.archive }}
+            ${{ steps.archive.outputs.checksum }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Summarize release and transfer sizes
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+          IMAGE_ID: ${{ steps.push.outputs.image_id }}
+          IMAGE_SIZE: ${{ steps.push.outputs.image_size }}
+          ARCHIVE_BYTES: ${{ steps.archive.outputs.archive_bytes }}
+          ARCHIVE_SHA: ${{ steps.archive.outputs.archive_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '### R2 prerender image'
+            printf 'Registry digest: `%s@%s`\n\n' "$IMAGE" "$DIGEST"
+            printf 'Local immutable image ID: `%s`\n\n' "$IMAGE_ID"
+            printf 'Docker image size (bytes): `%s`\n\n' "$IMAGE_SIZE"
+            printf 'Compressed Docker archive size (bytes): `%s`\n\n' "$ARCHIVE_BYTES"
+            printf 'Compressed archive SHA-256: `%s`\n\n' "$ARCHIVE_SHA"
+            printf 'Artifact: `r2-prerender-image-%s` (7-day retention)\n' "$GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of GHCR
+        if: always()
+        shell: bash
+        run: docker logout ghcr.io || true

@@ -1,5 +1,7 @@
 """Workflow failures must not become successful website checkpoints."""
 import json
+import io
+from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 import tarfile
 import tempfile
@@ -11,6 +13,22 @@ from tools.global_remote_sync import write_json, file_hash
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_cli_emits_one_json_receipt_despite_download_progress(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        def produce(*_args, **_kwargs):
+            print('Master 40/80')
+            print('Assets 25/50')
+            return {'status': 'content_published'}
+        with patch.object(workflow, 'load_config', return_value={
+                'workspace': self.workspace, 'clientVersion': '1.0.1'}), \
+                patch.object(workflow, 'run_update', side_effect=produce), \
+                redirect_stdout(stdout), redirect_stderr(stderr):
+            status = workflow.main(['run'])
+        self.assertEqual(status, 0)
+        self.assertEqual(json.loads(stdout.getvalue()), {'status': 'content_published'})
+        self.assertIn('Master 40/80', stderr.getvalue())
+        self.assertIn('Assets 25/50', stderr.getvalue())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

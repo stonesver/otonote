@@ -6,6 +6,7 @@ versions stop before any content publication. R2 promotion is a separate step.
 from __future__ import annotations
 
 import argparse
+from contextlib import redirect_stdout
 import hashlib
 import json
 from pathlib import Path
@@ -108,7 +109,8 @@ def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
     candidate = folder/'candidate'
     if not candidate.exists():
         subprocess.run([sys.executable, 'tools/release_candidates.py', '--plan', str(plan),
-                        '--output', str(candidate), '--keep-failed'], cwd=ROOT, check=True)
+                        '--output', str(candidate), '--keep-failed'], cwd=ROOT, check=True,
+                       stdout=subprocess.DEVNULL)
     if read_json(candidate/'candidate.json').get('inputPlanSha256') != file_hash(plan):
         raise ValueError('JP candidate input plan mismatch')
     from tools.scoring_content import bind_scoring_rules
@@ -139,9 +141,10 @@ def main(argv=None):
     parser.add_argument('--minimum-free-bytes', type=int, default=0)
     args = parser.parse_args(argv)
     try:
-        result = run(metadata=args.metadata, apk_root=args.apk_root,
-                     unity_version_file=args.unity_version_file, workspace=args.workspace,
-                     content_store=args.content_store, minimum_free_bytes=args.minimum_free_bytes)
+        with redirect_stdout(sys.stderr):
+            result = run(metadata=args.metadata, apk_root=args.apk_root,
+                         unity_version_file=args.unity_version_file, workspace=args.workspace,
+                         content_store=args.content_store, minimum_free_bytes=args.minimum_free_bytes)
         print(json.dumps(result, ensure_ascii=False))
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(json.dumps({'status':'blocked','region':'jp','error':str(error)}, ensure_ascii=False), file=sys.stderr)

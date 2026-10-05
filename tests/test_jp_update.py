@@ -1,7 +1,10 @@
 """Safety gates for unattended JP production, using only synthetic sources."""
 
 import json
+import io
+from contextlib import redirect_stdout, redirect_stderr
 import os
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -9,7 +12,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from tools.jp_remote_sync import snapshot
-from tools.jp_update import FINGERPRINT_FILES, fingerprint, run
+from tools.jp_update import FINGERPRINT_FILES, fingerprint, run, main
 from tools.resource_pipeline.adapters.global_public import ProtocolError
 
 
@@ -27,6 +30,22 @@ def observation(version='1.0.4', resource='1.0.0.300/' + 'a' * 32):
 
 
 class JpUpdateSafetyTests(unittest.TestCase):
+    def test_cli_emits_one_json_receipt_despite_extraction_progress(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        def produce(**_kwargs):
+            print('Extracting master')
+            print('Reused music')
+            return {'status': 'built', 'region': 'jp'}
+        with patch('tools.jp_update.run', side_effect=produce), \
+                redirect_stdout(stdout), redirect_stderr(stderr):
+            status = main(['--metadata', 'metadata', '--apk-root', 'apks',
+                           '--unity-version-file', 'unity', '--workspace', 'work',
+                           '--content-store', 'content'])
+        self.assertEqual(status, 0)
+        self.assertEqual(json.loads(stdout.getvalue()), {'status': 'built', 'region': 'jp'})
+        self.assertIn('Extracting master', stderr.getvalue())
+        self.assertIn('Reused music', stderr.getvalue())
+
     def test_fingerprint_ignores_documentation_and_commit_identity(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -133,6 +152,9 @@ class JpUpdateSafetyTests(unittest.TestCase):
                 }))
 
             def create_candidate(command, **_options):
+                # The child also emits JSON; only the updater's result may reach
+                # stdout, where Actions records the machine-readable receipt.
+                self.assertEqual(_options.get('stdout'), subprocess.DEVNULL)
                 from tools.global_remote_sync import file_hash
                 path = Path(command[command.index('--output') + 1])
                 plan = Path(command[command.index('--plan') + 1])

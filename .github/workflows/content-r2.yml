@@ -221,7 +221,55 @@ jobs:
           if [[ "$REGION" == jp && "$JP_NODE_CONFIGURED" == true ]]; then
             bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/jp-egress-client"
           fi
+      - name: Probe source and check verified unchanged production
+        id: production_gate
+        shell: bash
+        env:
+          OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
+          OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
+                  --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp
+                  --env OURNOTES_CRI_KEY
+                  --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
+                  --env OURNOTES_MASTER_IV_HEX)
+          probe=(python3 -m tools.r2_production_gate probe --root "$STABLE_ROOT"
+                 --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE")
+          if [[ "$REGION" == global ]]; then
+            export OURNOTES_BUNDLE_DECODER_PROFILE="$STABLE_ROOT/$GLOBAL_DECODER_PROFILE_PATH"
+            common+=(--env OURNOTES_BUNDLE_DECODER_PROFILE)
+            probe+=(--config "$GLOBAL_CONFIG_PATH" --decoder-profile "$GLOBAL_DECODER_PROFILE_PATH")
+            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
+          else
+            common+=(--env OURNOTES_JP_VERSION_PROXY)
+            probe+=(--metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat"
+                    --apk-root "$STABLE_ROOT/output/r2-jp/apks"
+                    --unity-version-file "$STABLE_ROOT/output/r2-jp/unity-version.txt")
+            if [[ -n "$OURNOTES_JP_PROXY_NODE" ]]; then
+              python -m tools.jp_version_egress \
+                --binary "$RUNNER_TEMP/jp-egress-client/mihomo" -- \
+                docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+                "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
+            else
+              docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
+            fi
+          fi
+          python -m tools.r2_production_gate check --root "$STABLE_ROOT" --region "$REGION" \
+            --probe "$RUNNER_TEMP/gate-probe.json" --public-before "$RUNNER_TEMP/public-before.json" \
+            > "$RUNNER_TEMP/gate-check.json"
+          python - "$RUNNER_TEMP/gate-check.json" <<'PY'
+          import json, os, sys
+          result = json.load(open(sys.argv[1]))
+          if type(result.get('skip')) is not bool:
+              raise SystemExit('Invalid unchanged-production gate result')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('skip=' + str(result['skip']).lower() + '\n')
+          PY
       - name: Produce and seal local content
+        if: steps.production_gate.outputs.skip != 'true'
         shell: bash
         env:
           OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
@@ -262,7 +310,24 @@ jobs:
                 "${producer[@]}" > "$RUNNER_TEMP/production.json"
             fi
           fi
+      - name: Upload and read back produced immutable content
+        if: steps.production_gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          store="$(cat "$RUNNER_TEMP/content-store")"
           python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 > "$RUNNER_TEMP/upload.json"
+      - name: Record verified production receipt
+        if: steps.production_gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          store="$(cat "$RUNNER_TEMP/content-store")"
+          python -m tools.r2_production_gate record --root "$STABLE_ROOT" --region "$REGION" \
+            --probe "$RUNNER_TEMP/gate-probe.json" --production "$RUNNER_TEMP/production.json" \
+            --upload "$RUNNER_TEMP/upload.json" --store "$store"
       - name: Preserve failed Global compiler log privately
         if: ${{ failure() && env.REGION == 'global' }}
         continue-on-error: true
@@ -275,6 +340,7 @@ jobs:
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
             >> "$GITHUB_STEP_SUMMARY"
       - name: Checkpoint private production state
+        if: steps.production_gate.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -286,7 +352,7 @@ jobs:
           python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
             --workers 8 --expected-current "$expected" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
       - name: Promote verified public pointer
-        if: env.MODE == 'promote'
+        if: env.MODE == 'promote' && steps.production_gate.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -302,6 +368,9 @@ jobs:
         run: |
           {
             printf 'Workflow result: `%s`. The Actions run is the last-attempt record.\n\n' "$JOB_STATUS"
+            if [[ -f "$RUNNER_TEMP/gate-check.json" ]]; then
+              printf 'Verified unchanged gate: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/gate-check.json")"
+            fi
             if [[ -f "$RUNNER_TEMP/state-after.json" ]]; then
               printf 'Private state checkpoint: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/state-after.json")"
             fi

@@ -108,7 +108,8 @@ def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
     candidate = folder/'candidate'
     if not candidate.exists():
         subprocess.run([sys.executable, 'tools/release_candidates.py', '--plan', str(plan),
-                        '--output', str(candidate), '--keep-failed'], cwd=ROOT, check=True)
+                        '--output', str(candidate), '--keep-failed'], cwd=ROOT, check=True,
+                       stdout=subprocess.DEVNULL)
     if read_json(candidate/'candidate.json').get('inputPlanSha256') != file_hash(plan):
         raise ValueError('JP candidate input plan mismatch')
     from tools.scoring_content import bind_scoring_rules

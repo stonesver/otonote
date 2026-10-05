@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -133,6 +134,9 @@ class JpUpdateSafetyTests(unittest.TestCase):
                 }))
 
             def create_candidate(command, **_options):
+                # The child also emits JSON; only the updater's result may reach
+                # stdout, where Actions records the machine-readable receipt.
+                self.assertEqual(_options.get('stdout'), subprocess.DEVNULL)
                 from tools.global_remote_sync import file_hash
                 path = Path(command[command.index('--output') + 1])
                 plan = Path(command[command.index('--plan') + 1])

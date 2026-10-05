@@ -33,6 +33,9 @@ catalog/*
 !catalog/baselines/*.json
 !catalog/overrides/
 !catalog/overrides/*.json
+!catalog/evidence/
+catalog/evidence/*
+!catalog/evidence/arena-client.json
 
 !config/
 config/*

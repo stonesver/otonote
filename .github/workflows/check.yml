@@ -47,7 +47,7 @@ jobs:
           tests.test_materialize_r2_content tests.test_jp_public tests.test_jp_update
           tests.test_jp_version_egress tests.test_jp_phone_remote
           tests.test_jp_phone_inputs tests.test_jp_remote_snapshot tests.test_read_spine_animations
-          tests.test_export_immersive_scenes tests.test_r2_diagnostics -q
+          tests.test_export_immersive_scenes tests.test_r2_diagnostics tests.test_arena_rank -q
       - name: Publish reviewed artifact identifiers to the run summary
         run: |
           python3 - <<'PYCODE'

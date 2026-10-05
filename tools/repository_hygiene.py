@@ -25,7 +25,9 @@ SOURCE_ROOTS = frozenset({"backend", "tools", "tests", "scripts", "analysis", "s
 ROOT_FILES = frozenset({"README.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "LICENSE", "LICENSE.md", "AGENTS.md", ".gitignore", ".dockerignore", ".nvmrc", "pyproject.toml", "pytest.ini", "package.json", "package-lock.json"})
 EXCLUDED_PARTS = frozenset({".git", ".codex", ".claude", ".agents", ".superpowers", "node_modules", "__pycache__", ".pytest_cache", ".playwright-cli", ".astro", ".venv", "venv", ".deps"})
 PRIVATE_ROOTS = frozenset({"input", "output", "outputs", "data", "files", "アワーノーツ"})
-GENERATED_PREFIXES = ("deploy/admin/aliyun/", "docs/reports/", "docs/history/", "docs/research/", "docs/superpowers/", "site/dist/", "site/dist-matrix/", "site/output/", "site/src/data/", "site/public/auto-stage/", "site/public/growth/", "site/public/immersive/", "site/public/mission-rewards/", "site/public/system-banners/", "site/public/images/filter-bands/", "site/public/data/", "site/public/media/", "site/public/live2d/", "catalog/generated/", "catalog/site-data/", "catalog/evidence/")
+GENERATED_PREFIXES = ("deploy/admin/aliyun/", "docs/reports/", "docs/history/", "docs/research/", "docs/superpowers/", "site/dist/", "site/dist-matrix/", "site/output/", "site/src/data/", "site/public/auto-stage/", "site/public/growth/", "site/public/immersive/", "site/public/mission-rewards/", "site/public/system-banners/", "site/public/images/filter-bands/", "site/public/data/", "site/public/media/", "site/public/live2d/", "catalog/generated/", "catalog/site-data/")
+REVIEWED_ARENA_EVIDENCE = "catalog/evidence/arena-client.json"
+REVIEWED_ARENA_EVIDENCE_SHA256 = "2fa9fc8a8ba121b4fcbb486a4f2b88d6dcf1754720ad1dfe2371740387a8bfb0"
 TEXT_SUFFIXES = frozenset({".py", ".sh", ".mjs", ".cjs", ".mts", ".cts", ".java", ".js", ".ts", ".tsx", ".jsx", ".astro", ".css", ".html", ".svg", ".json", ".toml", ".yaml", ".yml", ".md", ".txt", ".conf", ".cfg", ".service", ".timer", ".path", ".example", ".template", ".xml", ".cmd", ".command", ".dockerignore", ".Dockerfile", ".logrotate", ".sql"})
 
 
@@ -56,6 +58,8 @@ def classify_path(path: str) -> str | None:
     if any(part in EXCLUDED_PARTS for part in parts) or parts[0] in PRIVATE_ROOTS:
         return "private-or-generated"
     if p.name in {".DS_Store", ".coverage"} or path.startswith(GENERATED_PREFIXES):
+        return "private-or-generated"
+    if path.startswith("catalog/evidence/") and path != REVIEWED_ARENA_EVIDENCE:
         return "private-or-generated"
     if p.name in {"anontokyo-media.json", "anontokyo-private-media.json"}:
         return "private-or-generated"
@@ -139,6 +143,8 @@ SYNTHETIC_TEST_VALUES = {
 
 def scan_bytes(path: str, data: bytes) -> list[Finding]:
     found: set[Finding] = set()
+    if path == REVIEWED_ARENA_EVIDENCE and hashlib.sha256(data).hexdigest() != REVIEWED_ARENA_EVIDENCE_SHA256:
+        found.add(Finding(path, 0, "reviewed-evidence-digest"))
     for rule, pattern in TOKEN_PATTERNS:
         for match in pattern.finditer(data):
             found.add(Finding(path, data.count(b"\n", 0, match.start()) + 1, rule))

@@ -9,12 +9,16 @@ from __future__ import annotations
 import base64
 import gzip
 import io
+import ipaddress
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import tempfile
+import unicodedata
 import urllib.request
+from urllib.parse import unquote, urlsplit
 import uuid
 
 from .global_public import ProtocolError, VERSION, allowed_url, decode_grpc, protobuf_fields, string_field, utc_now
@@ -26,6 +30,42 @@ READ_METHODS = frozenset({
     'app.masterdata.MasterdataService/Version',
 })
 RESOURCE_VERSION = re.compile(r'([0-9]+(?:\.[0-9]+){1,4})/([0-9a-f]{32})')
+VERSION_PROXY_ENV = 'OURNOTES_JP_VERSION_PROXY'
+
+
+def version_proxy():
+    """Read an operator-configured RPC egress without exposing its credentials."""
+    value = os.environ.get(VERSION_PROXY_ENV, '')
+    if not value:
+        return None
+    try:
+        if (len(value) > 8192 or any(char.isspace() or unicodedata.category(char).startswith('C') for char in value)
+                or '\\' in value or '?' in value or '#' in value
+                or re.search(r'%(?![0-9a-fA-F]{2})', value)):
+            raise ValueError
+        decoded = unquote(value, errors='strict')
+        if any(unicodedata.category(char).startswith('C') for char in decoded):
+            raise ValueError
+        parsed = urlsplit(value)
+        if (parsed.scheme not in ('http', 'https', 'socks5', 'socks5h')
+                or not parsed.hostname or parsed.path not in ('', '/')
+                or parsed.query or parsed.fragment or parsed.netloc.count('@') > 1
+                or ('@' in parsed.netloc and not parsed.username)):
+            raise ValueError
+        authority = parsed.netloc.rsplit('@', 1)[-1]
+        if authority.endswith(':') or (parsed.port is not None and not 1 <= parsed.port <= 65535):
+            raise ValueError
+        host = parsed.hostname
+        if ':' in host:
+            ipaddress.IPv6Address(host)
+            if not re.fullmatch(r'\[[0-9A-Fa-f:.]+\](?::[0-9]+)?', authority):
+                raise ValueError
+        elif (len(host) > 253 or not all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label)
+                                       for label in host.rstrip('.').split('.'))):
+            raise ValueError
+    except (ValueError, UnicodeError):
+        raise ProtocolError('invalid JP version proxy configuration') from None
+    return value
 
 
 def resource_version(header, client_version):
@@ -138,12 +178,17 @@ class JpPublicClient:
     def rpc(self, method):
         if method not in READ_METHODS:
             raise ProtocolError('unsupported JP read-only RPC')
+        proxy = version_proxy()
         with tempfile.TemporaryDirectory(prefix='ournotes-jp-rpc-') as temporary:
             directory = Path(temporary)
             headers, body, request = (directory/name for name in ('headers', 'body', 'request'))
             request.write_bytes(bytes(5))
             # curl receives the secret through stdin, never process arguments.
             configuration = 'header = ' + json.dumps('Authorization: ' + self._authorization) + '\n'
+            options = {}
+            if proxy is not None:
+                configuration += 'proxy = ' + json.dumps(proxy, ensure_ascii=False) + '\nnoproxy = ""\n'
+                options['env'] = {key: value for key, value in os.environ.items() if key != VERSION_PROXY_ENV}
             command = ['curl', '--disable', '--config', '-', '--http2', '--proto', '=https',
                        '--max-time', '30', '--max-filesize', '1048576', '--silent', '--show-error',
                        '--dump-header', str(headers), '--output', str(body),
@@ -152,7 +197,10 @@ class JpPublicClient:
                        '-H', 'x-request-id: ' + uuid.uuid4().hex,
                        '--user-agent', 'OurNotes/' + self.client_version,
                        '--data-binary', '@' + str(request), API_ROOT + '/' + method]
-            completed = subprocess.run(command, input=configuration.encode(), capture_output=True, timeout=35)
+            try:
+                completed = subprocess.run(command, input=configuration.encode(), capture_output=True, timeout=35, **options)
+            except (OSError, subprocess.TimeoutExpired):
+                raise TransportError('JP read-only RPC transport failed') from None
             if completed.returncode:
                 raise TransportError('JP read-only RPC transport failed (' + str(completed.returncode) + ')')
             raw_headers = headers.read_text()

@@ -9,6 +9,8 @@
 - [JP 首轮影子运行](https://github.com/stonesver/otonote/actions/runs/37245779173) 已在全新 GitHub runner 成功恢复这 6 个文件、检查容量并拉取固定镜像。生产阶段官方版本 RPC 返回 **HTTP 403**；没有进入公开内容上传、私有新检查点或公开指针晋级。该结果证明首次恢复链路可用，不能视为 JP 自动追新验收。
 - JP 协议解析已按受信任 1.0.4 APK 校正：`x-asset-version` 是 JSON，非空 `live` 中选择不超过当前客户端版本的最高 `minClientVersion` 对应的 Android 身份；不回退到 `history` 冒充当前版本。服务端 CDN 密码仅在官方 CDN 根精确匹配时更新到内存，观察回执不记录该值。解析修正和 25 项 JP 测试通过不代表 403 已解决；对公开正常 gRPC 请求形状的一次验证仍被拒绝，需官方客户端成功请求的脱敏证据才能继续确定入口条件。[公开协议对照](https://github.com/haneoka-gakuen/haneoka/blob/d6b214d5c785132e89169412b6e0ce8191e43a6d/scripts/ingest/version_api.py)
 - 站点所有者随后报告手机日服提示更新，但实时官方商店详情仍显示 1.0.4，APK 下载页仍为 10053；未找到更高版本的证据。本机暂未连接 ADB 设备，须核对手机实际版本、提示原文与网络出口。该提示不能单独证明 RPC 403 是版本原因；出口访问策略和正常请求条件仍待确认。
+- 本机 Clash 对照发现此前 Version 请求实际经美国节点返回 403；切换到日本节点后一次 Version 请求超时。随后无凭据 HEAD 对官方 API 完成 TLS，连接记录确认日本出口，但该 HEAD 不是合法版本调用，不能当作追新成功。等待同节点手机冷启动对照。
+- [独立预渲染镜像构建](https://github.com/stonesver/otonote/actions/runs/37249866227) 已通过离线 Python/Node 检查和摘要回拉验证；镜像解压大小 **328,569,484 字节**，离线归档 **136,214,235 字节**。两服旧快照的预渲染子集约需 386 MB，fresh HTML stage 约需 549 MB；旧服务器尚未安装或切换新服务。
 - 首轮手动任务启动后，已将 `CONTENT_R2_ENABLED_JP` 恢复为 `false`；两服自动晋级均保持关闭。旧服务器数据与定时器尚未切换。
 
 本机首次上传使用另建的、仅授权私有状态桶的临时 S3 凭据，保存在仓库外的权限 `600` 文件中；GitHub 原有凭据继续供 Actions 使用。两服首次上传及恢复验收完成后撤销临时凭据，切勿先撤销仍供 Actions 使用的原凭据。
@@ -111,6 +113,18 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 
 
 影子 run 至少检查：真实 runner 空间峰值、完整耗时、官方版本身份、客户端签名和解码校验、Global/JP 候选与封存回执、R2 读回摘要、两服交叉引用和现有网页预渲染。`ubuntu-latest` 的资源规格会因仓库类型变化，不要只按名义磁盘值判断；实际以 `df` 和 run 记录为准。[GitHub 托管 runner 规格](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
 
+## JP 版本接口的指定代理出口
+
+可在 `content-r2-production` Environment Secrets 中配置可选的 `OURNOTES_JP_VERSION_PROXY`，支持 `http://`、`https://`、`socks5://`、`socks5h://`。它只传给 JP 生产容器，仅用于固定允许的 Version RPC；CDN 下载不读取该变量。代理认证通过 curl 标准输入传入，错误和观察回执不包含代理凭据。TLS 验证保持开启；403 仍立即阻断，不能把旧快照当作最新版本。
+
+本机 Clash 的 `127.0.0.1` 端口只适用于本机验证，不能直接填给 GitHub 托管 runner。订阅也不是 HTTP/SOCKS 代理地址；若使用订阅节点，需要另行准备 runner 可使用的受控客户端配置。实际出口应通过连接记录确认，不能只凭订阅相同或节点名称判断。线路验证成功前保持 JP 定时生产和自动晋级关闭。
+
+## R2 请求与存储成本
+
+截至 2026-10-05，[Cloudflare 标准存储价格](https://developers.cloudflare.com/r2/pricing/)每月包括 10 GB-month、100 万次 Class A 和 1,000 万次 Class B 免费额度。超额存储为 $0.015/GB-month；A 为 $4.50/百万次，B 为 $0.36/百万次，按计费单位向上取整。出网免费不包括 Workers 或 GitHub Actions 费用；不频繁访问存储不适用这些免费额度。
+
+首次导入按对象上传并完整 GET 校验，所以对象多时操作计数会快速上升。日常重复上传先完整读取已有不可变对象，匹配则复用，省去重复的条件 PUT；全新对象仍条件写入并读回，已有对象损坏时失败且不覆盖。并发只影响速度，不会减少对象总请求数。启用定时任务前记录一次真实运行的新增/复用对象数、读取次数、运行时长和存储增量，再按计划频率估算月用量。旧版本仍按独立引用审计保留，不能用任意过期规则删除当前或仍被网页引用的内容。
+
 ## 现有域名的只读 Worker Route
 
 ### 保留现有网页引用的旧快照
@@ -134,6 +148,6 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 ## 故障和回退
 
 - 生产失败或 R2 校验失败：保持 `CONTENT_R2_AUTO_PROMOTE_*` 关闭或设回 `false`；检查 Actions 失败步骤、私有检查点、公开晋级记录。不要删除旧 release。
-- Worker Route 故障：在上述 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，流量立即回到保留的旧 Nginx `/content/` 路径；先验证旧内容仍完整，再操作。
+- Worker Route 故障：先用旧完整内容库恢复并验证旧 HTML，确认两服 HTML 引用的媒体在源站可读，再在 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，最后恢复旧预渲染 timer；避免新 HTML 在撤 Route 后引用源站不存在的快照。
 - 公开内容需要回退：先运行 `python3 -m tools.r2_content baseline --region global`（JP 改为 `jp`）取得 `currentSha256`，检查返回的 `previousPointer` 是否指向所需旧版本，再运行 `python3 -m tools.r2_content rollback --region global --expected-current <currentSha256> --source-run <工单标识>`。命令验证旧清单及所引用的 JSON 后写晋级记录，并用条件写切回旧指针；普通媒体的完整性仍须在 Worker 测试地址抽验。不要在控制台直接手改 `current.json`。紧急情况下优先撤 Route 回到原站内容。
 - 新流水线通过真实定时运行、Route 和浏览器验收后，才停止服务器旧的 `global-update.timer`。保留旧源站内容和旧 HTML 引用；历史对象清理仍由独立引用审计决定，不由工作流自动删除。

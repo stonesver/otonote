@@ -213,6 +213,8 @@ jobs:
           fi
       - name: Produce and seal local content
         shell: bash
+        env:
+          OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
@@ -232,6 +234,7 @@ jobs:
             docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
               python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
           else
+            common+=(--env OURNOTES_JP_VERSION_PROXY)
             docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
               python3 -m tools.jp_update \
               --metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat" \

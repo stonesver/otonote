@@ -211,6 +211,32 @@ class R2PublicationTests(unittest.TestCase):
                            content_type="application/json", cache_control="immutable", sha256=sha(b"wrong"))
             with self.assertRaisesRegex(ValueError, "different bytes"):
                 r2_content.upload_release(bucket, root, "global")
+            self.assertEqual(bucket.objects["content/releases/" + "a" * 24 + "/en/catalog.json"], b"wrong")
+            self.assertNotIn("content/releases/" + "a" * 24 + "/manifest.json", bucket.objects)
+            self.assertNotIn("content/current.json", bucket.objects)
+
+    def test_repeat_upload_reuses_every_verified_object_without_put(self):
+        class CountingBucket(MemoryBucket):
+            def __init__(self):
+                super().__init__()
+                self.release_put_attempts = 0
+
+            def put_new(self, key, data, **options):
+                if key.startswith("content/releases/"):
+                    self.release_put_attempts += 1
+                return super().put_new(key, data, **options)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture(root)
+            bucket = CountingBucket()
+            first = r2_content.upload_release(bucket, root, "global", workers=2)
+            self.assertEqual(first["uploaded"], first["files"])
+            first_puts = bucket.release_put_attempts
+            second = r2_content.upload_release(bucket, root, "global", workers=2)
+            self.assertEqual(second["uploaded"], 0)
+            self.assertEqual(second["reused"], second["files"])
+            self.assertEqual(bucket.release_put_attempts, first_puts)
 
     def test_rollback_restores_previous_pointer_with_journal(self):
         with tempfile.TemporaryDirectory() as temporary:

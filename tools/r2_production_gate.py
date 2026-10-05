@@ -81,13 +81,13 @@ def relative_path(root: Path, raw: str | Path, *, directory: bool = False) -> st
     return name
 
 
-def code_fingerprints(root: Path) -> tuple[str, str]:
+def code_fingerprints(root: Path, *, private_inputs=()) -> tuple[str, str]:
     # JP's fingerprint covers the complete production tool tree and build inputs.
     # Include the orchestration file because workflow changes can alter behavior.
     from tools.jp_update import fingerprint
     if root != ROOT:
         raise GateError("source fingerprint ROOT differs from checkout")
-    producer = fingerprint()
+    producer = fingerprint(exclude_paths=private_inputs)
     workflow = file_hash(root / ".github/workflows/content-r2.yml")
     return producer, digest(canonical({"producer": producer, "workflow": workflow}))
 
@@ -233,7 +233,8 @@ def probe(root: Path, region: str, image: str, *, config: str | None = None,
         package_sha = local_package_sha
         if observation.get("clientVersion") != "1.0.4":
             raise GateError("JP client upgrade requires a reviewed profile")
-    producer_code_sha, code_sha = code_fingerprints(root)
+    producer_code_sha, code_sha = code_fingerprints(
+        root, private_inputs=tuple(paths.values()) if region == "global" else ())
     return {"schemaVersion": PROBE_SCHEMA, "region": region,
             "sourceSha256": source_identity(observation), "packageSha256": package_sha,
             "producerCodeSha256": producer_code_sha, "codeSha256": code_sha,
@@ -297,7 +298,8 @@ def valid_probe(value: dict, region: str) -> bool:
 
 def current_input_identity(root: Path, region: str, observed: dict) -> bool:
     try:
-        producer, code_sha = code_fingerprints(root)
+        producer, code_sha = code_fingerprints(
+            root, private_inputs=tuple(observed["inputPaths"].values()) if region == "global" else ())
         input_sha, package_sha = input_identity(root, region, observed["inputPaths"])
         return (producer == observed["producerCodeSha256"] and code_sha == observed["codeSha256"]
                 and input_sha == observed["inputSha256"]
@@ -594,12 +596,13 @@ def light_prepare(private_bucket, root: Path, region: str, selections: list[str]
         return _needs_full("receipt_missing_or_legacy")
     if image_digest(image) != receipt["imageDigest"]:
         return _needs_full("image_changed")
-    _, code_sha = code_fingerprints(root)
-    if code_sha != receipt["codeSha256"]:
-        return _needs_full("source_changed")
     if not _inventory_matches_manifest(manifest, receipt, region):
         return _needs_full("private_inputs_changed")
     paths = receipt["inputPaths"]
+    _, code_sha = code_fingerprints(
+        root, private_inputs=tuple(paths.values()) if region == "global" else ())
+    if code_sha != receipt["codeSha256"]:
+        return _needs_full("source_changed")
     if region == "global":
         if not config or not decoder_profile or paths != {"config": config, "decoderProfile": decoder_profile}:
             return _needs_full("configuration_changed")
@@ -697,7 +700,9 @@ def light_check(private_bucket, public_bucket, root: Path, region: str, prepared
         return _needs_full(observed.get("reason", "probe_unknown"))
     if observed.get("status") != "probed" or observed.get("region") != region:
         raise GateError("light source observation is invalid")
-    if (image_digest(image) != receipt["imageDigest"] or code_fingerprints(root)[1] != receipt["codeSha256"] or
+    code_sha = code_fingerprints(root, private_inputs=(tuple(receipt["inputPaths"].values())
+        if region == "global" else ()))[1]
+    if (image_digest(image) != receipt["imageDigest"] or code_sha != receipt["codeSha256"] or
             observed.get("sourceSha256") != receipt["sourceSha256"] or
             observed.get("packageSha256") != receipt["packageSha256"] or
             region == "global" and observed.get("stablePackageSha256") != proof.get("stablePackageSha256")):

@@ -47,7 +47,16 @@ FINGERPRINT_FILES = (
 )
 
 
-def fingerprint():
+def fingerprint(*, exclude_paths=()):
+    """Hash producer sources, optionally excluding separately bound inputs.
+
+    The gate uses this only for restored private Global configuration. JP's
+    candidate cache keeps the default complete source fingerprint.
+    """
+    excluded = frozenset(exclude_paths)
+    if any(not isinstance(name, str) or not name or name.startswith('/')
+           or any(part in ('', '.', '..') for part in name.split('/')) for name in excluded):
+        raise ValueError('invalid producer fingerprint exclusion')
     files = {}
     for dirname, suffixes in FINGERPRINT_ROOTS.items():
         directory = ROOT / dirname
@@ -58,7 +67,9 @@ def fingerprint():
                 continue
             if path.is_symlink() or not path.is_file():
                 raise ValueError('JP producer source file missing or linked: ' + str(path.relative_to(ROOT)))
-            files[path.relative_to(ROOT).as_posix()] = file_hash(path)
+            name = path.relative_to(ROOT).as_posix()
+            if name not in excluded:
+                files[name] = file_hash(path)
     for name in FINGERPRINT_FILES:
         path = ROOT / name
         if path.is_symlink() or not path.is_file():

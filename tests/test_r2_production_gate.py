@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -257,6 +258,76 @@ class ProductionGateTests(unittest.TestCase):
                                         decoder_profile='config/decoder.json')
         self.assertEqual(result['reason'], 'private_pointer_changed')
         self.assertFalse(stage.exists())
+
+    def test_global_receipt_matches_clean_runner_without_private_config_files(self):
+        from tools import jp_update
+        root = self.root.resolve()
+        private_config = self.root / 'config/global-update.r2.json'
+        private_profile = self.root / 'config/bundle-decoder-profiles.json'
+        public_config = self.root / 'config/public.json'
+        private_config.write_text('{}')
+        private_profile.write_text('{}')
+        public_config.write_text('{"edition":"global"}')
+        workflow = self.root / '.github/workflows/content-r2.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('name: fixture\n')
+        self.package.update(etag='"trusted-etag"', lastModified='Tue, 01 Oct 2026 00:00:00 GMT')
+        self.state['package'] = self.package
+        self.state['inputPlan'] = str(root / self.plan.relative_to(self.root))
+        self.state_path.write_bytes(gate.canonical(self.state))
+        paths = {'config': 'config/global-update.r2.json',
+                 'decoderProfile': 'config/bundle-decoder-profiles.json'}
+
+        class Client:
+            def __init__(self, version):
+                self.version = version
+
+            def discover(self):
+                return observation
+
+        observation = self.observation
+        selections = [*paths.values(), 'output/global-update-workflow/state.json']
+        stage = root / 'output/tmp/r2-light'
+        stage.parent.mkdir(parents=True)
+        with patch.object(gate, 'ROOT', root), \
+             patch.object(jp_update, 'ROOT', root), \
+             patch.object(jp_update, 'FINGERPRINT_ROOTS', {'config': frozenset({'.json'})}), \
+             patch.object(jp_update, 'FINGERPRINT_FILES', ()), \
+             patch.object(gate, 'code_fingerprints', ORIGINAL_CODE_FINGERPRINTS), \
+             patch('tools.global_update.load_config', return_value={'clientVersion': '1.0.1', 'intakePackages': False}), \
+             patch('tools.resource_pipeline.adapters.global_public.GlobalPublicClient', Client), \
+             patch('tools.resource_pipeline.adapters.global_public.discover_package', return_value=self.package):
+            observed = gate.probe(root, 'global', IMAGE, **{
+                'config': paths['config'], 'decoder_profile': paths['decoderProfile']})
+            gate.record(root, 'global', observed, self.state, self.upload, self.store, image=IMAGE)
+            files = {name: (root / name).read_bytes() for name in paths.values()}
+            files['output/global-update-workflow/state.json'] = self.state_path.read_bytes()
+            private = PrivateBucket(root, 'global', selections, files)
+            private_config.unlink()
+            private_profile.unlink()
+            result = gate.light_prepare(private, root, 'global', selections, stage,
+                                        image=IMAGE, config=paths['config'],
+                                        decoder_profile=paths['decoderProfile'])
+            self.assertEqual(result['status'], 'ready')
+            light_observation = {'status': 'probed', 'region': 'global',
+                'sourceSha256': observed['sourceSha256'],
+                'packageSha256': observed['packageSha256'],
+                'stablePackageSha256': gate.digest(gate.canonical({key: self.package[key]
+                    for key in ('url', 'byteSize', 'etag', 'lastModified')}))}
+            self.assertTrue(gate.light_check(private, self.bucket, root, 'global',
+                stage / 'proof.json', light_observation, self.public_before, image=IMAGE)['skip'])
+
+            shutil.rmtree(stage)
+            changed = dict(files, **{paths['config']: b'{"changed":true}'})
+            changed_private = PrivateBucket(root, 'global', selections, changed)
+            self.assertEqual(gate.light_prepare(changed_private, root, 'global', selections, stage,
+                image=IMAGE, config=paths['config'], decoder_profile=paths['decoderProfile'])['reason'],
+                'private_inputs_changed')
+            shutil.rmtree(stage)
+            public_config.write_text('{"edition":"changed"}')
+            self.assertEqual(gate.light_prepare(private, root, 'global', selections, stage,
+                image=IMAGE, config=paths['config'], decoder_profile=paths['decoderProfile'])['reason'],
+                'source_changed')
 
     def test_light_gate_pointer_changes_after_probe_require_full(self):
         private, selections, stage = self.light_fixture()

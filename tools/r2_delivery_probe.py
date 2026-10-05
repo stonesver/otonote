@@ -42,7 +42,8 @@ def prepare(root: Path):
 
 
 def request(path, *, method='GET', headers=None):
-    req = Request(GATEWAY + path, method=method, headers=headers or {})
+    req = Request(GATEWAY + path, method=method,
+                  headers={'User-Agent': 'otonote-delivery-probe/1.0', **(headers or {})})
     try:
         response = urlopen(req, timeout=30)
     except HTTPError as response:

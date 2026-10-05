@@ -212,3 +212,11 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 手动工作流 **Check R2 shared delivery** 上传一个很小的不可变测试快照，验证 Worker 测试地址上的相对 Live2D JSON/贴图路径、MIME、GET/HEAD/Range 和内部路径拒绝。它不写两服公开 current/previous 指针、不添加 Route，也不启用共享生产开关。失败证据仍保存为短期 Actions artifact。
 
 本轮本地验证：39 项发布/验证目录/小快照 Python 测试、9 项网关测试通过；独立静态审查未发现阻断项。实际 Worker 验收及迁移晋级尚未执行。
+
+### 真实小快照探测发现（2026-10-05）
+
+PR33 已合并为 `4674e222c8f925a8c58feeb31910ab20d012b0fd`，两套 verify 均通过。Global shadow `37262193107` 和 JP shadow `37262141589` 都已完成生产、公开上传及私有检查点，公开晋级均跳过。旧快照 bootstrap `37281443762` 已以 promote 模式启动；未切网站 Route。
+
+小快照探测 `37281403485` 完成上传，但默认 `Python-urllib` 客户端被测试域名返回 403/1010；本机只读对照中，明确的项目客户端标识 `otonote-delivery-probe/1.0` 可访问相同资源。探测脚本据此设置明确 User-Agent。
+
+相同资源的普通 GET 实际返回 206 和完整 `Content-Range`。R2 对象可能携带完整范围信息，Worker 不能仅凭 `object.range` 决定 HTTP 206；现改为只有客户端请求 Range 且 R2 返回 range 时才返回部分响应，并补普通 GET/HEAD/可变 pointer 回归。共享模型 JSON 当前仍为 404，已请用户部署兼容 Worker；10 项网关、3 项探测测试通过，真实共享交付尚未通过。

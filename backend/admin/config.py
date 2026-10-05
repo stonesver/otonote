@@ -97,6 +97,8 @@ def validate_config(source, role=None):
             raise ValueError('invalid resource capabilities')
         if 'publish' in actions and not row.get('publishUsers'):
             raise ValueError('publication requires an explicit actor allowlist')
+        if row.get('productionSource') not in (None, 'github-actions-r2'):
+            raise ValueError('unknown production source')
     for site in c.get("sites", []):
         ZoneInfo(site.get("timezone", "Asia/Shanghai"))
         for key in ('pathPatterns', 'resourcePatterns'):

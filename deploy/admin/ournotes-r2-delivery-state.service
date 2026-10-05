@@ -1,0 +1,14 @@
+[Unit]
+Description=OurNotes local R2 materialization and HTML delivery status export
+After=ournotes-r2-prerender.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /srv/ournotes-admin/export_r2_delivery_state.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ournotes-resource-state
+ReadOnlyPaths=/srv/ournotes-r2-prerender-content /srv/ournotes-rendered
+UMask=0022

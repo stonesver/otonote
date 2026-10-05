@@ -104,6 +104,20 @@ async function refreshNodes(gen=generation){
     if(!result.data){panel.append(el('p','检查节点服务与 SSH 隧道，未连接不代表任务失败。','caption'));return panel;}
     for(const profile of result.data.profiles){
       const row=el('div',null,'node-profile'),description=el('div');
+      if(profile.productionOwner==='github-actions-r2'){
+        description.append(el('p',profile.name),el('small','Global / JP 内容生产：GitHub Actions'));
+        const actionsLink=el('a','查看内容工作流');
+        actionsLink.href='https://github.com/stonesver/otonote/actions/workflows/content-r2.yml';
+        actionsLink.target='_blank';actionsLink.rel='noopener noreferrer';description.append(actionsLink);
+        const delivery=profile.delivery;
+        description.append(el('small',profile.updatedAt?`本机状态采样：${new Date(profile.updatedAt*1000).toLocaleString('zh-CN',{hour12:false})}`:'本机状态尚无采样'));
+        description.append(el('small',delivery?.status==='ready'?'本机 R2 内容已物化，HTML 已渲染；此处不代表远端最新生产结果':'本机交付状态不可用；请查看 Actions 与预渲染服务'));
+        if(delivery?.status==='ready')for(const region of ['global','jp']){
+          const item=delivery.regions?.[region];
+          if(item)description.append(el('small',`${region==='global'?'Global':'JP'} 本机内容：${item.contentReleaseId} · HTML：${item.renderPair}`));
+        }
+        row.append(description);panel.append(row);continue;
+      }
       description.append(el('p',profile.name),el('small',`最近运行：${words[profile.status]||profile.status} · ${profile.publication==='enabled'?'已开放授权发布':'发布权限未开放'}`));
       if(profile.currentRelease)description.append(el('small',`当前内容：${profile.currentRelease}`));
       if(profile.candidate)description.append(el('small',`候选：${profile.candidate.id.slice(0,12)} · ${profile.candidate.contentReleaseId} · ${profile.candidate.stale?'线上版本已改变，请重新构建':'已校验，等待发布'}`));
@@ -124,7 +138,7 @@ async function refreshNodes(gen=generation){
       row.append(description,actions);panel.append(row);
       if(profile.steps?.length) rows(panel.appendChild(el('div')),profile.steps.map(s=>[s.name,words[s.status]||s.status]));
     }
-    for(const task of result.data.tasks){const row=el('div',null,'task'),name=el('div',task.message);name.append(el('small',`${({check:'检查版本',fetch:'拉取资源',build:'构建候选',publish:'发布候选'})[task.action]||'资源任务'} · ${task.profile} · ${task.id.slice(0,8)}`));const stamp=el('time',time(task.updated));row.append(el('span',words[task.status]||task.status),name,stamp);panel.append(row);}
+    for(const task of result.data.tasks){const row=el('div',null,'task'),name=el('div',task.message);name.append(el('small',`${result.data.profiles.some(p=>p.id===task.profile&&p.productionOwner==='github-actions-r2')?'旧本机历史任务 · ':''}${({check:'检查版本',fetch:'拉取资源',build:'构建候选',publish:'发布候选'})[task.action]||'资源任务'} · ${task.profile} · ${task.id.slice(0,8)}`));const stamp=el('time',time(task.updated));row.append(el('span',words[task.status]||task.status),name,stamp);panel.append(row);}
     if(!result.data.tasks.length)panel.append(el('p','尚未提交任务。','caption'));return panel;
   }));
 }

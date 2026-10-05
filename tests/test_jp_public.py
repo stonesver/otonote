@@ -1,9 +1,10 @@
 import base64
+import json
 from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from tools.resource_pipeline.adapters.jp_public import JpPublicClient, API_ROOT
+from tools.resource_pipeline.adapters.jp_public import JpPublicClient, API_ROOT, CDN_ROOT, resource_version
 from tools.resource_pipeline.adapters.global_public import ProtocolError
 from tools.resource_pipeline.transport import HttpResponse
 
@@ -78,19 +79,80 @@ class JpSourceTests(unittest.TestCase):
         c=JpPublicClient('1.0.4','Basic '+base64.b64encode(b'client:test').decode())
         master='1.0.0.300/'+'a'*32;resource='1.0.0.300/'+'b'*32
         payload=b'\x0a'+bytes([len(master)])+master.encode()
-        with patch.object(c,'rpc',return_value=({'x-asset-version':resource},payload)):
+        asset_header = json.dumps({'version': '1.0.0.300', 'Android': 'b'*32})
+        with patch.object(c,'rpc',return_value=({'x-asset-version':asset_header},payload)):
             observation=c.discover()
             self.assertEqual(observation['region'],'jp')
             self.assertEqual(observation['resourceVersion'],resource)
             self.assertIn('/1.0.0.300/Android/'+('b'*32),observation['catalogUrl'])
         with patch.object(c,'rpc',return_value=({},payload)):
             with self.assertRaises(ProtocolError):c.discover()
-        with patch.object(c,'rpc',return_value=({'x-asset-version':resource,'x-client-recommended-version':'1.0.5'},payload)):
+        with patch.object(c,'rpc',return_value=({'x-asset-version':asset_header,'x-client-recommended-version':'1.0.5'},payload)):
             with self.assertRaisesRegex(ProtocolError,'verified client intake'):c.discover()
 
     def test_authenticated_requests_never_follow_redirects(self):
         from tools.resource_pipeline.adapters.jp_public import _NoRedirect
         self.assertIsNone(_NoRedirect().redirect_request(None,None,302,'',{},'http://static.bang-dream-on.jp/file'))
+
+    def test_live_json_uses_highest_applicable_minimum_client_version(self):
+        payload = {'live': [
+            {'minClientVersion': '1.0.0', 'version': '1.0.0.900', 'Android': 'a'*32},
+            {'minClientVersion': '1.0.4.0', 'version': '1.0.0.300', 'Android': 'b'*32},
+            {'minClientVersion': '1.0.5', 'version': '1.0.0.500', 'Android': 'c'*32},
+        ], 'futureOptionalField': 'ignored'}
+        self.assertEqual(resource_version(json.dumps(payload), '1.0.4'), '1.0.0.300/'+'b'*32)
+        self.assertEqual(resource_version(json.dumps(payload), '1.0.3'), '1.0.0.900/'+'a'*32)
+        self.assertEqual(resource_version(json.dumps(payload), '1.0.5'), '1.0.0.500/'+'c'*32)
+
+    def test_live_json_never_falls_back_to_history_or_root_when_client_is_too_old(self):
+        payload = {'version': '1.0.0.100', 'Android': 'a'*32,
+                   'live': [{'minClientVersion': '1.0.5', 'version': '1.0.0.500', 'Android': 'b'*32}],
+                   'history': [{'version': '1.0.0.100', 'Android': 'a'*32}]}
+        with self.assertRaisesRegex(ProtocolError, 'new intake'):
+            resource_version(json.dumps(payload), '1.0.4')
+
+    def test_legacy_json_and_unknown_optional_fields_follow_client_payload_contract(self):
+        for live in (None, []):
+            payload = {'version': '1.0.0.300', 'Android': 'a'*32, 'iOS': 'b'*32,
+                       'live': live, 'unknown': {'nextSchema': True}}
+            self.assertEqual(resource_version(json.dumps(payload), '1.0.4'), '1.0.0.300/'+'a'*32)
+
+    def test_invalid_or_ambiguous_live_identity_is_rejected(self):
+        entry = {'minClientVersion': '1.0.4', 'version': '1.0.0.300', 'Android': 'a'*32}
+        bad = [None, 'unknown', '1.0.0.300/'+'a'*32, '[]',
+               json.dumps({'live': 'invalid'}),
+               json.dumps({'live': [dict(entry, minClientVersion='')] }),
+               json.dumps({'live': [dict(entry, minClientVersion='1.0.2147483648')] }),
+               json.dumps({'live': [dict(entry, Android=None)]}),
+               json.dumps({'live': [dict(entry, version='../300')]}),
+               json.dumps({'live': [entry, dict(entry, Android='b'*32)]})]
+        for header in bad:
+            with self.subTest(header=header), self.assertRaises(ProtocolError):
+                resource_version(header, '1.0.4')
+
+    def test_service_cdn_password_refresh_is_private_and_host_bound(self):
+        client = JpPublicClient('1.0.4', 'Basic '+base64.b64encode(b'client:old-test').decode())
+        master = '1.0.0.300/'+'a'*32
+        payload = b'\x0a'+bytes([len(master)])+master.encode()
+        asset = json.dumps({'live': [{'minClientVersion': '1.0.4', 'version': '1.0.0.300', 'Android': 'b'*32}]})
+        def run(command, **options):
+            Path(command[command.index('--dump-header')+1]).write_text(
+                'HTTP/2 200\r\ncontent-type: application/grpc\r\ngrpc-status: 0\r\n'
+                + 'x-asset-version: '+asset+'\r\nx-sirius-env: '+CDN_ROOT
+                + '\r\nx-sirius-cred: new-test-password\r\n')
+            Path(command[command.index('--output')+1]).write_bytes(b'\x00'+len(payload).to_bytes(4,'big')+payload)
+            return Mock(returncode=0)
+        with patch('tools.resource_pipeline.adapters.jp_public.subprocess.run', side_effect=run):
+            observation = client.discover()
+        self.assertNotIn('new-test-password', json.dumps(observation))
+        self.assertNotIn('x-sirius-cred', observation['responseHeaders'])
+        self.assertEqual(base64.b64decode(client._headers()['Authorization'][6:]), b'client:new-test-password')
+        previous = client._headers()['Authorization']
+        for root in ('https://evil.invalid', CDN_ROOT+'/other', CDN_ROOT+'@evil.invalid', None):
+            with self.subTest(root=root), self.assertRaises(ProtocolError) as error:
+                client._refresh_cdn_authorization({'x-sirius-env': root, 'x-sirius-cred': 'must-not-leak'})
+            self.assertNotIn('must-not-leak', str(error.exception))
+            self.assertEqual(client._headers()['Authorization'], previous)
 
 
 class JpIncrementalTests(unittest.TestCase):

@@ -1,7 +1,8 @@
 """Bounded JP client transport; callers must supply explicitly authorized credentials.
 
-Only resource-version RPCs and the official static host are allowed. This module
-does not discover credentials, log them, access player data, or retry refusals.
+Only resource-version RPCs and the official static host are allowed. CDN password
+refreshes stay in memory; credentials are never logged. Player data and refusal
+retries are outside this transport.
 """
 from __future__ import annotations
 
@@ -25,6 +26,57 @@ READ_METHODS = frozenset({
     'app.masterdata.MasterdataService/Version',
 })
 RESOURCE_VERSION = re.compile(r'([0-9]+(?:\.[0-9]+){1,4})/([0-9a-f]{32})')
+
+
+def resource_version(header, client_version):
+    """Apply the signed 1.0.4 AssetVersion.Parse/SelectLive contract.
+
+    Native Parse is at 0x6491dec and SelectLive at 0x649203c in the verified APK.
+    A live entry is selected by its minimum client version, not by the largest
+    resource version. The legacy JSON shape has version/Android at the root.
+    ``history`` is never a fallback for a client with no applicable live entry.
+    """
+    def client_key(value):
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,3}', value):
+            raise ProtocolError('invalid JP minimum client version')
+        parts = tuple(int(part) for part in value.split('.'))
+        if any(part > 2147483647 for part in parts):
+            raise ProtocolError('invalid JP minimum client version')
+        return parts + (0,) * (4 - len(parts))
+
+    if not isinstance(header, str) or len(header) > 65536:
+        raise ProtocolError('invalid JP asset-version header')
+    try:
+        payload = json.loads(header)
+    except (ValueError, TypeError):
+        raise ProtocolError('JP asset-version header must be JSON') from None
+    if not isinstance(payload, dict):
+        raise ProtocolError('invalid JP asset-version payload')
+    live = payload.get('live')
+    if live is not None and not isinstance(live, list):
+        raise ProtocolError('invalid JP live version entries')
+    selected = payload
+    if live:
+        current = client_key(client_version)
+        selected, selected_key = None, None
+        for entry in live:
+            if not isinstance(entry, dict):
+                raise ProtocolError('invalid JP live version entry')
+            minimum = client_key(entry.get('minClientVersion'))
+            if minimum > current:
+                continue
+            if selected_key is None or minimum > selected_key:
+                selected, selected_key = entry, minimum
+            elif minimum == selected_key and any(entry.get(key) != selected.get(key) for key in ('version', 'Android')):
+                raise ProtocolError('ambiguous JP live version entries')
+        if selected is None:
+            raise ProtocolError('no JP live version supports the verified client; a new intake is required')
+    release, digest = selected.get('version'), selected.get('Android')
+    if not isinstance(release, str) or not isinstance(digest, str):
+        raise ProtocolError('JP asset version is missing its Android identity')
+    result = release + '/' + digest
+    version_parts(result)
+    return result
 
 
 def version_parts(value):
@@ -103,7 +155,28 @@ class JpPublicClient:
             completed = subprocess.run(command, input=configuration.encode(), capture_output=True, timeout=35)
             if completed.returncode:
                 raise TransportError('JP read-only RPC transport failed (' + str(completed.returncode) + ')')
-            return decode_grpc(headers.read_text(), body.read_bytes())
+            raw_headers = headers.read_text()
+            safe_headers, payload = decode_grpc(raw_headers, body.read_bytes())
+            # The service can refresh the short-lived CDN password. Keep it in
+            # memory and out of the returned observation and error messages.
+            private_headers = {m[1].lower(): m[2].strip() for m in re.finditer(
+                r'^([\w-]+):\s*([^\r\n]*)', raw_headers, re.M)
+                if m[1].lower() in ('x-sirius-env', 'x-sirius-cred')}
+            self._refresh_cdn_authorization(private_headers)
+            return safe_headers, payload
+
+    def _refresh_cdn_authorization(self, headers):
+        root, password = headers.get('x-sirius-env'), headers.get('x-sirius-cred')
+        if root is not None and root != CDN_ROOT:
+            raise ProtocolError('JP service returned an untrusted CDN root')
+        if password is None:
+            return
+        if (root != CDN_ROOT or not password or len(password) > 2048
+                or any(ord(char) < 32 or ord(char) > 126 for char in password)):
+            raise ProtocolError('invalid JP service CDN credential binding')
+        username = base64.b64decode(self._authorization[6:]).split(b':', 1)[0]
+        credential = base64.b64encode(username + b':' + password.encode('ascii')).decode('ascii')
+        self._authorization = 'Basic ' + credential
 
     def _transport(self, url, limit):
         allowed_url(url, ('static.bang-dream-on.jp',))
@@ -137,7 +210,7 @@ class JpPublicClient:
         # version and label it current when this request is refused.
         headers, payload = self.rpc('app.masterdata.MasterdataService/Version')
         master = string_field(protobuf_fields(payload), 1)
-        resource = headers.get('x-asset-version')
+        resource = resource_version(headers.get('x-asset-version'), self.client_version)
         version_parts(master)
         _, digest = version_parts(resource)
         recommended = headers.get('x-client-recommended-version')

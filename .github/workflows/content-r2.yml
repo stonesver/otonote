@@ -240,7 +240,7 @@ jobs:
               --workspace "$STABLE_ROOT/output/r2-jp/workspace" \
               --content-store "$store" > "$RUNNER_TEMP/production.json"
           fi
-          python -m tools.r2_content upload --region "$REGION" --store "$store" > "$RUNNER_TEMP/upload.json"
+          python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 > "$RUNNER_TEMP/upload.json"
       - name: Checkpoint private production state
         shell: bash
         run: |
@@ -261,7 +261,7 @@ jobs:
           store="$(cat "$RUNNER_TEMP/content-store")"
           expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/public-before.json")"
           python -m tools.r2_content promote --region "$REGION" --store "$store" \
-            --expected-current "$expected" --source-run "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
+            --workers 8 --expected-current "$expected" --source-run "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
             > "$RUNNER_TEMP/promotion.json"
       - name: Record run result
         if: always()

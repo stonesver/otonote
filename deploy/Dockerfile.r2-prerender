@@ -1,0 +1,17 @@
+ARG NODE_BASE_IMAGE=docker.io/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
+FROM ${NODE_BASE_IMAGE}
+
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision=${SOURCE_REVISION}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY tools/r2-requirements.txt /app/tools/r2-requirements.txt
+RUN python3 -m venv /opt/r2-venv \
+    && /opt/r2-venv/bin/pip install --no-cache-dir -r /app/tools/r2-requirements.txt
+COPY tools/ /app/tools/
+COPY site/src/runtime/loading-presentation.mjs /app/site/src/runtime/loading-presentation.mjs
+COPY deploy/promote_r2_prerender.py /app/deploy/promote_r2_prerender.py
+ENV PATH=/opt/r2-venv/bin:$PATH PYTHONPATH=/app

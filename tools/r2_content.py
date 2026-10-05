@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 import hashlib
 import json
 import mimetypes
@@ -24,6 +25,38 @@ SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 SAFE_FILE = re.compile(r"[A-Za-z0-9_./()\-]+\Z")
 PUBLIC_ROOTS = {"en", "zh-CN", "public", "recognition"}
 SMALL_LIMIT = 16 * 1024 * 1024
+MAX_WORKERS = 16
+
+
+def worker_count(raw: int) -> int:
+    if type(raw) is not int or not 1 <= raw <= MAX_WORKERS:
+        raise ValueError(f"workers must be between 1 and {MAX_WORKERS}")
+    return raw
+
+
+def _run_bounded(items, task, workers: int) -> list:
+    """Limit queued transfers and join every started worker before returning."""
+    workers = worker_count(workers)
+    if workers == 1:
+        return [task(item) for item in items]
+    source = iter(items)
+    results = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        pending = set()
+        for _ in range(workers * 2):
+            try:
+                pending.add(pool.submit(task, next(source)))
+            except StopIteration:
+                break
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                results.append(future.result())
+                try:
+                    pending.add(pool.submit(task, next(source)))
+                except StopIteration:
+                    pass
+    return results
 
 
 def canonical(value: object) -> bytes:
@@ -92,16 +125,18 @@ class S3Bucket:
         self.client, self.bucket = client, bucket
 
     @classmethod
-    def from_environment(cls):
+    def from_environment(cls, workers: int = 1):
         import boto3
         from botocore.config import Config
+        workers = worker_count(workers)
         account = os.environ["R2_ACCOUNT_ID"]
         bucket = os.environ["R2_PUBLIC_BUCKET"]
         client = boto3.client("s3", endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
                               aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
                               aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
                               region_name="auto", config=Config(signature_version="s3v4",
-                              retries={"mode": "standard", "max_attempts": 5}))
+                              retries={"mode": "standard", "max_attempts": 5},
+                              max_pool_connections=workers))
         return cls(client, bucket)
 
     @staticmethod
@@ -223,7 +258,8 @@ def baseline(bucket, region: str) -> dict:
             'previousPointer':prior}
 
 
-def upload_release(bucket, store: Path, region: str, *, dry_run=False) -> dict:
+def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: int = 1) -> dict:
+    worker_count(workers)
     release, pointer_bytes, manifest, files = sealed_release(store, region)
     release_id = manifest["root"].split("/")[-2]
     base = f"content/releases/{release_id}/"
@@ -231,8 +267,8 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False) -> dict:
         return {"status": "verified_local", "region": region, "releaseId": release_id,
                 "pointerSha256": digest(pointer_bytes), "files": len(files),
                 "bytes": sum((release / name).stat().st_size for name in files)}
-    uploaded = reused = 0
-    for name, expected_sha in sorted(files.items(), key=lambda row: (row[0] == "manifest.json", row[0])):
+    def upload_and_verify(item):
+        name, expected_sha = item
         key = base + name
         path = release / name
         if file_hash(path) != expected_sha:
@@ -243,21 +279,26 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False) -> dict:
                    "sha256": expected_sha}
         created = (bucket.put_file_new(key, path, size=size, **options)
                    if hasattr(bucket, 'put_file_new') else bucket.put_new(key, path.read_bytes(), **options))
-        if created:
-            uploaded += 1
-        elif same_object(bucket, key, expected_sha, size):
-            reused += 1
-        else:
+        # The full GET is required for a new object as well as an existing key.
+        if not same_object(bucket, key, expected_sha, size):
             raise ValueError("immutable R2 content key has different bytes")
-    remote = bucket.get(base + "manifest.json")
-    if remote is None or digest(remote[0]) != digest((release / "manifest.json").read_bytes()):
-        raise ValueError("R2 manifest readback mismatch")
+        if file_hash(path) != expected_sha:
+            raise ValueError("sealed content changed during upload")
+        return created
+
+    ordinary = sorted((name, sha) for name, sha in files.items() if name != "manifest.json")
+    outcomes = _run_bounded(ordinary, upload_and_verify, workers)
+    # The manifest is always the last release object and is read back before success.
+    outcomes.append(upload_and_verify(("manifest.json", files["manifest.json"])))
+    uploaded = sum(outcomes)
+    reused = len(outcomes) - uploaded
     return {"region": region, "releaseId": release_id, "pointerSha256": digest(pointer_bytes),
             "files": len(files), "uploaded": uploaded, "reused": reused}
 
 
 def promote(bucket, store: Path, region: str, expected_current: str, *, source_run: str,
-            dry_run=False) -> dict:
+            dry_run=False, workers: int = 1) -> dict:
+    worker_count(workers)
     if expected_current != "none" and not SHA256.fullmatch(expected_current):
         raise ValueError("expected current must be 'none' or SHA-256")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", source_run):
@@ -265,11 +306,13 @@ def promote(bucket, store: Path, region: str, expected_current: str, *, source_r
     release, pointer_bytes, manifest, files = sealed_release(store, region)
     release_id = manifest["root"].split("/")[-2]
     base = f"content/releases/{release_id}/"
-    for name, expected_sha in files.items():
+    def verify_remote(item):
+        name, expected_sha = item
         key = base + name
         # A missing or mismatched immutable object must never be advertised.
         if not same_object(bucket, key, expected_sha, (release / name).stat().st_size):
             raise ValueError("R2 release is incomplete or changed")
+    _run_bounded(files.items(), verify_remote, workers)
     current_key = pointer_key(region)
     current = bucket.get(current_key)
     current_bytes, current_etag = current if current is not None else (None, None)
@@ -389,21 +432,24 @@ def main(argv=None):
     parser.add_argument("--expected-current", help="R2 pointer SHA-256, or 'none' for initial publication")
     parser.add_argument("--source-run", help="Actions run identity")
     parser.add_argument("--dry-run", action="store_true", help="verify without changing R2")
+    parser.add_argument("--workers", type=int, default=1,
+                        help=f"parallel release object transfers/verification (1-{MAX_WORKERS}; default: 1)")
     args = parser.parse_args(argv)
     try:
-        bucket = None if args.action == "upload" and args.dry_run else S3Bucket.from_environment()
+        worker_count(args.workers)
+        bucket = None if args.action == "upload" and args.dry_run else S3Bucket.from_environment(args.workers)
         if args.action == "baseline":
             if args.dry_run:
                 parser.error("baseline is already read-only")
             result = baseline(bucket, args.region)
         elif args.action == "upload":
             if not args.store: parser.error('upload requires --store')
-            result = upload_release(bucket, args.store, args.region, dry_run=args.dry_run)
+            result = upload_release(bucket, args.store, args.region, dry_run=args.dry_run, workers=args.workers)
         elif args.action == "promote":
             if not args.store or not args.expected_current or not args.source_run:
                 parser.error("promote requires --store, --expected-current and --source-run")
             result = promote(bucket, args.store, args.region, args.expected_current,
-                             source_run=args.source_run, dry_run=args.dry_run)
+                             source_run=args.source_run, dry_run=args.dry_run, workers=args.workers)
         else:
             if args.dry_run:
                 parser.error("rollback does not support --dry-run")

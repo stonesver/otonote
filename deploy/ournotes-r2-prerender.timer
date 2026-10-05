@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh OurNotes HTML from R2 content
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=60s
+Unit=ournotes-r2-prerender.service
+
+[Install]
+WantedBy=timers.target

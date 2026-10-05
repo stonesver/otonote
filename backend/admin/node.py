@@ -65,10 +65,13 @@ class Jobs:
 def profile_state(profile):
     result = {'id': profile['id'], 'name': profile.get('name', profile['id']), 'capabilities': profile.get('capabilities', ['check']),
               'status': 'not_run', 'steps': [], 'publication': 'enabled' if 'publish' in profile.get('capabilities', []) else 'disabled'}
-    path = Path(profile.get('stateWorkspace', profile['workspace'])) / 'latest-run.json'
+    workspace = profile.get('stateWorkspace') or profile.get('workspace')
+    path = Path(workspace) / 'latest-run.json' if workspace else None
     if profile.get('productionSource') == 'github-actions-r2':
         result.update({'productionOwner': 'github-actions-r2', 'actionsUrl': R2_ACTIONS_URL,
                        'capabilities': [], 'publication': 'disabled', 'status': 'unavailable'})
+        if path is None:
+            return result
         try:
             if path.is_symlink() or path.stat().st_size > 1024 * 1024:
                 raise ValueError('unsafe delivery status')
@@ -104,6 +107,8 @@ def profile_state(profile):
             pass
         return result
     try:
+        if path is None:
+            raise ValueError('missing state workspace')
         if path.stat().st_size > 1024 * 1024:
             raise ValueError('state too large')
         data = json.loads(path.read_text())
@@ -149,8 +154,9 @@ def create_node(config):
 
     @app.get('/state')
     def state():
-        return {'id': c.get('id', 'node'), 'profiles': [profile_state(p) for p in profiles.values()],
-                'tasks': jobs.list(), 'capabilities': sorted(set(a for p in profiles.values() for a in p.get('capabilities', ['check']))), 'checkedAt': time.time()}
+        states = [profile_state(p) for p in profiles.values()]
+        return {'id': c.get('id', 'node'), 'profiles': states,
+                'tasks': jobs.list(), 'capabilities': sorted(set(a for p in states for a in p['capabilities'])), 'checkedAt': time.time()}
 
     @app.post('/tasks')
     async def submit(request: Request):
@@ -183,6 +189,8 @@ class WorkflowBusy(Exception):
 
 def execute_check(config, profile):
     """Execute a registered fixed action; never accept a shell or arbitrary path."""
+    if profile.get('productionSource') == 'github-actions-r2':
+        raise ValueError('production belongs to GitHub Actions')
     action = profile.get("_action", "check")
     if action not in {"check", "fetch", "build", "publish"} or action not in profile.get("capabilities", ["check"]):
         raise ValueError("capability unavailable")
@@ -236,7 +244,9 @@ def run_worker(config, once=False, executor=execute_check):
             if row:
                 status, message = 'failed', '任务未完成；候选过期或校验失败时请重新拉取并构建，详情见节点工作流日志'
                 try:
-                    if row['action'] in profiles[row['profile']].get('capabilities', ['check']) and executor(config, {**profiles[row['profile']], '_action': row['action'], '_candidate': row['candidate']}):
+                    if profiles[row['profile']].get('productionSource') == 'github-actions-r2':
+                        status, message = 'cancelled', '内容生产已迁移到 GitHub Actions；旧本机任务未执行'
+                    elif row['action'] in profiles[row['profile']].get('capabilities', ['check']) and executor(config, {**profiles[row['profile']], '_action': row['action'], '_candidate': row['candidate']}):
                         status, message = 'succeeded', {'check':'版本检查完成', 'fetch':'资源拉取完成；尚未发布', 'build':'候选构建并校验完成；尚未发布', 'publish':'候选发布完成'}[row['action']]
                 except WorkflowBusy:
                     status, message = 'queued', '自动更新正在运行；等待工作流锁'

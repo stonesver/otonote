@@ -53,6 +53,11 @@ jobs:
           tests.test_r2_production_gate -q
       - name: R2 gateway compatibility
         run: node --test site/tests/r2-content-gateway.test.mjs
+      - name: Admin content delivery gates
+        run: |
+          python3 -m pip install -r requirements-admin.txt
+          python3 -m unittest tests.test_admin_r2_delivery -q
+          node --check backend/admin/static/admin.mjs
       - name: Publish reviewed artifact identifiers to the run summary
         run: |
           python3 - <<'PYCODE'

@@ -12,7 +12,7 @@
     <nav aria-label="管理导航">
       <a href="#overview" data-view="overview" aria-current="page"><span aria-hidden="true">◷</span>访问与下载</a>
       <a href="#load" data-view="load"><span aria-hidden="true">⌁</span>并发与带宽</a>
-      <a href="#tasks" data-view="tasks"><span aria-hidden="true">⇅</span>资源任务</a>
+      <a href="#tasks" data-view="tasks"><span aria-hidden="true">⇅</span>内容发布</a>
       <a href="#settings" data-view="settings"><span aria-hidden="true">⊞</span>节点与配置</a>
     </nav>
     <div class="sidebar-foot"><span class="dot"></span> SSH 私有入口<small>公开网站与管理权限分离</small></div>
@@ -35,7 +35,7 @@
       <div class="panel"><div class="panel-heading"><h2>收发带宽</h2><span class="legend"><i></i> 出站 <i class="teal"></i> 入站 · Mbps</span></div><div id="bandwidth-chart" class="chart"></div><div id="bandwidth-detail" class="chart-footer"></div><p class="caption">服务器选定网卡的采样平均值，包含资源拉取与 SSH；空缺表示未采集到有效速率。</p></div>
       <div class="columns"><div class="panel"><div class="panel-heading"><h2>连接并发</h2><span>共享 Nginx 实例</span></div><div id="connections-chart" class="chart short"></div><div id="connection-detail" class="chart-footer"></div></div><div class="panel"><div class="panel-heading"><h2>请求速率</h2><span>请求 / 秒</span></div><div id="requests-chart" class="chart short"></div><p class="caption">RPS 与连接数均不等于正在处理的请求数。当前标准来源未提供请求并发。</p></div></div>
     </section>
-    <section id="view-tasks" class="view" hidden><div class="section-bar"><h2>资源节点</h2><span>关闭面板不影响节点上的任务</span></div><div id="nodes"></div></section>
+    <section id="view-tasks" class="view" hidden><div class="section-bar"><h2>生产与交付</h2><span>关闭面板不影响后台更新</span></div><div id="nodes"></div></section>
     <section id="view-settings" class="view" hidden><div class="panel"><div class="panel-heading"><h2>站点与连接</h2><span>只读配置</span></div><div id="settings"></div><p class="caption">配置文件由部署管理员维护。浏览器不接收节点地址、密钥和服务器文件路径。</p></div></section>
     <footer>Our Notes <span>采集状态、指标口径与数据来源始终分开显示</span></footer>
   </main>

@@ -194,3 +194,21 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 本地已封存旧快照统计：Global 22,814 个文件中 20,418 个 public 逻辑文件可共享（14,802 个唯一内容），剩 2,396 个直接存储文件；JP 分别为 22,689 / 20,331 / 14,633 / 2,358。真实下一版有多少内容变化尚未知，因此不能按此直接承诺整个更新耗时。
 
 操作量回归测试以 257 个不变媒体为例：第二个 release 媒体正文 GET=0、PUT=0，仅一次 blob LIST 与有限映射控制读取；新增一个媒体只 PUT 该新 blob。新 blob 损坏、旧 blob 丢失/ETag 改变、分片损坏都会阻断或重新完整验证。以上是本地受控测试结果，不是线上耗时。
+
+### 性能改造实施记录
+
+[PR32](https://github.com/stonesver/otonote/pull/32) 已合并为 `405130991d60f27364e1b791cd15104822d87b33`。两套 verify 分别用时 1m21s / 1m26s，均通过；本地 102 项相关 Python、9 项网关测试通过。这些不是生产更新端到端耗时。
+
+旧快照 shadow [37259448587](https://github.com/stonesver/otonote/actions/runs/37259448587) 于 06:13:20 UTC 成功完成；Global 22,814、JP 22,689 个对象均上传和完整读回，公开晋级步骤跳过。上传读回步骤共 148m05s，属于旧实现的首次迁移。
+
+兼容预渲染镜像 [37271579713](https://github.com/stonesver/otonote/actions/runs/37271579713) 构建成功；本机验证了归档 SHA256 `d9dfce31f65de0d2e5101cd14cf5f8bee7a8648d83010df8bb1d18ed168d8b0c`、26 个 OCI blob、linux/amd64 平台与源码标签。不可变 image ID `sha256:fc6fbbfcf43ee8bc7bedf1b80d296b4cee48d54d699e2b41d976b6877bb0a594`，归档 136,230,557 字节。此前 SSH 在认证前断开；连接恢复后已流式载入服务器，核对 image ID、源码标签、平台并通过禁网只读容器导入检查。新服务配置已固定此 image ID，保留旧 env 备份；服务与 timer 仍 inactive/disabled。
+
+已请用户更新兼容 Worker；尚未收到完成确认。共享开关、线上 Route、新预渲染服务均未在本轮启用，真实无变化/增量运行和迁移切换仍待验收。
+
+### 直接布局验证记录与小快照验收
+
+`tools.r2_verified_release` 在直接布局上传的完整 SHA256/长度读回之后，记录同一次 GET 返回的 ETag。内部 `content/verification/<releaseId>/` 目录有最多 16 个摘要分片，最后写入 completion；它绑定 manifest SHA、完整文件库存及长度。重复上传、晋级预检和晋级时重新 LIST 该 release，严格比较 key、大小和 ETag；损坏、缺失、多余对象或损坏目录均阻断。没有 completion 的旧快照仍完整读回，不能用旧 shadow 的汇总回执冒充逐对象证据。
+
+手动工作流 **Check R2 shared delivery** 上传一个很小的不可变测试快照，验证 Worker 测试地址上的相对 Live2D JSON/贴图路径、MIME、GET/HEAD/Range 和内部路径拒绝。它不写两服公开 current/previous 指针、不添加 Route，也不启用共享生产开关。失败证据仍保存为短期 Actions artifact。
+
+本轮本地验证：39 项发布/验证目录/小快照 Python 测试、9 项网关测试通过；独立静态审查未发现阻断项。实际 Worker 验收及迁移晋级尚未执行。

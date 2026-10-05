@@ -61,7 +61,7 @@ Before installing the units:
 Materialization records the fully verified local object set in a private
 `.r2-materialization-receipt.json` within the independent local release.
 An unchanged release rechecks its pointer and manifest plus every local file
-hash using that receipt, with eight control GETs total for both regions and
+hash using that receipt, with ten control GETs total for both regions (including storage descriptors) and
 no per-object HEAD/download calls. Missing receipts require a full recheck;
 linked or damaged receipts and damaged local data fail closed. This avoids
 thousands of R2 HEAD requests on every timer tick. The receipt is never

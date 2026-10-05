@@ -35,9 +35,10 @@ done
 
 # The old service does not use this lock; it must be stopped before enabling
 # this wrapper. Fail closed while either old unit is still active.
-if systemctl is-active --quiet ournotes-prerender.timer || \
+if systemctl is-active --quiet ournotes-prerender.path || \
+   systemctl is-active --quiet ournotes-prerender.timer || \
    systemctl is-active --quiet ournotes-prerender.service; then
-  echo 'Stop the old prerender timer/service before running the R2 wrapper' >&2
+  echo 'Stop the old prerender path/timer/service before running the R2 wrapper' >&2
   exit 2
 fi
 exec 9>"$RENDERED_ROOT/.r2-prerender.lock"

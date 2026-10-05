@@ -112,8 +112,8 @@ jobs:
               raise SystemExit('Missing or invalid nonzero OURNOTES_CRI_KEY')
           PY
           if [[ "$REGION" == global ]]; then
-            [[ -n "$GLOBAL_STATE_PATHS" && -n "$GLOBAL_CONFIG_PATH" ]] || {
-              echo 'Global state selections and private updater configuration must be seeded first' >&2; exit 1;
+            [[ -n "$GLOBAL_STATE_PATHS" && -n "$GLOBAL_CONFIG_PATH" && -n "$GLOBAL_DECODER_PROFILE_PATH" ]] || {
+              echo 'Global state selections, private updater configuration, and trusted decoder profile must be seeded first' >&2; exit 1;
             }
           fi
       - name: Install R2 client and prepare stable ROOT
@@ -133,9 +133,10 @@ jobs:
               paths = json.loads(os.environ['GLOBAL_STATE_PATHS'])
               if not isinstance(paths, list) or not paths or any(not isinstance(path, str) for path in paths):
                   raise SystemExit('State selections must be a nonempty JSON array of paths')
-              config = safe_relative(os.environ['GLOBAL_CONFIG_PATH'])
-              if not any(config == path or config.startswith(path + '/') for path in paths):
-                  raise SystemExit('Global state selections must include the private config')
+              for name in ('GLOBAL_CONFIG_PATH', 'GLOBAL_DECODER_PROFILE_PATH'):
+                  required_path = safe_relative(os.environ[name])
+                  if not any(required_path == path or required_path.startswith(path + '/') for path in paths):
+                      raise SystemExit(f'Global state selections must include {name}')
           else:
               paths = ['output/r2-jp']
           paths = [safe_relative(path) for path in paths]
@@ -190,8 +191,8 @@ jobs:
           from tools.r2_state import safe_relative
           from tools.global_update import load_config
           config = safe_relative(os.environ['GLOBAL_CONFIG_PATH'])
-          profile = os.environ['GLOBAL_DECODER_PROFILE_PATH']
-          if profile and not (Path(os.environ['STABLE_ROOT']) / safe_relative(profile)).is_file():
+          profile = safe_relative(os.environ['GLOBAL_DECODER_PROFILE_PATH'])
+          if not (Path(os.environ['STABLE_ROOT']) / profile).is_file():
               raise SystemExit('Global decoder profile is absent from restored private state')
           loaded = load_config(Path(config))
           publication = loaded.get('contentPublication')
@@ -237,10 +238,8 @@ jobs:
                   --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
                   --env OURNOTES_MASTER_IV_HEX)
           if [[ "$REGION" == global ]]; then
-            if [[ -n "$GLOBAL_DECODER_PROFILE_PATH" ]]; then
-              export OURNOTES_BUNDLE_DECODER_PROFILE="$STABLE_ROOT/$GLOBAL_DECODER_PROFILE_PATH"
-              common+=(--env OURNOTES_BUNDLE_DECODER_PROFILE)
-            fi
+            export OURNOTES_BUNDLE_DECODER_PROFILE="$STABLE_ROOT/$GLOBAL_DECODER_PROFILE_PATH"
+            common+=(--env OURNOTES_BUNDLE_DECODER_PROFILE)
             docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
               python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
           else

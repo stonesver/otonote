@@ -51,11 +51,12 @@ Before installing the units:
    filesystem gate. A server with only about 197 MB free must gain space
    before image pull or first materialization; do not guess a fixed 24 GiB
    requirement for this small selected subset.
-4. Stop and disable the old `ournotes-prerender.timer`, wait for its service
+4. Stop and disable the old `ournotes-prerender.path` and
+   `ournotes-prerender.timer`, wait for their service
    to finish, then run the new oneshot manually. The old timer ignores the
    new lock. Only after both R2 pointers and the staged Global/JP HTML are
    verified should the new timer be enabled. The wrapper refuses to run while
-   either old unit remains active and serializes its own runs with `flock`.
+   any old trigger or service remains active and serializes its own runs with `flock`.
 
 The run sequence is: preflight image and content space, pinned image
 pull/check, materialize R2, require both regional pointers, then validate
@@ -80,5 +81,5 @@ through the still-active Worker Route during this short transition; without
 that overlap, an instant rollback cannot guarantee uninterrupted media.
 Only after old HTML is serving and both regions' media are verified should
 the `/content/*` Worker Route be removed, followed by re-enabling the old
-timer. Enabling that timer first and waiting for its next minute tick leaves
+path trigger and timer. Enabling that timer first and waiting for its next minute tick leaves
 a window where R2-only HTML can request paths the old Nginx store lacks.

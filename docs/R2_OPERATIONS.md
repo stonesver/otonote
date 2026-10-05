@@ -238,3 +238,17 @@ PR33 已合并为 `4674e222c8f925a8c58feeb31910ab20d012b0fd`，两套 verify 均
 Workers 免费档有每日 10 万请求和每次 10ms CPU 限额；付费档最低 $5/月，含月 1000 万请求、3000 万 CPU ms，超额另算。资源请求数不是访客数。当前 Worker 只设置浏览器缓存和进程内映射缓存，不能把它解释为所有 R2 正文已进入边缘缓存。见 [Workers 定价](https://developers.cloudflare.com/workers/platform/pricing/)。
 
 已核对仓库公开，当前标准 ubuntu-latest runner 运行时间免费；GHCR 容器存储/带宽当前免费。Actions 活跃 artifact 144 个、合计约 2.44 GB，其中预渲染镜像归档约 545 MB；这不是账户账单，产物额度/实际计费仍应以 GitHub billing 为准。旧服务器、域名、日本代理订阅价格未提供，不包含在以上新增 Cloudflare 估算中。见 [Actions](https://docs.github.com/en/billing/concepts/product-billing/github-actions) 与 [Packages](https://docs.github.com/en/billing/concepts/product-billing/github-packages)。
+
+### 服务器 R2 渲染接管验收
+
+首次 R2 service 成功退出：Global 2,398 文件 / 194,913,938 字节，JP 2,358 文件 / 182,264,510 字节；现有两服 HTML 与 R2 pointer 一致，输出 `unchanged`，没有重新构建整站。第二次手动服务运行成功，实测 **19.401 秒**，四个 current/previous HTML 链接均与切换前相同。回执 `/etc/ournotes/r2-prerender-repeat-acceptance.json`；这是服务器复用检查耗时，不是生产管线端到端耗时。
+
+新 `ournotes-r2-prerender.timer` 已 enable/start；旧 `ournotes-prerender.path` 和 `.timer` 保持 disabled/inactive。浏览器 Global 首页 88 张图片和 JP 音乐页 547 张图片均无已完成加载的破图。尚未收到网站 `/content/*` Route 添加完成确认；旧 Global 生产 timer 仍保留。
+
+PR35 合并为 `c7011af9d3021cf253bfe6798903eb1a093db8c3`，两套 CI 通过。兼容 Worker 和 R2 reader 验收后，仓库 `CONTENT_R2_SHARED_MEDIA=true`，开始新流程影子运行以建立 schema 2 的轻量门禁回执；生产调度/自动晋级开关仍按单次验收模式保持关闭。
+
+### 线上 Route 已接通
+
+用户确认添加 `ournotes.stonebg.cn/content/*` Route 后，线上域名的小快照 12 项验收通过；该快照只存在 R2，证明请求实际经过新 Worker。两服真实资源 16 项 SHA/HEAD/Range/访问边界抽样通过。刷新 Global 首页和 JP 音乐页后，88 / 547 张图片均无已完成加载破图；新 R2 渲染 timer 持续成功。
+
+为避免新影子任务结束后再次完整恢复/生产，只在核对仍处于 `Restore last verified private state` 阶段后，取消影子 Global `37288596444`、JP `37288663753`，改用同一已合并版本的手动 promote 验收。取消发生在公开上传、私有检查点、公开晋级之前；常规调度与自动晋级开关仍关闭。

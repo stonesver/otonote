@@ -219,3 +219,73 @@ test('shared Live2D JSON preserves relative texture references at the logical UR
   const texture = await gateway.fetch(new Request(textureUrl), f.env);
   assert.equal(await texture.text(), 'abcdef');
 });
+
+function replaceShardFiles(f, files) {
+  const bytes = encode({schemaVersion: 1, releaseId: id, files});
+  f.objects.set(`content/storage/${id}/${f.h}.json`, bytes);
+  f.descriptor.shards[f.h] = {sha256: hash(bytes), bytes: bytes.length};
+  f.objects.set(f.descriptorKey, encode(f.descriptor));
+}
+function sameShardPath(f) {
+  for (let i = 0; ; i++) {
+    const path = `public/media/other-${i}.webp`;
+    if (hash(path)[0] === f.h) return path;
+  }
+}
+
+test('shared lookup validates only the requested entry in a large authenticated shard', async () => {
+  const f = sharedFixture();
+  const files = Object.fromEntries(Array.from({length: 10000}, (_, i) => [`public/media/unrelated-${i}.webp`, f.entry]));
+  // A malformed unrelated record cannot break access to the requested object.
+  // It remains inaccessible itself, and the complete control body is SHA-bound.
+  files[sameShardPath(f)] = {sha256: '../../private/credentials'};
+  files['private/credentials.json'] = f.entry;
+  files[f.path] = f.entry;
+  replaceShardFiles(f, files);
+  const result = await gateway.fetch(new Request(f.url, {headers: {Range: 'bytes=1-3'}}), f.env);
+  assert.equal(result.status, 206);
+  assert.equal(await result.text(), 'bcd');
+  assert.equal(result.headers.get('Content-Range'), 'bytes 1-3/6');
+  const calls = f.calls.length;
+  const privateResult = await gateway.fetch(new Request(`https://example.org/content/releases/${id}/private/credentials.json`), f.env);
+  assert.equal(privateResult.status, 404);
+  assert.equal(f.calls.length, calls);
+});
+
+test('every requested entry is validated on cached shard hits without direct fallback', async () => {
+  for (const invalid of [null, [], {}, {bytes: -1}, {bytes: 1.5}, {bytes: Number.MAX_SAFE_INTEGER + 1},
+    {sha256: '../private/secret'}, {sha256: 1}, {etag: 'unquoted'}, {etag: '"bad\\etag"'},
+    {contentType: 'text/plain; charset=utf-8'}, {contentType: 1}, {unexpected: true}]) {
+    const f = sharedFixture();
+    const other = sameShardPath(f);
+    replaceShardFiles(f, {[f.path]: f.entry, [other]: invalid === null || Array.isArray(invalid) ? invalid : {...f.entry, ...invalid}});
+    if (invalid && !Array.isArray(invalid) && !Object.keys(invalid).length) {
+      replaceShardFiles(f, {[f.path]: f.entry, [other]: {}});
+    }
+    assert.equal((await gateway.fetch(new Request(f.url, {method: 'HEAD'}), f.env)).status, 200);
+    const controlReads = f.calls.filter(([key]) => key.startsWith('content/storage/')).length;
+    const mediaReads = f.calls.filter(([key]) => key.startsWith('content/blobs/')).length;
+    const url = `https://example.org/content/releases/${id}/${other}`;
+    f.objects.set(`content/releases/${id}/${other}`, Buffer.from('must not fall back'));
+    const response = await gateway.fetch(new Request(url), f.env);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.equal(f.calls.filter(([key]) => key.startsWith('content/storage/')).length, controlReads);
+    assert.equal(f.calls.filter(([key]) => key.startsWith('content/blobs/')).length, mediaReads);
+    assert.ok(!f.calls.some(([key]) => key === `content/releases/${id}/${other}`));
+  }
+});
+
+test('lazy entries retain shard identity, schema and entry-count boundaries', async () => {
+  for (const patch of [{releaseId: 'c'.repeat(24)}, {schemaVersion: 2}, {files: []},
+    {files: Object.fromEntries(Array.from({length: 100001}, (_, i) => [`x${i}`, null]))}]) {
+    const f = sharedFixture();
+    const bytes = encode({schemaVersion: 1, releaseId: id, files: {[f.path]: f.entry}, ...patch});
+    f.objects.set(`content/storage/${id}/${f.h}.json`, bytes);
+    f.descriptor.shards[f.h] = {sha256: hash(bytes), bytes: bytes.length};
+    f.objects.set(f.descriptorKey, encode(f.descriptor));
+    const response = await gateway.fetch(new Request(f.url), f.env);
+    assert.equal(response.status, 503);
+    assert.ok(!f.calls.some(([key]) => key.startsWith('content/blobs/')));
+  }
+});

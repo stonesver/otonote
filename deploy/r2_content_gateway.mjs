@@ -118,18 +118,20 @@ async function sharedObject(bucket, id, path) {
     shard = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
     if (!record(shard) || shard.schemaVersion !== 1 || shard.releaseId !== id || !record(shard.files)
         || Object.keys(shard.files).length > 100000) throw Error('Invalid storage shard');
-    for (const [name, entry] of Object.entries(shard.files)) {
-      if (!sharedPath(name) || !contentKey(`/content/releases/${id}/${name}`) || !record(entry)
-          || Object.keys(entry).sort().join(',') !== 'bytes,contentType,etag,sha256'
-          || typeof entry.sha256 !== 'string' || !SHA256.test(entry.sha256) || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0
-          || typeof entry.etag !== 'string' || !/^"[A-Za-z0-9-]{1,128}"$/.test(entry.etag)
-          || typeof entry.contentType !== 'string' || !/^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+$/.test(entry.contentType)
-          ) throw Error('Invalid shared media entry');
-    }
     remember(cache, shardKey, shard, bytes.byteLength);
   }
-  const entry = Object.hasOwn(shard.files, path) ? shard.files[path] : null;
-  return entry ? {...entry, key: `content/blobs/${entry.sha256}`} : {missing: true};
+  if (!Object.hasOwn(shard.files, path)) return {missing: true};
+  const entry = shard.files[path];
+  // The bounded control body and its release identity/SHA were verified above.
+  // Validate only this lookup, including cache hits: walking every unrelated
+  // record in a large shard spends CPU on media this request will never read.
+  if (!sharedPath(path) || !contentKey(`/content/releases/${id}/${path}`) || !record(entry)
+      || Object.keys(entry).sort().join(',') !== 'bytes,contentType,etag,sha256'
+      || typeof entry.sha256 !== 'string' || !SHA256.test(entry.sha256) || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0
+      || typeof entry.etag !== 'string' || !/^"[A-Za-z0-9-]{1,128}"$/.test(entry.etag)
+      || typeof entry.contentType !== 'string' || !/^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+$/.test(entry.contentType))
+    throw Error('Invalid shared media entry');
+  return {...entry, key: `content/blobs/${entry.sha256}`};
 }
 
 export default {

@@ -104,7 +104,14 @@ def resource_identity(location):
         raise ProtocolError('JP catalog resource is missing a hash or size')
     return {'key': location.primary_key, 'hash': location.expected_hash,
             'size': location.expected_size, 'provider': location.provider_id,
-            'resourceType': location.resource_type}
+            'resourceType': location.resource_type, 'internalId': location.internal_id}
+
+
+def remote_cache_name(identity):
+    """Bound every cache and receipt basename while retaining full identity in JSON."""
+    canonical = json.dumps(identity, ensure_ascii=False, sort_keys=True,
+                           separators=(',', ':'), allow_nan=False).encode('utf-8')
+    return hashlib.sha256(canonical).hexdigest() + '.bundle'
 
 
 def verify_capture(client, capture):

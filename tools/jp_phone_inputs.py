@@ -136,14 +136,15 @@ class PhoneResources(CurrentResources):
                                'path': str(path), 'sourceCatalogSha256': catalog, 'expectedHash': loc.expected_hash}
             return path
         elif getattr(self, 'remote_client', None) is not None:
-            from tools.jp_remote_sync import acquire, resource_identity
+            from tools.jp_remote_sync import acquire, remote_cache_name, resource_identity
             from tools.resource_pipeline.adapters.jp_public import asset_url
             if self.downloaded + loc.expected_size > self.max_download_bytes:
                 raise ValueError('JP official CDN acquisition exceeds configured budget')
             url = asset_url(self.report['observation']['resourceVersion'], loc.internal_id)
-            target = self.cache/'remote'/name
+            identity = resource_identity(loc)
+            target = self.cache/'remote'/remote_cache_name(identity)
             result = acquire(self.remote_client, url, target, loc.expected_size,
-                             identity=resource_identity(loc))
+                             identity=identity)
             if not result['reused']: self.downloaded += result['byteSize']
             self.used[name] = {'sha256': result['sha256'], 'byteSize': result['byteSize'],
                                'origin': 'jp-official-cdn', 'path': str(target),

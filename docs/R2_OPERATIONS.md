@@ -6,11 +6,14 @@
 
 - [托管 runner 容量探测](https://github.com/stonesver/otonote/actions/runs/37245094874) 已通过：两个 bucket 可读/列举，固定生产镜像可拉取，拉取后剩余 **90,022,023,168 字节**。Global 初始恢复估算 9,445,000,000 字节加 8 GiB 预留，要求 **18,034,934,592 字节**，符合首轮恢复门槛；生产过程的峰值仍须影子运行实测。
 - JP 首次私有检查点已上传并逐对象回读校验，6 个文件共 **234,502,644 字节**，清单 SHA-256 为 `3c6f151cd263ac843e873ea97292d73043f3f1a8934a123f002f289b0d39d2e1`。
+- Global 首次私有检查点已完成，包含 **180,058 个文件**；清单 SHA-256 为 `6e29a9abe544949ff3174200e5c0e3d7305252edfb41f216dcce9a1c6159d8a3`，指针 SHA-256 为 `bf72184535b21ef4a0a6c3acacb444fbf3f170717f96b537ea518a5f21470f59`。[首次完整恢复与影子生产](https://github.com/stonesver/otonote/actions/runs/37254003704) 已启动；手动任务进入执行后已恢复关闭 Global 定时开关。
 - [JP 首轮影子运行](https://github.com/stonesver/otonote/actions/runs/37245779173) 已在全新 GitHub runner 成功恢复这 6 个文件、检查容量并拉取固定镜像。生产阶段官方版本 RPC 返回 **HTTP 403**；没有进入公开内容上传、私有新检查点或公开指针晋级。该结果证明首次恢复链路可用，不能视为 JP 自动追新验收。
 - JP 协议解析已按受信任 1.0.4 APK 校正：`x-asset-version` 是 JSON，非空 `live` 中选择不超过当前客户端版本的最高 `minClientVersion` 对应的 Android 身份；不回退到 `history` 冒充当前版本。服务端 CDN 密码仅在官方 CDN 根精确匹配时更新到内存，观察回执不记录该值。解析修正和 25 项 JP 测试通过不代表 403 已解决；对公开正常 gRPC 请求形状的一次验证仍被拒绝，需官方客户端成功请求的脱敏证据才能继续确定入口条件。[公开协议对照](https://github.com/haneoka-gakuen/haneoka/blob/d6b214d5c785132e89169412b6e0ce8191e43a6d/scripts/ingest/version_api.py)
 - 站点所有者随后报告手机日服提示更新，但实时官方商店详情仍显示 1.0.4，APK 下载页仍为 10053；未找到更高版本的证据。本机暂未连接 ADB 设备，须核对手机实际版本、提示原文与网络出口。该提示不能单独证明 RPC 403 是版本原因；出口访问策略和正常请求条件仍待确认。
-- 本机 Clash 对照发现此前 Version 请求实际经美国节点返回 403；切换到日本节点后一次 Version 请求超时。随后无凭据 HEAD 对官方 API 完成 TLS，连接记录确认日本出口，但该 HEAD 不是合法版本调用，不能当作追新成功。等待同节点手机冷启动对照。
+- 本机 Clash 对照发现此前 Version 请求实际经美国节点返回 403；切换日本节点后，站点所有者确认手机冷启动能进入游戏，本机受信任 Version 请求也返回 HTTP 200 / gRPC 0。经明确授权，仅该日本节点写入 GitHub Environment Secret；[托管 runner 只读探测](https://github.com/stonesver/otonote/actions/runs/37252306052) 使用固定摘要的 mihomo 客户端成功取得客户端 1.0.4、Master/资源 1.0.0.350。这验证指定出口下的版本探测，不代表完整生产验收。后续 [JP 影子生产](https://github.com/stonesver/otonote/actions/runs/37253004172) 已启动，定时开关随即恢复为 `false`。
 - [独立预渲染镜像构建](https://github.com/stonesver/otonote/actions/runs/37249866227) 已通过离线 Python/Node 检查和摘要回拉验证；镜像解压大小 **328,569,484 字节**，离线归档 **136,214,235 字节**。两服旧快照的预渲染子集约需 386 MB，fresh HTML stage 约需 549 MB；旧服务器尚未安装或切换新服务。
+- 后续 [JP 完整影子任务](https://github.com/stonesver/otonote/actions/runs/37253004172) 在输入构建阶段因远端 bundle 缓存文件名加上回执后缀超过文件系统单段长度限制而失败；未写入新的私有检查点或切换公开指针。修复使用包含 CDN 相对路径的完整资源身份 SHA-256 作为固定长度缓存文件名，原始资源身份仍保留在回执中供严格复用校验。
+- 包含未变更 HTML 复用检查的[最终预渲染镜像](https://github.com/stonesver/otonote/actions/runs/37252316947) 构建成功，源码 `f5fe7a9731fc0f6fe170cf8b75f2f66e135deb76`，仓库摘要 `sha256:b465aae7bce368b28fae19a6ed94476be59b86eb9dc8a299c01ed03000e1a8f2`，本地镜像 ID `sha256:77f12e07b6e562f63d3f471800c36c45ae07a6caf6c35d31340978065aa78c69`。归档 **136,232,406 字节**、SHA-256 `ede60df6755aafa79a17d558dee022ddeff36d90734119e215b20552dfb21788` 已在本机验证，OCI blobs 与源码标签匹配；仍未安装到服务器。
 - 首轮手动任务启动后，已将 `CONTENT_R2_ENABLED_JP` 恢复为 `false`；两服自动晋级均保持关闭。旧服务器数据与定时器尚未切换。
 
 本机首次上传使用另建的、仅授权私有状态桶的临时 S3 凭据，保存在仓库外的权限 `600` 文件中；GitHub 原有凭据继续供 Actions 使用。两服首次上传及恢复验收完成后撤销临时凭据，切勿先撤销仍供 Actions 使用的原凭据。
@@ -35,7 +38,7 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 3. GitHub 仓库已创建 `content-r2-production` Environment，并把 deployment branches 限为 `main`；下方非敏感变量已创建且两服开关均为 `false`。三个 R2 Secrets 与 `OURNOTES_CRI_KEY`、`OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX` 已写入该 Environment，并通过 API 核对名称。Master 参数由两服可信加密样本及历史成功报告离线验证；CRI 参数由两服视频样本、Global 音频样本验证，值不进入仓库或本文。仓库 `main` 当前尚未启用分支保护，应在启用生产前设置。工作流另检查 `github.ref`，PR 不运行生产 job。环境保护和环境 Secrets 的行为见 [GitHub 文档](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)。
 4. Global 更新器镜像已通过 [发布工作流](https://github.com/stonesver/otonote/actions/runs/37230213563) 构建、推送并按摘要拉回验证，`OURNOTES_UPDATE_IMAGE` 仓库 Variable 已指向 `ghcr.io/stonesver/otonote-update@sha256:35d734d3273c0d3db7bb47aea2a421e5192503f1caf139c52590ded29ef30828`。构建使用固定摘要的公开 Node 基础镜像和官方 vgmstream 提交 `7dc938fa2f210943b37c7b6511852b516ef432ab`，不依赖旧服务器的本地镜像标签。仍须恢复真实私有配置与输入后，在 Actions 完成影子运行；旧服务器的 `global-update.service` 当前为 `failed`、退出码 1，不能把镜像发布当成生产验收。若 GHCR 包未自动授予本仓库读取权，在该包的 **Manage Actions access** 中授予本仓库读取权，不要直接把镜像设为公开。
 5. Global 私有配置已定位在本机 `~/Documents/data/otonote/private/local-configuration/config/global-update.server.json`，服务器另有 `/srv/ournotes-updater/app/config/global-update.server.json`。它的 `contentPublication.root` 仍指向服务器旧内容目录。为保留旧服务的回退配置，在本机暂存根复制成独立的 `config/global-update.r2.json`，仅将 `contentPublication.root` 改为 `/srv/ournotes-updater/app/output/r2-global-content`，并确认没有整站 `publication`；不要修改旧配置。仓库 Variable `R2_GLOBAL_CONFIG_PATH` 设为 `config/global-update.r2.json`。该私有文件只进入私有状态桶，不提交到 Git。可选的 `R2_GLOBAL_DECODER_PROFILE_PATH` 是同一根下的相对路径；若需要 profile，须列入私有检查点。Global 的 APK 签名工具、decoder profile、baseline、input plan、initial observation/package 与私有工作目录均要在恢复后存在；公开内容库由本次任务在独立目录重新封存并上传，不列入私有检查点。旧服务器现有续跑状态引用 `output/costume-release-inputs-20261003/release-inputs.json`；原五路径清单遗漏该目录。下方新清单含整个动态 `sync-complete`，使下一版本产生的新目录继续被纳入检查点，且保留旧 formal 输入作为初始回退。`builds` 与 `conversions` 可在恢复后重新生成，但暂不从旧服务器删除。`R2_GLOBAL_STATE_PATHS` 必须与首次检查点的 `--path` 完全一致；状态引用变动时先重新审计并更新清单。
-6. JP 首期检查点固定为 `output/r2-jp`，需包含二进制 `metadata.v39.dat`、`unity-version.txt`、`apks/`，以及后续 `workspace/`。公开内容的本地封存目录为独立的 `output/r2-jp-content`，不进入私有检查点。本机 `~/Documents/data/otonote/resources/input/jp/` 中的 1.0.4 三个 split APK、元数据及 Unity 身份已通过 `tools.prepare_jp_r2_seed` 验证；工具固定了签名证书 SHA-256 `34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e` 与整套 APK 的摘要 `b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c`。在本机暂存根生成种子即可，避免复制约 4.6 GB 的整份手机缓存。新客户端版本或未知解码映射必须阻断。不能把未知网上 APK 自动设为可信输入。当前已用固定 1.0.4 本地元数据对官方入口作只读探测，返回 HTTP 403；这是未满足的真实环境关口，尚无 JP 无人值守成功证据。403 未解决前，JP job 应失败并保持公开指针不变。
+6. JP 首期检查点固定为 `output/r2-jp`，需包含二进制 `metadata.v39.dat`、`unity-version.txt`、`apks/`，以及后续 `workspace/`。公开内容的本地封存目录为独立的 `output/r2-jp-content`，不进入私有检查点。本机 `~/Documents/data/otonote/resources/input/jp/` 中的 1.0.4 三个 split APK、元数据及 Unity 身份已通过 `tools.prepare_jp_r2_seed` 验证；工具固定了签名证书 SHA-256 `34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e` 与整套 APK 的摘要 `b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c`。在本机暂存根生成种子即可，避免复制约 4.6 GB 的整份手机缓存。新客户端版本或未知解码映射必须阻断。不能把未知网上 APK 自动设为可信输入。固定 1.0.4 元数据最初在原出口探测时返回 HTTP 403，随后经授权的日本单节点在托管 runner 上通过版本探测；完整生产验收见本文开头的运行记录。任何新拒绝或解码失败仍须保持公开指针不变。
 
 ### 私有状态首次导入
 
@@ -117,7 +120,13 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 
 
 可在 `content-r2-production` Environment Secrets 中配置可选的 `OURNOTES_JP_VERSION_PROXY`，支持 `http://`、`https://`、`socks5://`、`socks5h://`。它只传给 JP 生产容器，仅用于固定允许的 Version RPC；CDN 下载不读取该变量。代理认证通过 curl 标准输入传入，错误和观察回执不包含代理凭据。TLS 验证保持开启；403 仍立即阻断，不能把旧快照当作最新版本。
 
-本机 Clash 的 `127.0.0.1` 端口只适用于本机验证，不能直接填给 GitHub 托管 runner。订阅也不是 HTTP/SOCKS 代理地址；若使用订阅节点，需要另行准备 runner 可使用的受控客户端配置。实际出口应通过连接记录确认，不能只凭订阅相同或节点名称判断。线路验证成功前保持 JP 定时生产和自动晋级关闭。
+本机 Clash 的 `127.0.0.1` 端口只适用于本机验证，不能直接填给 GitHub 托管 runner。订阅也不是 HTTP/SOCKS 代理地址。当前已使用经授权的 `OURNOTES_JP_PROXY_NODE` 单节点 Secret，在临时 runner 启动固定摘要客户端；配置仅允许固定 Version 主机名，结束后清理进程和配置。不要同时设置 URL 与单节点两种模式。详见[出口配置与真实探测结果](JP_VERSION_EGRESS.md)。实际出口应通过连接记录确认，不能只凭订阅相同或节点名称判断。完整影子生产通过前保持 JP 定时生产和自动晋级关闭。
+
+本机初始 R2 上传还受 Clash TUN 路由影响：即使 S3 客户端配置 `proxies={}`，也只绕过 HTTP 环境代理，并不保证物理直连。2026-10-05 控制器观察到 HTTP 代理和 TUN 两类 R2 连接均走节点链，DIRECT 为零。该阶段流量会消耗代理套餐；不能把 R2 免费出网等同于代理供应商免费流量。
+
+Global 上传结束后暂停了旧快照上传，在本机运行配置最前面临时添加仅匹配该账户 R2 endpoint 的 `DOMAIN,...,DIRECT` 规则；原始 Clash 配置文件未修改，节点选择保持一致。一次新的私有指针 HEAD 返回 200，控制器确认新连接为 `Domain` / `DIRECT` 后才恢复上传。此规则只在本机当前运行配置中，Clash 重载或重新选择配置后须重新核对；初始导入结束后应恢复原配置。GitHub 的 JP 单节点代理只允许 Version 主机名，不承载 R2 或 CDN 传输。
+
+JP 生产指纹按生产源码、配置和镜像构建依赖的内容摘要计算，不使用整个仓库提交号；仅修改文档不会让下一轮重新采集。指纹算法升级后首次运行会建立新的基线。新 runner 仍会从私有缓存重建本地公开内容目录并完整校验 R2 对象；因此版本未变时仍会产生 R2 读取请求。
 
 ## R2 请求与存储成本
 

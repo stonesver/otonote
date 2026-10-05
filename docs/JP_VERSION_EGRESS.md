@@ -24,7 +24,7 @@ and `network` (`tcp` or `grpc`). The gRPC transport requires exactly
 `grpc-opts: {"grpc-service-name": "..."}`. Unknown and duplicate fields are
 rejected. Local schema inspection confirmed that the working node uses these
 field names and already has TLS verification enabled. The separately prepared
-node JSON stays in a mode-600 file outside the repository pending authorization.
+node JSON stays in a mode-600 file outside the repository.
 
 The helper replaces the node name, disables UDP, forces TLS verification, and
 generates its own configuration. It listens at `127.0.0.1:17897`, disables LAN,
@@ -72,9 +72,14 @@ isolated listener, but the single Version request failed with curl 35 (TLS
 connection failure). All created processes exited and port 17897 was closed
 afterward. The existing local Clash also has TUN and DNS enabled, so that
 failure does not establish the cause or the hosted runner's behavior.
-Final acceptance remains the pinned binary's startup and one trusted Version
-request on the hosted runner after explicit authorization to transfer the
-selected node credential.
+The operator subsequently authorized storing that single node in the
+`content-r2-production` environment's `OURNOTES_JP_PROXY_NODE` secret. The
+[hosted runner probe](https://github.com/stonesver/otonote/actions/runs/37252306052)
+passed on 2026-10-05 with the pinned binary: HTTP 200 / gRPC 0, client 1.0.4,
+master and resource version 1.0.0.350. This verifies the hosted Version path;
+complete resource production and publication still have their own acceptance
+gates. The subsequent shadow run is
+[37253004172](https://github.com/stonesver/otonote/actions/runs/37253004172).
 
 The manual **Probe JP version through configured egress** workflow downloads
 only the content-addressed, pinned client metadata from private R2 and verifies

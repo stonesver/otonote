@@ -74,9 +74,20 @@ def rewrite(value, root, locale, release):
     return value
 
 
-def publish_content(candidate, store, *, scoring_rules=None, recognition_index=None, expected_current=None):
+def publish_content(candidate, store, *, scoring_rules=None, recognition_index=None, expected_current=None,
+                    ranking_cache=None):
     candidate, store = Path(candidate).resolve(), Path(store).resolve()
     if candidate == store or candidate in store.parents or store in candidate.parents: raise ValueError('content store overlaps candidate')
+    if ranking_cache is None:
+        ranking_cache = store/'.derived-cache'
+    else:
+        raw_cache = Path(ranking_cache).absolute()
+        if any(path.is_symlink() for path in (raw_cache, *raw_cache.parents)):
+            raise ValueError('linked ranking cache')
+        ranking_cache = raw_cache.resolve()
+        for protected in (candidate, store):
+            if ranking_cache == protected or ranking_cache in protected.parents or protected in ranking_cache.parents:
+                raise ValueError('ranking cache overlaps candidate or content store')
     source = read_json(candidate / 'candidate.json')
     if source.get('status') != 'candidate_generated' or source.get('historicalReplay'):
         raise ValueError('content requires a verified production candidate')
@@ -106,11 +117,12 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
         from tools.card_recognition import read_index
         recognition = read_index(index_path, edition, release)
     recognition_identity = json.dumps(recognition[0],sort_keys=True) if recognition else ''
-    derivative_sources = [ROOT/'tools/card_recognition.py', ROOT/'tools/library_metadata.py', ROOT/'tools/live2d_transport.py', ROOT/'tools/content_derivatives.mjs', ROOT/'packages/scoring/server/song-ranking-data.mjs',
+    derivative_sources = [ROOT/'tools/card_recognition.py', ROOT/'tools/library_metadata.py', ROOT/'tools/live2d_transport.py', ROOT/'tools/content_derivatives.mjs',
         ROOT/'packages/scoring/song-ranking.mjs', ROOT/'packages/scoring/song-ranking-meta.mjs',
         ROOT/'packages/scoring/song-ranking-view.mjs', ROOT/'packages/scoring/song-skill-windows.mjs',
         ROOT/'packages/scoring/scoring-engine.mjs', ROOT/'packages/scoring/scoring-release-gate.mjs',ROOT/'packages/scoring/data/formal-scoring-rules.json']
     derivative_sources += sorted((ROOT/'packages/scoring/scoring-rules').glob('*.mjs'))
+    derivative_sources += sorted((ROOT/'packages/scoring/server').glob('*.mjs'))
     derivative_hash = ''.join(file_hash(p) for p in derivative_sources)
     identity = hashlib.sha256((file_hash(candidate / 'candidate.json') + file_hash(Path(__file__)) + derivative_hash + json.dumps(rules,sort_keys=True) + recognition_identity + str(SCHEMA)).encode()).hexdigest()[:24]
     public_root = '/content/releases/' + identity + '/'
@@ -195,7 +207,7 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
                     if 'musicCharts' in read_json(data/'catalog.json'):
                         target=stage/locale/'_supplemental/song-rankings.json'
                         subprocess.run([os.environ.get('OURNOTES_NODE','node'),'--max-old-space-size=96',str(ROOT/'tools/content_derivatives.mjs'),
-                            str(source_root),release,locale,str(target),str(store/'.derived-cache'),
+                            str(source_root),release,locale,str(target),str(ranking_cache),
                             str(stage/locale/'_supplemental/formal-scoring-rules.json')],check=True,cwd=ROOT)
                         records['files']['supplemental/song-rankings.json']=record(target)
                     for group in ('growth','system-banners','mission-rewards'):

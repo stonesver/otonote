@@ -61,6 +61,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(result['status'],'content_published');publish.assert_called_once();seal.assert_not_called()
         self.assertEqual([c.args[0] for c in journal.command.call_args_list],['compile-data'])
         rules_path=publish.call_args.kwargs['scoring_rules']
+        self.assertEqual(publish.call_args.kwargs['ranking_cache'], self.workspace/'cache/song-rankings')
         self.assertEqual(read_rules := json.loads(rules_path.read_text()), {
             'schemaVersion':1,'sourceReleaseId':'current','verificationStatus':'unavailable','reason':'missing_scoring_inputs'})
         retry=workflow.Journal(self.workspace,'run');retry.command=Mock()

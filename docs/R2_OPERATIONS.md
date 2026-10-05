@@ -6,7 +6,7 @@
 
 - [托管 runner 容量探测](https://github.com/stonesver/otonote/actions/runs/37245094874) 已通过：两个 bucket 可读/列举，固定生产镜像可拉取，拉取后剩余 **90,022,023,168 字节**。Global 初始恢复估算 9,445,000,000 字节加 8 GiB 预留，要求 **18,034,934,592 字节**，符合首轮恢复门槛；生产过程的峰值仍须影子运行实测。
 - JP 首次私有检查点已上传并逐对象回读校验，6 个文件共 **234,502,644 字节**，清单 SHA-256 为 `3c6f151cd263ac843e873ea97292d73043f3f1a8934a123f002f289b0d39d2e1`。
-- Global 首次私有检查点已完成，包含 **180,058 个文件**；清单 SHA-256 为 `6e29a9abe544949ff3174200e5c0e3d7305252edfb41f216dcce9a1c6159d8a3`，指针 SHA-256 为 `bf72184535b21ef4a0a6c3acacb444fbf3f170717f96b537ea518a5f21470f59`。[首次完整恢复与影子生产](https://github.com/stonesver/otonote/actions/runs/37254003704) 已启动；手动任务进入执行后已恢复关闭 Global 定时开关。
+- Global 首次私有检查点已完成，包含 **180,058 个文件**；清单 SHA-256 为 `6e29a9abe544949ff3174200e5c0e3d7305252edfb41f216dcce9a1c6159d8a3`，指针 SHA-256 为 `bf72184535b21ef4a0a6c3acacb444fbf3f170717f96b537ea518a5f21470f59`。[首次完整恢复与影子生产](https://github.com/stonesver/otonote/actions/runs/37254003704) 在 16 分 33 秒内成功恢复全部文件，实测逻辑字节 48,101,013,923，恢复加 8 GiB 预留要求 18,034,603,998，runner 当时可用 92,321,288,192。随后客户端校验因缺少外置 bundle decoder profile 而停止，没有公开晋级。已在旧部署找到与暂存客户端元数据身份匹配的可信 profile，正在补入第十一条私有路径。两服定时开关均已恢复为 `false`。
 - [JP 首轮影子运行](https://github.com/stonesver/otonote/actions/runs/37245779173) 已在全新 GitHub runner 成功恢复这 6 个文件、检查容量并拉取固定镜像。生产阶段官方版本 RPC 返回 **HTTP 403**；没有进入公开内容上传、私有新检查点或公开指针晋级。该结果证明首次恢复链路可用，不能视为 JP 自动追新验收。
 - JP 协议解析已按受信任 1.0.4 APK 校正：`x-asset-version` 是 JSON，非空 `live` 中选择不超过当前客户端版本的最高 `minClientVersion` 对应的 Android 身份；不回退到 `history` 冒充当前版本。服务端 CDN 密码仅在官方 CDN 根精确匹配时更新到内存，观察回执不记录该值。解析修正和 25 项 JP 测试通过不代表 403 已解决；对公开正常 gRPC 请求形状的一次验证仍被拒绝，需官方客户端成功请求的脱敏证据才能继续确定入口条件。[公开协议对照](https://github.com/haneoka-gakuen/haneoka/blob/d6b214d5c785132e89169412b6e0ce8191e43a6d/scripts/ingest/version_api.py)
 - 站点所有者随后报告手机日服提示更新，但实时官方商店详情仍显示 1.0.4，APK 下载页仍为 10053；未找到更高版本的证据。本机暂未连接 ADB 设备，须核对手机实际版本、提示原文与网络出口。该提示不能单独证明 RPC 403 是版本原因；出口访问策略和正常请求条件仍待确认。
@@ -14,6 +14,8 @@
 - [独立预渲染镜像构建](https://github.com/stonesver/otonote/actions/runs/37249866227) 已通过离线 Python/Node 检查和摘要回拉验证；镜像解压大小 **328,569,484 字节**，离线归档 **136,214,235 字节**。两服旧快照的预渲染子集约需 386 MB，fresh HTML stage 约需 549 MB；旧服务器尚未安装或切换新服务。
 - 后续 [JP 完整影子任务](https://github.com/stonesver/otonote/actions/runs/37253004172) 在输入构建阶段因远端 bundle 缓存文件名加上回执后缀超过文件系统单段长度限制而失败；未写入新的私有检查点或切换公开指针。修复使用包含 CDN 相对路径的完整资源身份 SHA-256 作为固定长度缓存文件名，原始资源身份仍保留在回执中供严格复用校验。
 - 包含未变更 HTML 复用检查的[最终预渲染镜像](https://github.com/stonesver/otonote/actions/runs/37252316947) 构建成功，源码 `f5fe7a9731fc0f6fe170cf8b75f2f66e135deb76`，仓库摘要 `sha256:b465aae7bce368b28fae19a6ed94476be59b86eb9dc8a299c01ed03000e1a8f2`，本地镜像 ID `sha256:77f12e07b6e562f63d3f471800c36c45ae07a6caf6c35d31340978065aa78c69`。归档 **136,232,406 字节**、SHA-256 `ede60df6755aafa79a17d558dee022ddeff36d90734119e215b20552dfb21788` 已在本机验证，OCI blobs 与源码标签匹配；仍未安装到服务器。
+- [JP 重试](https://github.com/stonesver/otonote/actions/runs/37254773236) 已通过此前的缓存文件名故障，随后在 Spine 动画读取时失败。已定位到脚本只查找 `site/node_modules`，而固定更新器镜像将依赖安装在 `/opt/ournotes-node/node_modules`；修复保留本地优先并兼容镜像依赖，完整生产仍待再次运行验收。
+- 经站点所有者明确授权，在更新器同一把 `workflow.lock` 下复核后，仅删除旧 `conversions`、`builds/story-live-drops-20260929`、`builds/ac26a51fe4c918968aa1` 三个可重建目录。实测释放 **1,793,196,032 字节**，剩余 **2,025,517,056 字节**；当前/保留版本目录仍在，`state.json` 摘要未变，`global-update.timer` 保持 active。
 - 首轮手动任务启动后，已将 `CONTENT_R2_ENABLED_JP` 恢复为 `false`；两服自动晋级均保持关闭。旧服务器数据与定时器尚未切换。
 
 本机首次上传使用另建的、仅授权私有状态桶的临时 S3 凭据，保存在仓库外的权限 `600` 文件中；GitHub 原有凭据继续供 Actions 使用。两服首次上传及恢复验收完成后撤销临时凭据，切勿先撤销仍供 Actions 使用的原凭据。
@@ -37,20 +39,20 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 2. 在 R2 管理页创建 **Object Read & Write** S3 API 凭据，只授权这两个桶。记录 Account ID、Access Key ID、Secret Access Key；密钥放 GitHub Environment，勿贴进聊天、仓库、工作流变量或日志。当前两套 Python 客户端共用一组凭据和默认 endpoint，故两个桶须在同一 Cloudflare 账户普通辖区。[R2 凭据步骤](https://developers.cloudflare.com/r2/api/tokens/)
 3. GitHub 仓库已创建 `content-r2-production` Environment，并把 deployment branches 限为 `main`；下方非敏感变量已创建且两服开关均为 `false`。三个 R2 Secrets 与 `OURNOTES_CRI_KEY`、`OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX` 已写入该 Environment，并通过 API 核对名称。Master 参数由两服可信加密样本及历史成功报告离线验证；CRI 参数由两服视频样本、Global 音频样本验证，值不进入仓库或本文。仓库 `main` 当前尚未启用分支保护，应在启用生产前设置。工作流另检查 `github.ref`，PR 不运行生产 job。环境保护和环境 Secrets 的行为见 [GitHub 文档](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)。
 4. Global 更新器镜像已通过 [发布工作流](https://github.com/stonesver/otonote/actions/runs/37230213563) 构建、推送并按摘要拉回验证，`OURNOTES_UPDATE_IMAGE` 仓库 Variable 已指向 `ghcr.io/stonesver/otonote-update@sha256:35d734d3273c0d3db7bb47aea2a421e5192503f1caf139c52590ded29ef30828`。构建使用固定摘要的公开 Node 基础镜像和官方 vgmstream 提交 `7dc938fa2f210943b37c7b6511852b516ef432ab`，不依赖旧服务器的本地镜像标签。仍须恢复真实私有配置与输入后，在 Actions 完成影子运行；旧服务器的 `global-update.service` 当前为 `failed`、退出码 1，不能把镜像发布当成生产验收。若 GHCR 包未自动授予本仓库读取权，在该包的 **Manage Actions access** 中授予本仓库读取权，不要直接把镜像设为公开。
-5. Global 私有配置已定位在本机 `~/Documents/data/otonote/private/local-configuration/config/global-update.server.json`，服务器另有 `/srv/ournotes-updater/app/config/global-update.server.json`。它的 `contentPublication.root` 仍指向服务器旧内容目录。为保留旧服务的回退配置，在本机暂存根复制成独立的 `config/global-update.r2.json`，仅将 `contentPublication.root` 改为 `/srv/ournotes-updater/app/output/r2-global-content`，并确认没有整站 `publication`；不要修改旧配置。仓库 Variable `R2_GLOBAL_CONFIG_PATH` 设为 `config/global-update.r2.json`。该私有文件只进入私有状态桶，不提交到 Git。可选的 `R2_GLOBAL_DECODER_PROFILE_PATH` 是同一根下的相对路径；若需要 profile，须列入私有检查点。Global 的 APK 签名工具、decoder profile、baseline、input plan、initial observation/package 与私有工作目录均要在恢复后存在；公开内容库由本次任务在独立目录重新封存并上传，不列入私有检查点。旧服务器现有续跑状态引用 `output/costume-release-inputs-20261003/release-inputs.json`；原五路径清单遗漏该目录。下方新清单含整个动态 `sync-complete`，使下一版本产生的新目录继续被纳入检查点，且保留旧 formal 输入作为初始回退。`builds` 与 `conversions` 可在恢复后重新生成，但暂不从旧服务器删除。`R2_GLOBAL_STATE_PATHS` 必须与首次检查点的 `--path` 完全一致；状态引用变动时先重新审计并更新清单。
+5. Global 私有配置已定位在本机 `~/Documents/data/otonote/private/local-configuration/config/global-update.server.json`，服务器另有 `/srv/ournotes-updater/app/config/global-update.server.json`。它的 `contentPublication.root` 仍指向服务器旧内容目录。为保留旧服务的回退配置，在本机暂存根复制成独立的 `config/global-update.r2.json`，仅将 `contentPublication.root` 改为 `/srv/ournotes-updater/app/output/r2-global-content`，并确认没有整站 `publication`；不要修改旧配置。仓库 Variable `R2_GLOBAL_CONFIG_PATH` 设为 `config/global-update.r2.json`。该私有文件只进入私有状态桶，不提交到 Git。补充 profile 时，先以当前指针 SHA-256 为 CAS 基线生成十一路径检查点，再成对更新 `R2_GLOBAL_STATE_PATHS` 与 `R2_GLOBAL_DECODER_PROFILE_PATH`；切换期间保持生产开关关闭。`R2_GLOBAL_DECODER_PROFILE_PATH` 是必需的根相对路径，设为 `config/bundle-decoder-profiles.json`，并将经可信客户端元数据身份核对的 profile 放在暂存根下的该路径，明确列入私有检查点。配置缺失或路径不在选择列表中时，工作流会在大规模恢复前失败；不能用 `clients/*/decoder.json` 缓存收据代替外置 profile。Global 的 APK 签名工具、decoder profile、baseline、input plan、initial observation/package 与私有工作目录均要在恢复后存在；公开内容库由本次任务在独立目录重新封存并上传，不列入私有检查点。旧服务器现有续跑状态引用 `output/costume-release-inputs-20261003/release-inputs.json`；原五路径清单遗漏该目录。下方新清单含整个动态 `sync-complete`，使下一版本产生的新目录继续被纳入检查点，且保留旧 formal 输入作为初始回退。`builds` 与 `conversions` 可在恢复后重新生成；旧服务器仅清理了上方明确授权的三个历史目录，当前和保留 builds 仍须保留。`R2_GLOBAL_STATE_PATHS` 必须与首次检查点的 `--path` 完全一致；状态引用变动时先重新审计并更新清单。
 6. JP 首期检查点固定为 `output/r2-jp`，需包含二进制 `metadata.v39.dat`、`unity-version.txt`、`apks/`，以及后续 `workspace/`。公开内容的本地封存目录为独立的 `output/r2-jp-content`，不进入私有检查点。本机 `~/Documents/data/otonote/resources/input/jp/` 中的 1.0.4 三个 split APK、元数据及 Unity 身份已通过 `tools.prepare_jp_r2_seed` 验证；工具固定了签名证书 SHA-256 `34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e` 与整套 APK 的摘要 `b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c`。在本机暂存根生成种子即可，避免复制约 4.6 GB 的整份手机缓存。新客户端版本或未知解码映射必须阻断。不能把未知网上 APK 自动设为可信输入。固定 1.0.4 元数据最初在原出口探测时返回 HTTP 403，随后经授权的日本单节点在托管 runner 上通过版本探测；完整生产验收见本文开头的运行记录。任何新拒绝或解码失败仍须保持公开指针不变。
 
 ### 私有状态首次导入
 
 首次上传大体量私有状态前，已运行 [Probe R2 credentials read only](https://github.com/stonesver/otonote/actions/runs/37230824175)。它只对两个指定 bucket 做最多一条对象的列表请求，不读取对象内容、不写入或删除对象；结果证明密钥与 bucket 的读取/列举权限可用，不证明生产状态或内容已经存在。该工作流现在还会拉取已固定摘要的生产镜像并报告剩余磁盘；传入 `expected_restore_bytes` 可检查恢复字节数加 8 GiB 预留是否足够。它与生产工作流使用相同的 `CONTENT_R2_RUNNER_LABEL`。
 
-可以在本机建立临时 `$STAGED_ROOT`，从旧服务器只复制下方十条所选路径，并保留硬链接（例如使用 `rsync -aH`）；无需把 JP 种子或 Python 依赖写入旧服务器。检查点的 `--root` 指向本机副本，`--recorded-root /srv/ournotes-updater/app` 则把 Actions 将使用的绝对路径写入清单。旧 `state.json` 中的绝对路径不要改写；清单恢复时会核对记录的根和精确的路径选择。复制须在旧服生产任务静止期间完成，并在上传前核对源文件未变化。2026-10-05 实测收紧清单有约 **48.1 GB 逻辑文件字节**、约 **9.4 GB 独立 inode 字节**、约 18 万个文件；本机若未保留硬链接，实际占用可能接近逻辑字节数。硬链接保留版恢复按独立 inode 估算容量，另预留 8 GiB、仓库、镜像与新产出。旧服务器直接流式上传已有文件也无需再腾出整份数据空间；容量门槛发生在 Actions runner 恢复时。首次检查点前需使用支持约 66 MB 清单与硬链接恢复的新版 `tools.r2_state`。标准 runner 是否够用必须以真实清单和 `df` 检查为准，容量不足时改用更大 GitHub 托管 runner。影子运行前不要删除旧服原文件。`--path` 必须与之后工作流使用的路径列表一模一样。
+可以在本机建立临时 `$STAGED_ROOT`，从旧服务器只复制下方十一条所选路径，并保留硬链接（例如使用 `rsync -aH`）；无需把 JP 种子或 Python 依赖写入旧服务器。检查点的 `--root` 指向本机副本，`--recorded-root /srv/ournotes-updater/app` 则把 Actions 将使用的绝对路径写入清单。旧 `state.json` 中的绝对路径不要改写；清单恢复时会核对记录的根和精确的路径选择。复制须在旧服生产任务静止期间完成，并在上传前核对源文件未变化。2026-10-05 实测最初十路径收紧清单有约 **48.1 GB 逻辑文件字节**、约 **9.4 GB 独立 inode 字节**、约 18 万个文件；本机若未保留硬链接，实际占用可能接近逻辑字节数。硬链接保留版恢复按独立 inode 估算容量，另预留 8 GiB、仓库、镜像与新产出。旧服务器直接流式上传已有文件也无需再腾出整份数据空间；容量门槛发生在 Actions runner 恢复时。首次检查点前需使用支持约 66 MB 清单与硬链接恢复的新版 `tools.r2_state`。标准 runner 是否够用必须以真实清单和 `df` 检查为准，容量不足时改用更大 GitHub 托管 runner。影子运行前不要删除旧服原文件。`--path` 必须与之后工作流使用的路径列表一模一样。
 
 收紧依据、硬链接语义和失败回退见 [R2 状态设计](R2_STATE_DESIGN.md)。清单只减少传往 R2 的路径，不会清理旧服务器磁盘。
 
 批量传输可对 `checkpoint` 和 `restore` 指定 `--workers 8`；默认串行，允许范围为 1–16。Actions 固定使用 8 个传输线程。并发只用于不同内容对象的上传与回读或下载；所有校验完成后才提交检查点指针或物化恢复目标，硬链接关系保持不变。该参数不减少摘要校验，也不扩大路径清单。
 
-JP 可在本机运行 `python3 -m tools.prepare_jp_r2_seed --metadata <本机global-metadata.v39.dat> --apk-root <本机三份split-APK目录> --unity-version-file <本机unity.ver> --output "$STAGED_ROOT/output/r2-jp"`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。这些源文件留在本机，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。旧服务器现在约有 207 MB 可用空间，不能在该盘直接新建 JP 种子；其系统 `python3` 也只有 3.6。下面命令应在本机 Python 3.11+ 环境执行，安装 `tools/r2-requirements.txt` 到本机虚拟环境。R2 凭据只放本机受控环境或 GitHub Secrets，不写入仓库、命令参数或聊天。
+JP 可在本机运行 `python3 -m tools.prepare_jp_r2_seed --metadata <本机global-metadata.v39.dat> --apk-root <本机三份split-APK目录> --unity-version-file <本机unity.ver> --output "$STAGED_ROOT/output/r2-jp"`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。这些源文件留在本机，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。首次导入时旧服务器约有 207 MB 可用空间，因此未在该盘直接新建 JP 种子；其系统 `python3` 也只有 3.6。下面命令应在本机 Python 3.11+ 环境执行，安装 `tools/r2-requirements.txt` 到本机虚拟环境。R2 凭据只放本机受控环境或 GitHub Secrets，不写入仓库、命令参数或聊天。
 
 Global 在本机暂存根中准备独立配置；旧服务器的 `global-update.server.json` 不变：
 
@@ -77,6 +79,7 @@ python3 -m tools.r2_state current --root "$STAGED_ROOT" --region global
 python3 -m tools.r2_state checkpoint --root "$STAGED_ROOT" --recorded-root /srv/ournotes-updater/app --region global \
   --expected-current none \
   --path config/global-update.r2.json \
+  --path config/bundle-decoder-profiles.json \
   --path output/global-update-workflow/state.json \
   --path output/global-update-workflow/last-package.json \
   --path output/global-update-workflow/sync-complete \
@@ -90,7 +93,7 @@ python3 -m tools.r2_state checkpoint --root "$STAGED_ROOT" --recorded-root /srv/
   --expected-current none --path output/r2-jp
 ```
 
-Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 数组。若 `current` 已有指针，必须先审查旧清单，使用返回的 `currentSha256` 作为 `--expected-current`，不要覆盖现有状态。首次导入后应在隔离环境的相同绝对根做恢复演练；恢复要求目标文件不存在，不能覆盖本地文件。可用 `python3 -m tools.r2_state inspect --root /srv/ournotes-updater/app --region global` 加上相同的十个 `--path`，只读取得逻辑与实际恢复字节数。
+Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十一条路径的 JSON 数组。若 `current` 已有指针，必须先审查旧清单，使用返回的 `currentSha256` 作为 `--expected-current`，不要覆盖现有状态。首次导入后应在隔离环境的相同绝对根做恢复演练；恢复要求目标文件不存在，不能覆盖本地文件。可用 `python3 -m tools.r2_state inspect --root /srv/ournotes-updater/app --region global` 加上相同的十一个 `--path`，只读取得逻辑与实际恢复字节数。
 
 ## 工作流门禁与日常运行
 
@@ -106,7 +109,7 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 
 | `CONTENT_R2_RUNNER_LABEL` | 可选；缺省 `ubuntu-latest`，容量检查失败时填实际开通的 GitHub 托管大容量 runner 标签 |
 | `R2_GLOBAL_CONFIG_PATH` | 私有配置的根相对路径 |
 | `R2_GLOBAL_STATE_PATHS` | 精确恢复路径的 JSON 数组 |
-| `R2_GLOBAL_DECODER_PROFILE_PATH` | 可选，Global 私有 decoder profile 的根相对路径 |
+| `R2_GLOBAL_DECODER_PROFILE_PATH` | 必需，可信 Global decoder profile 的根相对路径，且须包含在状态选择列表中 |
 | `CONTENT_R2_ENABLED_GLOBAL` / `CONTENT_R2_ENABLED_JP` | 分服设为 `true` 才允许运行；缺省关闭 |
 | `CONTENT_R2_AUTO_PROMOTE_GLOBAL` / `CONTENT_R2_AUTO_PROMOTE_JP` | 经影子验收后设为 `true`，此前定时任务只上传不可变内容，不切公开指针 |
 

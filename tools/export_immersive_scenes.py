@@ -4,6 +4,7 @@ import argparse
 from functools import lru_cache
 import json
 import hashlib
+import re
 import subprocess
 import sys
 
@@ -13,6 +14,28 @@ from tools.prepare_immersive_catalog import CAPTURE, MASTER, PUBLIC, RELEASE, wr
 from analysis.crypto.decrypt_global_formal_scores import (CatalogAdapter, MetadataV39, UnityPy, KEY_FIELD_USAGE,
     NONCE_SEED_FIELD_USAGE, METADATA_SHA256, CATALOG_SHA256, field_bytes, decrypt_header, text_payload, sha256)
 from UnityPy.helpers.MeshHelper import MeshHandler
+
+
+def _read_binary_animations(skeleton: Path, atlas: Path):
+    try:
+        result = subprocess.run(
+            ['node', str(ROOT / 'tools/read_spine_animations.mjs'), str(skeleton), str(atlas), 'binary'],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        # Node stderr can contain absolute input paths and environment details.
+        # Keep only a bounded error category and a known Node error code.
+        stderr = (error.stderr or '')[-4096:]
+        if 'spine-core runtime missing' in stderr or 'ERR_MODULE_NOT_FOUND' in stderr:
+            detail = 'Node module unavailable (ERR_MODULE_NOT_FOUND)'
+        elif match := re.search(r'\b(ERR_[A-Z0-9_]{1,63}|ENOENT)\b', stderr):
+            detail = f'Node error {match.group(1)}'
+        elif match := re.search(r'\b(SyntaxError|TypeError|RangeError|ReferenceError)\b', stderr):
+            detail = f'Node {match.group(1)}'
+        else:
+            detail = 'Spine parser or runtime error'
+        raise ValueError(f'Spine animation helper failed: {detail}') from None
+    return json.loads(result.stdout)
 
 
 def export_scene(spot, locations, sources, load_bytes, *, public=PUBLIC, release=RELEASE):
@@ -84,8 +107,7 @@ def export_scene(spot, locations, sources, load_bytes, *, public=PUBLIC, release
                 (destination / (atlas_key + '.atlas')).write_text(atlas_text)
                 scene['atlases'][atlas_key] = {'file': atlas_key + '.atlas', 'pages': pages}; files.add(atlas_key + '.atlas')
             if binary:
-                result = subprocess.run(['node', str(ROOT / 'tools/read_spine_animations.mjs'), str(destination / skeleton_file), str(destination / (atlas_key + '.atlas')), 'binary'], capture_output=True, text=True, check=True)
-                animations = json.loads(result.stdout)
+                animations = _read_binary_animations(destination / skeleton_file, destination / (atlas_key + '.atlas'))
             else: animations = {name: max(animation_times(value), default=0) for name, value in payload.get('animations', {}).items()}
             animation = (tree['_animationName'] or next(iter(animations), None)) if animations else None
             if animation and animation not in animations: raise ValueError(f'Missing animation: {spot["_id"]} {animation}')

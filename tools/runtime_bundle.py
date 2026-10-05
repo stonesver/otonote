@@ -25,7 +25,8 @@ def permitted(name):
         return path.suffix == '.py'
     if name.startswith('packages/scoring/'):
         return path.suffix in {'.mjs','.json'}
-    return name in {'site/package.json','site/package-lock.json','config/site-product.json'}
+    return name in {'site/package.json','site/package-lock.json','config/site-product.json',
+                    'catalog/evidence/arena-client.json'}
 
 
 def build(root, output, revision='HEAD'):
@@ -37,7 +38,8 @@ def build(root, output, revision='HEAD'):
               'tools/runtime_bundle.py','tools/release_candidate.py','tools/repository_hygiene.py',
               'site/package-lock.json','packages/scoring/data/formal-scoring-rules.json',
               'analysis/crypto/decrypt_master.py','analysis/crypto/decrypt_global_formal_scores.py',
-              'backend/contracts.py','tools/resource_pipeline/VerifyApk.java'}
+              'backend/contracts.py','tools/resource_pipeline/VerifyApk.java',
+              'catalog/evidence/arena-client.json'}
     if not required.issubset(files):raise ValueError('runtime source contract incomplete')
     try:
         output.mkdir(parents=True)
@@ -46,7 +48,7 @@ def build(root, output, revision='HEAD'):
         check_source_files(output,{'files':files})
         manifest={'schemaVersion':1,'sourceCommit':source['commit'],'sourceFingerprint':source['fingerprint'],
                   'lockSha256':source['lockSha256'],'files':files,'contract':{
-                      'program':'read-only tools/analysis/backend/packages subtree overlays under the existing program root',
+                      'program':'read-only tools/analysis/backend/packages subtrees and reviewed catalog evidence under the existing program root',
                       'configuration':'external read-only config overlay under the existing program root',
                       'state':'single state-root mount preserving existing program/output/content paths',
                       'sameMountRequired':['output','content'],

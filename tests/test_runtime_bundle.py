@@ -7,6 +7,8 @@ from tools.runtime_bundle import permitted,verify
 
 class RuntimeBundleTests(unittest.TestCase):
     def test_allowlist_separates_program_config_and_state(self):
+        self.assertTrue(permitted('catalog/evidence/arena-client.json'))
+        self.assertFalse(permitted('catalog/evidence/unreviewed.json'))
         for name in ('tools/global_update.py','tools/resource_pipeline/models.py','packages/scoring/scoring-engine.mjs','packages/scoring/data/formal-scoring-rules.json','analysis/crypto/decrypt_master.py','backend/contracts.py'):
             self.assertTrue(permitted(name),name)
         for name in ('config/global-update.server.json','site/node_modules/astro/index.mjs','input/game.apk','output/state.json','deploy/live.env','../tools/escape.py','packaging/growth-tool/sdk.bhk.xml'):
@@ -47,7 +49,7 @@ class RuntimeExecutionTests(unittest.TestCase):
             program=Path(tmp)/'program';program.mkdir()
             # Only the packaging allowlist is available to the subprocess. No
             # original checkout/PYTHONPATH/node_modules/vendor can satisfy imports.
-            for base in ('tools','analysis','backend','packages/scoring'):
+            for base in ('tools','analysis','backend','packages/scoring','catalog/evidence'):
                 for path in (repo/base).rglob('*'):
                     name=path.relative_to(repo).as_posix()
                     if path.is_file() and permitted(name) and '__pycache__' not in path.parts:

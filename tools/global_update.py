@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 import fcntl
 import hashlib
 import importlib.util
@@ -414,7 +414,10 @@ def main(argv=None):
                         result.update(journal.step('official-package', lambda: package_check(config, client)))
                         write_json(workspace / 'last-check.json', result)
                     else:
-                        result = run_update(config, journal, client, rebuild=args.rebuild)
+                        # Keep stdout a single JSON receipt, including when
+                        # acquisition helpers emit human-readable progress.
+                        with redirect_stdout(sys.stderr):
+                            result = run_update(config, journal, client, rebuild=args.rebuild)
                 journal.finish(result)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

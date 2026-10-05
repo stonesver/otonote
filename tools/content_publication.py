@@ -210,6 +210,7 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
                             str(source_root),release,locale,str(target),str(ranking_cache),
                             str(stage/locale/'_supplemental/formal-scoring-rules.json')],check=True,cwd=ROOT)
                         records['files']['supplemental/song-rankings.json']=record(target)
+                        records['files']['supplemental/scoring-compatibility.json']=record(target.with_name('scoring-compatibility.json'))
                     for group in ('growth','system-banners','mission-rewards'):
                         name = 'public/'+group+'/manifest.json'
                         project(name,locale+'/_supplemental/'+group+'.json',read_json(stage/name))

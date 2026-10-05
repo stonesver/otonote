@@ -6,6 +6,8 @@ import { maximumPairing } from './scoring-rules/maximum-pairing.mjs';
 import { compilePairingModels, draftFromPairing, compareScoredFormations } from './inventory-optimizer.mjs';
 import { createEventPipeline } from './scoring-rules/event-rules.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
+import { compileGekisouEffects } from '../../../packages/scoring/scoring-rules/gekisou-skill-runtime.mjs';
+import { skillMechanismIssue } from '../../../packages/scoring/scoring-rules/skill-mechanism-error.mjs';
 
 const signature = draft => draft.slots.map(s => `${s.memberCardId}|${s.supportCardId}`).join(';');
 const pause = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -60,7 +62,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     { id: 'neighbours', label: '检查一轮换卡与配对', completed: 0, total: null },
     { id: 'screen', label: '快速模拟候选', completed: 0, total: null },
     { id: 'final', label: '完整复算领先队伍', completed: 0, total: null }];
-  const report = { plan: {...PRACTICAL_PLAN, finalists: finalistLimit}, stages, directions: [], neighbourChecks: 0, neighbourGenerated: 0, screened: 0, finalists: 0, scoreCacheHits: 0, scoreCalculations: 0 };
+  const report = { plan: {...PRACTICAL_PLAN, finalists: finalistLimit}, stages, directions: [], neighbourChecks: 0, neighbourGenerated: 0, screened: 0, finalists: 0, scoreCacheHits: 0, scoreCalculations: 0, unsupportedPairs: [], unsupportedCandidates: [] };
   const results = [], warnings = [...input.assumptions,
     '实用推荐采用多方向起点和一轮局部粗筛，不穷举卡库，不保证全局或局部最优。',
     '粗筛中的技能特征不是分数；只有最终复算的队伍会作为推荐结果。',
@@ -68,9 +70,13 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   let baselineResult = null;
   const result = status => ({ status, searchMethod: 'practical', objective, searchScope: scope, mode,
     sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
-    optimality: status === 'completed' ? 'practical_checked' : 'incomplete', evaluated: report.finalists,
+    optimality: status === 'completed' && !report.unsupportedPairs.length && !report.unsupportedCandidates.length ? 'practical_checked' : 'incomplete', evaluated: report.finalists,
     results: [...results].sort(compareCandidates).slice(0, resultLimit), baseline: baselineResult?.value ?? null,
-    baselineResult, warnings, practical: structuredClone(report), checkpoint: null,
+    baselineResult, warnings: [...warnings, ...(report.unsupportedPairs.length || report.unsupportedCandidates.length
+      ? [`部分卡片配对含尚未实现的计分机制，已跳过 ${report.unsupportedPairs.length} 个配对、${report.unsupportedCandidates.length} 个候选；推荐仅覆盖可完整计算的队伍。`] : [])],
+    scoringCoverage: { complete: !report.unsupportedPairs.length && !report.unsupportedCandidates.length,
+      unsupportedPairs: report.unsupportedPairs, unsupportedCandidates: report.unsupportedCandidates },
+    practical: structuredClone(report), checkpoint: null,
     closeness: mode === 'gekisou' ? scoreCloseness([...results].sort(compareCandidates)[0], [...results].sort(compareCandidates)[1], objective) : null });
   const update = (index, completed, total) => {
     Object.assign(stages[index], { completed, total });
@@ -82,9 +88,9 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   if (prepared) {
     Object.assign(report,structuredClone(prepared.report),{candidateCacheHit:true});
   } else {
-    const candidates=await prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report});
+    const candidates=await prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report,objective,performanceScenario});
     if(!candidates||signal?.aborted)return result('cancelled');
-    prepared={...candidates,report:{directions:report.directions,neighbourChecks:report.neighbourChecks,neighbourGenerated:report.neighbourGenerated}};
+    prepared={...candidates,report:{directions:report.directions,neighbourChecks:report.neighbourChecks,neighbourGenerated:report.neighbourGenerated,unsupportedPairs:report.unsupportedPairs}};
     if(candidateCacheKey!=null)candidateCache?.set(candidateCacheKey,structuredClone(prepared));
     report.candidateCacheHit=false;
   }
@@ -98,13 +104,20 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     if(scoreCache?.has(key)){report.scoreCacheHits++;return scoreCache.get(key);}
     if(!evaluators.has(precision))evaluators.set(precision,createCandidateEvaluator({rules,chart,mode,objective,eventAdapters,performanceScenario,scorePrecision:precision,
       gekisouScenario:{...gekisouScenario,batches:precision==='screen'?1:Math.max(2,gekisouScenario.batches??1)}}));
-    const value=evaluators.get(precision).score(draft);
+    let value;
+    try { value=evaluators.get(precision).score(draft); }
+    catch (error) {
+      const issue = skillMechanismIssue(error);
+      report.unsupportedCandidates.push({ ...issue, slots: draft.slots });
+      return null;
+    }
     report.scoreCalculations++;scoreCache?.set(key,value);return value;
   };
   const screened = [];
   for (const candidate of screenDrafts.values()) {
     if (signal?.aborted) return result('cancelled');
-    screened.push({ ...candidate, ...transformScore(rawScore(candidate.draft,'screen'),candidate.draft) }); report.screened++;
+    const value = rawScore(candidate.draft,'screen');
+    if (value) screened.push({ ...candidate, ...transformScore(value,candidate.draft) }); report.screened++;
     update(3, report.screened, screenDrafts.size); await yieldControl();
   }
   screened.sort(compareCandidates);
@@ -119,11 +132,16 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   choose(screened.find(c => c.origins.has('current')));
   for (const id of [...retainedOrigins, ...missions.map(t => `mission-${t}`), ...(missions.includes(3) ? ['window'] : [])]) choose(screened.find(c => c.origins.has(id)));
   for (const c of screened) choose(c);
-  if ([...screenDrafts.values()].some(c=>c.origins.has('current'))) { baselineResult = { ...transformScore(rawScore(input.draft,'full'),input.draft), draft: input.draft }; await yieldControl(); }
+  if (screened.some(c=>c.origins.has('current'))) {
+    const value = rawScore(input.draft,'full');
+    if (value) baselineResult = { ...transformScore(value,input.draft), draft: input.draft };
+    await yieldControl();
+  }
   for (const candidate of finalists) {
     if (signal?.aborted) return result('cancelled');
-    const value = baselineResult && signature(candidate.draft) === signature(input.draft)
-      ? baselineResult : { ...transformScore(rawScore(candidate.draft,'full'),candidate.draft), draft: candidate.draft };
+    const raw = baselineResult && signature(candidate.draft) === signature(input.draft) ? baselineResult : rawScore(candidate.draft,'full');
+    if (!raw) continue;
+    const value = raw === baselineResult ? baselineResult : { ...transformScore(raw,candidate.draft), draft: candidate.draft };
     results.push({ ...value, id: signature(candidate.draft), origins: [...candidate.origins],
       delta: baselineResult ? value.value - baselineResult.value : null, comparison: compareScoredFormations(value, baselineResult) });
     report.finalists++; update(4, report.finalists, finalists.length);
@@ -133,7 +151,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   return result('completed');
 }
 
-async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report}) {
+async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report,objective,performanceScenario}) {
   const calculator = createFormationCalculator(rules, { eventAdapters }), members = new Map(rules.tables.MemberCard.map(r => [`member-card-${r._id}`, r]));
   const supports = new Map(rules.tables.SupportCard.map(r => [`support-card-${r._id}`, r]));
   const characterFor = id => members.get(id)._characterID;
@@ -166,25 +184,37 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
       .map(effect => ({ mission: supportSkills.get(card[`_gekisouSupportSkillId0${i}`]), effect })))));
   }
   const isWindow = id => mode === 'gekisou' && supportFeatures.get(id)?.window;
-  const legal = d => legalPracticalDraft(d,input,characterFor,isWindow,maxWindowCards);
+  const legal = d => legalPracticalDraft(d,input,characterFor,isWindow,maxWindowCards) && d.slots.every(s => features.has(`${s.memberCardId}|${s.supportCardId}`));
   const memberCount = input.inventory.memberCardIds.length;
   let leaderCount = input.constraints.leaderId ? 1 : memberCount;
-  const models = await compilePairingModels(rules, input, { signal, yieldControl, eventAdapters, pairCache, pairCacheKey,
+  let models = await compilePairingModels(rules, input, { signal, yieldControl, eventAdapters, pairCache, pairCacheKey,
     onProgress: p => {
       if (p.phase === 'leader_weights') leaderCount = p.total;
       update(0, p.completed + (p.phase === 'leader_weights' ? memberCount : 0), 2 * memberCount + leaderCount);
     } });
   if (!models || signal?.aborted) return null;
   const resolver = createFormalSkillResolver(rules), features = new Map();
+  const dynamicResolver = performanceScenario ? createFormalSkillResolver(rules, { dynamic: true }) : null;
   const music = createEventPipeline(rules, input.draft.modifiers.event, eventAdapters).apply('song_context',
     rules.tables.LiveMusic.find(m => `music-${m._id}` === input.draft.selectedSongId), { draft: input.draft });
   const missions = mode === 'gekisou' ? [...new Set([1, 2, 3].map(i => music?.[`_gekisouMission${i}`]))].filter(m => [1, 2, 3].includes(m)) : [];
-  const pairs = models[0].edges;
   // Include all pairs, even those excluded by the first leader's character.
   for (const [index, m] of input.inventory.memberCardIds.entries()) {
     if (signal?.aborted) return null;
     for (const s of input.inventory.supportCardIds) {
-      const skill = resolver({ slots: [{ memberCardId: m, supportCardId: s }], modifiers: input.draft.modifiers })[0];
+      const pair = { slots: [{ memberCardId: m, supportCardId: s }], modifiers: input.draft.modifiers };
+      let skill;
+      try {
+        // Power-only work does not depend on any skill execution capability.
+        if (objective === 'formation_power') skill = { liveEffects: [], extensionMs: 0 };
+        else {
+          skill = resolver(pair)[0]; dynamicResolver?.(pair);
+          if (mode === 'gekisou') compileGekisouEffects(rules, pair, Boolean(performanceScenario), missions);
+        }
+      } catch (error) {
+        report.unsupportedPairs.push({ memberCardId: m, supportCardId: s, ...skillMechanismIssue(error) });
+        continue;
+      }
       features.set(`${m}|${s}`, { live: skill.liveEffects.filter(e => e.active).reduce((n, e) => n + e.rate * e.durationMs / 1000, 0),
         extension: skill.extensionMs / 1000, attribute: members.get(m)._cardType === music?._musicType ? 1 : 0,
         missions: [0, 1, 2, 3].map(t => memberFeatures.get(m).missions[t] + supportFeatures.get(s).missions[t]) });
@@ -192,7 +222,10 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
     update(0, memberCount + leaderCount + index + 1, 2 * memberCount + leaderCount);
     await yieldControl();
   }
-  const scale = Math.max(1, ...pairs.map(e => e.weight));
+  // Exclude before seed generation so an unsupported high-power card cannot
+  // occupy every seed and hide otherwise valid alternatives. Keep constraints.
+  models = models.map(model => ({ ...model, edges: model.edges.filter(e => features.has(e.key)) }));
+  const scale = Math.max(1, ...models[0].edges.map(e => e.weight));
   const featureMax = field => Math.max(1, ...[...features.values()].map(f => f[field]));
   const liveMax = featureMax('live'), extensionMax = featureMax('extension');
   const missionMax = [0, 1, 2, 3].map(t => Math.max(1, ...[...features.values()].map(f => f.missions[t])));
@@ -240,7 +273,7 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
     if (best) { seedRows.push({ draft: best.draft, profile }); add(best.draft, profile, 'seed'); }
     update(1, index + 1, profiles.length);
   }
-  if (!seedRows.length) throw new Error('当前筛选与必选条件下无法生成实用候选');
+  if (!seedRows.length && !report.unsupportedPairs.length) throw new Error('当前筛选与必选条件下无法生成实用候选');
   if (legal(input.draft)) add(input.draft, { id: 'current' }, 'current');
   const neighboursPerSeed = 5 * (input.inventory.memberCardIds.length - 1 + input.inventory.supportCardIds.length - 1) + 14;
   const totalNeighbours = seedRows.length * neighboursPerSeed;

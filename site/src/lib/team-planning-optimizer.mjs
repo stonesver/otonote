@@ -5,6 +5,7 @@ import { optimizePractical } from './practical-optimizer.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
 import { compareScoredFormations } from './inventory-optimizer.mjs';
 import { selectPlanningDirections } from './team-planning-directions.mjs';
+import { skillMechanismIssue } from '../../../packages/scoring/scoring-rules/skill-mechanism-error.mjs';
 
 const pause = () => new Promise(resolve => setTimeout(resolve, 0));
 const labels = { reference: '参考队伍', selected: '手选卡', owned: '当前养成', trial: '试用卡队伍' };
@@ -25,9 +26,17 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
   const warnings = new Set(resolved.assumptions), results = [], progressReports = [];
   let evaluated = 0, completedVariants = 0, baselineResult = null, interrupted = false;
   const actualScores = new Map();
+  const coverageReports = [], unsupportedComparisons = [];
   const actualScore = draft => {
     const key = stableSnapshotHash(draft);
-    if (!actualScores.has(key)) actualScores.set(key, evaluator.score(draft));
+    if (!actualScores.has(key)) {
+      try { actualScores.set(key, evaluator.score(draft)); }
+      catch (error) {
+        unsupportedComparisons.push({ ...skillMechanismIssue(error), slots: draft.slots });
+        warnings.add('部分当前养成含尚未实现的计分机制，无法计算对应的当前分数和提升差值。');
+        actualScores.set(key, null);
+      }
+    }
     return actualScores.get(key);
   };
   for (const variant of variants) {
@@ -38,6 +47,7 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
       constraints, maxWindowCards, resultLimit: 24, signal, yieldControl,
       onProgress: progress => onProgress({ ...progress, planningVariant: completedVariants + 1 }) });
     progressReports.push(report.practical);
+    coverageReports.push(report.scoringCoverage);
     report.warnings.forEach(w => warnings.add(w));
     evaluated += report.evaluated;
     for (const candidate of report.results) {
@@ -54,7 +64,7 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
       const planning = { kind: isTraining ? 'training' : resolved.scope === 'owned' ? 'current' : resolved.scope,
         label: isTraining ? `需要培养 ${comparison.trainedCardCount} 张卡` : labels[resolved.scope], trainingChanges: hypothetical ? [] : trainingChanges,
         currentValue: baselineResult?.value ?? null, plannedTeamCurrentValue: current?.value ?? null,
-        targetValue: candidate.value, missingActual: !comparison.actualTeamAvailable,
+        targetValue: candidate.value, missingActual: !comparison.actualTeamAvailable, actualScoreAvailable: Boolean(current),
         ownershipUnknown: comparison.unknownOwnershipIds, materialEstimateAvailable: false,
         trainingCountComplete: !hypothetical && comparison.trainingCountComplete };
       const value = { ...candidate, draft: targetDraft, planning, performanceScenario: performance, performanceSummary: performance?.description,
@@ -77,10 +87,14 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
   if (bounded) warnings.add(`本次比较了前 ${completedVariants} 个培养组合，共有 ${variants.totalCountExact} 个；可缩小允许培养的卡片范围，或提高比较上限。`);
   const directions = selectPlanningDirections(results, { goal: recommendationGoal, objective });
   const sum = key => progressReports.reduce((value, report) => value + (report?.[key] ?? 0), 0);
+  const coverageComplete = !unsupportedComparisons.length && coverageReports.every(r => r?.complete !== false);
   return { status: cancelled ? 'cancelled' : bounded ? 'budget_exhausted' : 'completed', searchMethod: 'planning',
-    optimality: cancelled || bounded ? 'incomplete' : 'practical_checked', sourceReleaseId: rules.sourceReleaseId,
+    optimality: cancelled || bounded || !coverageComplete ? 'incomplete' : 'practical_checked', sourceReleaseId: rules.sourceReleaseId,
     ruleSetVersion: rules.ruleSetVersion, mode, objective, results: directions, evaluated,
     baseline: baselineResult?.value ?? null, baselineResult, checkpoint: null, warnings: [...warnings],
+    scoringCoverage: { complete: coverageComplete, unsupportedComparisons,
+      unsupportedPairs: coverageReports.flatMap(r => r?.unsupportedPairs ?? []),
+      unsupportedCandidates: coverageReports.flatMap(r => r?.unsupportedCandidates ?? []) },
     planningScenario: resolved.planningScenario, performanceScenario: performance,
     inputHash: stableSnapshotHash({ draft, inventory, planningScenario: resolved.planningScenario, performance,
       constraints, gekisouScenario, objective, mode, recommendationGoal, variantLimit, maxWindowCards,

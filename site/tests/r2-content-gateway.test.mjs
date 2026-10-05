@@ -48,6 +48,26 @@ test('gateway refuses writes, query strings and internal release files', async (
   assert.equal(privateObject.status, 404);
 });
 
+test('full-span R2 metadata does not make ordinary GET or HEAD partial', async () => {
+  const object = {body: new TextEncoder().encode('{}\n'), size: 3,
+    httpEtag: '"one"', range: {offset: 0, length: 3},
+    writeHttpMetadata(headers) {headers.set('Content-Type', 'application/json');}};
+  const env = {CONTENT: {async get() {return object;}, async head() {return object;}}};
+  for (const path of ['/content/current.json', `/content/releases/${id}/en/catalog.json`]) {
+    for (const method of ['GET', 'HEAD']) {
+      const result = await gateway.fetch(new Request('https://example.org' + path, {method}), env);
+      assert.equal(result.status, 200);
+      assert.equal(result.headers.get('Content-Range'), null);
+      assert.equal(result.headers.get('Content-Length'), '3');
+      assert.equal(await result.text(), method === 'GET' ? '{}\n' : '');
+    }
+  }
+  const pointer = await gateway.fetch(new Request('https://example.org/content/current.json',
+    {headers: {Range: 'bytes=0-1'}}), env);
+  assert.equal(pointer.status, 200);
+  assert.equal(pointer.headers.get('Content-Range'), null);
+});
+
 
 const hash = data => createHash('sha256').update(data).digest('hex');
 const encode = value => Buffer.from(JSON.stringify(value));

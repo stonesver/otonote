@@ -168,13 +168,16 @@ export default {
     headers.set('Cache-Control', allowed.mutable ? 'no-store' : 'public, max-age=31536000, immutable');
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('Accept-Ranges', 'bytes');
-    if (object.range) {
+    // R2 may report the full returned span even for an ordinary GET. Only a
+    // client range request can turn that metadata into an HTTP 206 response.
+    const partial = requestedRange && object.range;
+    if (partial) {
       headers.set('Content-Range', `bytes ${object.range.offset}-${object.range.offset + object.range.length - 1}/${object.size}`);
       headers.set('Content-Length', String(object.range.length));
     } else {
       headers.set('Content-Length', String(object.size));
     }
     return new Response(request.method === 'HEAD' ? null : object.body,
-      {status: object.range ? 206 : 200, headers});
+      {status: partial ? 206 : 200, headers});
   },
 };

@@ -27,11 +27,12 @@ CHART_PROJECTION_SOURCES = (
     'tools/release_candidates.py', 'tools/costume_catalog.py', 'tools/costume_posters.py', 'tools/formal_chart_projection.py',
     'tools/project_formal_charts.mjs', 'packages/scoring/scoring-rules/formal-chart.mjs',
     'packages/scoring/scoring-rules/formal-time.mjs', 'packages/scoring/scoring-rules/model-version.mjs',
+    'tools/arena_rank.py', 'tools/build_site_catalog.py', 'catalog/evidence/arena-client.json',
 )
 
 
 def chart_projection_fingerprint():
-    """A sealed candidate must be rebuilt when chart reconstruction changes."""
+    """Rebuild sealed candidates when projections or reviewed evidence change."""
     files = {name: file_hash(ROOT/name) for name in CHART_PROJECTION_SOURCES}
     return hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
 

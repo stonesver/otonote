@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
 
 from tools.arena_rank import ArenaRankError, build_arena_rank
+
+REVIEWED_EVIDENCE = Path(__file__).resolve().parents[1] / "catalog/evidence/arena-client.json"
+REVIEWED_SHA256 = "2fa9fc8a8ba121b4fcbb486a4f2b88d6dcf1754720ad1dfe2371740387a8bfb0"
 
 
 def write_json(path: Path, value: object) -> None:
@@ -13,6 +17,18 @@ def write_json(path: Path, value: object) -> None:
 
 
 class ArenaRankBuildTest(unittest.TestCase):
+    def test_repository_evidence_keeps_historical_projection_and_missing_fails(self) -> None:
+        self.assertEqual(hashlib.sha256(REVIEWED_EVIDENCE.read_bytes()).hexdigest(), REVIEWED_SHA256)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            master, _fixture_evidence = self.fixture(root)
+            result = build_arena_rank(master, "jp-test-release", REVIEWED_EVIDENCE)
+            self.assertEqual(result["status"], "server_unavailable")
+            self.assertEqual(len(result["capabilities"]), 15)
+            self.assertFalse(result["evidence"]["featureFlags"]["CcEnableArenas"])
+            with self.assertRaisesRegex(ArenaRankError, "missing Arena evidence"):
+                build_arena_rank(master, "jp-test-release", root / "missing-evidence.json")
+
     def fixture(self, root: Path) -> tuple[Path, Path]:
         master = root / "master"
         master.mkdir()

@@ -35,6 +35,7 @@ FINGERPRINT_ROOTS = {
 FINGERPRINT_FILES = (
     '.dockerignore',
     '.github/workflows/publish-update-image.yml',
+    'catalog/evidence/arena-client.json',
     'Dockerfile.worker',
     'requirements-worker.txt',
     'analysis/requirements.txt',

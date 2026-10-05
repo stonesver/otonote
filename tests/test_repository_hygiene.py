@@ -10,6 +10,8 @@ from tools.repository_hygiene import (
     HygieneError, classify_path, export_source, private_report, scan_bytes, scan_source,
 )
 
+REVIEWED_ARENA_EVIDENCE = Path(__file__).resolve().parents[1] / "catalog/evidence/arena-client.json"
+
 
 class RepositoryHygieneTests(unittest.TestCase):
     def setUp(self):
@@ -42,6 +44,20 @@ class RepositoryHygieneTests(unittest.TestCase):
         for name in ("config/site-product.json", "config/performance/gates.product-v1.json", "config/examples/updater.example.json", "deploy/qqbot.env.example", "packages/scoring/data/rules.json", "tools/runtime_bundle.py", "analysis/crypto/decrypt_master.py", "deploy/player-rankings-capture.Dockerfile"):
             self.assertIsNone(classify_path(name), name)
         self.assertFalse(scan_bytes("deploy/qqbot.env.example", b"APP_SECRET=replace-with-your-secret\n"))
+
+    def test_only_reviewed_arena_evidence_is_selected(self):
+        reviewed = REVIEWED_ARENA_EVIDENCE.read_bytes()
+        name = "catalog/evidence/arena-client.json"
+        self.assertIsNone(classify_path(name))
+        self.assertFalse(scan_bytes(name, reviewed))
+        self.assertEqual(scan_bytes(name, reviewed + b"\n")[0].rule, "reviewed-evidence-digest")
+        self.assertEqual(classify_path("catalog/evidence/unreviewed.json"), "private-or-generated")
+        self.put(name, reviewed)
+        self.put("catalog/evidence/unreviewed.json", '{}')
+        self.assertTrue(scan_source(self.root, "working")["ok"])
+        manifest = export_source(self.root, self.base / "reviewed-export")
+        self.assertEqual([record["path"] for record in manifest["files"]], [name])
+        self.assertFalse((self.base / "reviewed-export/catalog/evidence/unreviewed.json").exists())
 
     def test_private_key_and_provider_token_have_value_free_findings(self):
         key = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"

@@ -73,6 +73,7 @@ class JpUpdateSafetyTests(unittest.TestCase):
                 self.assertNotEqual(fingerprint(), baseline)
 
     def test_fingerprint_tracks_updater_image_build_inputs(self):
+        self.assertIn('catalog/evidence/arena-client.json', FINGERPRINT_FILES)
         with TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ('tools/jp_update.py', 'analysis/crypto/decrypt_master.py',

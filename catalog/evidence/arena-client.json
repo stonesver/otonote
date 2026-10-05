@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-07-23",
+  "description": "Reviewed client symbols, flags, and resource names used only as Arena capability evidence.",
+  "featureFlags": {
+    "CcEnableArenas": false
+  },
+  "clientSymbols": [
+    "ArenaPlay",
+    "ArenaRank",
+    "GekisouArena",
+    "GekisouArenaRank",
+    "SetGekisouArenaRank"
+  ],
+  "resources": [
+    "Btn_GekisoArena",
+    "BattleLiveArenaPenLight"
+  ]
+}

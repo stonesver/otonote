@@ -140,6 +140,21 @@ class WorkflowTests(unittest.TestCase):
             publish.assert_not_called()
         self.assertFalse((self.workspace/'state.json').exists())
 
+    def test_reviewed_arena_evidence_change_invalidates_candidate_fingerprint(self):
+        for name in workflow.CHART_PROJECTION_SOURCES:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('fixture')
+        evidence = self.root / 'catalog/evidence/arena-client.json'
+        self.assertTrue(evidence.is_file())
+        with patch.object(workflow, 'ROOT', self.root):
+            before = workflow.chart_projection_fingerprint()
+            evidence.write_text('revised reviewed evidence')
+            self.assertNotEqual(before, workflow.chart_projection_fingerprint())
+            evidence.unlink()
+            with self.assertRaises(FileNotFoundError):
+                workflow.chart_projection_fingerprint()
+
     def invoke(self, journal, **kwargs):
         with patch.object(workflow, 'doctor'), patch.object(workflow, 'package_check', return_value=self.package), \
              patch.object(workflow, 'update', return_value=self.synced), \

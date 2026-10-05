@@ -211,10 +211,20 @@ jobs:
             [[ -d "$STABLE_ROOT/output/r2-jp/apks" ]] || { echo 'JP seed missing apks/' >&2; exit 1; }
             printf '%s' "$STABLE_ROOT/output/r2-jp-content" > "$RUNNER_TEMP/content-store"
           fi
+      - name: Prepare pinned JP proxy client when configured
+        shell: bash
+        env:
+          JP_NODE_CONFIGURED: ${{ secrets.OURNOTES_JP_PROXY_NODE != '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$REGION" == jp && "$JP_NODE_CONFIGURED" == true ]]; then
+            bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/jp-egress-client"
+          fi
       - name: Produce and seal local content
         shell: bash
         env:
           OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
+          OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
@@ -235,13 +245,23 @@ jobs:
               python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
           else
             common+=(--env OURNOTES_JP_VERSION_PROXY)
-            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
-              python3 -m tools.jp_update \
-              --metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat" \
-              --apk-root "$STABLE_ROOT/output/r2-jp/apks" \
-              --unity-version-file "$STABLE_ROOT/output/r2-jp/unity-version.txt" \
-              --workspace "$STABLE_ROOT/output/r2-jp/workspace" \
-              --content-store "$store" > "$RUNNER_TEMP/production.json"
+            producer=(python3 -m tools.jp_update
+              --metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat"
+              --apk-root "$STABLE_ROOT/output/r2-jp/apks"
+              --unity-version-file "$STABLE_ROOT/output/r2-jp/unity-version.txt"
+              --workspace "$STABLE_ROOT/output/r2-jp/workspace"
+              --content-store "$store")
+            if [[ -n "$OURNOTES_JP_PROXY_NODE" ]]; then
+              # The ephemeral Linux runner and this container share loopback;
+              # the local proxy only allows the fixed Version API hostname.
+              python -m tools.jp_version_egress \
+                --binary "$RUNNER_TEMP/jp-egress-client/mihomo" -- \
+                docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+                "${producer[@]}" > "$RUNNER_TEMP/production.json"
+            else
+              docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+                "${producer[@]}" > "$RUNNER_TEMP/production.json"
+            fi
           fi
           python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 > "$RUNNER_TEMP/upload.json"
       - name: Checkpoint private production state

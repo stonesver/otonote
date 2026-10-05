@@ -1045,6 +1045,12 @@ def build_catalog(
             )
         )
     selected_records = select_catalog_records(all_records, extra_limit)
+    # Selection deduplicates source paths, while media output paths use the
+    # bundle/object identity. Reject collisions before threads can write the
+    # same output or cache one source's bytes under another source's digest.
+    selected_ids = [stable_id("asset", record) for record in selected_records]
+    if len(selected_ids) != len(set(selected_ids)):
+        raise CatalogError("duplicate asset id")
     from tools.media_parallel import map_images
     assets = map_images(
         lambda record: asset_from_record(record, media_root, skip_media, release_id),

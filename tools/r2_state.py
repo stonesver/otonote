@@ -25,6 +25,7 @@ CHUNK = 1024 * 1024
 SMALL_LIMIT = 16 * 1024 * 1024
 MANIFEST_LIMIT = 128 * 1024 * 1024
 MAX_WORKERS = 16
+MAX_LIST_PAGES = 1000
 
 
 def worker_count(raw: int) -> int:
@@ -184,8 +185,100 @@ def current_sha(bucket, region: str) -> str:
     return _pointer(bucket, region_name(region))[1]
 
 
-def _manifest(bucket, root: Path, region: str, expected_paths: list[str]) -> dict:
-    pointer, _, _ = _pointer(bucket, region)
+def _verification_identity(bucket):
+    identity = getattr(bucket, "verification_identity", None)
+    listing = getattr(bucket, "list_verified_objects", None)
+    if not callable(identity) or not callable(listing):
+        return None
+    try:
+        value = identity()
+    except NotImplementedError:
+        return None
+    return value if isinstance(value, str) and value else None
+
+
+def _verification_cache_path(raw: Path, root: Path) -> Path:
+    path = Path(raw)
+    if (not path.is_absolute() or path.resolve() != path or path.is_relative_to(root)
+            or not path.parent.is_dir()):
+        raise ValueError("verification cache must be a canonical path outside ROOT")
+    if path.exists():
+        _check_cache_stat(path.lstat())
+    return path
+
+
+def _check_cache_stat(info):
+    if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+            or info.st_uid != os.geteuid() or info.st_nlink != 1):
+        raise ValueError("verification cache must be a private owned regular file with mode 600")
+
+
+def _etag(value) -> bool:
+    # ETags are opaque version validators, never substitutes for a first SHA read.
+    return isinstance(value, str) and 0 < len(value) <= 1024 and not any(ord(c) < 32 for c in value)
+
+
+def _write_verification_cache(path: Path, value: dict):
+    data = canonical(value)
+    if len(data) > MANIFEST_LIMIT:
+        raise ValueError("verification cache is too large")
+    temporary = path.with_name(path.name + ".tmp-" + uuid4().hex)
+    try:
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _verified_reuse(bucket, root: Path, recorded_root: Path, region: str, paths: list[str],
+                    expected_current: str, raw_cache: Path | None) -> dict:
+    identity = _verification_identity(bucket) if raw_cache is not None else None
+    if identity is None:
+        return {}
+    cache = _verification_cache_path(raw_cache, root)
+    if not cache.exists():
+        return {}
+    fd = os.open(cache, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as stream:
+        _check_cache_stat(os.fstat(stream.fileno()))
+        data = stream.read(MANIFEST_LIMIT + 1)
+    if len(data) > MANIFEST_LIMIT:
+        raise ValueError("verification cache is too large")
+    proof = json.loads(data)
+    if (not isinstance(proof, dict) or proof.get("schemaVersion") != 1
+            or proof.get("bucketIdentity") != identity or proof.get("root") != str(root)
+            or recorded_root != root or proof.get("region") != region
+            or proof.get("selections") != sorted(set(paths))
+            or proof.get("pointerSha256") != expected_current):
+        raise ValueError("verification cache belongs to another bucket, ROOT, region, or baseline")
+    pointer, actual, _ = _pointer(bucket, region)
+    if (pointer is None or actual != expected_current
+            or proof.get("manifestSha256") != pointer["sha256"]):
+        raise ValueError("verification cache manifest or pointer baseline differs")
+    objects = proof.get("objects")
+    if not isinstance(objects, dict):
+        raise ValueError("invalid verification cache objects")
+    for key, item in objects.items():
+        if (not isinstance(item, dict) or key != object_key(item.get("sha256"))
+                or type(item.get("size")) is not int or item["size"] < 0 or not _etag(item.get("etag"))):
+            raise ValueError("invalid verification cache object evidence")
+    if not objects:
+        return {}
+    try:
+        listed = bucket.list_verified_objects(set(objects))
+    except NotImplementedError:
+        return {}
+    return {key: item for key, item in objects.items()
+            if listed.get(key) == {"size": item["size"], "etag": item["etag"]}}
+
+
+def _manifest(bucket, root: Path, region: str, expected_paths: list[str], *, with_reference=False):
+    pointer, pointer_sha, _ = _pointer(bucket, region)
     if pointer is None:
         raise ValueError("private state pointer is missing")
     item = bucket.read_manifest(pointer["manifest"])
@@ -232,11 +325,14 @@ def _manifest(bucket, root: Path, region: str, expected_paths: list[str]) -> dic
                 raise ValueError("invalid private state hard link")
         file_by_path[entry["path"]] = entry
         seen.add(entry["path"])
+    if with_reference:
+        return manifest, {"pointerSha256": pointer_sha, "manifestSha256": pointer["sha256"]}
     return manifest
 
 
 def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_current: str,
-               recorded_root: Path | None = None, *, workers: int = 1) -> dict:
+               recorded_root: Path | None = None, *, workers: int = 1,
+               verification_cache: Path | None = None) -> dict:
     root = stable_root(root)
     worker_count(workers)
     if recorded_root is None:
@@ -260,10 +356,20 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
     for entry in files:
         identity = (entry["sha256"], entry["size"])
         unique_objects.setdefault(identity, entry)
+    verified = _verified_reuse(bucket, root, recorded_root, region, paths, expected_current,
+                               verification_cache)
+    verified_reuse = 0
+    for sha, size in unique_objects:
+        item = verified.get(object_key(sha))
+        if item is not None and (item["sha256"], item["size"]) == (sha, size):
+            verified_reuse += 1
 
     def upload_and_verify(entry):
         path = _inside(root, entry["path"])
         key = object_key(entry["sha256"])
+        evidence = verified.get(key)
+        if evidence is not None and (evidence["sha256"], evidence["size"]) == (entry["sha256"], entry["size"]):
+            return False
         if bucket.verify_file(key, entry["sha256"], entry["size"]):
             return False
         created = bucket.put_file_new(key, path, entry["sha256"], entry["size"])
@@ -303,17 +409,24 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
         raise ValueError("private state pointer differs from expected baseline")
     if actual == digest(pointer):
         return {"status": "unchanged", "region": region, "manifestSha256": manifest_sha,
-                "files": len(files), "uploaded": uploaded, "reused": reused}
+                "files": len(files), "uploaded": uploaded, "reused": reused, "verifiedReuse": verified_reuse}
     bucket.replace_small(pointer_key(region), pointer, etag)
     return {"status": "checkpointed", "region": region, "manifestSha256": manifest_sha,
-            "pointerSha256": digest(pointer), "files": len(files), "uploaded": uploaded, "reused": reused}
+            "pointerSha256": digest(pointer), "files": len(files), "uploaded": uploaded, "reused": reused,
+            "verifiedReuse": verified_reuse}
 
 
-def restore(bucket, root: Path, region: str, expected_paths: list[str], *, workers: int = 1) -> dict:
+def restore(bucket, root: Path, region: str, expected_paths: list[str], *, workers: int = 1,
+            verification_cache: Path | None = None) -> dict:
     root = stable_root(root)
     worker_count(workers)
     region_name(region)
-    manifest = _manifest(bucket, root, region, expected_paths)
+    cache = _verification_cache_path(verification_cache, root) if verification_cache is not None else None
+    if cache is not None:
+        # A failed restore must not leave reusable evidence from an earlier attempt.
+        cache.unlink(missing_ok=True)
+    bucket_identity = _verification_identity(bucket) if cache is not None else None
+    manifest, reference = _manifest(bucket, root, region, expected_paths, with_reference=True)
     directories = manifest["directories"]
     files = manifest["files"]
     for name in directories:
@@ -341,12 +454,18 @@ def restore(bucket, root: Path, region: str, expected_paths: list[str], *, worke
         def download(entry):
             identity = (entry["sha256"], entry["size"])
             target = staged_objects[identity]
-            bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
+            evidence = bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
             if hash_file(target) != identity:
                 raise ValueError("private state object missing or damaged")
+            if (isinstance(evidence, dict) and evidence.get("sha256") == entry["sha256"]
+                    and type(evidence.get("size")) is int and evidence["size"] == entry["size"]
+                    and _etag(evidence.get("etag"))):
+                return object_key(entry["sha256"]), {"sha256": entry["sha256"], "size": entry["size"],
+                                                    "etag": evidence["etag"]}
+            return None
 
         # All independent remote objects finish and pass local checks first.
-        _run_bounded(download_entries, download, workers)
+        verified_objects = dict(item for item in _run_bounded(download_entries, download, workers) if item is not None)
         for entry in files:
             target = stage / entry["path"]
             if target.exists():
@@ -368,6 +487,10 @@ def restore(bucket, root: Path, region: str, expected_paths: list[str], *, worke
             os.replace(stage / entry["path"], destination)
     finally:
         shutil.rmtree(stage)
+    if cache is not None and bucket_identity is not None:
+        _write_verification_cache(cache, {"schemaVersion": 1, "bucketIdentity": bucket_identity,
+                                        "root": str(root), "region": region, "selections": manifest["selections"],
+                                        **reference, "objects": verified_objects})
     return {"status": "restored", "region": region, "files": len(files),
             "manifestSha256": digest(canonical(manifest))}
 
@@ -387,6 +510,42 @@ class PrivateS3Bucket:
 
     def __init__(self, client, bucket: str):
         self.client, self.bucket = client, bucket
+
+    def verification_identity(self):
+        endpoint = getattr(getattr(self.client, "meta", None), "endpoint_url", None)
+        if not isinstance(endpoint, str) or not endpoint or not self.bucket:
+            return None
+        return digest(canonical({"endpoint": endpoint, "bucket": self.bucket}))
+
+    def list_verified_objects(self, keys: set[str]) -> dict:
+        """Fetch fresh opaque validators, retaining only previously verified keys."""
+        result = {}
+        token = None
+        seen_tokens = set()
+        for _ in range(MAX_LIST_PAGES):
+            options = {"ContinuationToken": token} if token is not None else {}
+            page = self.client.list_objects_v2(Bucket=self.bucket, Prefix="state/objects/",
+                                               MaxKeys=1000, **options)
+            entries = page.get("Contents", [])
+            if not isinstance(entries, list) or len(entries) > 1000 or type(page.get("IsTruncated")) is not bool:
+                raise ValueError("invalid private state object listing")
+            for entry in entries:
+                if not isinstance(entry, dict) or not isinstance(entry.get("Key"), str):
+                    raise ValueError("invalid private state listed object")
+                key = entry["Key"]
+                if key not in keys:
+                    continue
+                if key in result:
+                    raise ValueError("duplicate private state object listing")
+                if type(entry.get("Size")) is int and entry["Size"] >= 0 and _etag(entry.get("ETag")):
+                    result[key] = {"size": entry["Size"], "etag": entry["ETag"]}
+            if not page["IsTruncated"]:
+                return result
+            token = page.get("NextContinuationToken")
+            if not isinstance(token, str) or not token or token in seen_tokens:
+                raise ValueError("invalid private state listing continuation")
+            seen_tokens.add(token)
+        raise ValueError("private state object listing exceeds page limit")
 
     @classmethod
     def from_environment(cls, workers: int = 1):
@@ -480,7 +639,7 @@ class PrivateS3Bucket:
                 return False
             raise
 
-    def _stream(self, key: str, target: Path | None, sha: str, size: int) -> bool:
+    def _stream(self, key: str, target: Path | None, sha: str, size: int, *, verification=False):
         from botocore.exceptions import ClientError
         try:
             result = self.client.get_object(Bucket=self.bucket, Key=key)
@@ -508,14 +667,23 @@ class PrivateS3Bucket:
                         output.write(chunk)
         finally:
             body.close()
-        return count == size and hasher.hexdigest() == sha
+        if count != size or hasher.hexdigest() != sha:
+            return False
+        # Only metadata from this exact, fully SHA-verified GET is reusable.
+        # S3 user Metadata and object names alone never establish byte integrity.
+        if (verification and type(result.get("ContentLength")) is int and result["ContentLength"] == size
+                and _etag(result.get("ETag"))):
+            return {"sha256": sha, "size": size, "etag": result["ETag"]}
+        return True
 
     def verify_file(self, key: str, sha: str, size: int) -> bool:
         return self._stream(key, None, sha, size)
 
-    def download_file(self, key: str, target: Path, sha: str, size: int) -> None:
-        if not self._stream(key, target, sha, size):
+    def download_file(self, key: str, target: Path, sha: str, size: int) -> dict | None:
+        evidence = self._stream(key, target, sha, size, verification=True)
+        if not evidence:
             raise ValueError("private state object missing or damaged")
+        return evidence if isinstance(evidence, dict) else None
 
 
 def main(argv=None) -> int:
@@ -529,9 +697,13 @@ def main(argv=None) -> int:
                         help="checkpoint only: ROOT to record for Actions restore when source files are staged locally")
     parser.add_argument("--workers", type=int, default=1,
                         help=f"parallel object transfers for checkpoint/restore (1-{MAX_WORKERS}; default: 1)")
+    parser.add_argument("--verification-cache", type=Path,
+                        help="private same-run restore evidence file outside ROOT, reused by checkpoint")
     args = parser.parse_args(argv)
     try:
         worker_count(args.workers)
+        if args.verification_cache is not None and args.action not in {"restore", "checkpoint"}:
+            parser.error("--verification-cache is only valid for restore/checkpoint")
         bucket = PrivateS3Bucket.from_environment(args.workers)
         if args.action == "current":
             if args.recorded_root is not None:
@@ -541,11 +713,12 @@ def main(argv=None) -> int:
             if args.expected_current is None:
                 parser.error("checkpoint requires --expected-current")
             result = checkpoint(bucket, args.root, args.region, args.path, args.expected_current,
-                                args.recorded_root, workers=args.workers)
+                                args.recorded_root, workers=args.workers, verification_cache=args.verification_cache)
         elif args.action == "restore":
             if args.recorded_root is not None:
                 parser.error("--recorded-root is only valid for checkpoint")
-            result = restore(bucket, args.root, args.region, args.path, workers=args.workers)
+            result = restore(bucket, args.root, args.region, args.path, workers=args.workers,
+                             verification_cache=args.verification_cache)
         else:
             if args.recorded_root is not None:
                 parser.error("--recorded-root is only valid for checkpoint")

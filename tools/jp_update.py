@@ -111,8 +111,16 @@ def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
         raise ValueError('JP cached snapshot does not match the official observation')
     inputs = folder/'inputs'
     if not inputs.exists():
+        reuse = {}
+        if previous and previous.get('status') == 'built':
+            from tools.jp_state_retention import _inside, verified_run
+            prior_run, prior_catalog = verified_run(ROOT, workspace, previous)
+            prior_cache = _inside(ROOT, prior_run/'inputs/.cache/remote')
+            if prior_cache.is_dir():
+                if prior_cache.is_symlink(): raise ValueError('linked JP prior resource cache')
+                reuse = {'reuse_catalog': prior_catalog, 'reuse_cache': (prior_cache,)}
         build_inputs(source, source/'master-json', metadata, apk_root, inputs,
-                     remote=True, unity_version_file=unity_version_file)
+                     remote=True, unity_version_file=unity_version_file, **reuse)
     plan = inputs/'release-inputs.json'
     from tools.release_preflight import inspect_plan
     if inspect_plan(plan, require_production=True)['status'] != 'passed':

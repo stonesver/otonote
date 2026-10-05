@@ -27,3 +27,15 @@ The existing server uses hard links extensively. For the proposed selection, `du
 - A dry-run inventory of the old server's final path selection must fit the manifest bound before any R2 write. The first checkpoint is followed by an isolated restore and Global shadow run; no public pointer or old-server file is changed during this stage.
 
 JP's local-machine seed and the official JP endpoint's HTTP 403 are separate gates. This change does not make JP unattended publication succeed by itself.
+
+## 2026-10-05: verified restore evidence and JP working-set retention
+
+The original migration above is complete. The old server producer has been retired; the stable ROOT remains an Actions runner contract. Image derivatives now live in checkpointed `cache/image-conversions`. See [current operations acceptance](plans/2026-10-05-post-migration-acceptance.md) for deployment evidence.
+
+Full runs showed a second download of every unique private object during checkpoint, after restore had already downloaded and SHA-verified it. The optional `--verification-cache` records evidence only after a successful restore, outside ROOT in the ephemeral runner's private temporary directory. It is an owned regular mode-600 file, bound to endpoint/bucket, canonical ROOT, region, selections, pointer and manifest. Each entry pairs the SHA-verified GET body with that same response's opaque ETag and size. Object names or user-defined S3 metadata never establish verification.
+
+Checkpoint still inventories and hashes every local file. It obtains a fresh bounded, paginated object listing and skips the second full GET only when the restored evidence and fresh object identity match the local SHA/size. New, missing, or changed objects use the existing full-read and conditional-upload path. Missing evidence or an unsupported adapter retains the old path; malformed or mismatched evidence fails closed. The final local rehash, hard-link checks, immutable manifest readback and pointer compare-and-swap are retained. Evidence is neither checkpointed nor saved as a reusable CI artifact.
+
+JP previously retained every code-fingerprint run without connecting its prior raw-resource cache to the next input build. The new flow validates the previous successful run's plan and catalog, reuses matching raw resources into the new run together with a current receipt, and keeps the full current successful run and shared caches. After the production receipt is recorded and checked, a bounded local retention step removes only other run directories from the ephemeral runner. The R2 allowlist stays `output/r2-jp`; prior immutable R2 manifests and objects remain available. A failed production or failed validation does not prune or advance the checkpoint.
+
+The measured JP two-run state has 99,881 paths and 27.39 GB logical bytes, versus 49,944 paths and 13.81 GB for the current run and seeds. CAS object bytes differ by only about 37 MB. Retention principally reduces local materialization and repeated hashing; verified restore evidence addresses the duplicate network reads.

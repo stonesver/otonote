@@ -2,13 +2,24 @@
 
 目标：Global、JP 的内容生产在 GitHub 托管 runner 运行；现有服务器继续提供网页与其他服务。`ournotes.stonebg.cn/content/*` 由只读 Worker 从 R2 提供。本文同时保留历史实施记录；当前部署状态以本节最近的交接记录为准，后文早期记录中的“尚未切换”只描述当时状态。
 
-## 最终交接状态（2026-10-05，验收进行中）
+## 最终交接状态（2026-10-05，已上线）
 
 - Worker Route 已启用：`ournotes.stonebg.cn/content/*` → `ournotes-content-gateway`，`CONTENT` 只绑定 `otonote-public-content`。主域名 12 项小快照检查及两服 16 项真实资源抽查通过。
 - 服务器 `ournotes-r2-prerender.timer` 已启用；旧预渲染 path/timer 停用。无内容变化时实测约 18–19 秒完成检查并复用已有 HTML。
 - PR37 修正 Global 私有输入与源码指纹混合的问题，相关 33 项测试及两项 CI 通过，合并源码 `2b2d7f99917044d6c120878273ddd80d7004dd81`。
-- 该源码的最终手动 promote：[Global 37291517084](https://github.com/stonesver/otonote/actions/runs/37291517084)、[JP 37291571818](https://github.com/stonesver/otonote/actions/runs/37291571818)。运行结果、真实无变化检查和新页面验收仍待记录。
-- 常规定时生产及自动晋级开关暂为 false；旧 `global-update.timer` 保留。只有新发布、页面和轻量检查验收后才交接。旧内容与回退资料保留，本次交接不进行额外历史清理。
+- 该源码的最终手动 promote：[Global 37291517084](https://github.com/stonesver/otonote/actions/runs/37291517084) 已成功，09:39:44–11:19:38 UTC，整体 1 小时 39 分 54 秒；[JP 37291571818](https://github.com/stonesver/otonote/actions/runs/37291571818) 也已成功，09:40:13–11:39:27 UTC，整体 1 小时 59 分 14 秒。Global 私有 checkpoint 用时 12 分 44 秒，公开晋级用时 1 分 21 秒；JP 分别为 27 分 22 秒、1 分 45 秒。
+- [Global 无变化验收 37302276261](https://github.com/stonesver/otonote/actions/runs/37302276261) 成功，使用仅管理页/部署文档改动后的主线 `70c2296b4f49b5b75613e76fdba1d3c475be1f18`。11:20:13–11:21:16 UTC，包含冷启动及镜像拉取的整次运行 **63 秒**，轻量门禁 **5 秒**；完整状态恢复、生产、公开上传和私有 checkpoint 均 skipped。
+- [JP 无变化验收 37304397939](https://github.com/stonesver/otonote/actions/runs/37304397939) 在同一主线上成功，11:40:02–11:40:58 UTC，整次 **56 秒**，轻量门禁 **3 秒**；同样跳过上述全部重步骤。两服均是正式发布后在新的临时 runner 上运行 shadow 模式，并非从本机缓存推算。
+- 11:49:41 UTC 完成定时交接：两服 `CONTENT_R2_ENABLED_*` 与 `CONTENT_R2_AUTO_PROMOTE_*` 均为 `true`，共享媒体开关为 `true`；旧 `global-update.timer` 已停用并禁用，旧 service 已退出。新预渲染和管理状态 timer 均 active/enabled。两服每四小时检查一次，UTC Global 为 00/04/08/12/16/20:17，JP 为 02/06/10/14/18/22:47。验收依据是同一生产工作流的真实手动 promote 和独立 shadow 无变化运行；不将尚未发生的后续 cron 标作已观察。旧数据和回退资料保留，本次交接未进行额外历史清理。
+- 私有管理页适配已通过 [PR38](https://github.com/stonesver/otonote/pull/38) 合并，源码 `70c2296b4f49b5b75613e76fdba1d3c475be1f18`，两项 verify 分别用时 1 分 10 秒、1 分 22 秒。仅迁移目标 profile 使用新的本机 R2/HTML 交付状态；Actions 生产链接与本机状态分开显示，六分钟未更新的采样变为不可用。安装及回退见 [管理状态交接](../deploy/admin/R2_DELIVERY.md)。
+- 本轮完整内容生成（不含恢复、R2 上传及 checkpoint）实测：Global **38 分 21 秒**，JP **49 分 41 秒**；Global/JP 公开上传与回读校验分别另用 **35 分 57 秒 / 24 分 34 秒**。这些是完整生产耗时；不能据此宣称游戏有变化时已达到分钟级。无变化分支是否跳过重步骤，以后续独立真实运行验收为准。
+- 管理状态适配于 10:59 UTC 部署并通过真实认证只读 API 验证，两服本机交付状态为 ready、旧生产操作能力为空。`ournotes-r2-delivery-state.timer` 已启用，旧 `ournotes-resource-state.path` 停用；备份在服务器 root-only 的 `/var/lib/ournotes-admin-audit/r2-handoff-20261005T105916Z-86435`。首次尝试因容器约六秒才监听而超过五秒就绪窗口，已自动成功回退；改为最长 35 秒就绪检查后部署成功，未更改凭据或任务数据库。
+
+- 首个完整 shared release `74a1837d856a36ac6d2c0885`（Global）在晋级前通过主域名真实媒体抽查：GET/HEAD、图片和音频 SHA、音频 Range、Live2D model3 相对纹理均通过，14 请求、4,619,814 字节、28.63 秒。此项只验收显式 release，不替代晋级后的 current/HTML 验收。
+- Global 新内容触发的源站交付在 11:20:30–11:26:30 UTC 完成，合计 **6 分钟**：必要内容子集物化约 **4 分钟**（2,396 文件、194,929,411 字节），两服两语言 HTML 重建约 **2 分钟**（Global 每语言 706 页，JP 每语言 685 页；跨服库指针变化也触发 JP 重建）。Global 首页浏览器验收通过，50 张已加载图片无破图，38 张未进入视口的图片均为 lazy，控制台无错误。11:31:25 的后续自动检查成功，耗时 11 秒。这是内容交付/预渲染实测，不包含前端代码打包。
+- 晋级后的两服主域名交付验收通过：Global `74a1837d856a36ac6d2c0885`、JP `82360615d4a55340911c4e9b`，当前指针前后稳定；locale JSON、实际图片/音频、Live2D 模型及其相对纹理均匹配可信校验目录，GET/HEAD、音频 Range 和私有路径 404 通过。12 次 R2 控制 GET、26 次公网 GET、10 次 HEAD，共 7,467,475 字节，81.594 秒。
+- 最终两服两语言共 32 个关键页面、报告及 `complete.json` 与 R2 当前指针和跨服库指针一致。当前 HTML pair：Global `7636cacbb528ecb84812994d-25c60a772e1370348fb30661`，JP `7636cacbb528ecb84812994d-48a88791b249f1d0059b8faa`。JP 本轮物化 2,382 文件、194,494,354 字节，11:40:16 开始，11:45:25 物化完成，11:47:29 两服 HTML 发布完成；JP 每语言 704 页。四个语言入口浏览器检查无错误和破图，全部非懒加载图片已完成；管理状态也已刷新到这两个新 release。
+- 无变化检查已达到上述分钟级；**真实内容变化仍走完整编译和私有 checkpoint**。当前 checkpoint 对每个唯一对象完整读回，不能把公共共享媒体复用的收益套用到私有状态。纯展示代码沿用独立代码发布路径，不需要游戏资源生产；本轮未单独计时前端代码打包。回退资料已保留，管理服务部署的自动回退已真实成功；本轮没有额外对线上 R2 current 执行往返回切演练。
 
 ## 2026-10-05 实际迁移验证
 
@@ -187,14 +198,14 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 
 - 生产失败或 R2 校验失败：保持 `CONTENT_R2_AUTO_PROMOTE_*` 关闭或设回 `false`；检查 Actions 失败步骤、私有检查点、公开晋级记录。不要删除旧 release。
 - Worker Route 故障：先用旧完整内容库恢复并验证旧 HTML，确认两服 HTML 引用的媒体在源站可读，再在 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，最后恢复旧预渲染 timer；避免新 HTML 在撤 Route 后引用源站不存在的快照。
-- 公开内容需要回退：先运行 `python3 -m tools.r2_content baseline --region global`（JP 改为 `jp`）取得 `currentSha256`，检查返回的 `previousPointer` 是否指向所需旧版本，再运行 `python3 -m tools.r2_content rollback --region global --expected-current <currentSha256> --source-run <工单标识>`。命令验证旧清单及所引用的 JSON 后写晋级记录，并用条件写切回旧指针；普通媒体的完整性仍须在 Worker 测试地址抽验。不要在控制台直接手改 `current.json`。紧急情况下优先撤 Route 回到原站内容。
-- 新流水线通过真实定时运行、Route 和浏览器验收后，才停止服务器旧的 `global-update.timer`。保留旧源站内容和旧 HTML 引用；历史对象清理仍由独立引用审计决定，不由工作流自动删除。
+- 公开内容需要回退：先关闭对应区服自动晋级并等待在途任务结束，再运行 `python3 -m tools.r2_content baseline --region global`（JP 改为 `jp`）取得 `currentSha256`，检查返回的 `previousPointer` 是否指向所需旧版本，再运行 `python3 -m tools.r2_content rollback --region global --expected-current <currentSha256> --source-run <工单标识>`。命令验证旧清单及所引用的 JSON 后写晋级记录，并用条件写切回旧指针；普通媒体的完整性仍须在 Worker 测试地址抽验。不要在控制台直接手改 `current.json`。需要回旧源站时，按上一条先恢复旧 HTML 和媒体，再撤 Route。
+- 新流水线通过真实完整生产、独立无变化检查、Route、新 HTML 和浏览器验收后，启用常规定时生产并停止服务器旧的 `global-update.timer`。保留旧源站内容和旧 HTML 引用；历史对象清理仍由独立引用审计决定，不由工作流自动删除。
 
-## 日常性能改造（2026-10-05，待真实 runner 验收）
+## 日常性能改造（2026-10-05，真实 runner 验收通过）
 
-设计和执行顺序见 [性能设计](designs/2026-10-05-r2-update-performance-design.md) 与 [实施计划](plans/2026-10-05-r2-update-performance-plan.md)。本节描述本次实现；不代表正在运行的旧工作流已经使用这些优化。
+设计和执行顺序见 [性能设计](designs/2026-10-05-r2-update-performance-design.md) 与 [实施计划](plans/2026-10-05-r2-update-performance-plan.md)。本节描述当前实现，真实运行和阶段耗时见本文开头。
 
-- **轻量版本检查**：私有 receipt schema 2 绑定已验证 APK/metadata/config 库存；在恢复历史状态前只取控制清单和少量探测输入。公开版本已晋级且版本/输入/代码/镜像都一致才跳过。旧 receipt、首次 JP 种子、上游变更走原完整路径。尚无真实 runner 无变化计时。
+- **轻量版本检查**：私有 receipt schema 2 绑定已验证 APK/metadata/config 库存；在恢复历史状态前只取控制清单和少量探测输入。公开版本已晋级且版本/输入/代码/镜像都一致才跳过。旧 receipt、首次 JP 种子、上游变更走原完整路径。真实冷 runner 无变化整次 Global 63 秒、JP 56 秒。
 - **共享媒体**：`tools.r2_content upload --shared-media` 把全部 `public/`（包括模型与动作 JSON）保存为 `content/blobs/<sha256>`，逻辑 URL 保持不变。首次完整 SHA 读回，后续以已验证目录加当前 LIST 中 key/size/ETag 复用；ETag 本身不是首次内容校验。promote 对共享媒体同样核对目录及存在性，locale JSON 仍完整校验。控制索引不通过 Worker 公开，旧 release 不转换、不删除。
 - **兼容部署前保持 `CONTENT_R2_SHARED_MEDIA=false`（默认）**：先更新 `deploy/r2_content_gateway.mjs` 的 Worker、构建并安装含新 materializer 的固定摘要预渲染镜像，完成测试地址验收后才启用共享上传。仅部署 Worker 不表示要立即添加线上 Route。
 - **预渲染下载**：manifest 已绑定必须文件的 SHA 与长度，省略这些文件的重复 HEAD；只有可选美术做 HEAD。最多 8 个并行下载，每个仍校验完整正文，全部成功后才换指针。该改造减少下载等待，不改变 HTML 生成成本。

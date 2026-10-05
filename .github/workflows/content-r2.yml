@@ -57,6 +57,7 @@ jobs:
       GLOBAL_DECODER_PROFILE_PATH: ${{ vars.R2_GLOBAL_DECODER_PROFILE_PATH }}
       AUTO_PROMOTE_GLOBAL: ${{ vars.CONTENT_R2_AUTO_PROMOTE_GLOBAL }}
       AUTO_PROMOTE_JP: ${{ vars.CONTENT_R2_AUTO_PROMOTE_JP }}
+      R2_SHARED_MEDIA: ${{ vars.CONTENT_R2_SHARED_MEDIA || 'false' }}
       STABLE_ROOT: /srv/ournotes-updater/app
     steps:
       - uses: actions/checkout@v4
@@ -142,7 +143,37 @@ jobs:
           paths = [safe_relative(path) for path in paths]
           Path(os.environ['RUNNER_TEMP'], 'r2-state-paths').write_text('\n'.join(paths) + '\n')
           PY
-      - name: Restore last verified private state
+      - name: Capture private and public pointer baselines
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          python -m tools.r2_state current --root "$STABLE_ROOT" --region "$REGION" > "$RUNNER_TEMP/state-before.json"
+          python - "$RUNNER_TEMP/state-before.json" <<'PY'
+          import json, sys
+          if json.load(open(sys.argv[1]))['currentSha256'] == 'none':
+              raise SystemExit('Private state has not been seeded; no production run is permitted')
+          PY
+          python -m tools.r2_content baseline --region "$REGION" > "$RUNNER_TEMP/public-before.json"
+      - name: Pull pinned producer image
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$OURNOTES_UPDATE_IMAGE"
+      - name: Prepare pinned JP proxy client when configured
+        shell: bash
+        env:
+          JP_NODE_CONFIGURED: ${{ secrets.OURNOTES_JP_PROXY_NODE != '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$REGION" == jp && "$JP_NODE_CONFIGURED" == true ]]; then
+            bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/jp-egress-client"
+          fi
+      - name: Prepare light private state proof
+        id: light_prepare
         shell: bash
         run: |
           set -euo pipefail
@@ -150,12 +181,73 @@ jobs:
           mapfile -t paths < "$RUNNER_TEMP/r2-state-paths"
           args=()
           for path in "${paths[@]}"; do args+=(--path "$path"); done
-          python -m tools.r2_state current --root "$STABLE_ROOT" --region "$REGION" > "$RUNNER_TEMP/state-before.json"
-          python - "$RUNNER_TEMP/state-before.json" <<'PY'
-          import json, sys
-          if json.load(open(sys.argv[1]))['currentSha256'] == 'none':
-              raise SystemExit('Private state has not been seeded; no production run is permitted')
+          if [[ "$REGION" == global ]]; then
+            args+=(--config "$GLOBAL_CONFIG_PATH" --decoder-profile "$GLOBAL_DECODER_PROFILE_PATH")
+          fi
+          python -m tools.r2_production_gate light-prepare --root "$STABLE_ROOT" \
+            --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE" \
+            --stage "$STABLE_ROOT/output/tmp/r2-light" "${args[@]}" \
+            > "$RUNNER_TEMP/light-prepare.json"
+          python - "$RUNNER_TEMP/light-prepare.json" <<'PY'
+          import json, os, sys
+          result = json.load(open(sys.argv[1]))
+          if result.get('status') not in ('ready', 'needs_full') or result.get('skip') is not False:
+              raise SystemExit('Invalid light preparation result')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('ready=' + str(result['status'] == 'ready').lower() + '\n')
           PY
+      - name: Check unchanged production before full state restore
+        id: light_gate
+        if: steps.light_prepare.outputs.ready == 'true'
+        shell: bash
+        env:
+          OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
+          OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
+                  --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp)
+          probe=(python3 -m tools.r2_production_gate light-probe --root "$STABLE_ROOT"
+                 --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE"
+                 --prepared "$STABLE_ROOT/output/tmp/r2-light/proof.json")
+          if [[ "$REGION" == jp && -n "$OURNOTES_JP_PROXY_NODE" ]]; then
+            common+=(--env OURNOTES_JP_VERSION_PROXY)
+            python -m tools.jp_version_egress \
+              --binary "$RUNNER_TEMP/jp-egress-client/mihomo" -- \
+              docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+              "${probe[@]}" > "$RUNNER_TEMP/light-probe.json"
+          else
+            if [[ "$REGION" == jp ]]; then common+=(--env OURNOTES_JP_VERSION_PROXY); fi
+            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+              "${probe[@]}" > "$RUNNER_TEMP/light-probe.json"
+          fi
+          python -m tools.r2_production_gate light-check --root "$STABLE_ROOT" \
+            --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE" \
+            --prepared "$STABLE_ROOT/output/tmp/r2-light/proof.json" \
+            --probe "$RUNNER_TEMP/light-probe.json" \
+            --public-before "$RUNNER_TEMP/public-before.json" \
+            > "$RUNNER_TEMP/light-check.json"
+          python - "$RUNNER_TEMP/light-check.json" <<'PY'
+          import json, os, sys
+          result = json.load(open(sys.argv[1]))
+          if result.get('status') not in ('unchanged', 'needs_full') or type(result.get('skip')) is not bool:
+              raise SystemExit('Invalid light gate result')
+          if result['skip'] != (result['status'] == 'unchanged'):
+              raise SystemExit('Inconsistent light gate result')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('skip=' + str(result['skip']).lower() + '\n')
+          PY
+      - name: Restore last verified private state
+        if: steps.light_gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          mapfile -t paths < "$RUNNER_TEMP/r2-state-paths"
+          args=()
+          for path in "${paths[@]}"; do args+=(--path "$path"); done
           python -m tools.r2_state inspect --root "$STABLE_ROOT" --region "$REGION" "${args[@]}" > "$RUNNER_TEMP/state-size.json"
           python - "$RUNNER_TEMP/state-size.json" "$STABLE_ROOT" <<'PY'
           import json, shutil, sys
@@ -168,22 +260,13 @@ jobs:
               raise SystemExit('Runner disk is too small for the selected private state and production reserve')
           PY
           python -m tools.r2_state restore --root "$STABLE_ROOT" --region "$REGION" --workers 8 "${args[@]}"
-      - name: Capture public pointer baseline
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$STABLE_ROOT"
-          python -m tools.r2_content baseline --region "$REGION" > "$RUNNER_TEMP/public-before.json"
       - name: Validate restored input and runner capacity
+        if: steps.light_gate.outputs.skip != 'true'
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
           df -h "$STABLE_ROOT"
-          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          docker pull "$OURNOTES_UPDATE_IMAGE"
           if [[ "$REGION" == global ]]; then
             python - <<'PY'
           import json, os
@@ -212,17 +295,9 @@ jobs:
             [[ -d "$STABLE_ROOT/output/r2-jp/apks" ]] || { echo 'JP seed missing apks/' >&2; exit 1; }
             printf '%s' "$STABLE_ROOT/output/r2-jp-content" > "$RUNNER_TEMP/content-store"
           fi
-      - name: Prepare pinned JP proxy client when configured
-        shell: bash
-        env:
-          JP_NODE_CONFIGURED: ${{ secrets.OURNOTES_JP_PROXY_NODE != '' }}
-        run: |
-          set -euo pipefail
-          if [[ "$REGION" == jp && "$JP_NODE_CONFIGURED" == true ]]; then
-            bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/jp-egress-client"
-          fi
       - name: Probe source and check verified unchanged production
         id: production_gate
+        if: steps.light_gate.outputs.skip != 'true'
         shell: bash
         env:
           OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
@@ -269,7 +344,7 @@ jobs:
               output.write('skip=' + str(result['skip']).lower() + '\n')
           PY
       - name: Produce and seal local content
-        if: steps.production_gate.outputs.skip != 'true'
+        if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
         shell: bash
         env:
           OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
@@ -311,15 +386,20 @@ jobs:
             fi
           fi
       - name: Upload and read back produced immutable content
-        if: steps.production_gate.outputs.skip != 'true'
+        if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
           store="$(cat "$RUNNER_TEMP/content-store")"
-          python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 > "$RUNNER_TEMP/upload.json"
+          # Enable only after both gateway and prerender reader accept this layout.
+          layout=()
+          if [[ "$R2_SHARED_MEDIA" == true ]]; then layout+=(--shared-media)
+          elif [[ "$R2_SHARED_MEDIA" != false ]]; then echo 'Invalid shared media flag' >&2; exit 1; fi
+          python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 \
+            "${layout[@]}" > "$RUNNER_TEMP/upload.json"
       - name: Record verified production receipt
-        if: steps.production_gate.outputs.skip != 'true'
+        if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -340,7 +420,7 @@ jobs:
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
             >> "$GITHUB_STEP_SUMMARY"
       - name: Checkpoint private production state
-        if: steps.production_gate.outputs.skip != 'true'
+        if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -352,7 +432,7 @@ jobs:
           python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
             --workers 8 --expected-current "$expected" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
       - name: Promote verified public pointer
-        if: env.MODE == 'promote' && steps.production_gate.outputs.skip != 'true'
+        if: env.MODE == 'promote' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -368,6 +448,11 @@ jobs:
         run: |
           {
             printf 'Workflow result: `%s`. The Actions run is the last-attempt record.\n\n' "$JOB_STATUS"
+            if [[ -f "$RUNNER_TEMP/light-check.json" ]]; then
+              printf 'Light unchanged gate: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/light-check.json")"
+            elif [[ -f "$RUNNER_TEMP/light-prepare.json" ]]; then
+              printf 'Light preparation: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/light-prepare.json")"
+            fi
             if [[ -f "$RUNNER_TEMP/gate-check.json" ]]; then
               printf 'Verified unchanged gate: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/gate-check.json")"
             fi

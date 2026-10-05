@@ -41,7 +41,7 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 
 1. 在 Cloudflare R2 建好上述两个桶，均不要开启公开 bucket URL、`r2.dev` 或自定义公开域名。现有橙云代理主机名已足够，**不需要再建资源子域名**。
 2. 在 R2 管理页创建 **Object Read & Write** S3 API 凭据，只授权这两个桶。记录 Account ID、Access Key ID、Secret Access Key；密钥放 GitHub Environment，勿贴进聊天、仓库、工作流变量或日志。当前两套 Python 客户端共用一组凭据和默认 endpoint，故两个桶须在同一 Cloudflare 账户普通辖区。[R2 凭据步骤](https://developers.cloudflare.com/r2/api/tokens/)
-3. GitHub 仓库已创建 `content-r2-production` Environment，并把 deployment branches 限为 `main`；下方非敏感变量已创建且两服开关均为 `false`。三个 R2 Secrets 与 `OURNOTES_CRI_KEY`、`OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX` 已写入该 Environment，并通过 API 核对名称。Master 参数由两服可信加密样本及历史成功报告离线验证；CRI 参数由两服视频样本、Global 音频样本验证，值不进入仓库或本文。仓库 `main` 当前尚未启用分支保护，应在启用生产前设置。工作流另检查 `github.ref`，PR 不运行生产 job。环境保护和环境 Secrets 的行为见 [GitHub 文档](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)。
+3. GitHub 仓库已创建 `content-r2-production` Environment，并把 deployment branches 限为 `main`；下方非敏感变量已创建且两服开关均为 `false`。三个 R2 Secrets 与 `OURNOTES_CRI_KEY`、`OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX` 已写入该 Environment，并通过 API 核对名称。Master 参数由两服可信加密样本及历史成功报告离线验证；CRI 参数由两服视频样本、Global 音频样本验证，值不进入仓库或本文。仓库 `main` 已启用分支保护：必须通过 PR 合并、`verify` 检查通过且分支保持最新；规则也适用于管理员，禁止强推和删除。不额外要求人工审批人数。工作流另检查 `github.ref`，PR 不运行生产 job。环境保护和环境 Secrets 的行为见 [GitHub 文档](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)。
 4. Global 更新器镜像已通过 [发布工作流](https://github.com/stonesver/otonote/actions/runs/37230213563) 构建、推送并按摘要拉回验证，`OURNOTES_UPDATE_IMAGE` 仓库 Variable 已指向 `ghcr.io/stonesver/otonote-update@sha256:35d734d3273c0d3db7bb47aea2a421e5192503f1caf139c52590ded29ef30828`。构建使用固定摘要的公开 Node 基础镜像和官方 vgmstream 提交 `7dc938fa2f210943b37c7b6511852b516ef432ab`，不依赖旧服务器的本地镜像标签。仍须恢复真实私有配置与输入后，在 Actions 完成影子运行；旧服务器的 `global-update.service` 当前为 `failed`、退出码 1，不能把镜像发布当成生产验收。若 GHCR 包未自动授予本仓库读取权，在该包的 **Manage Actions access** 中授予本仓库读取权，不要直接把镜像设为公开。
 5. Global 私有配置已定位在本机 `~/Documents/data/otonote/private/local-configuration/config/global-update.server.json`，服务器另有 `/srv/ournotes-updater/app/config/global-update.server.json`。它的 `contentPublication.root` 仍指向服务器旧内容目录。为保留旧服务的回退配置，在本机暂存根复制成独立的 `config/global-update.r2.json`，仅将 `contentPublication.root` 改为 `/srv/ournotes-updater/app/output/r2-global-content`，并确认没有整站 `publication`；不要修改旧配置。仓库 Variable `R2_GLOBAL_CONFIG_PATH` 设为 `config/global-update.r2.json`。该私有文件只进入私有状态桶，不提交到 Git。补充 profile 时，先以当前指针 SHA-256 为 CAS 基线生成十一路径检查点，再成对更新 `R2_GLOBAL_STATE_PATHS` 与 `R2_GLOBAL_DECODER_PROFILE_PATH`；切换期间保持生产开关关闭。`R2_GLOBAL_DECODER_PROFILE_PATH` 是必需的根相对路径，设为 `config/bundle-decoder-profiles.json`，并将经可信客户端元数据身份核对的 profile 放在暂存根下的该路径，明确列入私有检查点。配置缺失或路径不在选择列表中时，工作流会在大规模恢复前失败；不能用 `clients/*/decoder.json` 缓存收据代替外置 profile。Global 的 APK 签名工具、decoder profile、baseline、input plan、initial observation/package 与私有工作目录均要在恢复后存在；公开内容库由本次任务在独立目录重新封存并上传，不列入私有检查点。旧服务器现有续跑状态引用 `output/costume-release-inputs-20261003/release-inputs.json`；原五路径清单遗漏该目录。下方新清单含整个动态 `sync-complete`，使下一版本产生的新目录继续被纳入检查点，且保留旧 formal 输入作为初始回退。`builds` 与 `conversions` 可在恢复后重新生成；旧服务器仅清理了上方明确授权的三个历史目录，当前和保留 builds 仍须保留。`R2_GLOBAL_STATE_PATHS` 必须与首次检查点的 `--path` 完全一致；状态引用变动时先重新审计并更新清单。
 6. JP 首期检查点固定为 `output/r2-jp`，需包含二进制 `metadata.v39.dat`、`unity-version.txt`、`apks/`，以及后续 `workspace/`。公开内容的本地封存目录为独立的 `output/r2-jp-content`，不进入私有检查点。本机 `~/Documents/data/otonote/resources/input/jp/` 中的 1.0.4 三个 split APK、元数据及 Unity 身份已通过 `tools.prepare_jp_r2_seed` 验证；工具固定了签名证书 SHA-256 `34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e` 与整套 APK 的摘要 `b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c`。在本机暂存根生成种子即可，避免复制约 4.6 GB 的整份手机缓存。新客户端版本或未知解码映射必须阻断。不能把未知网上 APK 自动设为可信输入。固定 1.0.4 元数据最初在原出口探测时返回 HTTP 403，随后经授权的日本单节点在托管 runner 上通过版本探测；完整生产验收见本文开头的运行记录。任何新拒绝或解码失败仍须保持公开指针不变。
@@ -121,7 +121,9 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十一条路径的 JS
 
 全新 runner 不恢复独立的本地公开内容库，不能仅凭 producer 的本地 `unchanged` 分支避免重复生产。`tools.r2_production_gate` 在完整恢复后，通过生产镜像重新探测官方版本；Global 同时使用与生产相同的可信客户端校验，必要时更新本地包缓存，再按实际客户端版本探测。门禁比较完整生产源码和工具链、工作流、固定镜像摘要、私有运行配置或可信 JP 客户端输入，并检查上次成功计划及其生产预检。只有成功回执对应的公开指针仍在线、清单摘要和区服绑定正确、末尾指针复查一致时，才跳过生产、公开上传、私有检查点和晋级。
 
-成功回执只在真实生产和公开对象完整上传读回之后，写入已纳入私有选择范围的生产 `state.json`，随后随检查点保存。旧检查点没有回执、上游或代码变化、公开指针未晋级等情况继续完整生产；探测失败或已匹配的清单损坏阻断。该优化仍需要每轮完整恢复私有输入，不能宣称零 R2 请求，也不是首次影子验收的替代品。
+[无变化门禁及两服 JSON 输出修复](https://github.com/stonesver/otonote/pull/31) 已在提交 `fec5aa081e54c1a031cdd1e0b66a92b7d4dbddf7` 合并，两套远端 CI 通过；真实 runner 的首次回执建立及后续跳过验收仍待完成。
+
+成功回执只在真实生产和公开对象完整上传读回之后，写入已纳入私有选择范围的生产 `state.json`，随后随检查点保存。旧检查点没有回执、上游或代码变化、公开指针未晋级等情况继续完整生产；探测失败或已匹配的清单损坏阻断。PR31 的初版优化仍需要每轮完整恢复私有输入，不能宣称零 R2 请求，也不是首次影子验收的替代品。
 
 Global 的 `compile-data` 失败后，工作流会尝试将该次 `latest-run.json` 指向的编译日志保存在私有桶 `diagnostics/global/<run-id>/<attempt>/compile-data.log`。只保留最后 4 MiB，回执记录原长度、是否截断、SHA-256 和完整读回校验结果；Actions summary 不显示日志内容。目录或日志为符号链接、路径不属于本次工作区、读取时文件变化均拒绝保存。此步骤失败也不改变原生产失败结论，不写成功检查点或公开指针。诊断文件可能含私有路径或上游敏感消息，不能复制到公开 artifact、聊天或公开内容桶。
 
@@ -179,3 +181,16 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 - Worker Route 故障：先用旧完整内容库恢复并验证旧 HTML，确认两服 HTML 引用的媒体在源站可读，再在 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，最后恢复旧预渲染 timer；避免新 HTML 在撤 Route 后引用源站不存在的快照。
 - 公开内容需要回退：先运行 `python3 -m tools.r2_content baseline --region global`（JP 改为 `jp`）取得 `currentSha256`，检查返回的 `previousPointer` 是否指向所需旧版本，再运行 `python3 -m tools.r2_content rollback --region global --expected-current <currentSha256> --source-run <工单标识>`。命令验证旧清单及所引用的 JSON 后写晋级记录，并用条件写切回旧指针；普通媒体的完整性仍须在 Worker 测试地址抽验。不要在控制台直接手改 `current.json`。紧急情况下优先撤 Route 回到原站内容。
 - 新流水线通过真实定时运行、Route 和浏览器验收后，才停止服务器旧的 `global-update.timer`。保留旧源站内容和旧 HTML 引用；历史对象清理仍由独立引用审计决定，不由工作流自动删除。
+
+## 日常性能改造（2026-10-05，待真实 runner 验收）
+
+设计和执行顺序见 [性能设计](designs/2026-10-05-r2-update-performance-design.md) 与 [实施计划](plans/2026-10-05-r2-update-performance-plan.md)。本节描述本次实现；不代表正在运行的旧工作流已经使用这些优化。
+
+- **轻量版本检查**：私有 receipt schema 2 绑定已验证 APK/metadata/config 库存；在恢复历史状态前只取控制清单和少量探测输入。公开版本已晋级且版本/输入/代码/镜像都一致才跳过。旧 receipt、首次 JP 种子、上游变更走原完整路径。尚无真实 runner 无变化计时。
+- **共享媒体**：`tools.r2_content upload --shared-media` 把全部 `public/`（包括模型与动作 JSON）保存为 `content/blobs/<sha256>`，逻辑 URL 保持不变。首次完整 SHA 读回，后续以已验证目录加当前 LIST 中 key/size/ETag 复用；ETag 本身不是首次内容校验。promote 对共享媒体同样核对目录及存在性，locale JSON 仍完整校验。控制索引不通过 Worker 公开，旧 release 不转换、不删除。
+- **兼容部署前保持 `CONTENT_R2_SHARED_MEDIA=false`（默认）**：先更新 `deploy/r2_content_gateway.mjs` 的 Worker、构建并安装含新 materializer 的固定摘要预渲染镜像，完成测试地址验收后才启用共享上传。仅部署 Worker 不表示要立即添加线上 Route。
+- **预渲染下载**：manifest 已绑定必须文件的 SHA 与长度，省略这些文件的重复 HEAD；只有可选美术做 HEAD。最多 8 个并行下载，每个仍校验完整正文，全部成功后才换指针。该改造减少下载等待，不改变 HTML 生成成本。
+
+本地已封存旧快照统计：Global 22,814 个文件中 20,418 个 public 逻辑文件可共享（14,802 个唯一内容），剩 2,396 个直接存储文件；JP 分别为 22,689 / 20,331 / 14,633 / 2,358。真实下一版有多少内容变化尚未知，因此不能按此直接承诺整个更新耗时。
+
+操作量回归测试以 257 个不变媒体为例：第二个 release 媒体正文 GET=0、PUT=0，仅一次 blob LIST 与有限映射控制读取；新增一个媒体只 PUT 该新 blob。新 blob 损坏、旧 blob 丢失/ETag 改变、分片损坏都会阻断或重新完整验证。以上是本地受控测试结果，不是线上耗时。

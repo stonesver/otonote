@@ -42,13 +42,15 @@ jobs:
           python3 -m unittest tests.test_gallery_identity tests.test_library_metadata tests.test_item_acquisition tests.test_game_database tests.test_code_publication tests.test_operations tests.test_docs_status tests.test_global_update tests.test_prerender_publication tests.test_admin_upgrade.ManualStageTests tests.test_current_content_media tests.test_costumes tests.test_content_publication tests.test_bundle_decoder tests.test_global_remote_sync tests.test_current_resources tests.test_deployment_preservation -q
       - name: R2 publication and JP transport gates
         run: >-
-          python3 -m unittest tests.test_r2_state tests.test_r2_content
+          python3 -m unittest tests.test_r2_state tests.test_r2_content tests.test_r2_shared_media
           tests.test_r2_legacy_bootstrap tests.test_r2_prerender_promotion
           tests.test_materialize_r2_content tests.test_jp_public tests.test_jp_update
           tests.test_jp_version_egress tests.test_jp_phone_remote
           tests.test_jp_phone_inputs tests.test_jp_remote_snapshot tests.test_read_spine_animations
           tests.test_export_immersive_scenes tests.test_r2_diagnostics tests.test_arena_rank
           tests.test_r2_production_gate -q
+      - name: R2 gateway compatibility
+        run: node --test site/tests/r2-content-gateway.test.mjs
       - name: Publish reviewed artifact identifiers to the run summary
         run: |
           python3 - <<'PYCODE'

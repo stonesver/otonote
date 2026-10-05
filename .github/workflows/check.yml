@@ -44,6 +44,7 @@ jobs:
         run: >-
           python3 -m unittest tests.test_r2_state tests.test_r2_content tests.test_r2_shared_media
           tests.test_r2_verified_release tests.test_r2_delivery_probe
+          tests.test_r2_upload_layout
           tests.test_r2_legacy_bootstrap tests.test_r2_prerender_promotion
           tests.test_materialize_r2_content tests.test_jp_public tests.test_jp_update
           tests.test_jp_version_egress tests.test_jp_phone_remote

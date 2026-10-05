@@ -263,6 +263,17 @@ jobs:
             fi
           fi
           python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 > "$RUNNER_TEMP/upload.json"
+      - name: Preserve failed Global compiler log privately
+        if: ${{ failure() && env.REGION == 'global' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          python -m tools.r2_diagnostics \
+            --workspace "$STABLE_ROOT/output/global-update-workflow" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            >> "$GITHUB_STEP_SUMMARY"
       - name: Checkpoint private production state
         shell: bash
         run: |

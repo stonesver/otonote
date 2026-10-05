@@ -216,8 +216,9 @@ class S3Bucket:
     def list_identities(self, prefix: str) -> dict:
         # Bounded, strongly consistent listing. ETags are only compared with a
         # catalog issued after SHA-256 readback; listing alone proves no digest.
-        if prefix != "content/blobs/":
-            raise ValueError("unexpected shared object namespace")
+        shared = prefix == "content/blobs/"
+        if not shared and not re.fullmatch(r"content/releases/[a-f0-9]{24}/", prefix):
+            raise ValueError("unexpected verified object namespace")
         result, token, seen = {}, None, set()
         for _ in range(1000):
             args = {"Bucket": self.bucket, "Prefix": prefix, "MaxKeys": 1000}
@@ -226,8 +227,14 @@ class S3Bucket:
             page = self.client.list_objects_v2(**args)
             for item in page.get("Contents", []):
                 key = item.get("Key", "")
-                if not key.startswith(prefix) or not SHA256.fullmatch(key[len(prefix):]):
-                    raise ValueError("invalid shared object key")
+                if not key.startswith(prefix):
+                    raise ValueError("invalid verified object key")
+                name = key[len(prefix):]
+                if shared:
+                    if not SHA256.fullmatch(name):
+                        raise ValueError("invalid shared object key")
+                else:
+                    check_public_path(name)
                 size, etag = item.get("Size"), item.get("ETag")
                 if type(size) is not int or size < 0 or not isinstance(etag, str) or key in result:
                     raise ValueError("invalid shared object identity")
@@ -238,7 +245,7 @@ class S3Bucket:
             if not isinstance(token, str) or not token or token in seen:
                 raise ValueError("invalid shared object continuation")
             seen.add(token)
-        raise ValueError("shared object listing exceeds limit")
+        raise ValueError("verified object listing exceeds limit")
 
     def put_new(self, key: str, data: bytes, *, content_type: str, cache_control: str, sha256: str) -> bool:
         from botocore.exceptions import ClientError
@@ -335,6 +342,22 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: 
     from tools.r2_shared_media import descriptor_key
     if bucket.get(descriptor_key(release_id)) is not None:
         raise ValueError("shared release requires --shared-media upload")
+    from tools.r2_verified_release import upload_catalog, verify_release
+    if verify_release(bucket, release, manifest, files):
+        return {"region": region, "releaseId": release_id, "pointerSha256": digest(pointer_bytes),
+                "files": len(files), "uploaded": 0, "reused": len(files),
+                "verification": "catalog-and-fresh-list"}
+
+    def verified_identity(key, expected_sha, size):
+        if hasattr(bucket, 'verified_etag'):
+            return bucket.verified_etag(key, expected_sha, size)
+        item = bucket.get(key)
+        if item is None:
+            return None
+        if len(item[0]) != size or digest(item[0]) != expected_sha:
+            raise ValueError("immutable R2 content key has different bytes")
+        return item[1]
+
     def upload_and_verify(item):
         name, expected_sha = item
         key = base + name
@@ -345,23 +368,30 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: 
         mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
         options = {"content_type": mime, "cache_control": "public, max-age=31536000, immutable",
                    "sha256": expected_sha}
-        if same_object(bucket, key, expected_sha, size):
+        etag = verified_identity(key, expected_sha, size)
+        if etag is not None:
             created = False
         else:
             created = (bucket.put_file_new(key, path, size=size, **options)
                        if hasattr(bucket, 'put_file_new') else bucket.put_new(key, path.read_bytes(), **options))
             # A new object and a failed conditional create both require full readback.
-            if not same_object(bucket, key, expected_sha, size):
+            etag = verified_identity(key, expected_sha, size)
+            if etag is None:
                 raise ValueError("immutable R2 content key has different bytes")
         if file_hash(path) != expected_sha:
             raise ValueError("sealed content changed during upload")
-        return created
+        return name, created, etag
 
     ordinary = sorted((name, sha) for name, sha in files.items() if name != "manifest.json")
     outcomes = _run_bounded(ordinary, upload_and_verify, workers, progress=progress)
     # The manifest is always the last release object and is read back before success.
     outcomes.append(upload_and_verify(("manifest.json", files["manifest.json"])))
-    uploaded = sum(outcomes)
+    # Only clients with fresh listing support consume this completion evidence.
+    # All objects above have passed full SHA readback, including reused objects.
+    if hasattr(bucket, 'list_identities'):
+        upload_catalog(bucket, release, manifest, files,
+                       {name: etag for name, _, etag in outcomes})
+    uploaded = sum(created for _, created, _ in outcomes)
     reused = len(outcomes) - uploaded
     return {"region": region, "releaseId": release_id, "pointerSha256": digest(pointer_bytes),
             "files": len(files), "uploaded": uploaded, "reused": reused}
@@ -385,7 +415,9 @@ def promote(bucket, store: Path, region: str, expected_current: str, *, source_r
             raise ValueError("R2 release is incomplete or changed")
     from tools.r2_shared_media import verify_release
     if not verify_release(bucket, release, manifest, files, workers, progress):
-        _run_bounded(files.items(), verify_remote, workers, progress=progress)
+        from tools.r2_verified_release import verify_release as verify_direct
+        if not verify_direct(bucket, release, manifest, files):
+            _run_bounded(files.items(), verify_remote, workers, progress=progress)
     current_key = pointer_key(region)
     current = bucket.get(current_key)
     current_bytes, current_etag = current if current is not None else (None, None)

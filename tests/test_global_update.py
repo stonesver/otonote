@@ -52,6 +52,8 @@ class WorkflowTests(unittest.TestCase):
         journal=workflow.Journal(self.workspace,'run')
         def compile(name,args):
             self.assertEqual(name,'compile-data')
+            self.assertEqual(Path(args[args.index('--conversion-cache') + 1]),
+                             self.workspace / 'cache/image-conversions')
             write_json(Path(args[args.index('--output')+1])/'candidate.json',{'inputPlanSha256':file_hash(self.plan)})
         journal.command=Mock(side_effect=compile)
         with patch('tools.content_publication.publish_content',return_value={'status':'content_published'}) as publish, patch.object(workflow,'bundle') as seal, patch('tools.content_retention.cleanup_content'), patch('tools.update_retention.cleanup'):

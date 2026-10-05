@@ -239,7 +239,10 @@ def main() -> int:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--locale', action='append')
     parser.add_argument('--keep-failed', action='store_true', help='retain private intermediate files after a failed build')
+    parser.add_argument('--conversion-cache', type=Path, help='private reusable media cache restored with production state')
     args = parser.parse_args()
+    if args.conversion_cache is not None:
+        os.environ['OURNOTES_CONVERSION_CACHE'] = str(args.conversion_cache.resolve())
     try:
         result = build_candidates(args.plan, args.output,
                                   locales=tuple(args.locale or ['zh-CN', 'en']), keep_failed=args.keep_failed)

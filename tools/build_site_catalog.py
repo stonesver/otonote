@@ -566,7 +566,10 @@ def write_media(
 
     source = Path(record["source_file"])
     source_sha = file_sha256(source)
-    from tools.conversion_cache import restore as cache_restore, save as cache_save
+    load_pillow()
+    from tools.conversion_cache import restore as cache_restore, save as cache_save, image_recipe
+    preview_recipe = image_recipe('preview-webp-1200-q84-m6-v1')
+    thumbnail_recipe = image_recipe('thumbnail-webp-320-q72-m6-v1')
     if not original_path.exists() or file_sha256(original_path) != source_sha:
         if original_path.exists():
             original_path.unlink()
@@ -575,19 +578,19 @@ def write_media(
         except OSError:
             shutil.copy2(source, original_path)
 
-    preview_cached = cache_restore(source_sha, 'preview-webp-1200-q84-m6-v1', preview_path)
-    if not preview_cached and (not preview_path.exists() or preview_path.stat().st_mtime < source.stat().st_mtime):
+    preview_cached = cache_restore(source_sha, preview_recipe, preview_path)
+    if not preview_cached:
         Image = load_pillow()
         with Image.open(source) as image:
             image.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
             if image.mode not in {"RGB", "RGBA"}:
                 image = image.convert("RGBA")
             image.save(preview_path, "WEBP", quality=84, method=6)
-    cache_save(source_sha, 'preview-webp-1200-q84-m6-v1', preview_path)
+    cache_save(source_sha, preview_recipe, preview_path)
 
     Image = load_pillow()
-    thumbnail_cached = cache_restore(source_sha, 'thumbnail-webp-320-q72-m6-v1', thumbnail_path)
-    thumbnail_is_stale = not thumbnail_cached and (not thumbnail_path.exists() or thumbnail_path.stat().st_mtime < source.stat().st_mtime)
+    thumbnail_cached = cache_restore(source_sha, thumbnail_recipe, thumbnail_path)
+    thumbnail_is_stale = not thumbnail_cached
     if not thumbnail_is_stale:
         with Image.open(thumbnail_path) as existing_thumbnail:
             thumbnail_is_stale = max(existing_thumbnail.size) > 320
@@ -597,7 +600,7 @@ def write_media(
             if image.mode not in {"RGB", "RGBA"}:
                 image = image.convert("RGBA")
             image.save(thumbnail_path, "WEBP", quality=72, method=6)
-    cache_save(source_sha, 'thumbnail-webp-320-q72-m6-v1', thumbnail_path)
+    cache_save(source_sha, thumbnail_recipe, thumbnail_path)
 
     return preview_url, thumbnail_url, original_url
 
@@ -1042,10 +1045,11 @@ def build_catalog(
             )
         )
     selected_records = select_catalog_records(all_records, extra_limit)
-    assets = [
-        asset_from_record(record, media_root, skip_media, release_id)
-        for record in selected_records
-    ]
+    from tools.media_parallel import map_images
+    assets = map_images(
+        lambda record: asset_from_record(record, media_root, skip_media, release_id),
+        selected_records,
+    )
     asset_ids = {
         str(record["source_file"]): stable_id("asset", record)
         for record in selected_records

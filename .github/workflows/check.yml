@@ -58,6 +58,10 @@ jobs:
           python3 -m pip install -r requirements-admin.txt
           python3 -m unittest tests.test_admin_r2_delivery -q
           node --check backend/admin/static/admin.mjs
+      - name: Changed media compilation gates
+        run: |
+          python3 -m pip install Pillow==11.3.0
+          python3 -m unittest tests.test_conversion_cache tests.test_media_incremental tests.test_global_update tests.test_jp_update -q
       - name: Publish reviewed artifact identifiers to the run summary
         run: |
           python3 - <<'PYCODE'

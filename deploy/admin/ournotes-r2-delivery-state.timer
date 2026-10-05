@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh local R2 content and HTML delivery status
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=ournotes-r2-delivery-state.service
+
+[Install]
+WantedBy=timers.target

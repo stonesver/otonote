@@ -17,6 +17,11 @@ from pathlib import Path
 from .config import secret, validate_config
 
 
+R2_ACTIONS_URL = 'https://github.com/stonesver/otonote/actions/workflows/content-r2.yml'
+R2_DELIVERY_MAX_AGE_SECONDS = 6 * 60
+R2_DELIVERY_MAX_FUTURE_SECONDS = 60
+
+
 class Jobs:
     def __init__(self, path):
         self.path = Path(path)
@@ -61,6 +66,43 @@ def profile_state(profile):
     result = {'id': profile['id'], 'name': profile.get('name', profile['id']), 'capabilities': profile.get('capabilities', ['check']),
               'status': 'not_run', 'steps': [], 'publication': 'enabled' if 'publish' in profile.get('capabilities', []) else 'disabled'}
     path = Path(profile.get('stateWorkspace', profile['workspace'])) / 'latest-run.json'
+    if profile.get('productionSource') == 'github-actions-r2':
+        result.update({'productionOwner': 'github-actions-r2', 'actionsUrl': R2_ACTIONS_URL,
+                       'capabilities': [], 'publication': 'disabled', 'status': 'unavailable'})
+        try:
+            if path.is_symlink() or path.stat().st_size > 1024 * 1024:
+                raise ValueError('unsafe delivery status')
+            stamp = path.stat().st_mtime
+            result['updatedAt'] = stamp
+            age = time.time() - stamp
+            if age > R2_DELIVERY_MAX_AGE_SECONDS or age < -R2_DELIVERY_MAX_FUTURE_SECONDS:
+                raise ValueError('stale delivery status')
+            data = json.loads(path.read_text())
+            delivery = data.get('delivery')
+            if (data.get('schemaVersion') != 2 or data.get('productionOwner') != 'github-actions-r2'
+                    or not isinstance(delivery, dict) or delivery.get('status') not in {'ready', 'unavailable'}
+                    or not isinstance(delivery.get('regions'), dict)
+                    or data.get('status') != ('passed' if delivery['status'] == 'ready' else 'unavailable')):
+                raise ValueError('invalid delivery status')
+            regions = delivery['regions']
+            if delivery['status'] == 'ready':
+                if set(regions) != {'global', 'jp'}:
+                    raise ValueError('incomplete delivery status')
+                for row in regions.values():
+                    if (not isinstance(row, dict)
+                            or not isinstance(row.get('contentReleaseId'), str)
+                            or len(row['contentReleaseId']) > 200
+                            or not re.fullmatch('[a-f0-9]{24}', row.get('releaseId', ''))
+                            or not re.fullmatch('[a-f0-9]{64}', row.get('manifestSha256', ''))
+                            or not re.fullmatch('[a-f0-9]{24}-[a-f0-9]{24}', row.get('renderPair', ''))):
+                        raise ValueError('invalid delivery identity')
+            elif regions:
+                raise ValueError('unavailable delivery has identities')
+            result['delivery'] = delivery
+            result['status'] = data['status']
+        except (OSError, ValueError, TypeError, AttributeError, KeyError):
+            pass
+        return result
     try:
         if path.stat().st_size > 1024 * 1024:
             raise ValueError('state too large')
@@ -117,6 +159,8 @@ def create_node(config):
             raise HTTPException(400, 'invalid task')
         if data['profile'] not in profiles or data['action'] not in profiles[data['profile']].get('capabilities', ['check']):
             raise HTTPException(403, 'capability unavailable')
+        if profiles[data['profile']].get('productionSource') == 'github-actions-r2':
+            raise HTTPException(403, 'production belongs to GitHub Actions')
         if data['action'] == 'publish':
             if data['actor'] not in profiles[data['profile']].get('publishUsers', []):
                 raise HTTPException(403, 'publication not allowed')

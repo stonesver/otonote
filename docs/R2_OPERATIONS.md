@@ -1,6 +1,14 @@
 # Actions + R2 内容迁移操作手册
 
-目标：Global、JP 的内容生产在 GitHub 托管 runner 运行；现有服务器继续提供网页与其他服务。`ournotes.stonebg.cn/content/*` 在验收后由只读 Worker 从 R2 提供。本文是配置与验收步骤，不代表 R2 已完成真实上传或站点已切换。
+目标：Global、JP 的内容生产在 GitHub 托管 runner 运行；现有服务器继续提供网页与其他服务。`ournotes.stonebg.cn/content/*` 由只读 Worker 从 R2 提供。本文同时保留历史实施记录；当前部署状态以本节最近的交接记录为准，后文早期记录中的“尚未切换”只描述当时状态。
+
+## 最终交接状态（2026-10-05，验收进行中）
+
+- Worker Route 已启用：`ournotes.stonebg.cn/content/*` → `ournotes-content-gateway`，`CONTENT` 只绑定 `otonote-public-content`。主域名 12 项小快照检查及两服 16 项真实资源抽查通过。
+- 服务器 `ournotes-r2-prerender.timer` 已启用；旧预渲染 path/timer 停用。无内容变化时实测约 18–19 秒完成检查并复用已有 HTML。
+- PR37 修正 Global 私有输入与源码指纹混合的问题，相关 33 项测试及两项 CI 通过，合并源码 `2b2d7f99917044d6c120878273ddd80d7004dd81`。
+- 该源码的最终手动 promote：[Global 37291517084](https://github.com/stonesver/otonote/actions/runs/37291517084)、[JP 37291571818](https://github.com/stonesver/otonote/actions/runs/37291571818)。运行结果、真实无变化检查和新页面验收仍待记录。
+- 常规定时生产及自动晋级开关暂为 false；旧 `global-update.timer` 保留。只有新发布、页面和轻量检查验收后才交接。旧内容与回退资料保留，本次交接不进行额外历史清理。
 
 ## 2026-10-05 实际迁移验证
 

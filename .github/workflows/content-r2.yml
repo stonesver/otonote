@@ -394,8 +394,10 @@ jobs:
           store="$(cat "$RUNNER_TEMP/content-store")"
           # Enable only after both gateway and prerender reader accept this layout.
           layout=()
-          if [[ "$R2_SHARED_MEDIA" == true ]]; then layout+=(--shared-media)
-          elif [[ "$R2_SHARED_MEDIA" != false ]]; then echo 'Invalid shared media flag' >&2; exit 1; fi
+          selected="$(python -m tools.r2_upload_layout --store "$store" --region "$REGION" --shared "$R2_SHARED_MEDIA")"
+          if [[ "$selected" == shared ]]; then layout+=(--shared-media)
+          elif [[ "$selected" != direct ]]; then echo 'Invalid selected layout' >&2; exit 1; fi
+          printf 'Immutable upload layout: `%s`.\n\n' "$selected" >> "$GITHUB_STEP_SUMMARY"
           python -m tools.r2_content upload --region "$REGION" --store "$store" --workers 8 \
             "${layout[@]}" > "$RUNNER_TEMP/upload.json"
       - name: Record verified production receipt

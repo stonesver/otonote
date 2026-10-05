@@ -220,3 +220,21 @@ PR33 已合并为 `4674e222c8f925a8c58feeb31910ab20d012b0fd`，两套 verify 均
 小快照探测 `37281403485` 完成上传，但默认 `Python-urllib` 客户端被测试域名返回 403/1010；本机只读对照中，明确的项目客户端标识 `otonote-delivery-probe/1.0` 可访问相同资源。探测脚本据此设置明确 User-Agent。
 
 相同资源的普通 GET 实际返回 206 和完整 `Content-Range`。R2 对象可能携带完整范围信息，Worker 不能仅凭 `object.range` 决定 HTTP 206；现改为只有客户端请求 Range 且 R2 返回 range 时才返回部分响应，并补普通 GET/HEAD/可变 pointer 回归。共享模型 JSON 当前仍为 404，已请用户部署兼容 Worker；10 项网关、3 项探测测试通过，真实共享交付尚未通过。
+
+### Worker 验收与预渲染切换进行中
+
+用户已部署兼容 Worker。托管 runner 的共享小快照验收 [37287119280](https://github.com/stonesver/otonote/actions/runs/37287119280) 成功；本机另对两服共 16 项真实资源样本核对 SHA、HEAD、音频 Range、缓存头与内部路径拒绝，均通过。
+
+旧快照晋级 [37281443762](https://github.com/stonesver/otonote/actions/runs/37281443762) 成功，两服 current 均从 none 建立。Global/JP 分别复用 22,814 / 22,689 个已上传文件，完整读回约 705 / 711 秒；随后的预检约 37 / 33 秒，晋级约 33 / 33 秒。任务总计 39m56s，包含恢复 13m52s。旧 shadow 的 148m05s 包含首次上传，缓存条件不同，不能宣称同等工作提速六倍。
+
+服务器已保存 `/etc/ournotes/r2-cutover-before.json`，停用旧预渲染 path/timer并确认旧 service 已退出，然后手动启动新 R2 service；首次物化仍在进行。两服旧 HTML、previous、完整旧内容库保留，新 timer 尚未启用，旧 Global 生产 timer 仍启用，网站 Route 尚待用户添加。
+
+共享开关启用后，上传工作流先选择已有不可变布局：相同 manifest 的既有 direct release 继续使用 direct，新 release 使用 shared；已有 shared descriptor 交给共享上传器继续严格验证，manifest 不一致直接阻断。避免开启共享开关时尝试原地改变旧 release 布局。
+
+### 费用基线（2026-10-05，非固定账单）
+
+用户截图显示 R2 Standard 总容量 36.77 GB、Class A 138.64k、Class B 475.37k。若容量整月不变、账户仍有标准免费额度，按 10 GB-month 免费和 $0.015/GB-month 计，存储约 $0.41/月（计费单位进位）；目前操作数量低于月免费 A 100 万/B 1000 万。实际存储按每日峰值平均，不以某次截图直接结算。出口流量免费。见 [R2 定价](https://developers.cloudflare.com/r2/pricing/)。
+
+Workers 免费档有每日 10 万请求和每次 10ms CPU 限额；付费档最低 $5/月，含月 1000 万请求、3000 万 CPU ms，超额另算。资源请求数不是访客数。当前 Worker 只设置浏览器缓存和进程内映射缓存，不能把它解释为所有 R2 正文已进入边缘缓存。见 [Workers 定价](https://developers.cloudflare.com/workers/platform/pricing/)。
+
+已核对仓库公开，当前标准 ubuntu-latest runner 运行时间免费；GHCR 容器存储/带宽当前免费。Actions 活跃 artifact 144 个、合计约 2.44 GB，其中预渲染镜像归档约 545 MB；这不是账户账单，产物额度/实际计费仍应以 GitHub billing 为准。旧服务器、域名、日本代理订阅价格未提供，不包含在以上新增 Cloudflare 估算中。见 [Actions](https://docs.github.com/en/billing/concepts/product-billing/github-actions) 与 [Packages](https://docs.github.com/en/billing/concepts/product-billing/github-packages)。

@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,16 +19,51 @@ from tools.jp_remote_sync import client_from_metadata, snapshot
 from tools.jp_phone_inputs import build as build_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = ('tools/jp_update.py', 'tools/jp_remote_sync.py', 'tools/jp_phone_inputs.py',
-           'tools/resource_pipeline/adapters/jp_public.py',
-           'tools/release_candidates.py', 'tools/content_publication.py',
-           'tools/library_metadata.py', 'tools/scoring_content.py')
+# Include the whole production tool tree: JP intake, current_* extractors,
+# candidate generation, publication, and their indirect Python/Node helpers.
+# A commit SHA would also change for documentation-only commits, causing a new
+# run directory and needless reacquisition of the same official CDN resources.
+FINGERPRINT_ROOTS = {
+    'tools': frozenset(('.py', '.js', '.mjs', '.cjs', '.json')),
+    'analysis/crypto': frozenset(('.py', '.txt')),
+    'packages/scoring': frozenset(('.js', '.mjs', '.cjs', '.json')),
+    'config': frozenset(('.json', '.toml', '.yaml', '.yml')),
+}
+# publish-update-image.yml copies site/package*.json to the *root of its
+# temporary Docker build context; there are no repository-root package files.
+# Both Docker stages and their locked Python/Node inputs affect the producer.
+FINGERPRINT_FILES = (
+    '.dockerignore',
+    '.github/workflows/publish-update-image.yml',
+    'Dockerfile.worker',
+    'requirements-worker.txt',
+    'analysis/requirements.txt',
+    'analysis/crypto/requirements.txt',
+    'site/package.json',
+    'site/package-lock.json',
+    'deploy/Dockerfile.global-update',
+)
 
 
 def fingerprint():
-    return hashlib.sha256(json.dumps({'commit':os.environ.get('GITHUB_SHA'),
-                                     'files':{name:file_hash(ROOT/name) for name in SOURCES}},
-                                     sort_keys=True).encode()).hexdigest()
+    files = {}
+    for dirname, suffixes in FINGERPRINT_ROOTS.items():
+        directory = ROOT / dirname
+        if not directory.is_dir() or directory.is_symlink():
+            raise ValueError('JP producer source directory missing or linked: ' + dirname)
+        for path in directory.rglob('*'):
+            if path.suffix not in suffixes:
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise ValueError('JP producer source file missing or linked: ' + str(path.relative_to(ROOT)))
+            files[path.relative_to(ROOT).as_posix()] = file_hash(path)
+    for name in FINGERPRINT_FILES:
+        path = ROOT / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('JP producer toolchain file missing or linked: ' + name)
+        files[name] = file_hash(path)
+    return hashlib.sha256(json.dumps({'schemaVersion': 2, 'files': files},
+                                     sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
 def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,

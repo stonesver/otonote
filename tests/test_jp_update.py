@@ -1,6 +1,7 @@
 """Safety gates for unattended JP production, using only synthetic sources."""
 
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from tools.jp_remote_sync import snapshot
-from tools.jp_update import run
+from tools.jp_update import FINGERPRINT_FILES, fingerprint, run
 from tools.resource_pipeline.adapters.global_public import ProtocolError
 
 
@@ -26,6 +27,73 @@ def observation(version='1.0.4', resource='1.0.0.300/' + 'a' * 32):
 
 
 class JpUpdateSafetyTests(unittest.TestCase):
+    def test_fingerprint_ignores_documentation_and_commit_identity(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('tools/jp_update.py', 'analysis/crypto/decrypt_master.py',
+                         'packages/scoring/scoring-engine.mjs', 'config/site-product.json',
+                         *FINGERPRINT_FILES):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('original')
+            docs = root / 'docs/operation.md'
+            docs.parent.mkdir()
+            docs.write_text('first version')
+            with patch('tools.jp_update.ROOT', root), patch.dict(os.environ, {'GITHUB_SHA': 'a' * 40}):
+                first = fingerprint()
+                docs.write_text('second version')
+                os.environ['GITHUB_SHA'] = 'b' * 40
+                self.assertEqual(fingerprint(), first)
+
+    def test_fingerprint_tracks_production_helpers_node_code_and_config(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            names = ('tools/jp_update.py', 'tools/current_content_inputs.py',
+                     'tools/current_content_media.py', 'tools/current_bgm_inputs.py',
+                     'tools/release_candidates.py', 'tools/content_derivatives.mjs',
+                     'analysis/crypto/decrypt_master.py',
+                     'packages/scoring/scoring-engine.mjs',
+                     'packages/scoring/data/formal-scoring-rules.json',
+                     'config/site-product.json', 'config/resource-platform.toml',
+                     *FINGERPRINT_FILES)
+            for name in names:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('original')
+            with patch('tools.jp_update.ROOT', root):
+                baseline = fingerprint()
+                for name in names:
+                    path = root / name
+                    path.write_text('changed')
+                    self.assertNotEqual(fingerprint(), baseline, name)
+                    path.write_text('original')
+                added = root / 'tools/resource_pipeline/new_decoder.py'
+                added.parent.mkdir(parents=True)
+                added.write_text('new producer')
+                self.assertNotEqual(fingerprint(), baseline)
+
+    def test_fingerprint_tracks_updater_image_build_inputs(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('tools/jp_update.py', 'analysis/crypto/decrypt_master.py',
+                         'packages/scoring/scoring-engine.mjs', 'config/site-product.json',
+                         *FINGERPRINT_FILES):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('original')
+            with patch('tools.jp_update.ROOT', root):
+                baseline = fingerprint()
+                for name in FINGERPRINT_FILES:
+                    path = root / name
+                    path.write_text('changed')
+                    self.assertNotEqual(fingerprint(), baseline, name)
+                    path.write_text('original')
+
+    def test_fingerprint_fails_if_source_root_is_missing(self):
+        with TemporaryDirectory() as directory, patch('tools.jp_update.ROOT', Path(directory)):
+            with self.assertRaisesRegex(ValueError, 'source directory missing'):
+                fingerprint()
+
     def test_unknown_client_is_rejected_before_any_download_or_snapshot(self):
         client = Mock(client_version='1.0.4')
         client.discover.return_value = observation(version='1.0.5')

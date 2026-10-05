@@ -58,6 +58,15 @@ Before installing the units:
    verified should the new timer be enabled. The wrapper refuses to run while
    any old trigger or service remains active and serializes its own runs with `flock`.
 
+Materialization records the fully verified local object set in a private
+`.r2-materialization-receipt.json` within the independent local release.
+An unchanged release rechecks its pointer and manifest plus every local file
+hash using that receipt, with eight control GETs total for both regions and
+no per-object HEAD/download calls. Missing receipts require a full recheck;
+linked or damaged receipts and damaged local data fail closed. This avoids
+thousands of R2 HEAD requests on every timer tick. The receipt is never
+uploaded to the public bucket.
+
 The run sequence is: preflight image and content space, pinned image
 pull/check, materialize R2, require both regional pointers, then validate
 both existing live HTML pairs. If their complete records, reports, required

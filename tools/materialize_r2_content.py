@@ -24,6 +24,8 @@ RELEASE = re.compile(r"/content/releases/([a-f0-9]{24})/manifest\.json\Z")
 MAX_CONTROL_BYTES = 4 * 1024 * 1024
 MAX_OBJECTS = 100_000
 MAX_RELEASE_BYTES = 8 * 1024 ** 3
+RECEIPT_NAME = ".r2-materialization-receipt.json"
+MAX_RECEIPT_BYTES = 32 * 1024 * 1024
 LOADING_SOURCE = Path(__file__).resolve().parents[1] / "site/src/runtime/loading-presentation.mjs"
 
 
@@ -221,6 +223,75 @@ def _check_existing_release(release: Path, objects: dict[str, tuple[str, int]]) 
             raise ValueError("local content release differs from R2")
 
 
+def _receipt_bytes(region: str, release_id: str, pointer_raw: bytes,
+                   manifest_raw: bytes, candidates: set[str],
+                   objects: dict[str, tuple[str, int]]) -> bytes:
+    value = {
+        "schemaVersion": 1, "region": region, "releaseId": release_id,
+        "pointerSha256": sha256(pointer_raw), "manifestSha256": sha256(manifest_raw),
+        "candidates": sorted(candidates),
+        "objects": {name: {"sha256": checksum, "bytes": size}
+                    for name, (checksum, size) in sorted(objects.items())},
+    }
+    return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+
+def _cached_objects(release: Path, region: str, release_id: str, pointer_raw: bytes,
+                    manifest_raw: bytes, candidates: set[str],
+                    required: dict[str, tuple[str, int]]) -> dict[str, tuple[str, int]] | None:
+    if release.is_symlink():
+        raise ValueError("local content release is linked or invalid")
+    receipt_path = release / RECEIPT_NAME
+    if not receipt_path.exists() and not receipt_path.is_symlink():
+        return None
+    if receipt_path.is_symlink() or not receipt_path.is_file() or receipt_path.stat().st_size > MAX_RECEIPT_BYTES:
+        raise ValueError("invalid local materialization receipt")
+    try:
+        receipt = json.loads(receipt_path.read_bytes())
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        raise ValueError("invalid local materialization receipt") from error
+    if (not isinstance(receipt, dict) or receipt.get("schemaVersion") != 1 or
+            receipt.get("region") != region or receipt.get("releaseId") != release_id or
+            receipt.get("pointerSha256") != sha256(pointer_raw) or
+            receipt.get("manifestSha256") != sha256(manifest_raw) or
+            receipt.get("candidates") != sorted(candidates)):
+        return None
+    recorded = receipt.get("objects")
+    if not isinstance(recorded, dict) or not set(recorded).issubset(candidates) or not ({"manifest.json"} | set(required)).issubset(recorded):
+        raise ValueError("invalid local materialization receipt")
+    objects = {}
+    total = 0
+    for name, record in recorded.items():
+        check_public_path(name)
+        if (not isinstance(record, dict) or set(record) != {"sha256", "bytes"} or
+                not isinstance(record["sha256"], str) or not SHA256.fullmatch(record["sha256"]) or
+                not isinstance(record["bytes"], int) or isinstance(record["bytes"], bool) or record["bytes"] < 0):
+            raise ValueError("invalid local materialization receipt")
+        objects[name] = (record["sha256"], record["bytes"])
+        total += record["bytes"]
+        if len(objects) > MAX_OBJECTS or total > MAX_RELEASE_BYTES:
+            raise ValueError("local materialization receipt exceeds limit")
+    if (objects["manifest.json"] != (sha256(manifest_raw), len(manifest_raw)) or
+            any(objects[name] != expected for name, expected in required.items())):
+        raise ValueError("local materialization receipt differs from manifest")
+    return objects
+
+
+def _write_receipt(release: Path, payload: bytes) -> None:
+    if len(payload) > MAX_RECEIPT_BYTES:
+        raise ValueError("local materialization receipt exceeds limit")
+    temporary = release / (RECEIPT_NAME + ".next")
+    if temporary.exists() or temporary.is_symlink():
+        raise ValueError("materialization receipt staging path exists")
+    try:
+        with temporary.open("xb") as output:
+            output.write(payload)
+        temporary.chmod(0o600)
+        os.replace(temporary, release / RECEIPT_NAME)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _materialize(reader, store: Path, regions=("global", "jp"), *, allow_missing_jp=True) -> dict:
     store = Path(store).resolve()
     if not regions or any(region not in {"global", "jp"} for region in regions) or len(set(regions)) != len(regions):
@@ -251,32 +322,40 @@ def _materialize(reader, store: Path, regions=("global", "jp"), *, allow_missing
         # The renderer fetches manifest-record projection/group files, and
         # shared-gallery may fetch its public manifest. Loading art only needs
         # the two files named by the renderer module. Other media stays in R2.
-        names = {"manifest.json", *required,
-                 "public/gallery/manifest.json",
+        names = {"manifest.json", *required, "public/gallery/manifest.json",
                  *("public/gallery/" + name for name in loading_art_files())}
-        selected = {}
-        total = 0
-        for name in sorted(names):
-            check_public_path(name)
-            metadata = reader.head(prefix + name)
-            if metadata is None:
-                if name == "manifest.json" or name in required:
-                    raise ValueError("R2 release omits a manifest record")
-                continue
-            checksum, size = metadata
-            if not isinstance(checksum, str) or not SHA256.fullmatch(checksum) or not isinstance(size, int) or size < 0:
-                raise ValueError("invalid R2 release object metadata")
-            selected[name] = (checksum, size)
-            total += size
-            if len(selected) > MAX_OBJECTS or total > MAX_RELEASE_BYTES:
-                raise ValueError("R2 content release exceeds materialization limit")
-        if selected["manifest.json"] != (pointer["sha256"], len(manifest_raw)):
-            raise ValueError("R2 manifest differs from current pointer")
-        if any(selected[name] != expected for name, expected in required.items()):
-            raise ValueError("R2 release record differs from manifest")
         release = releases / release_id
+        selected = _cached_objects(release, region, release_id, pointer_raw,
+                                   manifest_raw, names, required) if release.exists() or release.is_symlink() else None
+        reused_receipt = selected is not None
+        if selected is None:
+            selected = {}
+            total = 0
+            for name in sorted(names):
+                check_public_path(name)
+                metadata = reader.head(prefix + name)
+                if metadata is None:
+                    if name == "manifest.json" or name in required:
+                        raise ValueError("R2 release omits a manifest record")
+                    continue
+                checksum, size = metadata
+                if not isinstance(checksum, str) or not SHA256.fullmatch(checksum) or not isinstance(size, int) or size < 0:
+                    raise ValueError("invalid R2 release object metadata")
+                selected[name] = (checksum, size)
+                total += size
+                if len(selected) > MAX_OBJECTS or total > MAX_RELEASE_BYTES:
+                    raise ValueError("R2 content release exceeds materialization limit")
+            if selected["manifest.json"] != (pointer["sha256"], len(manifest_raw)):
+                raise ValueError("R2 manifest differs from current pointer")
+            if any(selected[name] != expected for name, expected in required.items()):
+                raise ValueError("R2 release record differs from manifest")
+        else:
+            total = sum(size for _, size in selected.values())
         if release.exists() or release.is_symlink():
             _check_existing_release(release, selected)
+            if not reused_receipt:
+                _write_receipt(release, _receipt_bytes(region, release_id, pointer_raw,
+                                                       manifest_raw, names, selected))
         else:
             stage = Path(tempfile.mkdtemp(prefix=".materialize-", dir=releases))
             try:
@@ -285,8 +364,10 @@ def _materialize(reader, store: Path, regions=("global", "jp"), *, allow_missing
                     target.parent.mkdir(parents=True, exist_ok=True)
                     if reader.download(prefix + name, target) != expected:
                         raise ValueError("R2 release changed during materialization")
+                _write_receipt(stage, _receipt_bytes(region, release_id, pointer_raw,
+                                                     manifest_raw, names, selected))
                 for path in stage.rglob("*"):
-                    path.chmod(0o755 if path.is_dir() else 0o644)
+                    path.chmod(0o755 if path.is_dir() else 0o600 if path.name == RECEIPT_NAME else 0o644)
                 stage.chmod(0o755)
                 stage.rename(release)
             finally:

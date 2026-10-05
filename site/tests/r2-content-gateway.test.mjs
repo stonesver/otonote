@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import gateway, {contentKey} from '../../deploy/r2_content_gateway.mjs';
 
 const id = 'a'.repeat(24);
@@ -21,7 +22,7 @@ test('gateway serves current without cache and supports media ranges', async () 
     writeHttpMetadata(headers) { headers.set('Content-Type', 'text/plain'); },
   };
   const env = {CONTENT: {
-    async get(key, options) { calls.push([key, options]); return object; },
+    async get(key, options) { if (key.startsWith('content/storage/')) return null; calls.push([key, options]); return object; },
     async head(key) { calls.push([key, 'head']); return object; },
   }};
   const pointer = await gateway.fetch(new Request('https://ournotes.stonebg.cn/content/current.json'), env);
@@ -45,4 +46,156 @@ test('gateway refuses writes, query strings and internal release files', async (
   assert.equal(query.status, 404);
   const privateObject = await gateway.fetch(new Request(`https://ournotes.stonebg.cn/content/releases/${id}/.receipt.json`), env);
   assert.equal(privateObject.status, 404);
+});
+
+
+const hash = data => createHash('sha256').update(data).digest('hex');
+const encode = value => Buffer.from(JSON.stringify(value));
+function sharedFixture() {
+  const objects = new Map();
+  const calls = [];
+  const path = 'public/live2d/model/texture.png';
+  const data = Buffer.from('abcdef');
+  const manifest = encode({schemaVersion: 1, root: `/content/releases/${id}/`});
+  const entry = {sha256: hash(data), bytes: data.length, etag: '"verified"', contentType: 'image/png'};
+  const h = hash(path)[0];
+  const modelPath = 'public/live2d/model/model3.json';
+  const modelData = Buffer.from('{"FileReferences":{"Textures":["texture.png"]}}');
+  const modelEntry = {sha256: hash(modelData), bytes: modelData.length, etag: '"verified"', contentType: 'application/json'};
+  const filesByShard = {[h]: {[path]: entry}};
+  const modelH = hash(modelPath)[0];
+  (filesByShard[modelH] ??= {})[modelPath] = modelEntry;
+  const descriptor = {schemaVersion: 1, layout: 'shared-media-v1', releaseId: id,
+    manifestSha256: hash(manifest), inventorySha256: 'b'.repeat(64),
+    shards: {}};
+  for (const [prefix, files] of Object.entries(filesByShard)) {
+    const shard = encode({schemaVersion: 1, releaseId: id, files});
+    descriptor.shards[prefix] = {sha256: hash(shard), bytes: shard.length};
+    objects.set(`content/storage/${id}/${prefix}.json`, shard);
+  }
+  const descriptorKey = `content/storage/${id}/descriptor.json`;
+  objects.set(descriptorKey, encode(descriptor));
+  objects.set(`content/releases/${id}/manifest.json`, manifest);
+  objects.set(`content/blobs/${entry.sha256}`, data);
+  objects.set(`content/blobs/${modelEntry.sha256}`, modelData);
+  const bucket = {
+    async get(key, options) {
+      calls.push([key, 'get']);
+      const bytes = objects.get(key);
+      if (!bytes) return null;
+      const range = options?.range ? {offset: 1, length: 3} : null;
+      const body = range ? bytes.subarray(1, 4) : bytes;
+      return {size: bytes.length, httpEtag: '"verified"', range,
+        body: new ReadableStream({start(controller) {controller.enqueue(body); controller.close();}}),
+        writeHttpMetadata(headers) {headers.set('Content-Type', 'application/octet-stream');}};
+    },
+    async head(key) {
+      calls.push([key, 'head']);
+      const bytes = objects.get(key);
+      return bytes ? {size: bytes.length, httpEtag: '"verified"', writeHttpMetadata() {}} : null;
+    },
+  };
+  const env = {CONTENT: bucket};
+  const url = `https://ournotes.stonebg.cn/content/releases/${id}/${path}`;
+  return {env, objects, calls, path, data, entry, descriptor, descriptorKey, url, h};
+}
+
+test('shared media keeps logical URL and MIME, including range and HEAD', async () => {
+  const f = sharedFixture();
+  const response = await gateway.fetch(new Request(f.url), f.env);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), 'abcdef');
+  assert.equal(response.headers.get('Content-Type'), 'image/png');
+  assert.equal(response.headers.get('Location'), null);
+  const controls = f.calls.filter(([key]) => key.startsWith('content/storage/')).length;
+  const range = await gateway.fetch(new Request(f.url, {headers: {Range: 'bytes=1-3'}}), f.env);
+  assert.equal(range.status, 206);
+  assert.equal(range.headers.get('Content-Range'), 'bytes 1-3/6');
+  assert.equal(await range.text(), 'bcd');
+  const head = await gateway.fetch(new Request(f.url, {method: 'HEAD'}), f.env);
+  assert.equal(head.status, 200);
+  assert.equal(head.headers.get('Content-Length'), '6');
+  assert.equal(await head.text(), '');
+  assert.equal(f.calls.filter(([key]) => key.startsWith('content/storage/')).length, controls);
+  assert.ok(f.calls.some(([key, method]) => key === `content/blobs/${f.entry.sha256}` && method === 'head'));
+});
+
+test('shared media refuses invalid descriptor, manifest, shards and object identity', async () => {
+  for (const mutate of [
+    f => f.objects.set(f.descriptorKey, encode({...f.descriptor, releaseId: 'c'.repeat(24)})),
+    f => f.objects.set(`content/releases/${id}/manifest.json`, Buffer.from('changed')),
+    f => f.objects.delete(`content/storage/${id}/${f.h}.json`),
+    f => f.objects.set(`content/storage/${id}/${f.h}.json`, Buffer.from('{}')),
+    f => f.objects.set(`content/blobs/${f.entry.sha256}`, Buffer.from('wrong length')),
+    f => {const head = f.env.CONTENT.head; f.env.CONTENT.head = async key => ({...await head(key), httpEtag: '"other"'});},
+  ]) {
+    const f = sharedFixture();
+    f.objects.set(`content/releases/${id}/${f.path}`, Buffer.from('must not fall back'));
+    mutate(f);
+    const response = await gateway.fetch(new Request(f.url, {method: 'HEAD'}), f.env);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.ok(!f.calls.some(([key]) => key === `content/releases/${id}/${f.path}`));
+  }
+});
+
+test('shared media has no negative descriptor cache and locale JSON remains direct', async () => {
+  const f = sharedFixture();
+  const descriptor = f.objects.get(f.descriptorKey);
+  f.objects.delete(f.descriptorKey);
+  f.objects.set(`content/releases/${id}/${f.path}`, Buffer.from('legacy'));
+  const legacy = await gateway.fetch(new Request(f.url), f.env);
+  assert.equal(await legacy.text(), 'legacy');
+  f.objects.set(f.descriptorKey, descriptor);
+  const shared = await gateway.fetch(new Request(f.url), f.env);
+  assert.equal(await shared.text(), 'abcdef');
+  const jsonPath = `content/releases/${id}/en/catalog.json`;
+  f.objects.set(jsonPath, Buffer.from('{"FileReferences":{"Textures":["texture.png"]}}'));
+  const model = await gateway.fetch(new Request(`https://ournotes.stonebg.cn/${jsonPath}`), f.env);
+  assert.equal(model.status, 200);
+  assert.match(await model.text(), /texture.png/);
+});
+
+test('shared storage internals and missing mapped paths are not exposed', async () => {
+  const f = sharedFixture();
+  for (const path of [f.descriptorKey, `content/storage/${id}/${f.h}.json`, `content/blobs/${f.entry.sha256}`]) {
+    assert.equal((await gateway.fetch(new Request(`https://ournotes.stonebg.cn/${path}`), f.env)).status, 404);
+  }
+  assert.equal(f.calls.length, 0);
+  assert.equal((await gateway.fetch(new Request(f.url.replace('texture.png', 'missing.png')), f.env)).status, 404);
+});
+
+test('oversized storage controls fail closed before media lookup', async () => {
+  for (const declared of [4 * 1024 * 1024 + 1, 1]) {
+    const f = sharedFixture();
+    const get = f.env.CONTENT.get;
+    let cancelled = false;
+    f.env.CONTENT.get = async (key, options) => key !== f.descriptorKey ? get(key, options) : {
+      size: declared,
+      body: new ReadableStream({
+        start(controller) {controller.enqueue(new Uint8Array(4 * 1024 * 1024 + 1));},
+        cancel() {cancelled = true;},
+      }),
+    };
+    const response = await gateway.fetch(new Request(f.url), f.env);
+    assert.equal(response.status, 503);
+    assert.equal(cancelled, true);
+    assert.equal(f.calls.length, 0);
+  }
+});
+
+
+test('shared Live2D JSON preserves relative texture references at the logical URL', async () => {
+  const f = sharedFixture();
+  const modelUrl = f.url.replace('texture.png', 'model3.json');
+  const response = await gateway.fetch(new Request(modelUrl), f.env);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Content-Type'), 'application/json');
+  assert.equal(response.headers.get('Location'), null);
+  const model = await response.json();
+  assert.deepEqual(model.FileReferences.Textures, ['texture.png']);
+  const textureUrl = new URL(model.FileReferences.Textures[0], modelUrl);
+  assert.equal(textureUrl.href, f.url);
+  const texture = await gateway.fetch(new Request(textureUrl), f.env);
+  assert.equal(await texture.text(), 'abcdef');
 });

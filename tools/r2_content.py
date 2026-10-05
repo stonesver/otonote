@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import time
 from uuid import uuid4
 
 from tools.content_publication import verify_tree
@@ -34,11 +35,18 @@ def worker_count(raw: int) -> int:
     return raw
 
 
-def _run_bounded(items, task, workers: int) -> list:
+def _run_bounded(items, task, workers: int, *, progress=None) -> list:
     """Limit queued transfers and join every started worker before returning."""
     workers = worker_count(workers)
+    if progress and hasattr(progress, 'start'):
+        progress.start(len(items) if hasattr(items, '__len__') else None)
     if workers == 1:
-        return [task(item) for item in items]
+        results = []
+        for item in items:
+            results.append(task(item))
+            if progress:
+                progress(len(results))
+        return results
     source = iter(items)
     results = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -52,11 +60,33 @@ def _run_bounded(items, task, workers: int) -> list:
             done, pending = wait(pending, return_when=FIRST_COMPLETED)
             for future in done:
                 results.append(future.result())
+                if progress:
+                    progress(len(results))
                 try:
                     pending.add(pool.submit(task, next(source)))
                 except StopIteration:
                     pass
     return results
+
+
+class TransferProgress:
+    """Counts only; never expose object names or credentials in Actions logs."""
+    def __init__(self, operation):
+        self.operation, self.started, self.last = operation, time.monotonic(), 0
+        self.total = None
+
+    def start(self, total):
+        self.total = total
+        print(json.dumps({'operation': self.operation, 'phaseTotalObjects': total}),
+              file=sys.stderr, flush=True)
+
+    def __call__(self, completed):
+        now = time.monotonic()
+        if completed == 1 or now - self.last >= 15:
+            print(json.dumps({'operation': self.operation, 'phaseCompletedObjects': completed,
+                              'phaseTotalObjects': self.total,
+                              'elapsedSeconds': round(now - self.started, 1)}), file=sys.stderr, flush=True)
+            self.last = now
 
 
 def canonical(value: object) -> bytes:
@@ -162,12 +192,15 @@ class S3Bucket:
         return data, result["ETag"]
 
     def matches(self, key: str, expected_sha: str, expected_size: int) -> bool:
+        return self.verified_etag(key, expected_sha, expected_size) is not None
+
+    def verified_etag(self, key: str, expected_sha: str, expected_size: int) -> str | None:
         from botocore.exceptions import ClientError
         try:
             result = self.client.get_object(Bucket=self.bucket, Key=key)
         except ClientError as error:
             if self._missing(error):
-                return False
+                return None
             raise
         stream = result['Body']
         checksum = hashlib.sha256()
@@ -178,7 +211,34 @@ class S3Bucket:
                 size += len(block)
         finally:
             stream.close()
-        return size == expected_size and checksum.hexdigest() == expected_sha
+        return result["ETag"] if size == expected_size and checksum.hexdigest() == expected_sha else None
+
+    def list_identities(self, prefix: str) -> dict:
+        # Bounded, strongly consistent listing. ETags are only compared with a
+        # catalog issued after SHA-256 readback; listing alone proves no digest.
+        if prefix != "content/blobs/":
+            raise ValueError("unexpected shared object namespace")
+        result, token, seen = {}, None, set()
+        for _ in range(1000):
+            args = {"Bucket": self.bucket, "Prefix": prefix, "MaxKeys": 1000}
+            if token:
+                args["ContinuationToken"] = token
+            page = self.client.list_objects_v2(**args)
+            for item in page.get("Contents", []):
+                key = item.get("Key", "")
+                if not key.startswith(prefix) or not SHA256.fullmatch(key[len(prefix):]):
+                    raise ValueError("invalid shared object key")
+                size, etag = item.get("Size"), item.get("ETag")
+                if type(size) is not int or size < 0 or not isinstance(etag, str) or key in result:
+                    raise ValueError("invalid shared object identity")
+                result[key] = (size, etag)
+            if not page.get("IsTruncated"):
+                return result
+            token = page.get("NextContinuationToken")
+            if not isinstance(token, str) or not token or token in seen:
+                raise ValueError("invalid shared object continuation")
+            seen.add(token)
+        raise ValueError("shared object listing exceeds limit")
 
     def put_new(self, key: str, data: bytes, *, content_type: str, cache_control: str, sha256: str) -> bool:
         from botocore.exceptions import ClientError
@@ -258,7 +318,8 @@ def baseline(bucket, region: str) -> dict:
             'previousPointer':prior}
 
 
-def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: int = 1) -> dict:
+def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: int = 1,
+                   shared_media=False, progress=None) -> dict:
     worker_count(workers)
     release, pointer_bytes, manifest, files = sealed_release(store, region)
     release_id = manifest["root"].split("/")[-2]
@@ -267,6 +328,13 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: 
         return {"status": "verified_local", "region": region, "releaseId": release_id,
                 "pointerSha256": digest(pointer_bytes), "files": len(files),
                 "bytes": sum((release / name).stat().st_size for name in files)}
+    if shared_media:
+        from tools.r2_shared_media import upload
+        return upload(bucket, release, pointer_bytes, manifest, files, workers, progress)
+    # Do not silently change an already shared release back to direct storage.
+    from tools.r2_shared_media import descriptor_key
+    if bucket.get(descriptor_key(release_id)) is not None:
+        raise ValueError("shared release requires --shared-media upload")
     def upload_and_verify(item):
         name, expected_sha = item
         key = base + name
@@ -290,7 +358,7 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: 
         return created
 
     ordinary = sorted((name, sha) for name, sha in files.items() if name != "manifest.json")
-    outcomes = _run_bounded(ordinary, upload_and_verify, workers)
+    outcomes = _run_bounded(ordinary, upload_and_verify, workers, progress=progress)
     # The manifest is always the last release object and is read back before success.
     outcomes.append(upload_and_verify(("manifest.json", files["manifest.json"])))
     uploaded = sum(outcomes)
@@ -300,7 +368,7 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: 
 
 
 def promote(bucket, store: Path, region: str, expected_current: str, *, source_run: str,
-            dry_run=False, workers: int = 1) -> dict:
+            dry_run=False, workers: int = 1, progress=None) -> dict:
     worker_count(workers)
     if expected_current != "none" and not SHA256.fullmatch(expected_current):
         raise ValueError("expected current must be 'none' or SHA-256")
@@ -315,7 +383,9 @@ def promote(bucket, store: Path, region: str, expected_current: str, *, source_r
         # A missing or mismatched immutable object must never be advertised.
         if not same_object(bucket, key, expected_sha, (release / name).stat().st_size):
             raise ValueError("R2 release is incomplete or changed")
-    _run_bounded(files.items(), verify_remote, workers)
+    from tools.r2_shared_media import verify_release
+    if not verify_release(bucket, release, manifest, files, workers, progress):
+        _run_bounded(files.items(), verify_remote, workers, progress=progress)
     current_key = pointer_key(region)
     current = bucket.get(current_key)
     current_bytes, current_etag = current if current is not None else (None, None)
@@ -435,10 +505,14 @@ def main(argv=None):
     parser.add_argument("--expected-current", help="R2 pointer SHA-256, or 'none' for initial publication")
     parser.add_argument("--source-run", help="Actions run identity")
     parser.add_argument("--dry-run", action="store_true", help="verify without changing R2")
+    parser.add_argument("--shared-media", action="store_true", help="upload media using the compatible shared storage gateway")
     parser.add_argument("--workers", type=int, default=1,
                         help=f"parallel release object transfers/verification (1-{MAX_WORKERS}; default: 1)")
     args = parser.parse_args(argv)
+    if args.shared_media and args.action != 'upload':
+        parser.error('--shared-media is only valid for upload')
     try:
+        started = time.monotonic()
         worker_count(args.workers)
         bucket = None if args.action == "upload" and args.dry_run else S3Bucket.from_environment(args.workers)
         if args.action == "baseline":
@@ -447,18 +521,22 @@ def main(argv=None):
             result = baseline(bucket, args.region)
         elif args.action == "upload":
             if not args.store: parser.error('upload requires --store')
-            result = upload_release(bucket, args.store, args.region, dry_run=args.dry_run, workers=args.workers)
+            result = upload_release(bucket, args.store, args.region, dry_run=args.dry_run, workers=args.workers,
+                                    shared_media=args.shared_media, progress=TransferProgress('upload'))
         elif args.action == "promote":
             if not args.store or not args.expected_current or not args.source_run:
                 parser.error("promote requires --store, --expected-current and --source-run")
             result = promote(bucket, args.store, args.region, args.expected_current,
-                             source_run=args.source_run, dry_run=args.dry_run, workers=args.workers)
+                             source_run=args.source_run, dry_run=args.dry_run, workers=args.workers,
+                             progress=TransferProgress('verify-promotion'))
         else:
             if args.dry_run:
                 parser.error("rollback does not support --dry-run")
             if not args.expected_current or not args.source_run:
                 parser.error("rollback requires --expected-current and --source-run")
             result = rollback(bucket, args.region, args.expected_current, source_run=args.source_run)
+        if args.action in {'upload', 'promote'}:
+            result['elapsedSeconds'] = round(time.monotonic() - started, 3)
         print(json.dumps(result, ensure_ascii=False))
     except (OSError, ValueError, KeyError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, ensure_ascii=False), file=sys.stderr)

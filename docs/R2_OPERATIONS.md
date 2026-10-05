@@ -123,7 +123,7 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十一条路径的 JS
 
 [无变化门禁及两服 JSON 输出修复](https://github.com/stonesver/otonote/pull/31) 已在提交 `fec5aa081e54c1a031cdd1e0b66a92b7d4dbddf7` 合并，两套远端 CI 通过；真实 runner 的首次回执建立及后续跳过验收仍待完成。
 
-成功回执只在真实生产和公开对象完整上传读回之后，写入已纳入私有选择范围的生产 `state.json`，随后随检查点保存。旧检查点没有回执、上游或代码变化、公开指针未晋级等情况继续完整生产；探测失败或已匹配的清单损坏阻断。该优化仍需要每轮完整恢复私有输入，不能宣称零 R2 请求，也不是首次影子验收的替代品。
+成功回执只在真实生产和公开对象完整上传读回之后，写入已纳入私有选择范围的生产 `state.json`，随后随检查点保存。旧检查点没有回执、上游或代码变化、公开指针未晋级等情况继续完整生产；探测失败或已匹配的清单损坏阻断。PR31 的初版优化仍需要每轮完整恢复私有输入，不能宣称零 R2 请求，也不是首次影子验收的替代品。
 
 Global 的 `compile-data` 失败后，工作流会尝试将该次 `latest-run.json` 指向的编译日志保存在私有桶 `diagnostics/global/<run-id>/<attempt>/compile-data.log`。只保留最后 4 MiB，回执记录原长度、是否截断、SHA-256 和完整读回校验结果；Actions summary 不显示日志内容。目录或日志为符号链接、路径不属于本次工作区、读取时文件变化均拒绝保存。此步骤失败也不改变原生产失败结论，不写成功检查点或公开指针。诊断文件可能含私有路径或上游敏感消息，不能复制到公开 artifact、聊天或公开内容桶。
 
@@ -181,3 +181,16 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 - Worker Route 故障：先用旧完整内容库恢复并验证旧 HTML，确认两服 HTML 引用的媒体在源站可读，再在 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，最后恢复旧预渲染 timer；避免新 HTML 在撤 Route 后引用源站不存在的快照。
 - 公开内容需要回退：先运行 `python3 -m tools.r2_content baseline --region global`（JP 改为 `jp`）取得 `currentSha256`，检查返回的 `previousPointer` 是否指向所需旧版本，再运行 `python3 -m tools.r2_content rollback --region global --expected-current <currentSha256> --source-run <工单标识>`。命令验证旧清单及所引用的 JSON 后写晋级记录，并用条件写切回旧指针；普通媒体的完整性仍须在 Worker 测试地址抽验。不要在控制台直接手改 `current.json`。紧急情况下优先撤 Route 回到原站内容。
 - 新流水线通过真实定时运行、Route 和浏览器验收后，才停止服务器旧的 `global-update.timer`。保留旧源站内容和旧 HTML 引用；历史对象清理仍由独立引用审计决定，不由工作流自动删除。
+
+## 日常性能改造（2026-10-05，待真实 runner 验收）
+
+设计和执行顺序见 [性能设计](designs/2026-10-05-r2-update-performance-design.md) 与 [实施计划](plans/2026-10-05-r2-update-performance-plan.md)。本节描述本次实现；不代表正在运行的旧工作流已经使用这些优化。
+
+- **轻量版本检查**：私有 receipt schema 2 绑定已验证 APK/metadata/config 库存；在恢复历史状态前只取控制清单和少量探测输入。公开版本已晋级且版本/输入/代码/镜像都一致才跳过。旧 receipt、首次 JP 种子、上游变更走原完整路径。尚无真实 runner 无变化计时。
+- **共享媒体**：`tools.r2_content upload --shared-media` 把全部 `public/`（包括模型与动作 JSON）保存为 `content/blobs/<sha256>`，逻辑 URL 保持不变。首次完整 SHA 读回，后续以已验证目录加当前 LIST 中 key/size/ETag 复用；ETag 本身不是首次内容校验。promote 对共享媒体同样核对目录及存在性，locale JSON 仍完整校验。控制索引不通过 Worker 公开，旧 release 不转换、不删除。
+- **兼容部署前保持 `CONTENT_R2_SHARED_MEDIA=false`（默认）**：先更新 `deploy/r2_content_gateway.mjs` 的 Worker、构建并安装含新 materializer 的固定摘要预渲染镜像，完成测试地址验收后才启用共享上传。仅部署 Worker 不表示要立即添加线上 Route。
+- **预渲染下载**：manifest 已绑定必须文件的 SHA 与长度，省略这些文件的重复 HEAD；只有可选美术做 HEAD。最多 8 个并行下载，每个仍校验完整正文，全部成功后才换指针。该改造减少下载等待，不改变 HTML 生成成本。
+
+本地已封存旧快照统计：Global 22,814 个文件中 20,418 个 public 逻辑文件可共享（14,802 个唯一内容），剩 2,396 个直接存储文件；JP 分别为 22,689 / 20,331 / 14,633 / 2,358。真实下一版有多少内容变化尚未知，因此不能按此直接承诺整个更新耗时。
+
+操作量回归测试以 257 个不变媒体为例：第二个 release 媒体正文 GET=0、PUT=0，仅一次 blob LIST 与有限映射控制读取；新增一个媒体只 PUT 该新 blob。新 blob 损坏、旧 blob 丢失/ETag 改变、分片损坏都会阻断或重新完整验证。以上是本地受控测试结果，不是线上耗时。

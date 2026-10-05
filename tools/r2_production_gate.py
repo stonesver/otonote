@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+from urllib.parse import urlsplit
 
 from tools.global_remote_sync import file_hash
 from tools.resource_pipeline.adapters.global_public import version_identity
@@ -22,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SHA256 = re.compile(r"[a-f0-9]{64}\Z")
 IMAGE = re.compile(r".+@sha256:([a-f0-9]{64})\Z")
 RECEIPT_FIELD = "r2ProductionReceipt"
-RECEIPT_SCHEMA = 1
+RECEIPT_SCHEMA = 2
 PROBE_SCHEMA = 1
 
 
@@ -136,6 +137,60 @@ def input_identity(root: Path, region: str, paths: dict[str, str]) -> tuple[str,
                   "packageSetSha256": package["packageSetSha256"]}
         return digest(canonical(values)), package_identity("jp", package)
     raise GateError("invalid region")
+
+
+def trusted_input_inventory(root: Path, region: str, paths: dict[str, str], state: dict) -> list[dict]:
+    """Bind the small inputs and previously verified client package to R2 state.
+
+    This is computed only after a full producer run. An early check can later
+    match the same file hashes against the immutable private state manifest
+    without downloading the package again.
+    """
+    names = []
+    if region == "global":
+        names.extend((paths["config"], paths["decoderProfile"]))
+        config = read_json(safe_path(root, paths["config"]))
+        if config.get("intakePackages"):
+            from tools.current_client import CERTIFICATE
+            from tools.global_update import load_config
+            loaded = load_config(safe_path(root, paths["config"]))
+            workspace = loaded["workspace"]
+            sync = workspace / "sync-complete/state.json"
+            sync_state = read_json(sync)
+            apk_sha = sync_state.get("decoderSha256")
+            binding = sync_state.get("bundleDecoderBindingSha256")
+            if not isinstance(apk_sha, str) or not SHA256.fullmatch(apk_sha) or not isinstance(binding, str) or not SHA256.fullmatch(binding):
+                raise GateError("verified Global decoder state is absent")
+            package = state["package"]
+            package_id = digest(json.dumps({key: package[key] for key in ("url", "byteSize", "etag")}, sort_keys=True).encode())[:24]
+            apk = workspace / "clients/downloads" / package_id / Path(urlsplit(package["url"]).path).name
+            profile = workspace / "clients" / apk_sha / "decoder.json"
+            profile_data = read_json(profile)
+            if (profile_data.get("apkSha256") != apk_sha or profile_data.get("signatureVerified") is not True or
+                    profile_data.get("certificateSha256") != CERTIFICATE or
+                    profile_data.get("bundleDecoderBindingSha256", binding) != binding or
+                    profile_data.get("clientVersion") != state["observation"]["clientVersion"] or
+                    file_hash(apk) != apk_sha):
+                raise GateError("verified Global APK cache differs from producer state")
+            metadata = Path(profile_data["metadata"])
+            if file_hash(metadata) != profile_data.get("metadataSha256"):
+                raise GateError("verified Global metadata differs from decoder profile")
+            names.extend((relative_path(root, sync), relative_path(root, apk),
+                          relative_path(root, profile), relative_path(root, metadata)))
+    elif region == "jp":
+        names.extend((paths["metadata"], paths["unityVersion"]))
+        apk_root = safe_path(root, paths["apkRoot"], directory=True)
+        apks = sorted(apk_root.glob("*.apk"))
+        if not apks:
+            raise GateError("reviewed JP APK set is absent")
+        names.extend(relative_path(root, path) for path in apks)
+    else:
+        raise GateError("invalid region")
+    result = []
+    for name in sorted(set(names)):
+        path = safe_path(root, name)
+        result.append({"path": name, "sha256": file_hash(path), "size": path.stat().st_size})
+    return result
 
 
 def probe(root: Path, region: str, image: str, *, config: str | None = None,
@@ -386,9 +441,12 @@ def record(root: Path, region: str, observed: dict, production: dict,
     if manifest.is_symlink() or not manifest.is_file() or file_hash(manifest) != pointer.get("sha256"):
         raise GateError("local manifest differs from producer pointer")
     _ = pointer_key(region)  # Enforce region validation before modifying state.
+    inventory = trusted_input_inventory(root, region, observed["inputPaths"], state)
     receipt = {"schemaVersion": RECEIPT_SCHEMA, "region": region,
                "sourceSha256": observed["sourceSha256"], "packageSha256": observed["packageSha256"],
+               "producerCodeSha256": observed["producerCodeSha256"],
                "codeSha256": observed["codeSha256"], "inputSha256": observed["inputSha256"],
+               "inputPaths": observed["inputPaths"], "trustedInputInventory": inventory,
                "imageDigest": observed["imageDigest"], "publicPointer": pointer,
                "publicPointerSha256": digest(pointer_bytes),
                "stateSha256": digest(canonical(state_without_receipt(state)))}
@@ -408,9 +466,261 @@ def record(root: Path, region: str, observed: dict, production: dict,
             "pointerSha256": receipt["publicPointerSha256"]}
 
 
+def _needs_full(reason: str) -> dict:
+    return {"status": "needs_full", "skip": False, "reason": reason}
+
+
+def _stage_path(root: Path, stage: Path) -> Path:
+    root = Path(root).resolve(strict=True)
+    stage = Path(stage)
+    if not stage.is_absolute() or stage.is_symlink():
+        raise GateError("light probe stage must use the isolated runner path")
+    stage = stage.parent.resolve(strict=True) / stage.name
+    if stage != root / "output/tmp/r2-light":
+        raise GateError("light probe stage must use the isolated runner path")
+    parent = stage.parent
+    if parent.is_symlink() or not parent.is_dir() or parent.resolve() != root / "output/tmp":
+        raise GateError("light probe stage parent is invalid")
+    return stage
+
+
+def _manifest_entry(manifest: dict, name: str) -> dict:
+    matches = [entry for entry in manifest["files"] if entry["path"] == name]
+    if len(matches) != 1:
+        raise GateError("required private state object is absent")
+    return matches[0]
+
+
+def _download_private(bucket, manifest: dict, name: str, target: Path) -> bytes:
+    from tools.r2_state import object_key
+    entry = _manifest_entry(manifest, name)
+    if entry["size"] > 128 * 1024 * 1024:
+        raise GateError("light probe input exceeds its size bound")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
+    return target.read_bytes()
+
+
+def _receipt_for_light(state: dict, region: str) -> dict | None:
+    receipt = state.get(RECEIPT_FIELD)
+    if not isinstance(receipt, dict) or receipt.get("schemaVersion") != RECEIPT_SCHEMA:
+        return None
+    if receipt.get("region") != region or receipt.get("stateSha256") != digest(canonical(state_without_receipt(state))):
+        raise GateError("private production receipt does not match saved state")
+    for key in ("sourceSha256", "packageSha256", "producerCodeSha256", "codeSha256", "inputSha256", "imageDigest", "publicPointerSha256"):
+        if not isinstance(receipt.get(key), str) or not SHA256.fullmatch(receipt[key]):
+            raise GateError("private production receipt is malformed")
+    if not isinstance(receipt.get("publicPointer"), dict) or not isinstance(receipt.get("inputPaths"), dict):
+        raise GateError("private production receipt is malformed")
+    inventory = receipt.get("trustedInputInventory")
+    if not isinstance(inventory, list) or not inventory:
+        raise GateError("private production receipt lacks trusted inputs")
+    return receipt
+
+
+def _inventory_matches_manifest(manifest: dict, receipt: dict, region: str) -> bool:
+    from tools.r2_state import safe_relative
+    paths = receipt["inputPaths"]
+    if set(paths) != ({"config", "decoderProfile"} if region == "global" else {"metadata", "apkRoot", "unityVersion"}):
+        return False
+    try:
+        for raw in paths.values():
+            safe_relative(raw)
+        actual = []
+        seen = set()
+        for entry in receipt["trustedInputInventory"]:
+            if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "size"}:
+                return False
+            name = safe_relative(entry["path"])
+            if name in seen or not isinstance(entry["sha256"], str) or not SHA256.fullmatch(entry["sha256"]):
+                return False
+            if type(entry["size"]) is not int or entry["size"] < 0:
+                return False
+            remote = _manifest_entry(manifest, name)
+            if (entry["sha256"], entry["size"]) != (remote["sha256"], remote["size"]):
+                return False
+            seen.add(name)
+            actual.append(entry)
+        if actual != sorted(actual, key=lambda item: item["path"]):
+            return False
+        by_path = {item["path"]: item for item in actual}
+        if region == "global":
+            if not {paths["config"], paths["decoderProfile"]} <= seen:
+                return False
+            expected_input = digest(canonical({"config": by_path[paths["config"]]["sha256"],
+                                               "decoderProfile": by_path[paths["decoderProfile"]]["sha256"]}))
+        else:
+            from tools.jp_phone_inputs import JP_METADATA_SHA256, JP_REVIEWED_PACKAGE_SET_SHA256
+            if not {paths["metadata"], paths["unityVersion"]} <= seen or by_path[paths["metadata"]]["sha256"] != JP_METADATA_SHA256:
+                return False
+            apk_prefix = paths["apkRoot"] + "/"
+            apks = {entry["path"] for entry in manifest["files"]
+                    if entry["path"].startswith(apk_prefix) and entry["path"].endswith(".apk")}
+            if not apks or {name for name in seen if name.startswith(apk_prefix)} != apks:
+                return False
+            expected_input = digest(canonical({"metadata": JP_METADATA_SHA256,
+                                               "unityVersion": by_path[paths["unityVersion"]]["sha256"],
+                                               "packageSetSha256": JP_REVIEWED_PACKAGE_SET_SHA256}))
+        return expected_input == receipt["inputSha256"]
+    except (KeyError, TypeError, ValueError, GateError):
+        return False
+
+
+def light_prepare(private_bucket, root: Path, region: str, selections: list[str],
+                  stage: Path, *, image: str, config: str | None = None,
+                  decoder_profile: str | None = None) -> dict:
+    """Fetch only immutable control data and the JP credential metadata."""
+    from tools.r2_state import _manifest, _pointer
+    root = stable_root(root)
+    stage = _stage_path(root, stage)
+    if stage.exists():
+        raise GateError("light probe stage already exists")
+    pointer, pointer_sha, _ = _pointer(private_bucket, region)
+    if pointer is None:
+        return _needs_full("private_state_missing")
+    manifest = _manifest(private_bucket, root, region, selections)
+    if _pointer(private_bucket, region)[1] != pointer_sha:
+        return _needs_full("private_pointer_changed")
+    state_name = state_path(root, region).relative_to(root).as_posix()
+    if not any(entry["path"] == state_name for entry in manifest["files"]):
+        return _needs_full("producer_state_not_seeded")
+    stage.mkdir(mode=0o700)
+    state_bytes = _download_private(private_bucket, manifest, state_name, stage / "state.json")
+    state = json.loads(state_bytes)
+    if not isinstance(state, dict):
+        raise GateError("private producer state is malformed")
+    receipt = _receipt_for_light(state, region)
+    if receipt is None:
+        return _needs_full("receipt_missing_or_legacy")
+    if image_digest(image) != receipt["imageDigest"]:
+        return _needs_full("image_changed")
+    _, code_sha = code_fingerprints(root)
+    if code_sha != receipt["codeSha256"]:
+        return _needs_full("source_changed")
+    if not _inventory_matches_manifest(manifest, receipt, region):
+        return _needs_full("private_inputs_changed")
+    paths = receipt["inputPaths"]
+    if region == "global":
+        if not config or not decoder_profile or paths != {"config": config, "decoderProfile": decoder_profile}:
+            return _needs_full("configuration_changed")
+        package = state.get("package")
+        observation = state.get("observation")
+        if (not isinstance(package, dict) or not isinstance(observation, dict) or
+                source_identity(observation) != receipt["sourceSha256"] or
+                package_identity("global", package) != receipt["packageSha256"] or
+                not all(isinstance(package.get(key), str) and package[key] for key in ("url", "etag", "lastModified"))):
+            return _needs_full("package_identity_unavailable")
+        config_bytes = _download_private(private_bucket, manifest, paths["config"], stage / "config.json")
+        parsed_config = json.loads(config_bytes)
+        if parsed_config.get("intakePackages"):
+            names = {entry["path"] for entry in receipt["trustedInputInventory"]}
+            if not (any(name.endswith("/decoder.json") for name in names) and
+                    any(name.endswith(".apk") for name in names) and
+                    any(name.endswith("/sync-complete/state.json") for name in names)):
+                return _needs_full("verified_client_inventory_missing")
+        stable_package_sha = digest(canonical({key: package[key] for key in ("url", "byteSize", "etag", "lastModified")}))
+        client_version = observation.get("clientVersion")
+        if not isinstance(client_version, str):
+            return _needs_full("client_version_unknown")
+    else:
+        if paths != {"metadata": "output/r2-jp/metadata.v39.dat", "apkRoot": "output/r2-jp/apks",
+                     "unityVersion": "output/r2-jp/unity-version.txt"}:
+            return _needs_full("trusted_jp_paths_changed")
+        if (state.get("status") != "built" or source_identity(state.get("versionIdentity", [])) != receipt["sourceSha256"] or
+                state.get("codeFingerprint") != receipt.get("producerCodeSha256")):
+            return _needs_full("jp_state_unmatched")
+        _download_private(private_bucket, manifest, paths["metadata"], stage / "metadata.v39.dat")
+        stable_package_sha = None
+        client_version = "1.0.4"
+    publication = state.get("publication")
+    if (not isinstance(publication, dict) or publication.get("pointer") != receipt.get("publicPointer") or
+            region == "global" and state.get("status") not in {"content_published", "unchanged"}):
+        return _needs_full("publication_unmatched")
+    proof = {"schemaVersion": 1, "region": region, "privatePointerSha256": pointer_sha,
+             "privateManifestSha256": pointer["sha256"], "receipt": receipt,
+             "clientVersion": client_version, "stablePackageSha256": stable_package_sha,
+             "metadataPath": str(stage / "metadata.v39.dat") if region == "jp" else None}
+    proof_path = stage / "proof.json"
+    proof_path.write_bytes(canonical(proof))
+    return {"status": "ready", "skip": False, "proof": str(proof_path)}
+
+
+def light_probe(root: Path, region: str, prepared: Path, *, image: str) -> dict:
+    root = Path(stable_root(root)).resolve(strict=True)
+    prepared = Path(prepared).resolve(strict=True)
+    if prepared != root / "output/tmp/r2-light/proof.json":
+        raise GateError("light probe proof path is invalid")
+    proof = read_json(prepared)
+    receipt = proof.get("receipt")
+    if (proof.get("schemaVersion") != 1 or proof.get("region") != region or
+            not isinstance(receipt, dict) or receipt.get("imageDigest") != image_digest(image)):
+        raise GateError("light probe proof is invalid")
+    if region == "global":
+        from tools.resource_pipeline.adapters.global_public import GlobalPublicClient, discover_package
+        client = GlobalPublicClient(proof["clientVersion"])
+        package = discover_package(client)
+        if not all(isinstance(package.get(key), str) and package[key] for key in ("url", "etag", "lastModified")):
+            return _needs_full("package_identity_unavailable")
+        package_sha = package_identity("global", package)
+        stable_sha = digest(canonical({key: package[key] for key in ("url", "byteSize", "etag", "lastModified")}))
+        if package_sha != receipt["packageSha256"] or stable_sha != proof.get("stablePackageSha256"):
+            # A new official APK may need a different RPC client version. Let
+            # the full producer verify and intake it before source discovery.
+            return _needs_full("official_package_changed")
+        return {"status": "probed", "region": region, "sourceSha256": source_identity(client.discover()),
+                "packageSha256": package_sha, "stablePackageSha256": stable_sha}
+    if region == "jp":
+        from tools.jp_remote_sync import client_from_metadata
+        metadata = Path(proof["metadataPath"])
+        if metadata != Path(prepared).parent / "metadata.v39.dat" or metadata.is_symlink():
+            raise GateError("JP light probe metadata path is invalid")
+        client = client_from_metadata(metadata, authorize_builtin_credentials=True)
+        return {"status": "probed", "region": region, "sourceSha256": source_identity(client.discover()),
+                "packageSha256": receipt["packageSha256"]}
+    raise GateError("invalid region")
+
+
+def light_check(private_bucket, public_bucket, root: Path, region: str, prepared: Path,
+                observed: dict, public_before: dict, *, image: str) -> dict:
+    from tools.r2_content import pointer_key as public_key
+    from tools.r2_state import current_sha
+    root = Path(stable_root(root)).resolve(strict=True)
+    prepared = Path(prepared).resolve(strict=True)
+    if prepared != root / "output/tmp/r2-light/proof.json":
+        raise GateError("light probe proof path is invalid")
+    proof = read_json(prepared)
+    receipt = proof.get("receipt")
+    if (proof.get("schemaVersion") != 1 or proof.get("region") != region or
+            not isinstance(receipt, dict) or receipt.get("schemaVersion") != RECEIPT_SCHEMA):
+        raise GateError("light probe proof is invalid")
+    if observed.get("status") == "needs_full":
+        return _needs_full(observed.get("reason", "probe_unknown"))
+    if observed.get("status") != "probed" or observed.get("region") != region:
+        raise GateError("light source observation is invalid")
+    if (image_digest(image) != receipt["imageDigest"] or code_fingerprints(root)[1] != receipt["codeSha256"] or
+            observed.get("sourceSha256") != receipt["sourceSha256"] or
+            observed.get("packageSha256") != receipt["packageSha256"] or
+            region == "global" and observed.get("stablePackageSha256") != proof.get("stablePackageSha256")):
+        return _needs_full("source_or_inputs_changed")
+    pointer = receipt["publicPointer"]
+    key = public_key(region)
+    item = public_bucket.get(key)
+    data = item[0] if item else None
+    if (data is None or digest(data) != receipt["publicPointerSha256"] or
+            public_before.get("region") != region or public_before.get("currentSha256") != digest(data) or
+            json.loads(data) != pointer):
+        return _needs_full("public_pointer_unmatched")
+    _manifest_matches(public_bucket, pointer, region)
+    after = public_bucket.get(key)
+    if after is None or after[0] != data or current_sha(private_bucket, region) != proof["privatePointerSha256"]:
+        return _needs_full("pointer_changed")
+    return {"status": "unchanged", "skip": True, "region": region,
+            "pointerSha256": digest(data)}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("probe", "check", "record"))
+    parser.add_argument("action", choices=("probe", "check", "record", "light-prepare", "light-probe", "light-check"))
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--region", choices=("global", "jp"), required=True)
     parser.add_argument("--image", help="pinned producer image; check/record default to OURNOTES_UPDATE_IMAGE")
@@ -424,6 +734,9 @@ def main(argv=None) -> int:
     parser.add_argument("--production", type=Path)
     parser.add_argument("--upload", type=Path)
     parser.add_argument("--store", type=Path)
+    parser.add_argument("--stage", type=Path)
+    parser.add_argument("--path", action="append", default=[])
+    parser.add_argument("--prepared", type=Path)
     args = parser.parse_args(argv)
     try:
         image = args.image or os.environ.get("OURNOTES_UPDATE_IMAGE", "")
@@ -437,12 +750,31 @@ def main(argv=None) -> int:
             from tools.r2_content import S3Bucket
             result = check(S3Bucket.from_environment(), stable_root(args.root), args.region,
                            read_json(args.probe), read_json(args.public_before), image=image)
-        else:
+        elif args.action == "record":
             if not all((args.probe, args.production, args.upload, args.store)):
                 parser.error("record requires --probe, --production, --upload and --store")
             result = record(stable_root(args.root), args.region, read_json(args.probe),
                             read_json(args.production), read_json(args.upload), args.store,
                             image=image)
+        elif args.action == "light-prepare":
+            if not args.stage or not args.path:
+                parser.error("light-prepare requires --stage and exact --path selections")
+            from tools.r2_state import PrivateS3Bucket
+            result = light_prepare(PrivateS3Bucket.from_environment(), args.root, args.region,
+                                   args.path, args.stage, image=image, config=args.config,
+                                   decoder_profile=args.decoder_profile)
+        elif args.action == "light-probe":
+            if not args.prepared:
+                parser.error("light-probe requires --prepared")
+            result = light_probe(args.root, args.region, args.prepared, image=image)
+        else:
+            if not args.prepared or not args.probe or not args.public_before:
+                parser.error("light-check requires --prepared, --probe and --public-before")
+            from tools.r2_state import PrivateS3Bucket
+            from tools.r2_content import S3Bucket
+            result = light_check(PrivateS3Bucket.from_environment(), S3Bucket.from_environment(),
+                                 args.root, args.region, args.prepared, read_json(args.probe),
+                                 read_json(args.public_before), image=image)
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
     except Exception as error:

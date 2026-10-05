@@ -17,12 +17,14 @@ import re
 import shutil
 import tempfile
 
-from tools.r2_content import SHA256, check_public_path, pointer_key
+from tools.r2_content import SHA256, check_public_path, pointer_key, _run_bounded
+from tools.r2_shared_media import SharedMediaResolver
 
 
 RELEASE = re.compile(r"/content/releases/([a-f0-9]{24})/manifest\.json\Z")
 MAX_CONTROL_BYTES = 4 * 1024 * 1024
 MAX_OBJECTS = 100_000
+DOWNLOAD_WORKERS = 8
 MAX_RELEASE_BYTES = 8 * 1024 ** 3
 RECEIPT_NAME = ".r2-materialization-receipt.json"
 MAX_RECEIPT_BYTES = 32 * 1024 * 1024
@@ -50,7 +52,8 @@ class R2Reader:
             aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
             aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
             region_name="auto", config=Config(signature_version="s3v4",
-                                              retries={"mode": "standard", "max_attempts": 5}),
+                                              retries={"mode": "standard", "max_attempts": 5},
+                                              max_pool_connections=DOWNLOAD_WORKERS),
         )
         return cls(client, os.environ["R2_PUBLIC_BUCKET"])
 
@@ -319,6 +322,7 @@ def _materialize(reader, store: Path, regions=("global", "jp"), *, allow_missing
             raise ValueError("R2 current release manifest is missing")
         manifest = parse_manifest(manifest_raw, pointer, release_id, region)
         required = required_records(manifest)
+        resolver = SharedMediaResolver(reader.control, release_id, manifest_raw)
         # The renderer fetches manifest-record projection/group files, and
         # shared-gallery may fetch its public manifest. Loading art only needs
         # the two files named by the renderer module. Other media stays in R2.
@@ -333,7 +337,23 @@ def _materialize(reader, store: Path, regions=("global", "jp"), *, allow_missing
             total = 0
             for name in sorted(names):
                 check_public_path(name)
-                metadata = reader.head(prefix + name)
+                # Required records already have SHA/size bound by the pointer's
+                # manifest digest. Full download verification replaces per-file HEAD.
+                if name == "manifest.json":
+                    metadata = (pointer["sha256"], len(manifest_raw))
+                elif name in required:
+                    metadata = required[name]
+                else:
+                    try:
+                        shared = resolver.resolve(name)
+                    except FileNotFoundError:
+                        shared = {"missing": True}
+                    if shared and shared.get("missing"):
+                        metadata = None
+                    else:
+                        metadata = reader.head(shared["key"] if shared else prefix + name)
+                        if shared and metadata != (shared["sha256"], shared["bytes"]):
+                            raise ValueError("shared media differs from storage map")
                 if metadata is None:
                     if name == "manifest.json" or name in required:
                         raise ValueError("R2 release omits a manifest record")
@@ -359,11 +379,26 @@ def _materialize(reader, store: Path, regions=("global", "jp"), *, allow_missing
         else:
             stage = Path(tempfile.mkdtemp(prefix=".materialize-", dir=releases))
             try:
+                downloads = []
                 for name, expected in selected.items():
                     target = _safe_local_file(stage, name)
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    if reader.download(prefix + name, target) != expected:
-                        raise ValueError("R2 release changed during materialization")
+                    if name == "manifest.json":
+                        target.write_bytes(manifest_raw)
+                        continue
+                    shared = resolver.resolve(name)
+                    if shared and (shared["sha256"], shared["bytes"]) != expected:
+                        raise ValueError("shared media differs from storage map")
+                    downloads.append((shared["key"] if shared else prefix + name, target, expected))
+
+                def download(item):
+                    object_key, target, expected = item
+                    if reader.download(object_key, target) != expected:
+                        raise ValueError("R2 release record differs during materialization")
+
+                # The bounded pool joins all started work on error before staging
+                # cleanup. Neither local pointer is changed until all regions pass.
+                _run_bounded(downloads, download, DOWNLOAD_WORKERS)
                 _write_receipt(stage, _receipt_bytes(region, release_id, pointer_raw,
                                                      manifest_raw, names, selected))
                 for path in stage.rglob("*"):

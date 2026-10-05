@@ -31,6 +31,42 @@ class Bucket:
         return (raw, 'same') if raw is not None else None
 
 
+class PrivateBucket:
+    def __init__(self, root: Path, region: str, selections: list[str], files: dict[str, bytes],
+                 *, extra: list[dict] = ()):
+        manifest = {'schemaVersion': 2, 'region': region, 'root': str(root),
+                    'selections': sorted(selections), 'directories': [],
+                    'files': sorted([{'path': name, 'sha256': gate.digest(data), 'size': len(data)}
+                                     for name, data in files.items()] + list(extra),
+                                    key=lambda entry: entry['path'])}
+        manifest_bytes = gate.canonical(manifest)
+        manifest_sha = gate.digest(manifest_bytes)
+        self.pointer = gate.canonical({'schemaVersion': 1, 'region': region,
+                                       'manifest': f'state/manifests/{region}/{manifest_sha}.json',
+                                       'sha256': manifest_sha})
+        self.manifest = manifest_bytes
+        self.objects = {f'state/objects/{gate.digest(data)}': data for data in files.values()}
+        self.downloads = []
+        self.reads = []
+        self.next_pointer = None
+
+    def read_small(self, key):
+        self.reads.append(key)
+        raw = self.next_pointer if self.next_pointer is not None and self.reads.count(key) > 2 else self.pointer
+        return raw, 'etag'
+
+    def read_manifest(self, key):
+        self.reads.append(key)
+        return self.manifest, 'etag'
+
+    def download_file(self, key, target, sha, size):
+        self.downloads.append(key)
+        data = self.objects[key]
+        if gate.digest(data) != sha or len(data) != size:
+            raise ValueError('private state object missing or damaged')
+        target.write_bytes(data)
+
+
 class ProductionGateTests(unittest.TestCase):
     def setUp(self):
         self.temporary = TemporaryDirectory()
@@ -109,6 +145,25 @@ class ProductionGateTests(unittest.TestCase):
         return gate.check(self.bucket, self.root, 'global', probe or self.probe,
                           self.public_before, image=image)
 
+    def light_fixture(self, *, with_receipt=True):
+        self.package.update(etag='"trusted-etag"', lastModified='Tue, 01 Oct 2026 00:00:00 GMT')
+        self.probe['packageSha256'] = gate.package_identity('global', self.package)
+        self.state['package'] = self.package
+        self.state_path.write_bytes(gate.canonical(self.state))
+        if with_receipt:
+            self.recorded()
+        (self.root / 'output/tmp').mkdir(parents=True, exist_ok=True)
+        selections = ['config/production.json', 'config/decoder.json',
+                      'output/global-update-workflow/state.json',
+                      'output/global-update-workflow/cache']
+        files = {str(self.config.relative_to(self.root)): self.config.read_bytes(),
+                 str(self.profile.relative_to(self.root)): self.profile.read_bytes(),
+                 str(self.state_path.relative_to(self.root)): self.state_path.read_bytes()}
+        large = {'path': 'output/global-update-workflow/cache/large.bin',
+                 'sha256': '9' * 64, 'size': 10_000_000_000}
+        private = PrivateBucket(self.root, 'global', selections, files, extra=[large])
+        return private, selections, self.root / 'output/tmp/r2-light'
+
     def test_promoted_unchanged_release_skips_without_mutation(self):
         self.recorded()
         before = self.state_path.read_bytes()
@@ -118,6 +173,112 @@ class ProductionGateTests(unittest.TestCase):
         self.assertEqual(self.state_path.read_bytes(), before)
         self.assertEqual(self.bucket.calls, ['content/current.json',
                          f'content/releases/{RELEASE}/manifest.json', 'content/current.json'])
+
+    def test_light_gate_skips_without_downloading_large_private_state(self):
+        private, selections, stage = self.light_fixture()
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            prepared = gate.light_prepare(private, self.root, 'global', selections, stage,
+                                          image=IMAGE, config='config/production.json',
+                                          decoder_profile='config/decoder.json')
+            self.assertEqual(prepared['status'], 'ready')
+            class Client:
+                def __init__(self, version):
+                    self.version = version
+
+                def discover(self):
+                    return dict(self_observation, clientVersion=self.version)
+
+            self_observation = self.observation
+            with patch('tools.resource_pipeline.adapters.global_public.GlobalPublicClient', Client), \
+                 patch('tools.resource_pipeline.adapters.global_public.discover_package', return_value=self.package):
+                observed = gate.light_probe(self.root, 'global', stage / 'proof.json', image=IMAGE)
+            result = gate.light_check(private, self.bucket, self.root, 'global',
+                                      stage / 'proof.json', observed, self.public_before, image=IMAGE)
+        self.assertTrue(result['skip'])
+        self.assertEqual(result['status'], 'unchanged')
+        self.assertEqual(len(private.downloads), 2)
+        self.assertNotIn('state/objects/' + '9' * 64, private.downloads)
+
+    def test_light_gate_legacy_receipt_and_changed_package_require_full_path(self):
+        private, selections, stage = self.light_fixture(with_receipt=False)
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            self.assertEqual(gate.light_prepare(private, self.root, 'global', selections, stage,
+                             image=IMAGE, config='config/production.json',
+                             decoder_profile='config/decoder.json')['status'], 'needs_full')
+        (stage / 'state.json').unlink()
+        stage.rmdir()
+        private, selections, stage = self.light_fixture()
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            prepared = gate.light_prepare(private, self.root, 'global', selections, stage,
+                                          image=IMAGE, config='config/production.json',
+                                          decoder_profile='config/decoder.json')
+            self.assertEqual(prepared['status'], 'ready')
+            with patch('tools.resource_pipeline.adapters.global_public.GlobalPublicClient') as client, \
+                 patch('tools.resource_pipeline.adapters.global_public.discover_package',
+                       return_value=dict(self.package, etag='"changed"')):
+                client.return_value.discover.return_value = self.observation
+                observed = gate.light_probe(self.root, 'global', stage / 'proof.json', image=IMAGE)
+                client.return_value.discover.assert_not_called()
+            self.assertEqual(gate.light_check(private, self.bucket, self.root, 'global',
+                             stage / 'proof.json', observed, self.public_before,
+                             image=IMAGE)['status'], 'needs_full')
+
+    def test_light_gate_corrupt_private_manifest_fails_before_skip(self):
+        private, selections, stage = self.light_fixture()
+        private.manifest = b'corrupt'
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            with self.assertRaises(ValueError):
+                gate.light_prepare(private, self.root, 'global', selections, stage,
+                                   image=IMAGE, config='config/production.json',
+                                   decoder_profile='config/decoder.json')
+
+    def test_light_gate_changed_private_config_requires_full_restore(self):
+        private, selections, stage = self.light_fixture()
+        files = {'config/production.json': b'{"changed":true}',
+                 'config/decoder.json': self.profile.read_bytes(),
+                 'output/global-update-workflow/state.json': self.state_path.read_bytes()}
+        changed = PrivateBucket(self.root, 'global', selections, files,
+                                extra=[{'path': 'output/global-update-workflow/cache/large.bin',
+                                        'sha256': '9' * 64, 'size': 10_000_000_000}])
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            result = gate.light_prepare(changed, self.root, 'global', selections, stage,
+                                        image=IMAGE, config='config/production.json',
+                                        decoder_profile='config/decoder.json')
+        self.assertEqual(result['status'], 'needs_full')
+        self.assertEqual(result['reason'], 'private_inputs_changed')
+
+    def test_light_gate_private_pointer_change_during_prepare_requires_full(self):
+        private, selections, stage = self.light_fixture()
+        private.next_pointer = gate.canonical({'schemaVersion': 1, 'region': 'global',
+            'manifest': 'state/manifests/global/' + '8' * 64 + '.json', 'sha256': '8' * 64})
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            result = gate.light_prepare(private, self.root, 'global', selections, stage,
+                                        image=IMAGE, config='config/production.json',
+                                        decoder_profile='config/decoder.json')
+        self.assertEqual(result['reason'], 'private_pointer_changed')
+        self.assertFalse(stage.exists())
+
+    def test_light_gate_pointer_changes_after_probe_require_full(self):
+        private, selections, stage = self.light_fixture()
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            gate.light_prepare(private, self.root, 'global', selections, stage,
+                               image=IMAGE, config='config/production.json',
+                               decoder_profile='config/decoder.json')
+            observed = {'status': 'probed', 'region': 'global',
+                        'sourceSha256': gate.source_identity(self.observation),
+                        'packageSha256': gate.package_identity('global', self.package),
+                        'stablePackageSha256': gate.digest(gate.canonical({key: self.package[key]
+                            for key in ('url', 'byteSize', 'etag', 'lastModified')}))}
+            self.bucket.next_pointer = (self.pointer_bytes + b'changed', 'changed')
+            result = gate.light_check(private, self.bucket, self.root, 'global',
+                                      stage / 'proof.json', observed, self.public_before, image=IMAGE)
+            self.assertEqual(result['reason'], 'pointer_changed')
+            self.bucket.next_pointer = None
+            private.next_pointer = gate.canonical({'schemaVersion': 1, 'region': 'global',
+                'manifest': 'state/manifests/global/' + '8' * 64 + '.json', 'sha256': '8' * 64})
+            result = gate.light_check(private, self.bucket, self.root, 'global',
+                                      stage / 'proof.json', observed, self.public_before, image=IMAGE)
+            self.assertEqual(result['reason'], 'pointer_changed')
 
     def test_missing_receipt_needs_production_without_public_requests(self):
         result = self.check()
@@ -307,6 +468,11 @@ class ProductionGateTests(unittest.TestCase):
                      inputPaths={'metadata': 'output/r2-jp/metadata.v39.dat',
                                  'apkRoot': 'output/r2-jp/apks',
                                  'unityVersion': 'output/r2-jp/unity-version.txt'})
+        seed = self.root / 'output/r2-jp'
+        (seed / 'apks').mkdir(parents=True)
+        (seed / 'metadata.v39.dat').write_bytes(b'reviewed metadata fixture')
+        (seed / 'unity-version.txt').write_text('2022.3.17f1')
+        (seed / 'apks/base.apk').write_bytes(b'reviewed package fixture')
         upload = dict(self.upload, region='jp', pointerSha256=gate.digest(pointer_bytes))
         bucket = Bucket(pointer_bytes, manifest)
         bucket.objects['content/jp/current.json'] = bucket.objects.pop('content/current.json')
@@ -319,6 +485,112 @@ class ProductionGateTests(unittest.TestCase):
             state_path.write_bytes(gate.canonical(state))
             with self.assertRaisesRegex(gate.GateError, 'JP observation changed'):
                 gate.record(self.root, 'jp', probe, state, upload, jp_store, image=IMAGE)
+
+
+class LightJpGateTests(unittest.TestCase):
+    def setUp(self):
+        from tools import jp_phone_inputs
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.stage = self.root / 'output/tmp/r2-light'
+        self.stage.parent.mkdir(parents=True)
+        self.metadata = b'reviewed JP metadata fixture'
+        self.metadata_sha = gate.digest(self.metadata)
+        self.package_sha = 'd' * 64
+        self.paths = {'metadata': 'output/r2-jp/metadata.v39.dat',
+                      'apkRoot': 'output/r2-jp/apks',
+                      'unityVersion': 'output/r2-jp/unity-version.txt'}
+        self.package_bytes = b'JP signed APK fixture'
+        self.unity = b'2022.3.17f1\n'
+        observation = {'environmentId': 'jp-production', 'serverAreaId': '1',
+                       'clientVersion': '1.0.4', 'cdnRoot': 'https://example.invalid/jp',
+                       'masterVersion': 'master-jp', 'resourceVersion': 'resource-jp',
+                       'catalogHash': 'catalog-jp'}
+        self.observation = observation
+        self.version = list(gate.version_identity(observation))
+        self.manifest = gate.canonical({'schemaVersion': 1, 'region': 'jp',
+                                       'channel': 'production', 'contentReleaseId': 'jp-source',
+                                       'root': f'/content/releases/{RELEASE}/',
+                                       'locales': {'en': {}, 'zh-CN': {}}})
+        self.pointer = {'schemaVersion': 1, 'contentReleaseId': 'jp-source',
+                        'manifest': f'/content/releases/{RELEASE}/manifest.json',
+                        'sha256': gate.digest(self.manifest)}
+        pointer_bytes = gate.canonical(self.pointer)
+        self.public = Bucket(pointer_bytes, self.manifest)
+        self.public.objects['content/jp/current.json'] = self.public.objects.pop('content/current.json')
+        self.before = {'region': 'jp', 'currentSha256': gate.digest(pointer_bytes)}
+        input_sha = gate.digest(gate.canonical({'metadata': self.metadata_sha,
+            'unityVersion': gate.digest(self.unity), 'packageSetSha256': 'f' * 64}))
+        self.state = {'status': 'built', 'codeFingerprint': 'b' * 64,
+                      'versionIdentity': self.version, 'publication': {'pointer': self.pointer}}
+        inventory = [{'path': self.paths['metadata'], 'sha256': self.metadata_sha, 'size': len(self.metadata)},
+                     {'path': self.paths['apkRoot'] + '/base.apk',
+                      'sha256': gate.digest(self.package_bytes), 'size': len(self.package_bytes)},
+                     {'path': self.paths['unityVersion'], 'sha256': gate.digest(self.unity), 'size': len(self.unity)}]
+        inventory.sort(key=lambda entry: entry['path'])
+        self.state[gate.RECEIPT_FIELD] = {'schemaVersion': gate.RECEIPT_SCHEMA, 'region': 'jp',
+            'sourceSha256': gate.source_identity(self.version), 'packageSha256': self.package_sha,
+            'producerCodeSha256': 'b' * 64, 'codeSha256': 'c' * 64, 'inputSha256': input_sha,
+            'imageDigest': 'a' * 64, 'inputPaths': self.paths,
+            'trustedInputInventory': inventory, 'publicPointer': self.pointer,
+            'publicPointerSha256': gate.digest(pointer_bytes),
+            'stateSha256': gate.digest(gate.canonical(self.state))}
+        self.files = {'output/r2-jp/workspace/state.json': gate.canonical(self.state),
+                      self.paths['metadata']: self.metadata,
+                      self.paths['unityVersion']: self.unity,
+                      self.paths['apkRoot'] + '/base.apk': self.package_bytes}
+        self.private = PrivateBucket(self.root, 'jp', ['output/r2-jp'], self.files)
+        self.patches = [patch.object(gate, 'stable_root', return_value=self.root),
+                        patch.object(gate, 'code_fingerprints', return_value=('b' * 64, 'c' * 64)),
+                        patch.object(jp_phone_inputs, 'JP_METADATA_SHA256', self.metadata_sha),
+                        patch.object(jp_phone_inputs, 'JP_REVIEWED_PACKAGE_SET_SHA256', 'f' * 64)]
+        for active in self.patches:
+            active.start()
+            self.addCleanup(active.stop)
+
+    def test_jp_light_probe_keeps_reviewed_metadata_and_skips_apk_download(self):
+        prepared = gate.light_prepare(self.private, self.root, 'jp', ['output/r2-jp'],
+                                      self.stage, image=IMAGE)
+        self.assertEqual(prepared['status'], 'ready')
+
+        class Client:
+            def discover(self):
+                return current_observation
+
+        current_observation = self.observation
+        with patch('tools.jp_remote_sync.client_from_metadata', return_value=Client()) as client:
+            observed = gate.light_probe(self.root, 'jp', self.stage / 'proof.json', image=IMAGE)
+        client.assert_called_once_with((self.stage / 'metadata.v39.dat').resolve(),
+                                       authorize_builtin_credentials=True)
+        result = gate.light_check(self.private, self.public, self.root, 'jp',
+                                  self.stage / 'proof.json', observed, self.before, image=IMAGE)
+        self.assertTrue(result['skip'])
+        self.assertEqual(len(self.private.downloads), 2)
+        self.assertNotIn('state/objects/' + gate.digest(self.package_bytes), self.private.downloads)
+
+    def test_jp_light_gate_rejects_changed_package_manifest_and_public_damage(self):
+        self.private.manifest = self.private.manifest.replace(gate.digest(self.package_bytes).encode(), b'0' * 64)
+        with self.assertRaises(ValueError):
+            gate.light_prepare(self.private, self.root, 'jp', ['output/r2-jp'], self.stage, image=IMAGE)
+        self.private = PrivateBucket(self.root, 'jp', ['output/r2-jp'], self.files)
+        gate.light_prepare(self.private, self.root, 'jp', ['output/r2-jp'], self.stage, image=IMAGE)
+        self.public.objects[f'content/releases/{RELEASE}/manifest.json'] = b'damaged'
+        observed = {'status': 'probed', 'region': 'jp',
+                    'sourceSha256': gate.source_identity(self.version),
+                    'packageSha256': self.package_sha}
+        with self.assertRaisesRegex(gate.GateError, 'manifest is missing or damaged'):
+            gate.light_check(self.private, self.public, self.root, 'jp',
+                             self.stage / 'proof.json', observed, self.before, image=IMAGE)
+
+    def test_jp_seed_without_producer_state_uses_full_restore(self):
+        seeded = dict(self.files)
+        seeded.pop('output/r2-jp/workspace/state.json')
+        private = PrivateBucket(self.root, 'jp', ['output/r2-jp'], seeded)
+        result = gate.light_prepare(private, self.root, 'jp', ['output/r2-jp'],
+                                    self.stage, image=IMAGE)
+        self.assertEqual(result['reason'], 'producer_state_not_seeded')
+        self.assertFalse(self.stage.exists())
 
 
 if __name__ == '__main__':

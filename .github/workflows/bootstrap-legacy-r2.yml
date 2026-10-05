@@ -29,8 +29,13 @@ jobs:
       R2_PRIVATE_BUCKET: otonote-production-state
       R2_PUBLIC_BUCKET: otonote-public-content
       LEGACY_ROOT: /srv/ournotes-legacy-bootstrap
-      EVIDENCE_DIR: ${{ runner.temp }}/legacy-r2-evidence
     steps:
+      - name: Prepare evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/legacy-r2-evidence"
+          printf 'EVIDENCE_DIR=%s/legacy-r2-evidence\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

@@ -9,6 +9,7 @@ in a checkpoint, and must only be used with the private state bucket.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 import hashlib
 import json
 import os
@@ -23,6 +24,38 @@ REGIONS = {"global", "jp"}
 CHUNK = 1024 * 1024
 SMALL_LIMIT = 16 * 1024 * 1024
 MANIFEST_LIMIT = 128 * 1024 * 1024
+MAX_WORKERS = 16
+
+
+def worker_count(raw: int) -> int:
+    if type(raw) is not int or not 1 <= raw <= MAX_WORKERS:
+        raise ValueError(f"workers must be between 1 and {MAX_WORKERS}")
+    return raw
+
+
+def _run_bounded(items, task, workers: int) -> list:
+    """Run at most twice the worker count in flight, joining before return/error."""
+    workers = worker_count(workers)
+    if workers == 1:
+        return [task(item) for item in items]
+    source = iter(items)
+    results = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        pending = set()
+        for _ in range(workers * 2):
+            try:
+                pending.add(pool.submit(task, next(source)))
+            except StopIteration:
+                break
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                results.append(future.result())
+                try:
+                    pending.add(pool.submit(task, next(source)))
+                except StopIteration:
+                    pass
+    return results
 
 
 def canonical(value: object) -> bytes:
@@ -203,8 +236,9 @@ def _manifest(bucket, root: Path, region: str, expected_paths: list[str]) -> dic
 
 
 def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_current: str,
-               recorded_root: Path | None = None) -> dict:
+               recorded_root: Path | None = None, *, workers: int = 1) -> dict:
     root = stable_root(root)
+    worker_count(workers)
     if recorded_root is None:
         recorded_root = root
     else:
@@ -222,22 +256,25 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
     manifest_bytes = canonical(manifest)
     if len(manifest_bytes) > MANIFEST_LIMIT:
         raise ValueError("private state manifest is too large")
-    uploaded = reused = 0
-    verified_objects: set[tuple[str, int]] = set()
+    unique_objects: dict[tuple[str, int], dict] = {}
+    for entry in files:
+        identity = (entry["sha256"], entry["size"])
+        unique_objects.setdefault(identity, entry)
+
+    def upload_and_verify(entry):
+        path = _inside(root, entry["path"])
+        key = object_key(entry["sha256"])
+        created = bucket.put_file_new(key, path, entry["sha256"], entry["size"])
+        if not bucket.verify_file(key, entry["sha256"], entry["size"]):
+            raise ValueError("private state object missing or damaged")
+        return created
+
+    transferred = _run_bounded(unique_objects.values(), upload_and_verify, workers)
+    uploaded = sum(transferred)
+    reused = len(files) - uploaded
+    # A mutable source is checked again only after every remote transfer has joined.
     for entry in files:
         path = _inside(root, entry["path"])
-        identity = (entry["sha256"], entry["size"])
-        if identity not in verified_objects:
-            key = object_key(entry["sha256"])
-            if bucket.put_file_new(key, path, entry["sha256"], entry["size"]):
-                uploaded += 1
-            else:
-                reused += 1
-            if not bucket.verify_file(key, entry["sha256"], entry["size"]):
-                raise ValueError("private state object missing or damaged")
-            verified_objects.add(identity)
-        else:
-            reused += 1
         if hash_file(path) != (entry["sha256"], entry["size"]):
             raise ValueError("checkpoint source changed during upload")
         if "hardlinkTo" in entry:
@@ -268,8 +305,9 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
             "pointerSha256": digest(pointer), "files": len(files), "uploaded": uploaded, "reused": reused}
 
 
-def restore(bucket, root: Path, region: str, expected_paths: list[str]) -> dict:
+def restore(bucket, root: Path, region: str, expected_paths: list[str], *, workers: int = 1) -> dict:
     root = stable_root(root)
+    worker_count(workers)
     region_name(region)
     manifest = _manifest(bucket, root, region, expected_paths)
     directories = manifest["directories"]
@@ -286,20 +324,35 @@ def restore(bucket, root: Path, region: str, expected_paths: list[str]) -> dict:
     try:
         import shutil
         staged_objects: dict[tuple[str, int], Path] = {}
+        download_entries = []
+        for entry in files:
+            if "hardlinkTo" not in entry:
+                identity = (entry["sha256"], entry["size"])
+                if identity not in staged_objects:
+                    target = stage / entry["path"]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    staged_objects[identity] = target
+                    download_entries.append(entry)
+
+        def download(entry):
+            identity = (entry["sha256"], entry["size"])
+            target = staged_objects[identity]
+            bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
+            if hash_file(target) != identity:
+                raise ValueError("private state object missing or damaged")
+
+        # All independent remote objects finish and pass local checks first.
+        _run_bounded(download_entries, download, workers)
         for entry in files:
             target = stage / entry["path"]
+            if target.exists():
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             link_to = entry.get("hardlinkTo")
             if link_to is not None:
                 os.link(stage / link_to, target)
             else:
-                identity = (entry["sha256"], entry["size"])
-                cached = staged_objects.get(identity)
-                if cached is None:
-                    bucket.download_file(object_key(entry["sha256"]), target, entry["sha256"], entry["size"])
-                    staged_objects[identity] = target
-                else:
-                    shutil.copyfile(cached, target)
+                shutil.copyfile(staged_objects[(entry["sha256"], entry["size"])], target)
         # All remote bytes are verified before any destination is changed.
         for name in directories:
             _inside(root, name).mkdir(parents=True, exist_ok=True)
@@ -332,15 +385,17 @@ class PrivateS3Bucket:
         self.client, self.bucket = client, bucket
 
     @classmethod
-    def from_environment(cls):
+    def from_environment(cls, workers: int = 1):
         import boto3
         from botocore.config import Config
+        workers = worker_count(workers)
         account = os.environ["R2_ACCOUNT_ID"]
         client = boto3.client("s3", endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
                               aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
                               aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
                               region_name="auto", config=Config(signature_version="s3v4",
-                              retries={"mode": "standard", "max_attempts": 5}))
+                              retries={"mode": "standard", "max_attempts": 5},
+                              max_pool_connections=workers))
         return cls(client, os.environ["R2_PRIVATE_BUCKET"])
 
     @staticmethod
@@ -468,9 +523,12 @@ def main(argv=None) -> int:
     parser.add_argument("--expected-current", help="current pointer SHA-256 or 'none' for the first checkpoint")
     parser.add_argument("--recorded-root", type=Path,
                         help="checkpoint only: ROOT to record for Actions restore when source files are staged locally")
+    parser.add_argument("--workers", type=int, default=1,
+                        help=f"parallel object transfers for checkpoint/restore (1-{MAX_WORKERS}; default: 1)")
     args = parser.parse_args(argv)
     try:
-        bucket = PrivateS3Bucket.from_environment()
+        worker_count(args.workers)
+        bucket = PrivateS3Bucket.from_environment(args.workers)
         if args.action == "current":
             if args.recorded_root is not None:
                 parser.error("--recorded-root is only valid for checkpoint")
@@ -479,11 +537,11 @@ def main(argv=None) -> int:
             if args.expected_current is None:
                 parser.error("checkpoint requires --expected-current")
             result = checkpoint(bucket, args.root, args.region, args.path, args.expected_current,
-                                args.recorded_root)
+                                args.recorded_root, workers=args.workers)
         elif args.action == "restore":
             if args.recorded_root is not None:
                 parser.error("--recorded-root is only valid for checkpoint")
-            result = restore(bucket, args.root, args.region, args.path)
+            result = restore(bucket, args.root, args.region, args.path, workers=args.workers)
         else:
             if args.recorded_root is not None:
                 parser.error("--recorded-root is only valid for checkpoint")

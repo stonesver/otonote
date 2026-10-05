@@ -2,6 +2,15 @@
 
 目标：Global、JP 的内容生产在 GitHub 托管 runner 运行；现有服务器继续提供网页与其他服务。`ournotes.stonebg.cn/content/*` 在验收后由只读 Worker 从 R2 提供。本文是配置与验收步骤，不代表 R2 已完成真实上传或站点已切换。
 
+## 2026-10-05 实际迁移验证
+
+- [托管 runner 容量探测](https://github.com/stonesver/otonote/actions/runs/37245094874) 已通过：两个 bucket 可读/列举，固定生产镜像可拉取，拉取后剩余 **90,022,023,168 字节**。Global 初始恢复估算 9,445,000,000 字节加 8 GiB 预留，要求 **18,034,934,592 字节**，符合首轮恢复门槛；生产过程的峰值仍须影子运行实测。
+- JP 首次私有检查点已上传并逐对象回读校验，6 个文件共 **234,502,644 字节**，清单 SHA-256 为 `3c6f151cd263ac843e873ea97292d73043f3f1a8934a123f002f289b0d39d2e1`。
+- [JP 首轮影子运行](https://github.com/stonesver/otonote/actions/runs/37245779173) 已在全新 GitHub runner 成功恢复这 6 个文件、检查容量并拉取固定镜像。生产阶段官方版本 RPC 返回 **HTTP 403**；没有进入公开内容上传、私有新检查点或公开指针晋级。该结果证明首次恢复链路可用，不能视为 JP 自动追新验收。
+- 首轮手动任务启动后，已将 `CONTENT_R2_ENABLED_JP` 恢复为 `false`；两服自动晋级均保持关闭。旧服务器数据与定时器尚未切换。
+
+本机首次上传使用另建的、仅授权私有状态桶的临时 S3 凭据，保存在仓库外的权限 `600` 文件中；GitHub 原有凭据继续供 Actions 使用。两服首次上传及恢复验收完成后撤销临时凭据，切勿先撤销仍供 Actions 使用的原凭据。
+
 ## 两个 bucket 的用途
 
 | Bucket | 用途 | 对访客开放 | 建桶建议 |
@@ -29,6 +38,8 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 可以在本机建立临时 `$STAGED_ROOT`，从旧服务器只复制下方十条所选路径，并保留硬链接（例如使用 `rsync -aH`）；无需把 JP 种子或 Python 依赖写入旧服务器。检查点的 `--root` 指向本机副本，`--recorded-root /srv/ournotes-updater/app` 则把 Actions 将使用的绝对路径写入清单。旧 `state.json` 中的绝对路径不要改写；清单恢复时会核对记录的根和精确的路径选择。复制须在旧服生产任务静止期间完成，并在上传前核对源文件未变化。2026-10-05 实测收紧清单有约 **48.1 GB 逻辑文件字节**、约 **9.4 GB 独立 inode 字节**、约 18 万个文件；本机若未保留硬链接，实际占用可能接近逻辑字节数。硬链接保留版恢复按独立 inode 估算容量，另预留 8 GiB、仓库、镜像与新产出。旧服务器直接流式上传已有文件也无需再腾出整份数据空间；容量门槛发生在 Actions runner 恢复时。首次检查点前需使用支持约 66 MB 清单与硬链接恢复的新版 `tools.r2_state`。标准 runner 是否够用必须以真实清单和 `df` 检查为准，容量不足时改用更大 GitHub 托管 runner。影子运行前不要删除旧服原文件。`--path` 必须与之后工作流使用的路径列表一模一样。
 
 收紧依据、硬链接语义和失败回退见 [R2 状态设计](R2_STATE_DESIGN.md)。清单只减少传往 R2 的路径，不会清理旧服务器磁盘。
+
+批量传输可对 `checkpoint` 和 `restore` 指定 `--workers 8`；默认串行，允许范围为 1–16。Actions 固定使用 8 个传输线程。并发只用于不同内容对象的上传与回读或下载；所有校验完成后才提交检查点指针或物化恢复目标，硬链接关系保持不变。该参数不减少摘要校验，也不扩大路径清单。
 
 JP 可在本机运行 `python3 -m tools.prepare_jp_r2_seed --metadata <本机global-metadata.v39.dat> --apk-root <本机三份split-APK目录> --unity-version-file <本机unity.ver> --output "$STAGED_ROOT/output/r2-jp"`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。这些源文件留在本机，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。旧服务器现在约有 207 MB 可用空间，不能在该盘直接新建 JP 种子；其系统 `python3` 也只有 3.6。下面命令应在本机 Python 3.11+ 环境执行，安装 `tools/r2-requirements.txt` 到本机虚拟环境。R2 凭据只放本机受控环境或 GitHub Secrets，不写入仓库、命令参数或聊天。
 

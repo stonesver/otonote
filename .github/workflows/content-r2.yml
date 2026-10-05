@@ -166,7 +166,7 @@ jobs:
           if free < required:
               raise SystemExit('Runner disk is too small for the selected private state and production reserve')
           PY
-          python -m tools.r2_state restore --root "$STABLE_ROOT" --region "$REGION" "${args[@]}"
+          python -m tools.r2_state restore --root "$STABLE_ROOT" --region "$REGION" --workers 8 "${args[@]}"
       - name: Capture public pointer baseline
         shell: bash
         run: |
@@ -251,7 +251,7 @@ jobs:
           for path in "${paths[@]}"; do args+=(--path "$path"); done
           expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/state-before.json")"
           python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
-            --expected-current "$expected" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
+            --workers 8 --expected-current "$expected" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
       - name: Promote verified public pointer
         if: env.MODE == 'promote'
         shell: bash

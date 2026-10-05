@@ -57,11 +57,15 @@ Before installing the units:
    verified should the new timer be enabled. The wrapper refuses to run while
    either old unit remains active and serializes its own runs with `flock`.
 
-The run sequence is: disk preflight, pinned image pull/check, materialize R2,
-require both regional pointers, render both regions into a temporary directory,
-validate both complete records against the current code/content pair, move
-immutable releases, then atomically replace the two live symlinks. Staging
-failure leaves live HTML untouched. Two separate symlinks cannot be switched
+The run sequence is: preflight image and content space, pinned image
+pull/check, materialize R2, require both regional pointers, then validate
+both existing live HTML pairs. If their complete records, reports, required
+pages and payload hashes still match the current code/content, the run ends
+without creating a new stage. Only a changed or damaged view passes the
+staging-space gate and renders both regions into a temporary directory;
+promotion then checks both complete records, moves immutable releases, and
+atomically replaces the two live symlinks. Staging failure leaves live HTML
+untouched. Two separate symlinks cannot be switched
 in one filesystem operation; promotion keeps the interval short and restores
 the prior targets if a switch fails while the old timer is stopped.
 

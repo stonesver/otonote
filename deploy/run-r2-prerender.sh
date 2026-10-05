@@ -46,28 +46,35 @@ flock -n 9 || { echo 'Another R2 prerender is running' >&2; exit 2; }
 docker_root=$(docker info --format '{{.DockerRootDir}}')
 [[ -d $docker_root ]] || { echo 'Docker root is missing' >&2; exit 2; }
 
-# Sum requirements for paths sharing a filesystem. The operator must set
-# measured image unpack, selected content, staged HTML and safety margin.
-declare -A required path_for_device
-for entry in \
-  "$docker_root:$R2_PRERENDER_DOCKER_FREE_BYTES" \
-  "$CONTENT_ROOT:$R2_PRERENDER_CONTENT_FREE_BYTES" \
-  "$RENDERED_ROOT:$R2_PRERENDER_RENDERED_FREE_BYTES"; do
-  path=${entry%:*}
-  bytes=${entry##*:}
-  device=$(stat -c %d "$path")
-  required[$device]=$(( ${required[$device]:-0} + bytes ))
-  path_for_device[$device]=$path
-done
-for device in "${!required[@]}"; do
-  path=${path_for_device[$device]}
-  free=$(df -PB1 "$path" | awk 'NR == 2 { print $4 }')
-  [[ $free =~ ^[0-9]+$ ]] || { echo "Cannot measure free space: $path" >&2; exit 2; }
-  if (( free < required[$device] )); then
-    echo "Insufficient space on $path: $free free, ${required[$device]} required" >&2
-    exit 2
-  fi
-done
+check_space() {
+  # Sum simultaneous requirements for paths sharing a filesystem.
+  local entry path bytes device free
+  local -A required=() path_for_device=()
+  for entry in "$@"; do
+    path=${entry%:*}
+    bytes=${entry##*:}
+    device=$(stat -c %d "$path")
+    required[$device]=$(( ${required[$device]:-0} + bytes ))
+    path_for_device[$device]=$path
+  done
+  for device in "${!required[@]}"; do
+    path=${path_for_device[$device]}
+    free=$(df -PB1 "$path" | awk 'NR == 2 { print $4 }')
+    [[ $free =~ ^[0-9]+$ ]] || { echo "Cannot measure free space: $path" >&2; return 2; }
+    if (( free < required[$device] )); then
+      echo "Insufficient space on $path: $free free, ${required[$device]} required" >&2
+      return 2
+    fi
+  done
+}
+
+docker_required=0
+if ! docker image inspect "$R2_PRERENDER_IMAGE" >/dev/null 2>&1; then
+  [[ $local_image == false ]] || { echo 'Loaded image ID is missing' >&2; exit 2; }
+  docker_required=$R2_PRERENDER_DOCKER_FREE_BYTES
+fi
+# Download/unpack and first materialization may occur in the same filesystem.
+check_space "$docker_root:$docker_required" "$CONTENT_ROOT:$R2_PRERENDER_CONTENT_FREE_BYTES"
 
 # Only now may Docker download/unpack the pinned image.
 if [[ $local_image == true ]]; then
@@ -81,15 +88,6 @@ actual_revision=$(docker image inspect --format \
   echo 'R2 prerender image revision does not match the reviewed source' >&2
   exit 2
 }
-
-stage=$(mktemp -d "$RENDERED_ROOT/.r2-stage-XXXXXXXX")
-cleanup() {
-  if [[ -n ${stage:-} && $stage == "$RENDERED_ROOT"/.r2-stage-* && -d $stage ]]; then
-    rm -rf -- "$stage"
-  fi
-}
-trap cleanup EXIT
-chown "$R2_PRERENDER_UID:$R2_PRERENDER_GID" "$stage"
 
 common=(--rm --read-only --user "$R2_PRERENDER_UID:$R2_PRERENDER_GID"
   --cap-drop ALL --security-opt no-new-privileges --pids-limit 256
@@ -113,6 +111,25 @@ docker run "${common[@]}" --network bridge \
 mounts=(--mount "type=bind,source=$CODE_ROOT,target=/code,readonly"
   --mount "type=bind,source=$CONTENT_ROOT,target=/content,readonly"
   --mount "type=bind,source=$RENDERED_ROOT,target=/rendered")
+
+# Existing sealed HTML can already match the newly materialized R2 pointers.
+# Check both regions and their essential files before allocating a new stage.
+if docker run "${common[@]}" --network none "${mounts[@]}" \
+  "$R2_PRERENDER_IMAGE" python3 /app/deploy/promote_r2_prerender.py \
+  --check-current --code-root /code --content /content --rendered /rendered; then
+  exit 0
+fi
+
+# Only a changed or damaged view needs transient HTML space.
+check_space "$RENDERED_ROOT:$R2_PRERENDER_RENDERED_FREE_BYTES"
+stage=$(mktemp -d "$RENDERED_ROOT/.r2-stage-XXXXXXXX")
+cleanup() {
+  if [[ -n ${stage:-} && $stage == "$RENDERED_ROOT"/.r2-stage-* && -d $stage ]]; then
+    rm -rf -- "$stage"
+  fi
+}
+trap cleanup EXIT
+chown "$R2_PRERENDER_UID:$R2_PRERENDER_GID" "$stage"
 
 # The publisher may remove its current link after a persistent failure. Run
 # it only against a fresh stage; live HTML remains untouched on that failure.

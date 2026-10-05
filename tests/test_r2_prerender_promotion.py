@@ -1,6 +1,8 @@
 """Serving-pointer boundaries for staged Global and JP R2 prerenders."""
+import hashlib
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -60,8 +62,78 @@ class PromotionFixture:
     def promote(self):
         return promotion.promote(self.code, self.content, self.stage, self.rendered)
 
+    def install_matching_live_views(self):
+        for region, suffix in (("global", ""), ("jp", "-jp")):
+            pair = PAIRS[region]
+            release = self.rendered / "releases" / pair
+            shutil.copytree(self.stage / "releases" / pair, release)
+            for locale in promotion.LOCALES:
+                (release / f"report-{region}-{locale}.json").write_text(json.dumps({
+                    "schemaVersion": 1, "codeId": CODE_ID, "pointer": pointer(region),
+                    "region": region, "locale": locale,
+                }))
+                for route in promotion.REQUIRED_ROUTES:
+                    html = release / region / locale / route / "index.html"
+                    html.parent.mkdir(parents=True, exist_ok=True)
+                    html.write_text('<html data-prerendered="true"><main>ready</main></html>')
+            payloads = release / "payloads"
+            payloads.mkdir()
+            body = ("payload " + region).encode()
+            (payloads / (hashlib.sha256(body).hexdigest() + ".json")).write_bytes(body)
+            current = self.rendered / ("current" + suffix)
+            current.unlink()
+            current.symlink_to("releases/" + pair)
+
 
 class R2PrerenderPromotionTests(unittest.TestCase):
+    def test_unchanged_current_views_skip_refresh(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = PromotionFixture(Path(temporary))
+            fixture.install_matching_live_views()
+            before_links = fixture.live_links()
+            before_code = source_bytes(fixture.code)
+            before_content = source_bytes(fixture.content)
+            with patch.object(promotion, "read_inputs", side_effect=fixture.read_inputs):
+                self.assertTrue(promotion.current_unchanged(
+                    fixture.code, fixture.content, fixture.rendered))
+            self.assertEqual(fixture.live_links(), before_links)
+            self.assertEqual(source_bytes(fixture.code), before_code)
+            self.assertEqual(source_bytes(fixture.content), before_content)
+
+    def test_changed_jp_pair_requires_refresh_without_switching_links(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = PromotionFixture(Path(temporary))
+            fixture.install_matching_live_views()
+            current_jp = fixture.rendered / "current-jp"
+            current_jp.unlink()
+            current_jp.symlink_to(OLD["current-jp"])
+            before = fixture.live_links()
+            with patch.object(promotion, "read_inputs", side_effect=fixture.read_inputs):
+                self.assertFalse(promotion.current_unchanged(
+                    fixture.code, fixture.content, fixture.rendered))
+            self.assertEqual(fixture.live_links(), before)
+
+    def test_corrupt_live_record_page_or_payload_requires_refresh(self):
+        for kind in ("complete", "page", "payload"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                fixture = PromotionFixture(Path(temporary))
+                fixture.install_matching_live_views()
+                release = fixture.rendered / "releases" / PAIRS["jp"]
+                if kind == "complete":
+                    record = release / "complete.json"
+                    value = json.loads(record.read_text())
+                    value["pointer"] = {"edition": "wrong"}
+                    record.write_text(json.dumps(value))
+                elif kind == "page":
+                    (release / "jp" / "en" / "tools/live2d" / "index.html").write_text("damaged")
+                else:
+                    next((release / "payloads").iterdir()).write_bytes(b"damaged")
+                before = fixture.live_links()
+                with patch.object(promotion, "read_inputs", side_effect=fixture.read_inputs):
+                    self.assertFalse(promotion.current_unchanged(
+                        fixture.code, fixture.content, fixture.rendered))
+                self.assertEqual(fixture.live_links(), before)
+
     def test_both_regions_promote_only_after_staging(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = PromotionFixture(Path(temporary))

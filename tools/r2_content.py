@@ -277,11 +277,14 @@ def upload_release(bucket, store: Path, region: str, *, dry_run=False, workers: 
         mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
         options = {"content_type": mime, "cache_control": "public, max-age=31536000, immutable",
                    "sha256": expected_sha}
-        created = (bucket.put_file_new(key, path, size=size, **options)
-                   if hasattr(bucket, 'put_file_new') else bucket.put_new(key, path.read_bytes(), **options))
-        # The full GET is required for a new object as well as an existing key.
-        if not same_object(bucket, key, expected_sha, size):
-            raise ValueError("immutable R2 content key has different bytes")
+        if same_object(bucket, key, expected_sha, size):
+            created = False
+        else:
+            created = (bucket.put_file_new(key, path, size=size, **options)
+                       if hasattr(bucket, 'put_file_new') else bucket.put_new(key, path.read_bytes(), **options))
+            # A new object and a failed conditional create both require full readback.
+            if not same_object(bucket, key, expected_sha, size):
+                raise ValueError("immutable R2 content key has different bytes")
         if file_hash(path) != expected_sha:
             raise ValueError("sealed content changed during upload")
         return created

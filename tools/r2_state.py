@@ -264,6 +264,8 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
     def upload_and_verify(entry):
         path = _inside(root, entry["path"])
         key = object_key(entry["sha256"])
+        if bucket.verify_file(key, entry["sha256"], entry["size"]):
+            return False
         created = bucket.put_file_new(key, path, entry["sha256"], entry["size"])
         if not bucket.verify_file(key, entry["sha256"], entry["size"]):
             raise ValueError("private state object missing or damaged")
@@ -285,10 +287,12 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
                 raise ValueError("hard-linked checkpoint source changed during upload")
     manifest_sha = digest(manifest_bytes)
     manifest_key = f"state/manifests/{region}/{manifest_sha}.json"
-    if not bucket.put_manifest_new(manifest_key, manifest_bytes):
-        item = bucket.read_manifest(manifest_key)
-        if item is None or item[0] != manifest_bytes:
-            raise ValueError("immutable private state manifest conflict")
+    existing_manifest = bucket.read_manifest(manifest_key)
+    if existing_manifest is None or existing_manifest[0] != manifest_bytes:
+        if not bucket.put_manifest_new(manifest_key, manifest_bytes):
+            item = bucket.read_manifest(manifest_key)
+            if item is None or item[0] != manifest_bytes:
+                raise ValueError("immutable private state manifest conflict")
     item = bucket.read_manifest(manifest_key)
     if item is None or item[0] != manifest_bytes:
         raise ValueError("private state manifest readback failed")

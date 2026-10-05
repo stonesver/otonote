@@ -17,6 +17,7 @@ class FakePrivateBucket:
         self.upload_calls = []
         self.verify_calls = []
         self.download_calls = []
+        self.manifest_put_calls = []
 
     def read_small(self, key):
         data = self.objects.get(key)
@@ -29,6 +30,7 @@ class FakePrivateBucket:
         return True
 
     def put_manifest_new(self, key, data):
+        self.manifest_put_calls.append(key)
         return self.put_small_new(key, data)
 
     def read_manifest(self, key):
@@ -108,8 +110,13 @@ class R2StateTest(unittest.TestCase):
 
     def test_idempotent_checkpoint_and_optimistic_pointer_conflict(self):
         first = self._checkpoint()
+        put_count = len(self.bucket.upload_calls)
+        manifest_put_count = len(self.bucket.manifest_put_calls)
         second = self._checkpoint(expected=first["pointerSha256"])
         self.assertEqual(second["status"], "unchanged")
+        self.assertEqual(second["uploaded"], 0)
+        self.assertEqual(len(self.bucket.upload_calls), put_count)
+        self.assertEqual(len(self.bucket.manifest_put_calls), manifest_put_count)
         (self.root / "input/global/plan.json").write_bytes(b'{"files": [1]}\n')
         with self.assertRaisesRegex(ValueError, "expected baseline"):
             self._checkpoint(expected="none")
@@ -124,7 +131,19 @@ class R2StateTest(unittest.TestCase):
         self.bucket.objects[r2_state.object_key(sha)] = b"wrong"
         with self.assertRaisesRegex(ValueError, "missing or damaged"):
             self._checkpoint()
+        self.assertEqual(self.bucket.objects[r2_state.object_key(sha)], b"wrong")
         self.assertNotIn(r2_state.pointer_key("global"), self.bucket.objects)
+
+    def test_damaged_existing_manifest_never_advances_pointer(self):
+        first = self._checkpoint()
+        pointer_key = r2_state.pointer_key("global")
+        pointer = self.bucket.objects[pointer_key]
+        manifest_key = json.loads(pointer)["manifest"]
+        self.bucket.objects[manifest_key] = b"wrong"
+        with self.assertRaisesRegex(ValueError, "manifest conflict"):
+            self._checkpoint(expected=first["pointerSha256"])
+        self.assertEqual(self.bucket.objects[manifest_key], b"wrong")
+        self.assertEqual(self.bucket.objects[pointer_key], pointer)
 
     def test_oversize_manifest_fails_before_any_r2_write(self):
         with patch.object(r2_state, "MANIFEST_LIMIT", 1):
@@ -256,7 +275,7 @@ class R2StateTest(unittest.TestCase):
             for path in (source, self.root / "output/global/state.json")
         }
         self.assertEqual(len(self.bucket.upload_calls), len(unique_content))
-        self.assertEqual(len(self.bucket.verify_calls), len(unique_content))
+        self.assertEqual(len(self.bucket.verify_calls), 2 * len(unique_content))
         self.assertEqual({(sha, size) for _, sha, size in self.bucket.upload_calls}, unique_content)
         shutil.rmtree(self.root / "output")
         shutil.rmtree(self.root / "input")

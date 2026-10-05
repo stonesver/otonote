@@ -111,6 +111,18 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十条路径的 JSON 
 
 影子 run 至少检查：真实 runner 空间峰值、完整耗时、官方版本身份、客户端签名和解码校验、Global/JP 候选与封存回执、R2 读回摘要、两服交叉引用和现有网页预渲染。`ubuntu-latest` 的资源规格会因仓库类型变化，不要只按名义磁盘值判断；实际以 `df` 和 run 记录为准。[GitHub 托管 runner 规格](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
 
+## JP 版本接口的指定代理出口
+
+可在 `content-r2-production` Environment Secrets 中配置可选的 `OURNOTES_JP_VERSION_PROXY`，支持 `http://`、`https://`、`socks5://`、`socks5h://`。它只传给 JP 生产容器，仅用于固定允许的 Version RPC；CDN 下载不读取该变量。代理认证通过 curl 标准输入传入，错误和观察回执不包含代理凭据。TLS 验证保持开启；403 仍立即阻断，不能把旧快照当作最新版本。
+
+本机 Clash 的 `127.0.0.1` 端口只适用于本机验证，不能直接填给 GitHub 托管 runner。订阅也不是 HTTP/SOCKS 代理地址；若使用订阅节点，需要另行准备 runner 可使用的受控客户端配置。实际出口应通过连接记录确认，不能只凭订阅相同或节点名称判断。线路验证成功前保持 JP 定时生产和自动晋级关闭。
+
+## R2 请求与存储成本
+
+截至 2026-10-05，[Cloudflare 标准存储价格](https://developers.cloudflare.com/r2/pricing/)每月包括 10 GB-month、100 万次 Class A 和 1,000 万次 Class B 免费额度。超额存储为 $0.015/GB-month；A 为 $4.50/百万次，B 为 $0.36/百万次，按计费单位向上取整。出网免费不包括 Workers 或 GitHub Actions 费用；不频繁访问存储不适用这些免费额度。
+
+首次导入按对象上传并完整 GET 校验，所以对象多时操作计数会快速上升。日常重复上传先完整读取已有不可变对象，匹配则复用，省去重复的条件 PUT；全新对象仍条件写入并读回，已有对象损坏时失败且不覆盖。并发只影响速度，不会减少对象总请求数。启用定时任务前记录一次真实运行的新增/复用对象数、读取次数、运行时长和存储增量，再按计划频率估算月用量。旧版本仍按独立引用审计保留，不能用任意过期规则删除当前或仍被网页引用的内容。
+
 ## 现有域名的只读 Worker Route
 
 ### 保留现有网页引用的旧快照
@@ -134,6 +146,6 @@ Route 切换后检查：`/content/current.json`、`/content/jp/current.json` 返
 ## 故障和回退
 
 - 生产失败或 R2 校验失败：保持 `CONTENT_R2_AUTO_PROMOTE_*` 关闭或设回 `false`；检查 Actions 失败步骤、私有检查点、公开晋级记录。不要删除旧 release。
-- Worker Route 故障：在上述 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，流量立即回到保留的旧 Nginx `/content/` 路径；先验证旧内容仍完整，再操作。
+- Worker Route 故障：先用旧完整内容库恢复并验证旧 HTML，确认两服 HTML 引用的媒体在源站可读，再在 **Domains & Routes** 删除 `ournotes.stonebg.cn/content/*` Route，最后恢复旧预渲染 timer；避免新 HTML 在撤 Route 后引用源站不存在的快照。
 - 公开内容需要回退：先运行 `python3 -m tools.r2_content baseline --region global`（JP 改为 `jp`）取得 `currentSha256`，检查返回的 `previousPointer` 是否指向所需旧版本，再运行 `python3 -m tools.r2_content rollback --region global --expected-current <currentSha256> --source-run <工单标识>`。命令验证旧清单及所引用的 JSON 后写晋级记录，并用条件写切回旧指针；普通媒体的完整性仍须在 Worker 测试地址抽验。不要在控制台直接手改 `current.json`。紧急情况下优先撤 Route 回到原站内容。
 - 新流水线通过真实定时运行、Route 和浏览器验收后，才停止服务器旧的 `global-update.timer`。保留旧源站内容和旧 HTML 引用；历史对象清理仍由独立引用审计决定，不由工作流自动删除。

@@ -1,12 +1,14 @@
 import base64
 import json
+import os
 from pathlib import Path
 import unittest
+import subprocess
 from unittest.mock import Mock, patch
 
-from tools.resource_pipeline.adapters.jp_public import JpPublicClient, API_ROOT, CDN_ROOT, resource_version
+from tools.resource_pipeline.adapters.jp_public import JpPublicClient, API_ROOT, CDN_ROOT, resource_version, version_proxy, VERSION_PROXY_ENV
 from tools.resource_pipeline.adapters.global_public import ProtocolError
-from tools.resource_pipeline.transport import HttpResponse
+from tools.resource_pipeline.transport import HttpResponse, TransportError
 
 
 class JpTransportTests(unittest.TestCase):
@@ -53,6 +55,109 @@ class JpTransportTests(unittest.TestCase):
                 with self.assertRaises(ProtocolError):self.client.get(url,256)
             with self.assertRaises(ProtocolError):self.client.get('https://static.bang-dream-on.jp/',256,method='POST')
             self.assertEqual(transport.return_value.request.call_count,1)
+
+
+class JpVersionProxyTests(unittest.TestCase):
+    def setUp(self):
+        self.client = JpPublicClient('1.0.4', 'Basic '+base64.b64encode(b'test:client').decode())
+        self.proxy = 'https://' + 'proxy-user:proxy-secret@proxy.example:8443/'
+
+    def test_valid_schemes_and_ports(self):
+        for value in ('http://127.0.0.1:7890', 'https://proxy.example',
+                      'socks5://' + 'user:p%40ss@proxy.example:1080', 'socks5h://[::1]:65535/',
+                      self.proxy):
+            with self.subTest(value=value), patch.dict(os.environ, {VERSION_PROXY_ENV: value}):
+                self.assertEqual(version_proxy(), value)
+
+    def test_unset_or_empty_proxy_preserves_default_curl_configuration(self):
+        for environment in ({}, {VERSION_PROXY_ENV: ''}):
+            with self.subTest(environment=environment), patch.dict(os.environ, environment, clear=True):
+                self.assertIsNone(version_proxy())
+                with patch('tools.resource_pipeline.adapters.jp_public.subprocess.run', return_value=Mock(returncode=6)) as run:
+                    with self.assertRaises(TransportError):
+                        self.client.rpc('app.masterdata.MasterdataService/Version')
+                self.assertNotIn(b'proxy', run.call_args.kwargs['input'])
+                self.assertNotIn('env', run.call_args.kwargs)
+
+    def test_invalid_urls_are_rejected_before_starting_curl_without_echoing_input(self):
+        invalid = ['ftp://proxy.example:21', 'proxy.example:8080', 'http://',
+                   'http://proxy.example:0', 'http://proxy.example:65536', 'http://proxy.example:not-a-port',
+                   'http://proxy.example:', 'http://proxy.example/path', 'http://proxy.example/?',
+                   'http://proxy.example/#', 'http://proxy.example?key=value', 'http://proxy.example#part',
+                   'http://' + 'user:secret@proxy.example\nheader = "injected"',
+                   'http://' + 'user:secret\r@proxy.example', 'http://' + 'user:secret\t@proxy.example',
+                   'http://' + 'user:%0d%0a@proxy.example', 'http://' + 'user:%00@proxy.example',
+                   'http://' + 'user:%7f@proxy.example', 'http://' + 'user:bad%zz@proxy.example',
+                   'http://' + 'user:%C2%80@proxy.example', 'http://' + 'user:\u200bsecret@proxy.example',
+                   ' http://proxy.example', 'http://proxy.example ', 'http://proxy\\.example',
+                   'http://' + 'user:secret@other@proxy.example', 'http://@proxy.example',
+                   'http://[::1', 'http://[::1]extra', 'http://bad..example', 'http://[::1%25lo0]:8080']
+        for value in invalid:
+            with self.subTest(value=value), patch.dict(os.environ, {VERSION_PROXY_ENV: value}), \
+                    patch('tools.resource_pipeline.adapters.jp_public.subprocess.run') as run:
+                with self.assertRaisesRegex(ProtocolError, '^invalid JP version proxy configuration$') as error:
+                    self.client.rpc('app.masterdata.MasterdataService/Version')
+                self.assertNotIn('secret', str(error.exception))
+                run.assert_not_called()
+
+    def test_proxy_credentials_use_stdin_only_and_refusal_still_stops(self):
+        def refused(command, **options):
+            self.assertNotIn(self.proxy, ' '.join(command))
+            self.assertNotIn('proxy-secret', ' '.join(command))
+            self.assertNotIn(VERSION_PROXY_ENV, options['env'])
+            self.assertIn(('proxy = '+json.dumps(self.proxy)+'\n').encode(), options['input'])
+            self.assertIn(b'noproxy = ""', options['input'])
+            self.assertNotIn('--insecure', command)
+            self.assertNotIn('--proxy-insecure', command)
+            self.assertEqual(command[-1], API_ROOT+'/app.masterdata.MasterdataService/Version')
+            Path(command[command.index('--dump-header')+1]).write_text('HTTP/2 403\r\ncontent-type: application/grpc\r\ngrpc-status: 7\r\n')
+            Path(command[command.index('--output')+1]).write_bytes(b'')
+            return Mock(returncode=0, stderr=b'proxy-secret')
+        with patch.dict(os.environ, {VERSION_PROXY_ENV: self.proxy}), \
+                patch('tools.resource_pipeline.adapters.jp_public.subprocess.run', side_effect=refused) as run:
+            with self.assertRaisesRegex(ProtocolError, 'HTTP status 403') as error:
+                self.client.discover()
+            self.assertNotIn('proxy-secret', str(error.exception))
+            self.assertEqual(run.call_count, 1)
+            with self.assertRaisesRegex(ProtocolError, 'unsupported JP read-only RPC'):
+                self.client.rpc('app.player.PlayerService/GetPlayerData')
+            self.assertEqual(run.call_count, 1)
+
+    def test_transport_errors_do_not_expose_proxy_stderr(self):
+        for error in (subprocess.TimeoutExpired(['curl'], 35, stderr=b'proxy-secret'), OSError('proxy-secret')):
+            with self.subTest(kind=type(error).__name__), patch.dict(os.environ, {VERSION_PROXY_ENV: self.proxy}), \
+                    patch('tools.resource_pipeline.adapters.jp_public.subprocess.run', side_effect=error):
+                with self.assertRaisesRegex(TransportError, '^JP read-only RPC transport failed$') as caught:
+                    self.client.rpc('app.masterdata.MasterdataService/Version')
+                self.assertNotIn('proxy-secret', str(caught.exception))
+                self.assertTrue(caught.exception.__suppress_context__)
+
+    def test_successful_observation_contains_no_proxy_configuration(self):
+        master = '1.0.0.300/'+'a'*32
+        payload = b'\x0a'+bytes([len(master)])+master.encode()
+        asset = json.dumps({'version': '1.0.0.300', 'Android': 'b'*32})
+        def success(command, **options):
+            Path(command[command.index('--dump-header')+1]).write_text(
+                'HTTP/2 200\r\ncontent-type: application/grpc\r\ngrpc-status: 0\r\n'
+                + 'x-asset-version: '+asset+'\r\n')
+            Path(command[command.index('--output')+1]).write_bytes(b'\x00'+len(payload).to_bytes(4,'big')+payload)
+            return Mock(returncode=0)
+        with patch.dict(os.environ, {VERSION_PROXY_ENV: self.proxy}), \
+                patch('tools.resource_pipeline.adapters.jp_public.subprocess.run', side_effect=success):
+            observation = self.client.discover()
+        self.assertEqual(observation['resourceVersion'], '1.0.0.300/'+'b'*32)
+        self.assertNotIn('proxy', json.dumps(observation).lower())
+
+    def test_cdn_requests_do_not_read_version_proxy_configuration(self):
+        with patch.dict(os.environ, {VERSION_PROXY_ENV: 'invalid proxy-secret value'}), \
+                patch('tools.resource_pipeline.adapters.jp_public.HttpTransport') as transport, \
+                patch('tools.resource_pipeline.adapters.jp_public.subprocess.run') as run:
+            transport.return_value.request.return_value = HttpResponse(200, {}, b'catalog')
+            self.assertEqual(self.client.get(CDN_ROOT+'/catalog.bin', 128).body, b'catalog')
+            request = transport.return_value.request.call_args.args[0]
+            self.assertNotIn('proxy-secret', str(request.headers))
+            self.assertEqual(transport.call_args.kwargs['allowed_hosts'], ('static.bang-dream-on.jp',))
+            run.assert_not_called()
 
 
 

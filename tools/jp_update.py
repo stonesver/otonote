@@ -21,6 +21,7 @@ from tools.jp_phone_inputs import build as build_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ('tools/jp_update.py', 'tools/jp_remote_sync.py', 'tools/jp_phone_inputs.py',
+           'tools/resource_pipeline/adapters/jp_public.py',
            'tools/release_candidates.py', 'tools/content_publication.py',
            'tools/library_metadata.py', 'tools/scoring_content.py')
 

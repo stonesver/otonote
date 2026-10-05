@@ -259,7 +259,8 @@ jobs:
           if free < required:
               raise SystemExit('Runner disk is too small for the selected private state and production reserve')
           PY
-          python -m tools.r2_state restore --root "$STABLE_ROOT" --region "$REGION" --workers 8 "${args[@]}"
+          python -m tools.r2_state restore --root "$STABLE_ROOT" --region "$REGION" --workers 8 \
+            --verification-cache "$RUNNER_TEMP/r2-state-restore-proof.json" "${args[@]}"
       - name: Validate restored input and runner capacity
         if: steps.light_gate.outputs.skip != 'true'
         shell: bash
@@ -410,6 +411,14 @@ jobs:
           python -m tools.r2_production_gate record --root "$STABLE_ROOT" --region "$REGION" \
             --probe "$RUNNER_TEMP/gate-probe.json" --production "$RUNNER_TEMP/production.json" \
             --upload "$RUNNER_TEMP/upload.json" --store "$store"
+      - name: Retain the successful JP working set
+        if: env.REGION == 'jp' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          python -m tools.jp_state_retention --root "$STABLE_ROOT" \
+            --production-result "$RUNNER_TEMP/production.json" > "$RUNNER_TEMP/jp-retention.json"
       - name: Preserve failed Global compiler log privately
         if: ${{ failure() && env.REGION == 'global' }}
         continue-on-error: true
@@ -432,7 +441,8 @@ jobs:
           for path in "${paths[@]}"; do args+=(--path "$path"); done
           expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/state-before.json")"
           python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
-            --workers 8 --expected-current "$expected" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
+            --workers 8 --expected-current "$expected" \
+            --verification-cache "$RUNNER_TEMP/r2-state-restore-proof.json" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
       - name: Promote verified public pointer
         if: env.MODE == 'promote' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
         shell: bash
@@ -460,9 +470,18 @@ jobs:
             fi
             if [[ -f "$RUNNER_TEMP/state-after.json" ]]; then
               printf 'Private state checkpoint: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/state-after.json")"
+              python - "$RUNNER_TEMP/state-after.json" <<'PY'
+          import json, sys
+          state = json.load(open(sys.argv[1]))
+          print(f'Private objects reused from verified restore: `{state.get("verifiedReuse", 0)}`; '
+                f'newly uploaded: `{state.get("uploaded", 0)}`.\n')
+          PY
             fi
             if [[ -f "$RUNNER_TEMP/promotion.json" ]]; then
               printf 'Public promotion: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/promotion.json")"
+            fi
+            if [[ -f "$RUNNER_TEMP/jp-retention.json" ]]; then
+              printf 'JP obsolete local runs removed: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["removedRuns"])' "$RUNNER_TEMP/jp-retention.json")"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
         env:

@@ -9,7 +9,9 @@ from collections import defaultdict
 from pathlib import Path
 import hashlib
 import json
+import os
 import shutil
+import tempfile
 import zipfile
 from urllib.parse import urlsplit, unquote
 
@@ -96,6 +98,7 @@ class PhoneResources(CurrentResources):
         Receipt SHA-256 is rechecked on access; no network fallback is allowed.
         """
         prior = CatalogAdapter().parse(Path(catalog))
+        prior_locations = {loc.primary_key: loc for loc in prior.locations}
         compatible = set()
         for old in prior.locations:
             current = self.locations.get(old.primary_key)
@@ -105,10 +108,18 @@ class PhoneResources(CurrentResources):
                 compatible.add(old.primary_key)
         for cache in caches:
             for receipt in Path(cache).resolve().rglob('*.receipt.json'):
+                if receipt.is_symlink(): raise ValueError('linked JP cache receipt')
                 row = read_json(receipt)
-                name = unquote(urlsplit(row.get('url','')).path).split('/asset/Android/',1)[-1]
+                identity = row.get('identity')
+                name = (identity.get('key') if isinstance(identity, dict) else
+                        unquote(urlsplit(row.get('url','')).path).split('/asset/Android/',1)[-1])
                 if name not in compatible: continue
+                if identity is not None:
+                    from tools.jp_remote_sync import resource_identity
+                    if identity != resource_identity(prior_locations[name]):
+                        raise ValueError('shared JP cache catalog identity mismatch')
                 path = receipt.with_name(receipt.name.removesuffix('.receipt.json'))
+                if path.is_symlink(): raise ValueError('linked JP cache payload')
                 if not path.is_file() or path.stat().st_size != self.locations[name].expected_size: continue
                 self.shared.setdefault(name, (path, row['sha256'], prior.catalog_hash))
 
@@ -132,6 +143,33 @@ class PhoneResources(CurrentResources):
         elif name in self.shared:
             path, sha, catalog = self.shared[name]
             if file_hash(path) != sha: raise ValueError('shared local resource digest mismatch: ' + name)
+            if getattr(self, 'remote_client', None) is not None:
+                # Own every reused byte in the new run before old runs may be
+                # pruned. A reference to the previous path loses reuse on run 3.
+                from tools.jp_remote_sync import acquire, remote_cache_name, resource_identity
+                from tools.resource_pipeline.adapters.jp_public import asset_url
+                identity = resource_identity(loc)
+                url = asset_url(self.report['observation']['resourceVersion'], loc.internal_id)
+                target = self.cache/'remote'/remote_cache_name(identity)
+                receipt = target.with_name(target.name + '.receipt.json')
+                if target.is_symlink() or receipt.is_symlink():
+                    raise ValueError('linked JP reuse target')
+                if not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with tempfile.TemporaryDirectory(prefix='.jp-reuse-', dir=target.parent) as temporary:
+                        part = Path(temporary)/'content'
+                        try: os.link(path, part)
+                        except OSError: shutil.copyfile(path, part)
+                        if part.stat().st_size != loc.expected_size or file_hash(part) != sha:
+                            raise ValueError('shared JP resource changed during copy')
+                        write_json(receipt, {'path': str(target), 'url': url,
+                            'byteSize': loc.expected_size, 'sha256': sha, 'identity': identity,
+                            'origin': 'identical-catalog-local-cache', 'sourceCatalogSha256': catalog})
+                        part.replace(target)
+                verified = acquire(self.remote_client, url, target, loc.expected_size, identity=identity)
+                if verified['sha256'] != sha:
+                    raise ValueError('shared JP cache bytes differ for identical resource')
+                path = target
             self.used[name] = {'sha256': sha, 'byteSize': path.stat().st_size, 'origin': 'identical-catalog-local-cache',
                                'path': str(path), 'sourceCatalogSha256': catalog, 'expectedHash': loc.expected_hash}
             return path

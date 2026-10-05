@@ -55,6 +55,7 @@ class ContentPublicationTests(unittest.TestCase):
         def generate(command, **_options):
             self.assertEqual(Path(command[7]), cache.resolve())
             write(Path(command[6]), {'unavailable': True})
+            write(Path(command[6]).with_name('scoring-compatibility.json'), {'status': 'unavailable'})
         with patch('tools.content_publication.subprocess.run', side_effect=generate) as calculate:
             result = publish_content(candidate, self.store, ranking_cache=cache)
         self.assertEqual(calculate.call_count, 2)

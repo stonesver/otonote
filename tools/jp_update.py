@@ -141,7 +141,8 @@ def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
     write_json(rules_path, rules)
     if version_identity(client.discover()) != source_id:
         raise ValueError('JP source changed before content publication')
-    publication = publish_content(candidate, content_store, scoring_rules=rules_path)
+    publication = publish_content(candidate, content_store, scoring_rules=rules_path,
+                                  ranking_cache=workspace/'cache/song-rankings')
     result = {'schemaVersion':1,'status':'built','region':'jp',
               'versionIdentity':list(source_id),'codeFingerprint':code_id,
               'runId':run_id,'inputPlanSha256':file_hash(plan),

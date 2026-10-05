@@ -55,6 +55,8 @@ jobs:
           tests.test_r2_production_gate -q
       - name: R2 gateway compatibility
         run: node --test site/tests/r2-content-gateway.test.mjs
+      - name: Persistent ranking calculation gates
+        run: node --test site/tests/ranking-cache.test.mjs site/tests/shared-scoring-package.test.mjs
       - name: Admin content delivery gates
         run: |
           python3 -m pip install -r requirements-admin.txt

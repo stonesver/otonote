@@ -43,6 +43,28 @@ class ContentPublicationTests(unittest.TestCase):
         self.assertEqual(read_json(self.store/'current.json'),global_result['pointer'])
         self.assertEqual(read_json(Path(first['snapshot'])/'manifest.json')['region'],'jp')
 
+    def test_persistent_ranking_cache_is_private_and_shared_by_locales(self):
+        candidate = self.candidate()
+        for locale in ('en', 'zh-CN'):
+            catalog = candidate/'global/test-1/generated/releases/test-1'/locale/'catalog.json'
+            write(catalog, {**read_json(catalog), 'musicCharts': []})
+        receipt = candidate/'candidate.json'
+        write(receipt, {**read_json(receipt), 'files': inventory(candidate, exclude=('candidate.json',))})
+        cache = (self.root/'private-cache/song-rankings').resolve()
+        def generate(command, **_options):
+            self.assertEqual(Path(command[7]), cache.resolve())
+            write(Path(command[6]), {'unavailable': True})
+        with patch('tools.content_publication.subprocess.run', side_effect=generate) as calculate:
+            result = publish_content(candidate, self.store, ranking_cache=cache)
+        self.assertEqual(calculate.call_count, 2)
+        self.assertEqual(result['status'], 'content_published')
+        self.assertFalse(any('private-cache' in name for name in inventory(Path(result['snapshot']))))
+        for unsafe in (candidate/'cache', self.store/'releases/cache', self.root):
+            with self.assertRaisesRegex(ValueError, 'ranking cache overlaps'):
+                publish_content(candidate, self.store, ranking_cache=unsafe.resolve())
+        link = self.root/'cache-link'; link.symlink_to(cache.parent)
+        with self.assertRaisesRegex(ValueError, 'linked ranking cache'):
+            publish_content(candidate, self.store, ranking_cache=link/'rankings')
     def test_finder_metadata_is_not_published(self):
         candidate=self.candidate(region='jp')
         (candidate/'jp/test-1/public/live2d/.DS_Store').write_bytes(b'finder metadata')

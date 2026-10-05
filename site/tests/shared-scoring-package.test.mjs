@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {mkdtemp, cp, readFile, readdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -36,7 +37,10 @@ test('content ranking module runs from a package-only copy with explicit storage
     assert.equal(data.sourceReleaseId, 'isolated-release');
     assert.deepEqual(data.ordinary, []);
     assert.match(data.fingerprint, /^[a-f0-9]{64}$/);
-    assert.deepEqual(JSON.parse(await readFile(join(temporary, 'cache', `${data.fingerprint}.json`))), data);
+    const envelope = JSON.parse(await readFile(join(temporary, 'cache', `${data.fingerprint}.json`)));
+    assert.deepEqual(envelope.data, data);
+    assert.equal(envelope.key, data.fingerprint);
+    assert.equal(envelope.sha256, createHash('sha256').update(JSON.stringify(data)).digest('hex'));
   } finally {
     await rm(temporary, {recursive: true, force: true});
   }

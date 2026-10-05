@@ -324,7 +324,8 @@ def run_update(config, journal, client, *, rebuild=False):
             if config['contentPublication'].get('cardRecognition', False):
                 from tools.card_recognition import prepare_candidate_index
                 options['recognition_index'] = prepare_candidate_index(candidate, build/'card-recognition')
-            return publish_content(candidate, config['contentPublication']['root'], scoring_rules=rules_path, **options)
+            return publish_content(candidate, config['contentPublication']['root'], scoring_rules=rules_path,
+                                   ranking_cache=workspace/'cache/song-rankings', **options)
         published = journal.step('publish-content', publish_data)
         result = {'schemaVersion': 1, 'status': published['status'], 'publication': published,
                   'observation': synced['observation'], 'inputPlan': str(plan), 'inputPlanSha256': plan_sha,

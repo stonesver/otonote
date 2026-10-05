@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,10 @@ from tools.publish_prerender import read_inputs
 
 
 PAIR = re.compile(r"[a-f0-9]{24}-[a-f0-9]{24}\Z")
+PAYLOAD = re.compile(r"[a-f0-9]{64}\.json\Z")
+LOCALES = ("zh-CN", "en")
+REQUIRED_ROUTES = ("", "characters", "cards/members", "cards/supports", "music",
+                   "database/items", "database/skills", "tools/live2d")
 
 
 def _link_target(root: Path, name: str) -> str | None:
@@ -38,6 +43,61 @@ def _switch(root: Path, name: str, target: str | None) -> None:
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def current_unchanged(code_root: Path, content: Path, rendered: Path) -> bool:
+    """Validate both live views before skipping a costly full rerender."""
+    code_root, content, rendered = (p.resolve(strict=True) for p in
+                                    (code_root, content, rendered))
+    releases = rendered / "releases"
+    if releases.is_symlink() or not releases.is_dir():
+        return False
+    for region, suffix in (("global", ""), ("jp", "-jp")):
+        if not (content / ("current.json" if region == "global" else "jp/current.json")).is_file():
+            return False
+        _code, metadata, pointer_bytes, pair = read_inputs(code_root, content, region)
+        if not PAIR.fullmatch(pair):
+            return False
+        target = "releases/" + pair
+        if _link_target(rendered, "current" + suffix) != target:
+            return False
+        release = rendered / target
+        if release.is_symlink() or not release.is_dir():
+            return False
+        if any(path.is_symlink() for path in release.rglob("*")):
+            return False
+        pointer = json.loads(pointer_bytes)
+        complete = json.loads((release / "complete.json").read_text())
+        if (complete.get("schemaVersion") != 1 or complete.get("pair") != pair or
+                complete.get("codeId") != metadata["codeId"] or
+                complete.get("region") != region or complete.get("pointer") != pointer):
+            return False
+        for locale in LOCALES:
+            report = json.loads((release / f"report-{region}-{locale}.json").read_text())
+            if (report.get("schemaVersion") != 1 or report.get("codeId") != metadata["codeId"] or
+                    report.get("pointer") != pointer or report.get("region") != region or
+                    report.get("locale") != locale):
+                return False
+            for route in REQUIRED_ROUTES:
+                html = (release / region / locale / route / "index.html").read_text()
+                if 'data-prerendered="true"' not in html or "<main" not in html:
+                    return False
+        payloads = release / "payloads"
+        if not payloads.is_dir():
+            return False
+        payload_files = list(payloads.iterdir())
+        if not payload_files:
+            return False
+        for payload in payload_files:
+            if not payload.is_file() or not PAYLOAD.fullmatch(payload.name):
+                return False
+            digest = hashlib.sha256()
+            with payload.open("rb") as source:
+                for block in iter(lambda: source.read(1024 * 1024), b""):
+                    digest.update(block)
+            if digest.hexdigest() != payload.stem:
+                return False
+    return True
 
 
 def promote(code_root: Path, content: Path, stage: Path, rendered: Path) -> dict:
@@ -108,9 +168,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--code-root", type=Path, required=True)
     parser.add_argument("--content", type=Path, required=True)
-    parser.add_argument("--stage", type=Path, required=True)
+    parser.add_argument("--stage", type=Path)
     parser.add_argument("--rendered", type=Path, required=True)
+    parser.add_argument("--check-current", action="store_true")
     args = parser.parse_args()
+    if args.check_current:
+        if args.stage is not None:
+            parser.error("--stage cannot be used with --check-current")
+        try:
+            unchanged = current_unchanged(args.code_root, args.content, args.rendered)
+        except Exception:
+            unchanged = False
+        print(json.dumps({"status": "unchanged" if unchanged else "refresh_required"}))
+        raise SystemExit(0 if unchanged else 1)
+    if args.stage is None:
+        parser.error("--stage is required for promotion")
     print(json.dumps(promote(args.code_root, args.content, args.stage, args.rendered),
                      sort_keys=True))
 

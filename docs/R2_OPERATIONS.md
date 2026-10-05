@@ -17,6 +17,9 @@
 - [JP 重试](https://github.com/stonesver/otonote/actions/runs/37254773236) 已通过此前的缓存文件名故障，随后在 Spine 动画读取时失败。已定位到脚本只查找 `site/node_modules`，而固定更新器镜像将依赖安装在 `/opt/ournotes-node/node_modules`；修复保留本地优先并兼容镜像依赖，完整生产仍待再次运行验收。
 - 经站点所有者明确授权，在更新器同一把 `workflow.lock` 下复核后，仅删除旧 `conversions`、`builds/story-live-drops-20260929`、`builds/ac26a51fe4c918968aa1` 三个可重建目录。实测释放 **1,793,196,032 字节**，剩余 **2,025,517,056 字节**；当前/保留版本目录仍在，`state.json` 摘要未变，`global-update.timer` 保持 active。
 - 启用新 timer 前发现未变更物化仍对两服约 4,750 个 manifest 记录逐一 HEAD。已增加仅在本地保留的完整校验回执；复用路径仍验证远端 pointer/manifest 身份、manifest 记录与全部本地文件 SHA，但每轮两服只需 8 次控制 GET，无逐对象 HEAD/下载。此前已加载的基线镜像不能直接启用定时器，须先替换为包含该修复并通过验证的新镜像。
+- [Global 解码配置补齐后的重试](https://github.com/stonesver/otonote/actions/runs/37257537248) 通过完整恢复、客户端解码、输入同步和预检，但 `release_candidates.py` 的 `compile-data` 阶段退出 1；没有新检查点或公开晋级。运行时仍有约 78 GB 可用，现有日志不能证明缺盘或某项依赖是根因；完整子日志仅在临时 runner 内，须增加私有诊断保留后再定位。
+- 两服旧快照的私有迁移包已独立读回验收：45,507 文件、18,324 唯一对象，清单 `c9f2ff7dc0798f53f77773b68199d4c70d9ad8ef2d934e38b34004cf270b0f16`，命名空间指针 `6513858c0abbc8e7f025f631c9b67934edce48871bc1bda44ea432dc7f175052`。公开桶影子导入见 [bootstrap run](https://github.com/stonesver/otonote/actions/runs/37259448587)。本机临时 R2 DIRECT 运行时规则已恢复，用户当前代理节点选择与原配置文件保留。
+- [包含本地回执复用的新预渲染镜像](https://github.com/stonesver/otonote/actions/runs/37258913286) 已验证并加载，源码 `6fab0b4ef8195d54591ba03aeb8d70b9154ea9bc`，仓库摘要 `sha256:7040a1db912c02473ed89b8e7ceab5ded52b313ef4e393a3f8a619b1dca5466c`，本地镜像 ID `sha256:b2fb671429110e86e455bc753957033809a1faf722034ab756c44767571f61f4`，实际大小 328,593,148 字节。归档 SHA `dded65a56baf0091b078b1ac54df9fc80125717b0cf91672e7a6240a73e8f716` 和 26 个 OCI blobs 均验证；新服务配置已指向它，服务和 timer 保持 inactive。
 - 首轮手动任务启动后，已将 `CONTENT_R2_ENABLED_JP` 恢复为 `false`；两服自动晋级均保持关闭。旧服务器数据与定时器尚未切换。
 
 本机首次上传使用另建的、仅授权私有状态桶的临时 S3 凭据，保存在仓库外的权限 `600` 文件中；GitHub 原有凭据继续供 Actions 使用。两服首次上传及恢复验收完成后撤销临时凭据，切勿先撤销仍供 Actions 使用的原凭据。
@@ -115,6 +118,8 @@ Global 仓库 Variable `R2_GLOBAL_STATE_PATHS` 对应上方十一条路径的 JS
 | `CONTENT_R2_AUTO_PROMOTE_GLOBAL` / `CONTENT_R2_AUTO_PROMOTE_JP` | 经影子验收后设为 `true`，此前定时任务只上传不可变内容，不切公开指针 |
 
 工作流手动 `Run workflow` 可选 `global` 或 `jp`，以及 `shadow` 或 `promote`。**先使用 shadow**：从私有状态恢复，执行生产，上传并读回公开不可变对象，写回私有检查点；R2 `content/current.json` 或 `content/jp/current.json` 不变。Actions run 本身是最后尝试记录；私有 `state/<region>/current.json` 是最后可恢复的生产检查点；公开 `content/promotions/<region>/...` 与对应 `current.json` 记录已晋级内容。失败时停在当前步骤，公开指针不变。私有检查点在公开晋级前提交，因此晋级失败时它可能比公开指针新；重跑会按公开指针基线再次校验并尝试晋级。
+
+Global 的 `compile-data` 失败后，工作流会尝试将该次 `latest-run.json` 指向的编译日志保存在私有桶 `diagnostics/global/<run-id>/<attempt>/compile-data.log`。只保留最后 4 MiB，回执记录原长度、是否截断、SHA-256 和完整读回校验结果；Actions summary 不显示日志内容。目录或日志为符号链接、路径不属于本次工作区、读取时文件变化均拒绝保存。此步骤失败也不改变原生产失败结论，不写成功检查点或公开指针。诊断文件可能含私有路径或上游敏感消息，不能复制到公开 artifact、聊天或公开内容桶。
 
 只检查本地封存包而不连接 R2 时，可运行 `python3 -m tools.r2_content upload --region global --store <内容库> --dry-run`；公开对象已影子上传后，可用 `promote --dry-run` 搭配 `--expected-current` 和 `--source-run` 复核远端完整性及指针基线，不执行切换。
 

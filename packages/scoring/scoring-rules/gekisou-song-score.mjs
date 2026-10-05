@@ -9,7 +9,7 @@ import { createFormalSkillResolver } from './formal-skills.mjs';
 import { calculateFormalNoteCore } from './formal-note-core.mjs';
 import { gekisouTimingCombo, gekisouScoreSection } from './gekisou-timing.mjs';
 import { normalizeGekisouOpponents, rankGekisouSection } from './gekisou-ranking.mjs';
-import { resolveGekisouSkills, gekisouRankingBonus, gekisouComboFactor } from './gekisou-rules.mjs';
+import { gekisouRankingBonus, gekisouComboFactor } from './gekisou-rules.mjs';
 import { replayGekisouFrames } from './gekisou-frame-replay.mjs';
 import { gekisouSettlementActions } from './gekisou-score-settlement.mjs';
 import { createEventPipeline } from './event-rules.mjs';
@@ -17,10 +17,10 @@ import { validateAgainstTimeline } from './formal-performance-replay.mjs';
 import { createComboReplay } from './formal-performance-state.mjs';
 import { createPerformanceScenario } from './performance-scenarios.mjs';
 import { stableSnapshotHash } from '../scoring-engine.mjs';
+import { compileGekisouEffects } from './gekisou-skill-runtime.mjs';
+export { compileGekisouEffects } from './gekisou-skill-runtime.mjs';
 
 const f32 = Math.fround;
-const supportedEffects = new Set([13000, 12000, 11001, 13002, 11002, 11003, 2001, 2000, 4004, 12006, 11005, 13005, 12004]);
-const supportedConditions = new Set([2001, 5000, 4011, 7005, 7000, 7010, 7013, 7020, 7021, 1030]);
 
 export function normalizeGekisouScenario(input = {}) {
   const ranks = input.ranks ?? [1, 1, 1];
@@ -40,50 +40,6 @@ export function normalizeGekisouScenario(input = {}) {
     replayVersion: 5, settlementModel: confirmationDelayFrames.some(Boolean) ? 'multiplayer_explicit_confirmation_delay' : 'multiplayer_first_eligible_frame',
     judgement: 'all_perfect_or_just', life: 'full', assist: false,
     timingModel: clock.frames ? 'explicit_clock_native_phase_order' : 'ideal_clock_native_phase_order', rankingModel: opponents.length ? 'opponent_section_results' : 'fixed_section_ranks' };
-}
-
-function compileEffects(rules, draft, dynamic = false) {
-  const power = createFormationCalculator(rules);
-  return resolveGekisouSkills(rules, draft).flatMap(skill => skill.effects.map(effect => {
-    const row = effect.definition;
-    if (!supportedEffects.has(row._skillEffectType)) throw new Error(`Unsupported Gekisou effect ${row._skillEffectType}`);
-    for (const sets of Object.values(effect.conditions)) for (const set of sets) for (const c of set.conditions) {
-      if (!supportedConditions.has(c._conditionType)) throw new Error(`Unsupported Gekisou condition ${c._conditionType}`);
-    }
-    if (effect.cumulative && ![1000, 7001].includes(effect.cumulative._skillCumulativeConditionType)) {
-      throw new Error(`Unsupported Gekisou cumulative condition ${effect.cumulative._id}`);
-    }
-    const member = power.card(draft.slots[skill.slotIndex].memberCardId, 'member');
-    const band = rules.tables.Character.find(c => c._id === member._characterID)._bandID;
-    const conditions = effect.conditions._skillConditionGroup;
-    // Band/life alternatives are exclusive. Probability is drawn on activation,
-    // never on every note of an otherwise sustained effect.
-    const matchesStatic = c => {
-      let match;
-      if (c._conditionType === 2001) return dynamic ? true : ((1000 >= c._conditionValues[0]) === Boolean(c._isPositive));
-      else if (c._conditionType === 5000) match = c._conditionTargetIDs.some(id => {
-        const t = rules.tables.SkillTarget.find(t => t._id === id);
-        if (t?._skillTargetType !== 3 || !t._bandID) throw new Error('Unsupported skill band target');
-        return t._bandID === band;
-      });
-      else return true;
-      return c._isPositive ? match : !match;
-    };
-    const staticallyActive = !conditions.length || conditions.some(s => s.conditions.every(matchesStatic));
-    const trigger = effect.conditions._skillTriggerConditionGroup.flatMap(s => s.conditions);
-    const triggerLife = trigger.filter(c => c._conditionType === 2001).every(matchesStatic);
-    const probability = conditions.flatMap(s => s.conditions).find(c => c._conditionType === 4011)?._conditionValues[0] ?? 100;
-    return { ...effect, key: `${skill.kind}:${skill.slotIndex}:${row._id}`, missionType: skill.missionType,
-      kind: skill.kind, slotIndex: skill.slotIndex, sourceCardId: skill.sourceCardId,
-      active: staticallyActive && triggerLife, probability, trigger,
-      targets: row._skillTargetIDs.map(id => rules.tables.SkillTarget.find(t => t._id === id)).filter(t => t?._skillTargetType === 4).map(t => t._judgement),
-      ...(dynamic ? { eligible: life => {
-        const match = c => c._conditionType === 2001 ? ((life >= c._conditionValues[0]) === Boolean(c._isPositive)) : matchesStatic(c);
-        return (!conditions.length || conditions.some(set => set.conditions.every(match))) && trigger.filter(c => c._conditionType === 2001).every(match);
-      } } : {}),
-      comboThreshold: trigger.find(c => c._conditionType === 7005)?._conditionValues[0] ?? 0,
-      perfectInterval: trigger.find(c => c._conditionType === 1030)?._conditionValues[0] ?? 0 };
-  }));
 }
 
 /** Conditional AP score calculator. Replays skill/Gekisou phases on an explicit
@@ -146,9 +102,9 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       active: referenceProfile.skillSeconds > 0, rate: referenceProfile.skillPercent / 100, durationMs: referenceProfile.skillSeconds * 1000 }] }));
     const formation = referenceProfile ? { total: { total: referenceProfile.power } } : powerCalculator.calculate(draft);
     const perfect = referenceSkills || perfectSkills(draft), just = referenceSkills || justSkills(draft);
-    const effects = referenceProfile ? [] : compileEffects(rules, draft, Boolean(performanceInput));
+    const effects = referenceProfile ? [] : compileGekisouEffects(rules, draft, Boolean(performanceInput), missions);
     const ordinarySkills = dynamicSkills?.(draft);
-    const randomSampling = missions.includes(2) || effects.some(e => e.active && missions.includes(e.missionType) && e.probability < 100);
+    const randomSampling = missions.includes(2) || effects.some(e => e.active && e.random);
     // Ordinary skill order changes score commands, not the Gekisou frame
     // machine. Reuse deterministic history across all 120 order sweeps.
     const deterministicReplay = randomSampling || performanceInput ? null : replayGekisouFrames(rules, timeline, ranges, effects, scenario, scenario.seed);
@@ -157,7 +113,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       musicScoreLevelFactor: timeline.difficultyFactor, convertedNoteCount: timeline.convertedNoteCount,
       eventBonusFactor: 1, lifeOnusFactor: setting('note_score_life_onus_factor'), assistModeNoteScoreFactor: 1, currentLife: 1000 };
     const orderCache = new Map(), referenceCache = new Map();
-    const ownerSensitive = effects.some(e => e.active && [2000, 2001].includes(e.definition._skillEffectType));
+    const ownerSensitive = effects.some(e => e.active && e.operator.score);
     function run(order, seed, trace = false) {
       const replay = !trace && deterministicReplay || replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace, performanceInput, ordinarySkills, skillOrder: order });
       const states = replay.states.map(s => ({ ...s, noteScore: 0, finalNoteScore: 0 }));
@@ -282,7 +238,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
           effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex,
             kind: e.kind, missionType: e.missionType, type: e.definition._skillEffectType, active: e.active,
             probability: e.probability, effectValue: e.definition._effectValue,
-            comboThreshold: e.comboThreshold, perfectInterval: e.perfectInterval })),
+            conditions: e.conditions })),
           variants: [{ kind: 'best', order: [...best.order], seed: best.seed, ...bestTrace },
             { kind: 'worst', order: [...worst.order], seed: worst.seed, ...worstTrace }] } } : {}) };
   }

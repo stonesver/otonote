@@ -30,6 +30,16 @@ export function setupInventoryOptimizer(workbench) {
   workbench.planningScenarios=scenarios;
   function publish(extra={}) {workbench.optimizerState={...workbench.optimizerState,...extra};workbench.dispatchEvent(new CustomEvent('optimizer-ui-state',{detail:workbench.optimizerState}));}
   function stop() {publish({running:false});q('[data-search-state]').dataset.running='false';request++;worker?.terminate();worker=null;q('[data-optimize-pairing]').disabled=false;q('[data-cancel-pairing]').disabled=true;}
+  function fail(error) {
+    stop();lastResult=null;
+    const detail=String(error?.message??error);
+    q('[data-search-state]').textContent=ui('比较失败');
+    progress.textContent=ui(/^Unsupported\b/.test(detail)?'当前资料包含计算器尚未支持的技能规则，请等待规则更新后重试。':detail);
+    q('[data-search-diagnostics]').textContent=detail;
+    q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=true;
+    q('[data-export-pairing]').disabled=true;q('[data-resume-pairing]').disabled=true;
+    publish({finished:true,hasResults:false});
+  }
   function guide() {
     scenarios?.sync();
     let inventory=editor.inventory;
@@ -98,10 +108,10 @@ export function setupInventoryOptimizer(workbench) {
         chart={...await response.json(),sourceReleaseId:rules.sourceReleaseId};if(current!==request)return;
       }
       worker=new Worker(new URL('./production-optimizer-worker.mjs',import.meta.url),{type:'module'});q('[data-cancel-pairing]').disabled=false;
-      worker.onerror=()=>{stop();progress.textContent=ui('后台计算失败，请重试。');publish({finished:true});};
+      worker.onerror=()=>{if(current===request)fail('后台计算失败，请重试。');};
       worker.onmessage=({data})=>{
         if(data.requestId!==current||request!==current)return;
-        if(data.type==='error'){stop();progress.textContent=ui(data.error);publish({finished:true});return;}
+        if(data.type==='error'){fail(data.error);return;}
         if(data.type==='progress') {
           const p=data.progress;
           if(p.phase==='planning'){progress.textContent=ui(p.message??`已比较 ${p.completed} 组培养范围`);return;}
@@ -135,17 +145,24 @@ export function setupInventoryOptimizer(workbench) {
           if(r.closeness?.kind==='unknown')summary.textContent+=ui(' 当前抽样不足以估计前两名差距的稳定性。');
           q('[data-search-diagnostics]').textContent=ui((r.practical.directions??[]).map(d=>`${d.label}：${d.status==='generated'?'已生成起点':'受持卡或约束限制，未生成'}`).join('；'));
         }
-        if(!r.results.length)progress.textContent+=ui(r.status==='cancelled'?' 尚未完成任何队伍的精算；请重新开始。':' 未找到满足约束的队伍。');
+        if(r.scoringCoverage?.complete===false){
+          progress.textContent+=ui(' 部分卡片配对暂无法计算，结果只覆盖可完整计算的队伍。');
+          const issues=[...(r.scoringCoverage.unsupportedPairs??[]),...(r.scoringCoverage.unsupportedCandidates??[]),...(r.scoringCoverage.unsupportedComparisons??[])];
+          const details=[...new Set(issues.map(issue=>`${issue.sourceCardId??[issue.memberCardId,issue.supportCardId].filter(Boolean).join(' + ')}: ${issue.message}`))];
+          q('[data-search-diagnostics]').textContent+=' '+details.join('；');
+        }
+        if(!r.results.length)progress.textContent+=ui(r.status==='cancelled'?' 尚未完成任何队伍的精算；请重新开始。':r.scoringCoverage?.complete===false?' 当前条件下没有可完整计算的队伍。':' 未找到满足约束的队伍。');
         if(!['practical','planning'].includes(r.searchMethod))q('[data-search-diagnostics]').textContent=ui(`剩余上界 ${format(r.upperBound)}，与当前最佳差 ${format(r.optimalityGap)}；待排查分支 ${r.checkpoint?.frontier?.length??0}。`);
         q('[data-search-limits]').textContent=ui((r.warnings??[]).join(' '));
         renderOptimizerResults(workbench,r.results,{mode,objective});
+        if(r.scoringCoverage?.complete===false&&!r.results.length)q('[data-results-empty]').hidden=true;
         q('[data-search-state]').textContent=ui(planningSearchStatus(r));
         q('[data-search-state]').dataset.running='false';
         guide();
 
       };
       worker.postMessage({type:'optimize',requestId:current,payload:{...settings,variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
-    }catch(error){if(current!==request)return;stop();progress.textContent=ui(error.message);publish({finished:true});}
+    }catch(error){if(current!==request)return;fail(error);}
   }
   q('[data-optimize-pairing]').addEventListener('click',()=>run());
   function updateEffort() {
@@ -164,5 +181,6 @@ export function setupInventoryOptimizer(workbench) {
 export function planningSearchStatus(result) {
   if(result.status==='cancelled')return '已停止';
   if(result.status==='budget_exhausted'||result.planning?.truncated)return '部分组合尚未比较';
+  if(result.scoringCoverage?.complete===false)return '部分卡片未参与计算';
   return result.status==='completed'?'本次比较完成':'比较未完成';
 }

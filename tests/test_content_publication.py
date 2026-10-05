@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 import errno
 import hashlib
+import subprocess
 from types import SimpleNamespace
 from tools.global_remote_sync import read_json
 from tools.global_remote_sync import file_hash
@@ -54,6 +55,7 @@ class ContentPublicationTests(unittest.TestCase):
         def generate(command, **_options):
             self.assertEqual(Path(command[7]), cache.resolve())
             write(Path(command[6]), {'unavailable': True})
+            write(Path(command[6]).with_name('scoring-compatibility.json'), {'status': 'unavailable'})
         with patch('tools.content_publication.subprocess.run', side_effect=generate) as calculate:
             result = publish_content(candidate, self.store, ranking_cache=cache)
         self.assertEqual(calculate.call_count, 2)
@@ -167,6 +169,43 @@ class ContentPublicationTests(unittest.TestCase):
         source=self.candidate();result=publish_content(source,self.store)
         (Path(result['snapshot'])/'en/catalog.json').write_text('{}')
         with self.assertRaisesRegex(ValueError,'inventory'): publish_content(source,self.store)
+
+    def test_unknown_scoring_mechanism_reports_coverage_without_blocking_content(self):
+        publish_content(self.candidate(), self.store)
+        previous = (self.store/'current.json').read_bytes()
+        candidate = self.candidate('new-skill')
+        bound = candidate/'global/new-skill'
+        baseline = read_json(Path(__file__).resolve().parents[1]/'packages/scoring/data/formal-scoring-rules.json')
+        rules = json.loads(json.dumps(baseline))
+        rules.update(sourceReleaseId='new-skill', verificationStatus='reference_compatible',
+                     referenceProfile={'sourceReleaseId': baseline['sourceReleaseId'],
+                                       'nativeSha256': baseline['nativeSha256'],
+                                       'dataCompatibility': 'supported_model',
+                                       'modelId': 'ournotes-scoring-model-v1', 'currentGameplayVerified': False})
+        for locale in ('en', 'zh-CN'):
+            path = bound/f'generated/releases/new-skill/{locale}/catalog.json'
+            catalog = read_json(path)
+            catalog.update(release={'id': 'new-skill'}, musicTracks=[], musicCharts=[],
+                           memberCards=[{'id': 'member-card-1'}], supportCards=[{'id': 'support-card-1'}])
+            write(path, catalog)
+        effect = next(row for row in rules['tables']['GekisouSkillEffect']
+                      if row['_gekisouSkillID'] == rules['tables']['MemberCard'][0]['_gekisouSkillID'] and row['_level'] == 5)
+        effect['_skillEffectType'] = 98765
+        write(bound/'supplemental-data/formal-scoring-rules.json', rules)
+        metadata = read_json(candidate/'candidate.json')
+        metadata['files'] = inventory(candidate, exclude=('candidate.json',))
+        write(candidate/'candidate.json', metadata)
+        run = subprocess.run
+        with patch('tools.content_publication.subprocess.run', side_effect=lambda *args, **kwargs: run(*args, **kwargs, capture_output=True)):
+            result = publish_content(candidate, self.store)
+        for locale in ('en', 'zh-CN'):
+            report = read_json(Path(result['snapshot'])/locale/'_supplemental/scoring-compatibility.json')
+            self.assertEqual(report['status'], 'partial')
+            self.assertTrue(any(issue['message'] == 'Unsupported Gekisou effect 98765' for issue in report['issues']))
+            self.assertEqual(report['issues'][0]['memberCardId'], 'member-card-1')
+            self.assertEqual(report['issues'][0]['level'], 5)
+        self.assertEqual(result['status'], 'content_published')
+        self.assertEqual((self.store/'previous.json').read_bytes(), previous)
 
     def test_ranking_helpers_each_change_the_immutable_snapshot_identity(self):
         candidate=self.candidate()

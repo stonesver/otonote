@@ -28,13 +28,16 @@ export function gekisouComboFactor(rules,count) {
   }
   return Math.fround(1+Math.min(1,cumulative));
 }
-export function resolveGekisouSkills(rules,draft) {
+export function resolveGekisouSkills(rules,draft,{ missions = null } = {}) {
   const calculator=createFormationCalculator(rules),t=rules.tables;
   function skill(kind,id,level,slotIndex,sourceCardId) {
     if(!id)return [];
     const name=kind==='member'?'GekisouSkill':'GekisouSupportSkill';
     const parent=t[name].find(r=>r._id===id);
     if(!parent)throw new Error(`Unknown ${name}: ${id}`);
+    // Mission applicability belongs to the parent, so irrelevant skills need
+    // neither effect nor condition support for this song.
+    if(missions && !missions.includes(parent._gekisouMissionType))return [];
     const rows=t[`${name}Effect`].filter(r=>r[kind==='member'?'_gekisouSkillID':'_gekisouSupportSkillID']===id&&r._level===level);
     if(!rows.length)throw new Error(`Missing ${name} ${id} level ${level}`);
     return [{kind,slotIndex,sourceCardId,id,level,missionType:parent._gekisouMissionType??null,effects:rows.map(row=>{

@@ -74,8 +74,10 @@ export function createGekisouLuckMachine(rules, { random = createScoringRandom(1
     addBonusPoints(points) { requireInteger(points, 'luck bonus points', 0, 0x7fffffff); state.bonusPoints += points; },
     addMinimum(result, count) {
       requireInteger(result, 'minimum result', 1, 3); requireInteger(count, 'minimum uses', 1, 100000);
-      minimums.push({ result, remaining: count });
+      const entry = { result, remaining: count };
+      minimums.push(entry); return entry;
     },
+    removeMinimum(entry) { if (entry) entry.remaining = 0; },
     addNote(type, judgement = 5, gaugeUpFactor = 0) {
       const category = luckNoteCategory(type);
       if (category == null || ![3, 4, 5, 6].includes(judgement)) return 0;

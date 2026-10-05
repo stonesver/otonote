@@ -1,3 +1,4 @@
+import { compileTestEffect } from './fixtures/gekisou-skill-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -98,8 +99,7 @@ function frameFixture(grades, effects, { missionType = 3, raw = false } = {}) {
     [{index:1,missionType,startMs:1000,endMs:2000}],effects,
     {ranks:[1],frameRate:60,frames,timingOffsetMs:0},1,{trace:true,performanceInput:{judgements:events}});
 }
-const effect = (type, overrides = {}) => ({active:true,missionType:3,key:'support:0:test',slotIndex:0,kind:'support',probability:100,
-  trigger:[{_conditionType:7010}],definition:{_id:900001,_skillEffectType:type,_activationTimeSecond:1,_effectValue:10000,_effectLimitCount:0,_effectExecuteLimitCount:0},...overrides});
+const effect = (type, overrides = {}) => compileTestEffect(rules, { type, ...overrides });
 test('window expansion responds to original timing only after activation; explicit grades remain fixed',()=>{
   const expand=effect(4004);
   const raw=frameFixture([3,3,3],[expand],{raw:true});
@@ -115,8 +115,8 @@ test('Gekisou converters use declared target grades and charges, without rescuin
   assert.equal(replay.performance.life,900);
 });
 test('dynamic Gekisou activation reads damaged life and only activates the matching branch',()=>{
-  const high=effect(13000,{eligible:life=>life>=1000,definition:{_skillEffectType:13000,_activationTimeSecond:0,_effectValue:2,_effectLimitCount:0}});
-  const low=effect(13000,{key:'low',eligible:life=>life<1000,definition:{_skillEffectType:13000,_activationTimeSecond:0,_effectValue:1,_effectLimitCount:0}});
+  const high=effect(13000,{condition:[[{type:2001,value:1000}]],definition:{_skillEffectType:13000,_activationTimeSecond:0,_effectValue:2,_effectLimitCount:0}});
+  const low=effect(13000,{key:'low',condition:[[{type:2001,value:1000,positive:false}]],definition:{_skillEffectType:13000,_activationTimeSecond:0,_effectValue:1,_effectLimitCount:0}});
   const replay=frameFixture([1,6,6],[high,low]);
   assert.equal(replay.states[0].effects[0].triggered,false);
   assert.equal(replay.states[0].effects[1].triggered,true);

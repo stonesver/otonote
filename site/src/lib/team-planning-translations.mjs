@@ -1,5 +1,9 @@
 /** Shared by build-time HTML translation and this tool's dynamic labels. */
 export const teamPlanningEnglish = {
+  '部分卡片未参与计算':'Some cards could not be evaluated',
+  '部分卡片配对暂无法计算，结果只覆盖可完整计算的队伍。':'Some card pairings could not be evaluated; results cover fully supported teams only.',
+  '当前条件下没有可完整计算的队伍。':'No team can be fully evaluated under these constraints.',
+  '部分当前养成含尚未实现的计分机制，无法计算对应的当前分数和提升差值。':'Some current upgrades use unsupported scoring mechanisms; their current scores and improvement deltas are unavailable.',
   '卡库与队伍':'Cards & teams',
   '打开卡库与队伍':'Open cards & teams',
   '存为队伍':'Save team',
@@ -50,6 +54,8 @@ export const teamPlanningEnglish = {
   "只比较下方选中的成员与留影；不会自动加入其他卡。":"Compare only the selected members and memory cards below. No other cards are added.",
   "准备计算…":"Preparing calculation…",
   "正在寻找更好的编成":"Comparing team options",
+  "比较失败":"Comparison failed",
+  "当前资料包含计算器尚未支持的技能规则，请等待规则更新后重试。":"The current data includes skill rules the calculator does not support yet. Please try again after a rules update.",
   "请先选择歌曲和难度":"Choose a song and difficulty first",
   "谱面加载失败":"The chart failed to load",
   "本次比较完成，可查看不同方向的搭配。":"Comparison complete. Explore the different team options.",
@@ -354,6 +360,7 @@ Object.assign(teamPlanningEnglish, {
   '先比较推荐分数和成员／留影搭配，再应用队伍；需要核对时打开计分明细。结果为参考估算，尚未完成当前游戏版本的实战核验。':'Compare scores and card pairings before applying a team. Open score details to check the calculation. These estimates have not been fully verified in the current game client.'
 });
 const patterns=[
+  [/^部分卡片配对含尚未实现的计分机制，已跳过 (\d+) 个配对、(\d+) 个候选；推荐仅覆盖可完整计算的队伍。$/,(_,pairs,candidates)=>`Skipped ${pairs} pairings and ${candidates} candidates with unsupported scoring mechanisms; recommendations cover fully supported teams only.`],
   [/^需要培养 (\d+) 张卡$/,(_,n)=>`Requires upgrading ${n} card${n==='1'?'':'s'}`],
   [/^平均分比本次最高方案少 (.+) 分。$/,(_,n)=>`The mean score is ${n} points below the highest-scoring team checked.`],
   [/^整体偏差 (.+) 毫秒，波动在 ±(.+) 毫秒内均匀抽样，另有 (.+)% 漏击。(?:另设 (\d+) 处难段，分别放大时机波动。)?(\d+) 组参考样本，不代表个人实测水平。$/,(_,bias,spread,miss,ranges,n)=>`Timing offset ${bias} ms, uniformly sampled spread ±${spread} ms, and ${miss}% additional misses.${ranges?` ${ranges} difficult sections increase timing spread.`:''} ${n} reference samples; these are not measurements of your play.`],

@@ -1,3 +1,4 @@
+import { compileTestEffect } from './fixtures/gekisou-skill-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -40,10 +41,9 @@ test('same-frame start/end opens JUST for the one native transition', () => {
   assert.deepEqual(replay([1000, 1001], 0, [], { endMs: 1000 }).events.map(n => n.judgement), [6, 5]);
 });
 test('registered conversion survives raw JUST window closure and consumes one charge', () => {
-  const converter = { active: true, missionType: 3, key: 'support', slotIndex: 0, kind: 'support',
-    probability: 100, perfectInterval: 1, trigger: [], definition: {
-      _skillEffectType: 13005, _activationTimeSecond: 0, _effectLimitCount: 1, _effectExecuteLimitCount: 1,
-    } };
+  const converter = compileTestEffect(rules, { type: 13005, targets: [5],
+    trigger: [[{ type: 7020 }, { type: 1030, value: 1, targetIds: [41] }]],
+    definition: { _activationTimeSecond: 0, _effectLimitCount: 1, _effectExecuteLimitCount: 1 } });
   // First PERFECT arms the converter after inputs. Its next charge remains
   // usable at End; exhausting it prevents a second conversion on that frame.
   const result = replay([1900, 1970, 1970], 30, [converter]);

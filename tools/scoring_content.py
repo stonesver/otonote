@@ -48,8 +48,9 @@ EVENT_TABLES = ('LiveScoreRank', 'LiveChallengePoint', 'ChallengeMusic',
 def bind_scoring_rules(master: Path, release: str, baseline=None):
     """Reuse the implemented model with current parameters, independently of releases.
 
-    Master hashes identify inputs, not changes in native mechanics. Unknown
-    effects remain rejected by the relevant calculator at evaluation time.
+    Master hashes identify inputs, not changes in native mechanics. Content
+    derivatives report scoring coverage independently from publishing catalog
+    data. The relevant calculator rejects unsupported candidate mechanisms.
     """
     base = baseline or json.loads(BASELINE.read_text())
     unavailable = {'schemaVersion': 1, 'sourceReleaseId': release,

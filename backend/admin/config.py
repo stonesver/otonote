@@ -54,7 +54,8 @@ def load_config(path, role=None):
             site["resources"] = catalog.get("resources", [])
     for profile in config.get("profiles", []):
         for key in ("configFile", "workspace"):
-            profile[key] = resolve(profile[key])
+            if profile.get(key):
+                profile[key] = resolve(profile[key])
         if profile.get("stateWorkspace"):
             profile["stateWorkspace"] = resolve(profile["stateWorkspace"])
     if "repository" in config:
@@ -92,6 +93,10 @@ def validate_config(source, role=None):
             if row.get(key) is not None and (type(row[key]) not in (int, float) or not 0 < row[key] <= 1000000):
                 raise ValueError("invalid bandwidth limit")
     for row in c.get('nodes', []) + c.get('profiles', []):
+        if row.get('productionSource') == 'github-actions-r2':
+            # Migrated profiles are observers, even if an old deployment still
+            # carries capabilities or publication users from the local worker.
+            row['capabilities'] = []
         actions = row.get('capabilities', ['check'])
         if not isinstance(actions, list) or not set(actions) <= {'check', 'fetch', 'build', 'publish'}:
             raise ValueError('invalid resource capabilities')

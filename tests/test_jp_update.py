@@ -152,6 +152,8 @@ class JpUpdateSafetyTests(unittest.TestCase):
                 }))
 
             def create_candidate(command, **_options):
+                self.assertEqual(Path(command[command.index('--conversion-cache') + 1]),
+                                 workspace.resolve() / 'cache/image-conversions')
                 # The child also emits JSON; only the updater's result may reach
                 # stdout, where Actions records the machine-readable receipt.
                 self.assertEqual(_options.get('stdout'), subprocess.DEVNULL)

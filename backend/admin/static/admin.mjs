@@ -89,6 +89,55 @@ async function refreshLoads(gen=generation){
   if(loadData.some(s=>s.source===previous))$('load-source').value=previous;
   renderLoads();
 }
+function renderContentDelivery(profile){
+  const section=el('section',null,'content-delivery');
+  section.append(el('h3','Global / JP 内容发布'));
+  const flow=el('ol',null,'delivery-flow');
+  for(const [title,detail] of [
+    ['游戏资源生产','GitHub Actions 检查版本、采集资源并生成快照'],
+    ['发布到 R2','校验通过后切换区服内容指针，媒体由 Worker 提供'],
+    ['网站交付','现有服务器同步内容并生成页面，下方显示本机交付结果']]){
+    const step=el('li');step.append(el('strong',title),el('small',detail));flow.append(step);
+  }
+  section.append(flow);
+  const actions=el('div',null,'toolbar');
+  const workflow=el('a','打开 Actions：运行更新 / 查看进度','action-link');
+  workflow.href='https://github.com/stonesver/otonote/actions/workflows/content-r2.yml';
+  workflow.target='_blank';workflow.rel='noopener noreferrer';actions.append(workflow);section.append(actions);
+  const guide=el('details',null,'delivery-guide');
+  guide.dataset.disclosure=`${profile.id}:guide`;
+  guide.append(el('summary','手动更新怎么操作？'));
+  const steps=el('ol');
+  for(const text of [
+    '打开上方 Actions 页面，在 GitHub 登录后选择 Run workflow。',
+    'Branch 选择 main，region 选择 global 或 jp；更新两服需分别运行。',
+    '正式更新选择 mode = promote，然后提交。仅验证生产和上传时选择 shadow，它不会更新网站。',
+    '在该次 Actions 运行中查看进度和结果；promote 完成后等待服务器同步、生成页面，再回到此页刷新。'])steps.append(el('li',text));
+  guide.append(steps,el('p','日常追新由 Actions 定时执行。只修改网站功能时走代码发布流程，无需手动运行游戏资源生产。','caption'));
+  section.append(guide,el('p','Actions 的运行状态与远端 R2 最新版本请在 GitHub 查看。本页读取服务器交付回执，不会将历史成功显示为正在运行或最新生产成功。','caption'));
+  section.append(el('p',profile.updatedAt?`本机采样：${new Date(profile.updatedAt*1000).toLocaleString('zh-CN',{hour12:false})} · 每两分钟采样，超过六分钟失效`:'本机状态尚无采样','caption'));
+  const cards=el('div',null,'delivery-regions');
+  for(const region of ['global','jp']){
+    const item=profile.delivery?.status==='ready'?profile.delivery.regions?.[region]:null;
+    const card=el('section',null,'delivery-region'),heading=el('div',null,'node-header');
+    heading.append(el('h4',region==='global'?'Global 国际服':'JP 日服'),el('span',item?'本机交付已核对':'状态待核对',item?'badge':'badge warning'));card.append(heading);
+    if(item){
+      card.append(el('p',item.contentReleaseId,'delivery-version'),el('small','本机内容与已生成页面的版本一致。'));
+      const details=el('details');details.append(el('summary','版本核对信息'));
+      details.dataset.disclosure=`${profile.id}:${region}`;
+      const list=el('dl');
+      for(const [label,value] of [['内容版本',item.releaseId],['页面代码版本',item.renderPair.slice(0,24)],['HTML 组合',item.renderPair],['清单 SHA-256',item.manifestSha256]])list.append(el('dt',label),el('dd',value));
+      details.append(list);card.append(details);
+    }else card.append(el('p','交付回执缺失、过期或两服版本尚未对齐。更新中可稍后刷新；若持续如此，请检查服务器预渲染服务。','caption'));
+    cards.append(card);
+  }
+  section.append(cards);return section;
+}
+function renderTask(task){
+  const row=el('div',null,'task'),name=el('div',task.message);
+  name.append(el('small',`${({check:'检查版本',fetch:'拉取资源',build:'构建候选',publish:'发布候选'})[task.action]||'资源任务'} · ${task.profile} · ${task.id.slice(0,8)}`));
+  row.append(el('span',words[task.status]||task.status),name,el('time',time(task.updated)));return row;
+}
 async function refreshNodes(gen=generation){
   const allowed=config.sites.find(s=>s.id===siteId())?.nodes||[];
   const nodes=config.nodes.filter(n=>allowed.includes(n.id));
@@ -96,8 +145,10 @@ async function refreshNodes(gen=generation){
   const results=await Promise.all(nodes.map(async n=>({node:n,result:await api(`/api/nodes/${encodeURIComponent(n.id)}`)})));
   if(gen!==generation)return;
   const offline=results.filter(x=>x.result.status!=='ok').length;
-  status(offline?`${offline} 个节点暂不可用 · 不据此判断任务结果`:'节点状态已更新 · 仅显示实际开放的操作',Boolean(offline));
+  const hasActions=results.some(x=>x.result.data?.profiles.some(p=>p.productionOwner==='github-actions-r2'));
+  status(offline?`${offline} 个节点暂不可用 · 不据此判断任务结果`:hasActions?'交付状态已更新 · Actions 生产进度请在 GitHub 查看':'节点状态已更新 · 仅显示实际开放的操作',Boolean(offline));
   $('updated').textContent=`查询于 ${time(Date.now()/1000)}`;
+  const openDisclosures=new Set([...$('nodes').querySelectorAll('details[open][data-disclosure]')].map(item=>item.dataset.disclosure));
   $('nodes').replaceChildren(...results.map(({node,result})=>{
     const panel=el('div',null,'panel'),header=el('div',null,'node-header');
     header.append(el('h3',node.name),el('span',result.status==='ok'?'节点已连接':'节点不可用',result.status==='ok'?'badge':'badge warning'));panel.append(header);
@@ -105,18 +156,7 @@ async function refreshNodes(gen=generation){
     for(const profile of result.data.profiles){
       const row=el('div',null,'node-profile'),description=el('div');
       if(profile.productionOwner==='github-actions-r2'){
-        description.append(el('p',profile.name),el('small','Global / JP 内容生产：GitHub Actions'));
-        const actionsLink=el('a','查看内容工作流');
-        actionsLink.href='https://github.com/stonesver/otonote/actions/workflows/content-r2.yml';
-        actionsLink.target='_blank';actionsLink.rel='noopener noreferrer';description.append(actionsLink);
-        const delivery=profile.delivery;
-        description.append(el('small',profile.updatedAt?`本机状态采样：${new Date(profile.updatedAt*1000).toLocaleString('zh-CN',{hour12:false})}`:'本机状态尚无采样'));
-        description.append(el('small',delivery?.status==='ready'?'本机 R2 内容已物化，HTML 已渲染；此处不代表远端最新生产结果':'本机交付状态不可用；请查看 Actions 与预渲染服务'));
-        if(delivery?.status==='ready')for(const region of ['global','jp']){
-          const item=delivery.regions?.[region];
-          if(item)description.append(el('small',`${region==='global'?'Global':'JP'} 本机内容：${item.contentReleaseId} · HTML：${item.renderPair}`));
-        }
-        row.append(description);panel.append(row);continue;
+        panel.append(renderContentDelivery(profile));continue;
       }
       description.append(el('p',profile.name),el('small',`最近运行：${words[profile.status]||profile.status} · ${profile.publication==='enabled'?'已开放授权发布':'发布权限未开放'}`));
       if(profile.currentRelease)description.append(el('small',`当前内容：${profile.currentRelease}`));
@@ -138,9 +178,17 @@ async function refreshNodes(gen=generation){
       row.append(description,actions);panel.append(row);
       if(profile.steps?.length) rows(panel.appendChild(el('div')),profile.steps.map(s=>[s.name,words[s.status]||s.status]));
     }
-    for(const task of result.data.tasks){const row=el('div',null,'task'),name=el('div',task.message);name.append(el('small',`${result.data.profiles.some(p=>p.id===task.profile&&p.productionOwner==='github-actions-r2')?'旧本机历史任务 · ':''}${({check:'检查版本',fetch:'拉取资源',build:'构建候选',publish:'发布候选'})[task.action]||'资源任务'} · ${task.profile} · ${task.id.slice(0,8)}`));const stamp=el('time',time(task.updated));row.append(el('span',words[task.status]||task.status),name,stamp);panel.append(row);}
-    if(!result.data.tasks.length)panel.append(el('p','尚未提交任务。','caption'));return panel;
+    const migrated=new Set(result.data.profiles.filter(p=>p.productionOwner==='github-actions-r2').map(p=>p.id));
+    const history=result.data.tasks.filter(task=>migrated.has(task.profile));
+    for(const task of result.data.tasks.filter(task=>!migrated.has(task.profile)))panel.append(renderTask(task));
+    if(history.length){
+      const archive=el('details',null,'delivery-guide');archive.append(el('summary',`旧服务器任务记录（${history.length}）`),el('p','迁移前的本机记录，仅供查阅；与当前 Actions 运行无关。','caption'));
+      archive.dataset.disclosure=`${node.id}:history`;
+      for(const task of history)archive.append(renderTask(task));panel.append(archive);
+    }
+    if(!result.data.tasks.length&&result.data.profiles.some(p=>!migrated.has(p.id)))panel.append(el('p','尚未提交任务。','caption'));return panel;
   }));
+  for(const disclosure of $('nodes').querySelectorAll('details[data-disclosure]'))disclosure.open=openDisclosures.has(disclosure.dataset.disclosure);
 }
 function confirmPublish(profile){
   const dialog=$('publish-confirm');$('publish-description').textContent=`将发布候选 ${profile.candidate.id.slice(0,12)}（${profile.candidate.contentReleaseId}）。发布后网站使用该内容，上一版保留用于回退。`;
@@ -161,7 +209,7 @@ async function refresh(){
 }
 function navigate(){
   const key=location.hash.slice(1);currentView=['overview','load','tasks','settings'].includes(key)?key:'overview';generation++;
-  const titles={overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],tasks:['资源任务','查看更新进度，按节点能力执行固定操作。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
+  const titles={overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==`view-${currentView}`;
   for(const a of document.querySelectorAll('[data-view]')){if(a.dataset.view===currentView)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
   status('正在读取对应数据…');$('updated').textContent='等待更新';

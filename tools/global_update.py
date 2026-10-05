@@ -28,6 +28,7 @@ CHART_PROJECTION_SOURCES = (
     'tools/project_formal_charts.mjs', 'packages/scoring/scoring-rules/formal-chart.mjs',
     'packages/scoring/scoring-rules/formal-time.mjs', 'packages/scoring/scoring-rules/model-version.mjs',
     'tools/arena_rank.py', 'tools/build_site_catalog.py', 'catalog/evidence/arena-client.json',
+    'tools/conversion_cache.py', 'tools/media_parallel.py', 'tools/media_derivatives.py',
 )
 
 
@@ -302,7 +303,8 @@ def run_update(config, journal, client, *, rebuild=False):
         from tools.content_publication import publish_content
         if not candidate.exists():
             journal.command('compile-data', [sys.executable, 'tools/release_candidates.py', '--plan', str(plan),
-                                            '--output', str(candidate), '--keep-failed'])
+                                            '--output', str(candidate), '--keep-failed',
+                                            '--conversion-cache', str(workspace / 'cache/image-conversions')])
         def publish_data():
             if read_json(candidate / 'candidate.json')['inputPlanSha256'] != plan_sha:
                 raise ValueError('cached candidate input plan mismatch')
@@ -340,7 +342,8 @@ def run_update(config, journal, client, *, rebuild=False):
     if not site.exists():
         if not candidate.exists():
             journal.command('compile-data', [sys.executable, 'tools/release_candidates.py', '--plan', str(plan),
-                                            '--output', str(candidate), '--keep-failed'])
+                                            '--output', str(candidate), '--keep-failed',
+                                            '--conversion-cache', str(workspace / 'cache/image-conversions')])
         def check_candidate():
             if read_json(candidate / 'candidate.json')['inputPlanSha256'] != plan_sha:
                 raise ValueError('cached candidate input plan mismatch')

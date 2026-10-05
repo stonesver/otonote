@@ -90,11 +90,11 @@ def generate_image_derivatives(
     public_root: Path,
 ) -> dict[str, list[dict[str, Any]]]:
     Image = _load_pillow()
-    from tools.conversion_cache import restore as cache_restore, save as cache_save
-    results: dict[str, list[dict[str, Any]]] = {}
+    from tools.conversion_cache import restore as cache_restore, save as cache_save, image_recipe
+    from tools.media_parallel import map_images
     target_root = public_root / "media/responsive"
     target_root.mkdir(parents=True, exist_ok=True)
-    for asset in catalog.get("assets", []):
+    def convert(asset):
         asset_id = str(asset["id"])
         original_url = str(asset.get("originalUrl") or "")
         original = public_root / original_url.lstrip("/")
@@ -108,7 +108,7 @@ def generate_image_derivatives(
             for width in widths:
                 height = max(1, round(source_height * width / source_width))
                 target = target_root / f"{asset_id}-{width}w.webp"
-                recipe = f'responsive-webp-{width}-q{84 if width > 640 else 76}-m6-v1'
+                recipe = image_recipe(f'responsive-webp-{width}-q{84 if width > 640 else 76}-m6-v1')
                 cached = cache_restore(source_sha, recipe, target)
                 valid_target = target.is_file()
                 if valid_target:
@@ -117,11 +117,7 @@ def generate_image_derivatives(
                             existing.verify()
                     except Exception:
                         valid_target = False
-                if (
-                    not cached and (not valid_target
-                    or target.stat().st_mtime < original.stat().st_mtime
-                    )
-                ):
+                if not cached or not valid_target:
                     image = source.copy()
                     image.thumbnail((width, height), Image.Resampling.LANCZOS)
                     if image.mode not in {"RGB", "RGBA"}:
@@ -135,8 +131,8 @@ def generate_image_derivatives(
                 variants.append(
                     _variant(target, public_root, actual_width, actual_height)
                 )
-        results[asset_id] = variants
-    return results
+        return asset_id, variants
+    return dict(map_images(convert, catalog.get("assets", [])))
 
 
 def generate_audio_previews(

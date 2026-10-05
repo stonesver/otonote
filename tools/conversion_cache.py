@@ -5,8 +5,17 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import errno
+from functools import lru_cache
 
 from tools.global_remote_sync import file_hash, read_json, write_json
+
+
+@lru_cache(maxsize=None)
+def image_recipe(recipe):
+    """Do not reuse an encoding made by a different Pillow/libwebp build."""
+    from PIL import __version__, features
+    return f'{recipe}-pillow{__version__}-webp{features.version("webp")}'
 
 
 def directory(source_sha, recipe):
@@ -35,4 +44,14 @@ def save(source_sha, recipe, source):
         stage = Path(folder) / 'entry'; stage.mkdir()
         shutil.copyfile(source, stage / 'content')
         write_json(stage / 'receipt.json', {'sourceSha256': source_sha, 'recipe': recipe, 'sha256': file_hash(stage / 'content')})
-        if not root.exists(): stage.rename(root)
+        try:
+            stage.rename(root)
+        except OSError as exc:
+            # Identical source images can be converted concurrently. The first
+            # completed entry wins only when its bytes match this conversion.
+            if exc.errno not in (errno.EEXIST, errno.ENOTEMPTY):
+                raise
+            existing = read_json(root / 'receipt.json')
+            expected = read_json(stage / 'receipt.json')
+            if existing != expected or file_hash(root / 'content') != expected['sha256']:
+                raise ValueError('conversion cache concurrent output mismatch') from exc

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "role": "node",
+  "host": "127.0.0.1",
+  "port": 18082,
+  "id": "resources",
+  "database": "/var/lib/ournotes-node/tasks.sqlite",
+  "readTokenEnv": "OURNOTES_NODE_READ_TOKEN",
+  "writeTokenEnv": "OURNOTES_NODE_WRITE_TOKEN",
+  "profiles": [
+    {
+      "id": "global",
+      "name": "Global / JP 内容交付",
+      "productionSource": "github-actions-r2",
+      "stateWorkspace": "/resource-state",
+      "capabilities": []
+    }
+  ]
+}

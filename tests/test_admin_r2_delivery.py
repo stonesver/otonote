@@ -5,11 +5,12 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
-from backend.admin.node import create_node, profile_state
+from backend.admin.config import load_config
+from backend.admin.node import Jobs, create_node, execute_check, profile_state, run_worker
 from deploy.admin.export_r2_delivery_state import collect, export
 
 
@@ -132,6 +133,7 @@ class DeliveryNodeTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 403)
                     state = client.get('/state', headers={'Authorization': 'Bearer ' + 'r' * 40}).json()
                     self.assertEqual(state['profiles'][0]['delivery']['status'], 'ready')
+                    self.assertEqual(state['capabilities'], [])
             finally:
                 app.state.jobs.close()
 
@@ -148,3 +150,36 @@ class DeliveryNodeTests(unittest.TestCase):
             self.assertEqual(result['status'], 'unavailable')
             self.assertEqual(result['updatedAt'], stamp)
             self.assertNotIn('delivery', result)
+
+    def test_migrated_profile_loads_without_deleted_updater_paths(self):
+        config = {'schemaVersion': 1, 'role': 'node', 'port': 18082,
+                  'profiles': [{'id': 'content', 'productionSource': 'github-actions-r2',
+                                'stateWorkspace': '.', 'capabilities': ['publish']}]}
+        path = self.root / 'node.json'
+        path.write_text(json.dumps(config))
+        loaded = load_config(path, 'node')
+        profile = loaded['profiles'][0]
+        self.assertEqual(profile['capabilities'], [])
+        self.assertEqual(profile['stateWorkspace'], str(self.root.resolve()))
+        self.assertEqual(profile_state(profile)['productionOwner'], 'github-actions-r2')
+        self.assertEqual(profile_state(profile)['status'], 'unavailable')
+        self.assertNotIn('workspace', profile)
+        self.assertNotIn('configFile', profile)
+
+    def test_retained_local_queue_cannot_restart_migrated_production(self):
+        database = self.root / 'queued.sqlite'
+        jobs = Jobs(database)
+        queued = jobs.create({'profile': 'global', 'action': 'check', 'key': 'migration-check'}, 'owner')
+        jobs.close()
+        executor = Mock(return_value=True)
+        run_worker({'database': str(database), 'profiles': [self.profile]}, once=True, executor=executor)
+        executor.assert_not_called()
+        jobs = Jobs(database)
+        try:
+            row = next(row for row in jobs.list() if row['id'] == queued['id'])
+            self.assertEqual(row['status'], 'cancelled')
+            self.assertIn('GitHub Actions', row['message'])
+        finally:
+            jobs.close()
+        with self.assertRaisesRegex(ValueError, 'GitHub Actions'):
+            execute_check({}, self.profile)

@@ -32,7 +32,7 @@ jobs:
         run: |
           npm --prefix site ci --ignore-scripts --no-audit --no-fund
           python3 -m pip install -r tools/growth-export-requirements.txt
-          node --test site/tests/gacha-history.test.mjs site/tests/navigation.test.mjs
+          node --test site/tests/gacha-history.test.mjs site/tests/gacha-card-art.test.mjs site/tests/navigation.test.mjs
           python3 -m unittest tests.test_gacha_history tests.test_growth_web tests.test_preview_growth tests.test_growth_login tests.test_system_details -q
           node --test site/tests/calculator-layout-render.test.mjs
           node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs site/tests/costumes.test.mjs

@@ -89,3 +89,10 @@ Production uses the same pinned client installer and process wrapper.
 
 Protocol references: [mihomo Trojan fields](https://wiki.metacubex.one/en/config/proxies/trojan/)
 and [general settings](https://wiki.metacubex.one/en/config/general/).
+
+When the Version RPC returns a nonzero gRPC status, the probe records that
+status and a bounded, sanitized `grpc-message` in its private seven-day
+artifact and failed-step log. URLs, credential assignments, token-shaped
+strings, and control characters are removed. Authentication headers, response
+bodies, proxy configuration, and mihomo logs are not included. This diagnostic
+does not change the fail-closed publication gate.

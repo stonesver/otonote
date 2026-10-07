@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from ..transport import HttpRequest, HttpTransport, TransportError
 
@@ -94,13 +94,35 @@ def string_field(fields: dict, number: int) -> str:
         raise ProtocolError("invalid protobuf text") from exc
 
 
+def _safe_grpc_message(value: str) -> str:
+    """Keep bounded upstream diagnostics without echoing URLs or credentials."""
+    decoded = unquote(value[:2048], errors="replace")
+    decoded = re.sub(r"(?i)\b(authorization|token|password|secret|credential|cookie|api[_-]?key)\b\s*[:=]\s*(?:(?:bearer|basic)\s+)?[^\s,;]+",
+                     r"\1=[redacted]", decoded)
+    decoded = re.sub(r"(?i)\b(bearer|basic)\s+[^\s,;]+", r"\1 [redacted]", decoded)
+    decoded = re.sub(r"https?://[^\s]+", "[url]", decoded, flags=re.IGNORECASE)
+    decoded = re.sub(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]{1,5})?\b", "[address]", decoded)
+    decoded = re.sub(r"\b[A-Za-z0-9_+/=-]{24,}\b", "[redacted]", decoded)
+    # Restrict logs/artifacts to short printable diagnostics. This also removes
+    # CR/LF and other control characters from the untrusted response header.
+    allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _.,:;!?()[]{}'/-"
+    decoded = "".join(char if char in allowed else " " for char in decoded)
+    return " ".join(decoded.split())[:240]
+
+
 def decode_grpc(headers: str, body: bytes) -> tuple[dict[str, str], bytes]:
     statuses = re.findall(r"^HTTP/\S+ (\d+)", headers, re.M)
     parsed = {m[1].lower(): m[2].strip() for m in re.finditer(r"^([\w-]+):\s*([^\r\n]*)", headers, re.M)}
     if not statuses or statuses[-1] != "200":
         raise ProtocolError(f"RPC HTTP status {statuses[-1] if statuses else 'missing'}")
     if parsed.get("grpc-status") != "0":
-        raise ProtocolError(f"RPC grpc-status {parsed.get('grpc-status', 'missing')}")
+        raw_status = parsed.get("grpc-status", "missing")
+        status = raw_status if re.fullmatch(r"[0-9]{1,3}", raw_status) else "invalid"
+        message = _safe_grpc_message(parsed.get("grpc-message", ""))
+        detail = f"RPC grpc-status {status}"
+        if message:
+            detail += f": {message}"
+        raise ProtocolError(detail)
     if not parsed.get("content-type", "").startswith("application/grpc"):
         raise ProtocolError("RPC returned a non-gRPC response")
     if len(body) < 5 or body[0] != 0 or int.from_bytes(body[1:5], "big") != len(body) - 5:

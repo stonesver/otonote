@@ -390,11 +390,13 @@ class ProductionGateTests(unittest.TestCase):
         paths = {'metadata': 'output/r2-jp/metadata.v39.dat',
                  'apkRoot': 'output/r2-jp/apks',
                  'unityVersion': 'output/r2-jp/unity-version.txt'}
-        package = {'packageSetSha256': 'e' * 64, 'versionName': '1.0.4',
-                   'versionCode': 10053, 'certificateSha256': 'f' * 64}
+        package = {'packageSetSha256': 'e' * 64, 'versionName': '1.0.5',
+                   'versionCode': 10059, 'certificateSha256': 'f' * 64}
         with patch.object(jp_phone_inputs, 'JP_METADATA_SHA256', gate.file_hash(metadata)), \
              patch.object(jp_phone_inputs, 'JP_REVIEWED_PACKAGE_SET_SHA256', 'e' * 64), \
              patch.object(jp_phone_inputs, 'JP_CERTIFICATE_SHA256', 'f' * 64), \
+             patch.object(jp_phone_inputs, 'JP_CLIENT_VERSION', '1.0.5'), \
+             patch.object(jp_phone_inputs, 'JP_VERSION_CODE', 10059), \
              patch('tools.resource_pipeline.package_intake.build_package_set_manifest', return_value=package):
             original, package_sha = gate.input_identity(self.root, 'jp', paths)
             self.assertEqual(package_sha, gate.package_identity('jp', package))
@@ -526,7 +528,7 @@ class ProductionGateTests(unittest.TestCase):
         plan.parent.mkdir(parents=True)
         plan.write_text('{}')
         observation = dict(self.observation, environmentId='jp-production', serverAreaId='1',
-                           clientVersion='1.0.4')
+                           clientVersion='1.0.5')
         identity = list(gate.version_identity(observation))
         state = {'status': 'built', 'runId': run_id,
                  'inputPlanSha256': gate.file_hash(plan),
@@ -575,7 +577,7 @@ class LightJpGateTests(unittest.TestCase):
         self.package_bytes = b'JP signed APK fixture'
         self.unity = b'2022.3.17f1\n'
         observation = {'environmentId': 'jp-production', 'serverAreaId': '1',
-                       'clientVersion': '1.0.4', 'cdnRoot': 'https://example.invalid/jp',
+                       'clientVersion': '1.0.5', 'cdnRoot': 'https://example.invalid/jp',
                        'masterVersion': 'master-jp', 'resourceVersion': 'resource-jp',
                        'catalogHash': 'catalog-jp'}
         self.observation = observation

@@ -23,8 +23,8 @@ class PrepareJpSeedTests(unittest.TestCase):
         self.output = root / 'output' / 'r2-jp'
 
     def package(self):
-        return {'packageName': 'com.bushiroad.sirius', 'versionName': '1.0.4',
-                'versionCode': 10053, 'certificateSha256': 'a' * 64,
+        return {'packageName': 'com.bushiroad.sirius', 'versionName': '1.0.5',
+                'versionCode': 10059, 'certificateSha256': 'a' * 64,
                 'packageSetSha256': 'b' * 64}
 
     def test_verified_seed_contains_only_required_client_material(self):

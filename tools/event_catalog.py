@@ -1,6 +1,6 @@
 """Project event configuration from a single edition/release, never live rankings.
 
-The JP 1.0.4 metadata verifies EventType, EventBonusType and resource enums.
+The JP 1.0.5 metadata verifies EventType, EventBonusType and resource enums.
 Naive Master timestamps and bonus integers stay raw: no timezone or score
 multiplier is invented by this archive adapter.
 """

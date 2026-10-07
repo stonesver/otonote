@@ -2,6 +2,10 @@
 
 目标：Global、JP 的内容生产在 GitHub 托管 runner 运行；现有服务器继续提供网页与其他服务。`ournotes.stonebg.cn/content/*` 由只读 Worker 从 R2 提供。本文同时保留历史实施记录；当前部署状态以本节最近的交接记录为准，后文早期记录中的“尚未切换”只描述当时状态。
 
+## JP 自动探测恢复（2026-10-07）
+
+JP 服务强制更新到 1.0.5 后，旧 1.0.4 Version RPC 返回 `client update required`。当前受审客户端固定为 Android 1.0.5 / version code 10059：runner 仅在私有 seed 不是该版本时获取固定 XAPK，并同时校验归档 SHA-256、三个 split APK 的签名证书及 package-set 摘要、解码后的 v39 metadata 摘要和 Unity 版本。APKPure 只是二进制传输来源，未匹配这些 pin 的包不会进入 seed。已验证的 1.0.5 客户端继续通过四小时 JP 任务探测官方 Master/catalog/resource 版本并下载最新资源；新客户端发布仍须先更新受审 pin 和 decoder profile。自动晋级仍由 `CONTENT_R2_AUTO_PROMOTE_JP` 控制，shadow 不切换公开 current 指针。
+
 ## 当前运维状态（2026-10-06 北京时间，旧服务器管线已退役）
 
 在下述定时交接之后，所有者又授权发布最新代码并删除被替代的旧管线。本轮先发布 CI 验证代码 `7eb4c0cb79dc44f986a6470e`（源码 `24b4167`），两服两语言预渲染及浏览器验收通过；抽卡历史网关同步上线。最终核对时，并行功能任务已把前端推进到 `881837e1d9ea01006838c1e3`（源码 `0543811`），已核对线上 provenance 与 32 页指针一致。PR40（`db2d582`）的管理面板新流程和图片编译优化已合并，管理面板已部署。
@@ -87,7 +91,7 @@ Cloudflare 的位置提示用于预期主要访问地域，是尽力而为的优
 
 批量传输可对 `checkpoint` 和 `restore` 指定 `--workers 8`；默认串行，允许范围为 1–16。Actions 固定使用 8 个传输线程。并发只用于不同内容对象的上传与回读或下载；所有校验完成后才提交检查点指针或物化恢复目标，硬链接关系保持不变。该参数不减少摘要校验，也不扩大路径清单。
 
-JP 可在本机运行 `python3 -m tools.prepare_jp_r2_seed --metadata <本机global-metadata.v39.dat> --apk-root <本机三份split-APK目录> --unity-version-file <本机unity.ver> --output "$STAGED_ROOT/output/r2-jp"`。目标目录必须预先不存在；工具会校验 1.0.4 版本、签名证书指纹、整套 APK 摘要和元数据摘要，并产生 `seed-manifest.json`。这些源文件留在本机，私有桶只存检查点，不向公开桶复制。随后运行下方 JP `checkpoint`。首次导入时旧服务器约有 207 MB 可用空间，因此未在该盘直接新建 JP 种子；其系统 `python3` 也只有 3.6。下面命令应在本机 Python 3.11+ 环境执行，安装 `tools/r2-requirements.txt` 到本机虚拟环境。R2 凭据只放本机受控环境或 GitHub Secrets，不写入仓库、命令参数或聊天。
+JP 首次 seed 可用 `tools.prepare_jp_r2_seed` 从受信任的 1.0.5 输入目录生成；目标必须预先不存在，工具会校验版本、签名证书、package-set 摘要和 metadata 摘要。正常恢复后，`content-r2.yml` 会在需要时自动刷新过期 seed，私有桶只存检查点，不向公开桶复制 APK。首次导入时旧服务器约有 207 MB 可用空间，因此未在该盘直接新建 JP 种子；其系统 `python3` 也只有 3.6。下面命令应在本机 Python 3.11+ 环境执行，安装 `tools/r2-requirements.txt` 到本机虚拟环境。R2 凭据只放本机受控环境或 GitHub Secrets，不写入仓库、命令参数或聊天。
 
 Global 在本机暂存根中准备独立配置；旧服务器的 `global-update.server.json` 不变：
 

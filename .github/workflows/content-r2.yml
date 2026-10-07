@@ -296,6 +296,34 @@ jobs:
             [[ -d "$STABLE_ROOT/output/r2-jp/apks" ]] || { echo 'JP seed missing apks/' >&2; exit 1; }
             printf '%s' "$STABLE_ROOT/output/r2-jp-content" > "$RUNNER_TEMP/content-store"
           fi
+      - name: Refresh reviewed JP client seed when required
+        if: steps.light_gate.outputs.skip != 'true' && env.REGION == 'jp'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          seed="$STABLE_ROOT/output/r2-jp"
+          if python3 -m tools.jp_client_refresh check --seed-root "$seed"; then
+            echo 'Reviewed JP client seed is current; no package download needed.'
+            exit 0
+          fi
+          archive="$RUNNER_TEMP/jp-client-1.0.5.xapk"
+          apksig="$RUNNER_TEMP/apksig-9.4.1.jar"
+          downloads="$RUNNER_TEMP/jp-client-downloads.json"
+          trap 'rm -f -- "$archive" "$apksig" "$downloads"' EXIT
+          python3 - <<'PY' > "$downloads"
+          import json
+          from tools.jp_phone_inputs import JP_APKSIG_URL, JP_REVIEWED_XAPK_URL
+          print(json.dumps({'archive': JP_REVIEWED_XAPK_URL, 'apksig': JP_APKSIG_URL}))
+          PY
+          archive_url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["archive"])' "$downloads")"
+          apksig_url="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["apksig"])' "$downloads")"
+          curl --fail --location --silent --show-error --retry 2 --max-time 300 \
+            "$archive_url" --output "$archive"
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+            "$apksig_url" --output "$apksig"
+          python3 -m tools.jp_client_refresh refresh --archive "$archive" \
+            --apksig-jar "$apksig" --seed-root "$seed"
       - name: Probe source and check verified unchanged production
         id: production_gate
         if: steps.light_gate.outputs.skip != 'true'

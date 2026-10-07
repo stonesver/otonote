@@ -69,9 +69,8 @@ def version_proxy():
 
 
 def resource_version(header, client_version):
-    """Apply the signed 1.0.4 AssetVersion.Parse/SelectLive contract.
+    """Select the JP live asset identity applicable to the reviewed client.
 
-    Native Parse is at 0x6491dec and SelectLive at 0x649203c in the verified APK.
     A live entry is selected by its minimum client version, not by the largest
     resource version. The legacy JSON shape has version/Android at the root.
     ``history`` is never a fallback for a client with no applicable live entry.

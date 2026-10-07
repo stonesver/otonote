@@ -23,9 +23,15 @@ from tools.release_preflight import check_environment
 from tools.resource_pipeline.package_intake import build_package_set_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
-JP_METADATA_SHA256 = '7a1b2ab310706f9301edc1cbf7d1b4785ecb764b75a1807f6d3bf3b5b7834bcf'
+JP_CLIENT_VERSION = '1.0.5'
+JP_VERSION_CODE = 10059
+JP_METADATA_SHA256 = '51fe255f64fb3fde70b5756591eec3fc860ba4f7738b8ac172a32d8cb0d558a2'
 JP_CERTIFICATE_SHA256 = '34fd32c2860f454dd320930f6ba0876ea8cc8e60a3d8320b3277aa761072508e'
-JP_REVIEWED_PACKAGE_SET_SHA256 = 'b50122ad3e56a8afc64f6fb77e06cbf29240adcf83783ba602af74a32369b28c'
+JP_REVIEWED_PACKAGE_SET_SHA256 = '813488f8b45265f84ab24861ea9ef9c3e1bd66fb5729f4e0b4dbecb8569e0a27'
+JP_REVIEWED_XAPK_SHA256 = '5c23d1a261591fa9b0ad9f0eba71e931f3d34cf1a5760a92b0d32fb60a7be5ae'
+JP_REVIEWED_XAPK_URL = 'https://d.apkpure.net/b/XAPK/com.bushiroad.sirius?versionCode=10059'
+JP_APKSIG_URL = 'https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/9.4.1/apksig-9.4.1.jar'
+JP_APKSIG_SHA256 = '7ae2e5980c77d853e3513074ee7c822bbdcdcde1668889d17faa7fe8bc8aa821'
 
 
 def extract_taxonomy(resources, output):
@@ -60,13 +66,13 @@ class PhoneResources(CurrentResources):
         from analysis.crypto.decrypt_global_formal_scores import MetadataV39, field_bytes
         self.snapshot, self.master, self.metadata_path, self.apk, self.cache = map(Path, (capture, master, metadata, apk, cache))
         if file_hash(self.metadata_path) != JP_METADATA_SHA256:
-            raise ValueError('JP 1.0.4 metadata changed; review field references before decoding')
+            raise ValueError('JP 1.0.5 metadata changed; review field references before decoding')
         self.metadata = MetadataV39(self.metadata_path)
         self.key = field_bytes(self.metadata, 0x8000020B, 16)
         self.seed = field_bytes(self.metadata, 0x80000213, 8)
         catalog = self.snapshot / 'RemoteCatalog/catalog_main.bin'
         self.catalog = CatalogAdapter().parse(catalog)
-        if observation and (observation.get('region') != 'jp' or observation.get('clientVersion') != '1.0.4'):
+        if observation and (observation.get('region') != 'jp' or observation.get('clientVersion') != JP_CLIENT_VERSION):
             raise ValueError('JP client upgrade requires a reviewed decoder profile')
         self.report = {'catalogSha256': file_hash(catalog), 'observation': observation or {'resourceVersion': 'jp-phone-20260930'}}
         self.remote_client = remote_client
@@ -219,7 +225,7 @@ def build(capture, master, metadata, apk_root, output, reuse_catalog=None, reuse
         from tools.resource_pipeline.adapters.global_public import version_identity
         if (package.get('packageSetSha256') != JP_REVIEWED_PACKAGE_SET_SHA256 or
                 observation.get('region') != 'jp' or observation.get('clientVersion') != package['versionName']
-                or package['versionName'] != '1.0.4' or package['versionCode'] != 10053):
+                or package['versionName'] != JP_CLIENT_VERSION or package['versionCode'] != JP_VERSION_CODE):
             raise ValueError('JP client upgrade requires a reviewed decoder profile')
         remote_client = client_from_metadata(metadata, authorize_builtin_credentials=True)
         if version_identity(remote_client.discover()) != version_identity(observation):

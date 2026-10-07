@@ -161,7 +161,7 @@ class JpRemoteInputTests(unittest.TestCase):
             package = {
                 'packageName': 'com.bushiroad.sirius',
                 'certificateSha256': '0' * 64,
-                'versionName': '1.0.4', 'versionCode': 10053,
+                'versionName': '1.0.5', 'versionCode': 10059,
             }
             with (patch('tools.jp_phone_inputs.ROOT', root),
                   patch('tools.jp_phone_inputs.build_package_set_manifest', return_value=package),

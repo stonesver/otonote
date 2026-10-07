@@ -121,7 +121,8 @@ def input_identity(root: Path, region: str, paths: dict[str, str]) -> tuple[str,
         if set(paths) != {"metadata", "apkRoot", "unityVersion"}:
             raise GateError("invalid JP gate input selection")
         from tools.jp_phone_inputs import (
-            JP_CERTIFICATE_SHA256, JP_METADATA_SHA256, JP_REVIEWED_PACKAGE_SET_SHA256,
+            JP_CERTIFICATE_SHA256, JP_CLIENT_VERSION, JP_METADATA_SHA256,
+            JP_REVIEWED_PACKAGE_SET_SHA256, JP_VERSION_CODE,
         )
         from tools.resource_pipeline.package_intake import build_package_set_manifest
         metadata = safe_path(root, paths["metadata"])
@@ -131,7 +132,7 @@ def input_identity(root: Path, region: str, paths: dict[str, str]) -> tuple[str,
         if (file_hash(metadata) != JP_METADATA_SHA256 or
                 package.get("packageSetSha256") != JP_REVIEWED_PACKAGE_SET_SHA256 or
                 package.get("certificateSha256") != JP_CERTIFICATE_SHA256 or
-                package.get("versionName") != "1.0.4" or package.get("versionCode") != 10053):
+                package.get("versionName") != JP_CLIENT_VERSION or package.get("versionCode") != JP_VERSION_CODE):
             raise GateError("unreviewed JP package or metadata")
         values = {"metadata": JP_METADATA_SHA256, "unityVersion": file_hash(unity),
                   "packageSetSha256": package["packageSetSha256"]}
@@ -231,7 +232,8 @@ def probe(root: Path, region: str, image: str, *, config: str | None = None,
     input_sha, local_package_sha = input_identity(root, region, paths)
     if region == "jp":
         package_sha = local_package_sha
-        if observation.get("clientVersion") != "1.0.4":
+        from tools.jp_phone_inputs import JP_CLIENT_VERSION
+        if observation.get("clientVersion") != JP_CLIENT_VERSION:
             raise GateError("JP client upgrade requires a reviewed profile")
     producer_code_sha, code_sha = code_fingerprints(
         root, private_inputs=tuple(paths.values()) if region == "global" else ())
@@ -634,7 +636,8 @@ def light_prepare(private_bucket, root: Path, region: str, selections: list[str]
             return _needs_full("jp_state_unmatched")
         _download_private(private_bucket, manifest, paths["metadata"], stage / "metadata.v39.dat")
         stable_package_sha = None
-        client_version = "1.0.4"
+        from tools.jp_phone_inputs import JP_CLIENT_VERSION
+        client_version = JP_CLIENT_VERSION
     publication = state.get("publication")
     if (not isinstance(publication, dict) or publication.get("pointer") != receipt.get("publicPointer") or
             region == "global" and state.get("status") not in {"content_published", "unchanged"}):

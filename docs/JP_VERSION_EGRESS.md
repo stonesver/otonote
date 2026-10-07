@@ -5,6 +5,13 @@ operator's Japan node. The same request was refused from the previous direct
 and US routes. This establishes a working route, not a promise that every
 Japanese address will work.
 
+The 1.0.4 probe later returned `grpc-status 2: client update required`. The
+reviewed Android 1.0.5 client is now the pinned JP identity. The content
+workflow refreshes a stale private seed from the exact versionCode 10059
+package only after matching its archive digest, publisher certificate,
+package-set digest, decoded metadata digest, and Unity identity. The next
+version is not trusted automatically; its decoder bindings require review.
+
 ## Interface and scope
 
 ```sh

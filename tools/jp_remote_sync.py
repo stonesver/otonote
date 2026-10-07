@@ -16,7 +16,7 @@ import tempfile
 from uuid import uuid4
 
 from tools.global_remote_sync import file_hash, read_json, validate_manifest, write_json
-from tools.jp_phone_inputs import JP_METADATA_SHA256
+from tools.jp_phone_inputs import JP_CLIENT_VERSION, JP_METADATA_SHA256
 from tools.resource_pipeline.adapters.global_public import ProtocolError, utc_now
 from tools.resource_pipeline.adapters.jp_public import (
     CDN_ROOT, JpPublicClient, asset_directory, asset_url, decode_catalog, version_parts,
@@ -25,7 +25,7 @@ from tools.resource_pipeline.catalog_adapter import CatalogAdapter
 from tools.resource_pipeline.transport import TransportError
 
 
-# Verified NetworkConfig literals in the signed JP 1.0.4 client. Do not apply these
+# Verified NetworkConfig literals in the signed JP 1.0.5 client. Do not apply these
 # offsets to another client, even when the requested version number is unchanged.
 def client_from_metadata(path, *, authorize_builtin_credentials=False):
     if not authorize_builtin_credentials:
@@ -43,7 +43,10 @@ def client_from_metadata(path, *, authorize_builtin_credentials=False):
             raise ProtocolError('invalid JP client credential binding')
         return data[strings[0]+start:strings[0]+end]
     credential = base64.b64encode(literal(43395) + b':' + literal(41482)).decode('ascii')
-    return JpPublicClient('1.0.4', 'Basic ' + credential)
+    if (len(literal(43395)) != 6 or len(literal(41482)) != 32 or
+            any(byte < 0x21 or byte > 0x7e for value in (literal(43395), literal(41482)) for byte in value)):
+        raise ProtocolError('unreviewed JP NetworkConfig literals')
+    return JpPublicClient(JP_CLIENT_VERSION, 'Basic ' + credential)
 
 
 def acquire(client, url, target, size, *, expected_sha=None, identity=None):

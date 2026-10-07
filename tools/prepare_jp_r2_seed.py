@@ -1,4 +1,4 @@
-"""Stage a verified JP 1.0.4 client seed under output/r2-jp for R2 checkpointing."""
+"""Stage a verified JP 1.0.5 client seed under output/r2-jp for R2 checkpointing."""
 from __future__ import annotations
 
 import argparse
@@ -9,8 +9,9 @@ import shutil
 from uuid import uuid4
 
 from tools.global_remote_sync import file_hash, write_json
-from tools.jp_phone_inputs import (JP_CERTIFICATE_SHA256, JP_METADATA_SHA256,
-                                   JP_REVIEWED_PACKAGE_SET_SHA256)
+from tools.jp_phone_inputs import (JP_CERTIFICATE_SHA256, JP_CLIENT_VERSION,
+                                   JP_METADATA_SHA256, JP_REVIEWED_PACKAGE_SET_SHA256,
+                                   JP_VERSION_CODE)
 from tools.resource_pipeline.package_intake import build_package_set_manifest
 
 UNITY_VERSION = re.compile(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\Z")
@@ -29,10 +30,10 @@ def prepare(metadata: Path, apk_root: Path, unity_version_file: Path, output: Pa
         raise ValueError("JP metadata does not match the reviewed decoder")
     package = build_package_set_manifest(apk_root, region="jp", channel="production")
     if (package["packageName"] != "com.bushiroad.sirius" or
-            package["versionName"] != "1.0.4" or package["versionCode"] != 10053 or
+            package["versionName"] != JP_CLIENT_VERSION or package["versionCode"] != JP_VERSION_CODE or
             package["certificateSha256"] != JP_CERTIFICATE_SHA256 or
             package.get("packageSetSha256") != JP_REVIEWED_PACKAGE_SET_SHA256):
-        raise ValueError("JP package differs from the reviewed 1.0.4 client")
+        raise ValueError("JP package differs from the reviewed 1.0.5 client")
     unity = unity_version_file.read_text(encoding="utf-8").strip()
     if not UNITY_VERSION.fullmatch(unity):
         raise ValueError("invalid JP Unity identity")
@@ -55,7 +56,7 @@ def prepare(metadata: Path, apk_root: Path, unity_version_file: Path, output: Pa
         if file_hash(stage / "metadata.v39.dat") != JP_METADATA_SHA256:
             raise ValueError("JP metadata changed during seed copy")
         report = {"schemaVersion": 1, "region": "jp", "status": "verified_seed",
-                  "clientVersion": "1.0.4", "versionCode": 10053,
+                  "clientVersion": JP_CLIENT_VERSION, "versionCode": JP_VERSION_CODE,
                   "certificateSha256": JP_CERTIFICATE_SHA256,
                   "metadataSha256": JP_METADATA_SHA256,
                   "packageSetSha256": package["packageSetSha256"],

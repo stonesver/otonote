@@ -1,6 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { recordCanvas, webmMimeType } from '../src/lib/immersive-export.mjs';
+import { posterPng, recordCanvas, webmMimeType } from '../src/lib/immersive-export.mjs';
+
+test('original poster PNG preserves the source image and does not use the animated canvas', async t => {
+  const originalDocument = globalThis.document;
+  const drawn = [];
+  globalThis.document = { createElement: () => ({
+    getContext: () => ({ drawImage: (...args) => drawn.push(args) }),
+    toBlob: callback => callback(new Blob(['original-pixels'], { type: 'image/png' })),
+  }) };
+  t.after(() => { globalThis.document = originalDocument; });
+  const image = { width: 512, height: 288, close() {} };
+  const result = await posterPng('/scene/poster.webp', {
+    fetcher: async url => { assert.equal(url, '/scene/poster.webp'); return new Response('poster'); },
+    decode: async () => image,
+  });
+  assert.deepEqual(result.size, { width: 512, height: 288 });
+  assert.equal(result.blob.type, 'image/png');
+  assert.equal(drawn.length, 1);
+  assert.equal(drawn[0][0], image);
+});
 
 function recordingHarness(t) {
   let stopped = 0, instance, nextFrame;

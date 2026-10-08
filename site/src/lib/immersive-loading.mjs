@@ -49,7 +49,7 @@ export async function loadImmersiveAssets(root, { signal, onProgress = () => {},
       controller.abort(error); throw error;
     })));
     controller.signal.throwIfAborted();
-    return { data, blobs };
+    return { data, manifest, blobs };
   } catch (error) {
     controller.abort(error);
     throw error;

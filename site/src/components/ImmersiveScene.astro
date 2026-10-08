@@ -15,12 +15,13 @@ const bandName = en ? band.nameEn : band.name;
 const duration = scene.duration ?? 4;
 const durationLabel = Number(duration.toFixed(2));
 const megabytes = Math.ceil((scene.bytes ?? 9_000_000) / 1_000_000);
+const verified = Reflect.get(scene, 'cameraVerified') === true;
 ---
-<section class:list={['immersive-scene', { 'immersive-scene--compact': compact }]} data-immersive data-scene-id={scene.id} data-duration={duration} data-assets={assets} data-locale={en ? 'en' : 'zh-CN'} data-compact={String(compact)} data-state="idle" aria-label={`${bandName} · ${name}`}>
+<section class:list={['immersive-scene', { 'immersive-scene--compact': compact }]} data-immersive data-scene-id={scene.id} data-duration={duration} data-assets={assets} data-poster-src={`${assets}poster.webp`} data-camera-verified={String(verified)} data-locale={en ? 'en' : 'zh-CN'} data-compact={String(compact)} data-state="idle" aria-label={`${bandName} · ${name}`}>
   <div class="immersive-viewport" data-scene-viewport>
     <img class="immersive-poster" src={`${assets}poster.webp`} width="1280" height="594" alt={name} loading={compact ? 'eager' : 'lazy'} />
-    <div class="immersive-canvas" data-scene-canvas></div>
-    <div class="immersive-start" data-scene-start>
+    {verified && <div class="immersive-canvas" data-scene-canvas></div>}
+    {verified && <div class="immersive-start" data-scene-start>
       <button class="immersive-load" type="button" data-scene-load><span aria-hidden="true">▷</span> {say('播放动态场景', 'Play the scene')}</button>
       <span>{say(`点击载入 · 约 ${megabytes} MB · 无声`, `Load on click · about ${megabytes} MB · silent`)}</span>
       <div class="immersive-load-progress" data-load-progress hidden>
@@ -28,28 +29,28 @@ const megabytes = Math.ceil((scene.bytes ?? 9_000_000) / 1_000_000);
         <progress data-load-bar max="100" aria-label={say('场景加载进度', 'Scene loading progress')}></progress>
         <small data-load-bytes></small>
       </div>
-    </div>
+    </div>}
     <span class="immersive-scene-label">{bandName} <span>／</span> {name}</span>
   </div>
-  <div class="immersive-controls" data-scene-controls hidden>
+  {verified && <div class="immersive-controls" data-scene-controls hidden>
     <button type="button" data-scene-play>{say('暂停', 'Pause')}</button>
     {!compact && <><label class="immersive-layer">{say('画面', 'Layers')}<select data-scene-layer><option value="all">{say('完整场景', 'Full scene')}</option><option value="background">{say('仅背景', 'Background')}</option><option value="characters">{say('人物与前景', 'Cast & foreground')}</option></select></label>
       <div class="immersive-zoom"><button type="button" data-scene-zoom="-0.15" aria-label={say('缩小', 'Zoom out')}>−</button><button type="button" data-scene-reset>{say('重置视角', 'Reset view')}</button><button type="button" data-scene-zoom="0.15" aria-label={say('放大', 'Zoom in')}>＋</button></div>
       <label class="immersive-timeline"><span class="sr-only">{say('动画进度', 'Animation time')}</span><input data-scene-time type="range" min="0" max={duration} step="0.01" value="2" /><output data-scene-clock aria-live="off">2.00 / {duration.toFixed(2)} s</output></label></>}
     {compact && <a href={href(`/immersive/${scene.id}/`)}>{say('完整查看与导出', 'Explore & export')} ↗</a>}
-  </div>
-  {!compact && <div class="immersive-export">
-    <div><strong>{say('收藏这一刻', 'Keep this moment')}</strong><p>{say(`PNG 保存当前画面；WebM 导出一轮 ${durationLabel} 秒无声动画。`, `PNG saves the current frame. WebM exports a silent ${durationLabel}-second cycle.`)}</p><small><span data-png-quality>PNG 3840 × 2160 · WebM 1920 × 1080</span> · {say('人物 PNG 支持透明背景', 'Cast PNG preserves transparency')}</small></div>
-    <div class="immersive-export-actions"><button type="button" data-scene-export="png" disabled>{say('下载 PNG', 'Download PNG')}</button><button type="button" data-scene-export="webm" disabled>{say('下载 WebM', 'Download WebM')}</button><button type="button" data-scene-cancel hidden>{say('取消导出', 'Cancel export')}</button></div>
   </div>}
-  {!compact && <div class="immersive-export-progress" data-export-progress hidden>
+  {!compact && <div class="immersive-export">
+    <div><strong>{say('收藏这一刻', 'Keep this moment')}</strong><p>{verified ? say(`PNG 保存当前画面；WebM 导出一轮 ${durationLabel} 秒无声动画。`, `PNG saves the current frame. WebM exports a silent ${durationLabel}-second cycle.`) : say('当前动态镜头尚未校准，显示及下载均使用游戏原图。', 'The animation camera is not yet verified. This page displays and saves the original game image.')}</p><small><span data-png-quality>{verified ? 'PNG 3840 × 2160 · WebM 1920 × 1080' : say('PNG 原图尺寸', 'PNG original size')}</span></small></div>
+    <div class="immersive-export-actions"><button type="button" data-scene-export="png" disabled={verified}>{verified ? say('下载 PNG', 'Download PNG') : say('下载原图 PNG', 'Download original PNG')}</button>{verified && <button type="button" data-scene-export="webm" disabled>{say('下载 WebM', 'Download WebM')}</button>}{verified && <button type="button" data-scene-cancel hidden>{say('取消导出', 'Cancel export')}</button>}</div>
+  </div>}
+  {verified && !compact && <div class="immersive-export-progress" data-export-progress hidden>
     <div><span data-export-stage></span><span data-export-percent>0%</span></div>
     <progress data-export-bar max="100" value="0" aria-label={say('导出进度', 'Export progress')}></progress>
   </div>}
   <p class="immersive-status" data-scene-status role="status" aria-live="polite"></p>
   <a class="immersive-download" data-scene-download hidden>{say('再次下载', 'Download again')}</a>
   {!compact && <details class="immersive-export-preview" data-export-preview hidden><summary>{say('查看导出文件', 'Preview exported file')}</summary><div data-export-media></div></details>}
-  <noscript><p>{say('启用 JavaScript 后可播放与导出。上方为场景预览。', 'Enable JavaScript to play and export. A scene preview is shown above.')}</p></noscript>
+  <noscript><p>{verified ? say('启用 JavaScript 后可播放与导出。上方为场景预览。', 'Enable JavaScript to play and export. A scene preview is shown above.') : say('上方为游戏原图。', 'The original game image is shown above.')}</p></noscript>
 </section>
 <script>
   import { initImmersiveScenes } from '../lib/immersive-browser.mjs';

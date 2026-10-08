@@ -7,9 +7,23 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NGINX_TEMPLATE = REPO_ROOT / "deploy/nginx.conf.template"
+GROWTH_LOCATION = REPO_ROOT / "deploy/growth.locations.conf"
 
 
 class NginxContractTest(unittest.TestCase):
+    def test_growth_diagnostics_have_no_visitor_or_payload_fields(self) -> None:
+        source = NGINX_TEMPLATE.read_text(encoding="utf-8")
+        growth_format = source.split("log_format ournotes_growth", 1)[1].split(";", 1)[0]
+        for field in ("$remote_addr", "$http_user_agent", "$http_referer", "$request_uri",
+                      "$uri", "$request_body", "$http_cookie", "$http_authorization"):
+            self.assertNotIn(field, growth_format)
+        for field in ("$request_id", "$status", "$request_time", "$upstream_response_time"):
+            self.assertIn(field, growth_format)
+        location = GROWTH_LOCATION.read_text(encoding="utf-8")
+        self.assertIn("access_log /var/log/nginx/ournotes-growth.access.log ournotes_growth;", location)
+        self.assertIn("proxy_set_header X-Request-ID $request_id;", location)
+        self.assertIn("add_header X-Request-ID $request_id always;", location)
+
     def test_access_log_exposes_capacity_rejection_without_sensitive_fields(self) -> None:
         source = NGINX_TEMPLATE.read_text(encoding="utf-8")
         access_format = source[: source.index("server {")]

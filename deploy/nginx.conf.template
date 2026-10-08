@@ -17,6 +17,18 @@ log_format ournotes_json escape=json '{'
     '"user_agent":"$http_user_agent"'
     '}';
 
+# The login route has its own log without visitor identifiers or request data.
+log_format ournotes_growth escape=json '{'
+    '"time":"$time_iso8601",'
+    '"requestId":"$request_id",'
+    '"route":"growth_export",'
+    '"method":"$request_method",'
+    '"status":$status,'
+    '"requestTime":"$request_time",'
+    '"upstreamStatus":"$upstream_status",'
+    '"upstreamTime":"$upstream_response_time"'
+    '}';
+
 limit_conn_zone $binary_remote_addr zone=ournotes_media_per_ip:10m;
 limit_conn_zone $server_name zone=ournotes_media_global:1m;
 

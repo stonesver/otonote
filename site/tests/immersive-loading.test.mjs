@@ -31,6 +31,7 @@ test('resources overlap with a maximum of four, share duplicate files, and repor
   } });
   assert.equal(peak, 4); assert.equal(active, 0);
   assert.equal(result.blobs.size, 9);
+  assert.equal(result.manifest.files.length, 10);
   assert.equal(calls.filter(file => file === 'cast-1.json').length, 1);
   assert.ok(!calls.includes('poster.webp'));
   assert.equal(await result.blobs.get('cast-0.skel').text(), assets['cast-0.skel']);

@@ -155,6 +155,7 @@ def main():
             missing = []
         scenes.append({'id': spot['_id'], 'bandId': spot['_bandId'], 'name': name['_simplifiedChinese'], 'nameEn': name['_english'],
                        'poster': poster, 'assetRoot': f'/immersive/{assets}/' if assets and not missing else None,
+                       'cameraVerified': bool(manifest and manifest.get('approximateCamera') is False),
                        'duration': manifest['durationSeconds'] if manifest else None, 'bytes': sum(f['bytes'] for f in manifest['files']) if manifest else None,
                        'missingBundles': len(missing), 'totalBundles': len(deps), 'background': spot['_backgroundAssetPath']})
     bands = [{'id': b['_id'], 'name': texts[b['_nameTextID']]['_simplifiedChinese'], 'nameEn': texts[b['_nameTextID']]['_english']} for b in json.loads((MASTER / 'MasterBand.json').read_text())['_allData']]

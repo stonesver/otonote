@@ -8,7 +8,10 @@ export function filterVisual(group: string, value: string, fallback?: string, la
     : group.includes('character') ? 'character' : group;
   if (kind === 'band' || kind === 'tag' || (kind === 'target' && value.startsWith('band-'))) {
     const band = catalog.bands.find(b => kind === "tag" ? b.displayName === label : b.id === value || String(b.masterId) === value);
-    if (band) return { icon: `${import.meta.env.BASE_URL}images/filter-bands/band-${band.masterId}.png`, iconOnly: true, round: true };
+    if (band) {
+      const icon = getAsset(band.logoAssetId)?.previewUrl || fallback;
+      return { icon, iconOnly: Boolean(icon), round: false };
+    }
   }
   if (kind === 'character' || kind === 'target') {
     const character = catalog.characters.find(c => c.id === value || String(c.masterId) === value);

@@ -1,4 +1,4 @@
-import { EXPORT_SIZE, webmMimeType } from './immersive-export.mjs';
+import { EXPORT_SIZE, posterPng, webmMimeType } from './immersive-export.mjs';
 import { beginExport, recordDownload } from './site-analytics.mjs';
 import { loadImmersivePreview } from './immersive-loading.mjs';
 
@@ -7,6 +7,43 @@ export function initImmersiveScenes() {
     if (root.dataset.initialized) return;
     root.dataset.initialized = 'true';
     const en = root.dataset.locale === 'en', compact = root.dataset.compact === 'true';
+    if (root.dataset.cameraVerified !== 'true') {
+      const button = root.querySelector('[data-scene-export="png"]');
+      if (!button) return;
+      const status = root.querySelector('[data-scene-status]');
+      const download = root.querySelector('[data-scene-download]');
+      const preview = root.querySelector('[data-export-preview]');
+      let objectURL, busy = false;
+      button.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; button.disabled = true; download.hidden = true;
+        status.textContent = en ? 'Preparing the original image…' : '正在准备游戏原图…';
+        const resource = `scene:${root.dataset.sceneId}:poster-png`;
+        const exportEvent = beginExport(resource);
+        try {
+          const { blob, size } = await posterPng(root.dataset.posterSrc);
+          exportEvent.finish('success'); recordDownload(resource);
+          if (objectURL) URL.revokeObjectURL(objectURL);
+          objectURL = URL.createObjectURL(blob);
+          download.href = objectURL;
+          download.download = `otonote-scene-${root.dataset.sceneId}-original-${size.width}x${size.height}.png`;
+          download.dataset.analyticsResource = resource;
+          if (preview) {
+            const image = document.createElement('img'); image.src = objectURL;
+            image.alt = en ? 'Original game scene' : '游戏原图';
+            root.querySelector('[data-export-media]').replaceChildren(image);
+            preview.hidden = false;
+          }
+          download.hidden = false; download.click();
+          status.textContent = en ? `Original PNG ready · ${size.width} × ${size.height}` : `游戏原图 PNG 已生成 · ${size.width} × ${size.height}`;
+        } catch (error) {
+          exportEvent.finish('failed');
+          status.textContent = en ? 'Could not save the original image. Please try again.' : '游戏原图保存失败，请重试。';
+        } finally { busy = false; button.disabled = false; }
+      });
+      addEventListener('pagehide', () => { if (objectURL) URL.revokeObjectURL(objectURL); }, { once: true });
+      return;
+    }
     let duration = Number(root.dataset.duration) || 4;
     const say = (zh, english) => en ? english : zh;
     const find = selector => root.querySelector(selector);
@@ -64,6 +101,7 @@ export function initImmersiveScenes() {
         const { resources, createImmersiveScene } = await loadImmersivePreview(root.dataset.assets, {
           signal: controller.signal, onProgress: showLoadProgress
         });
+        if (resources.manifest?.approximateCamera !== false) throw new Error('camera-not-verified');
         if (disposed) return;
         showLoadProgress({ phase: 'initialize' });
         // Paint the final preparation stage before synchronous WebGL/Spine work.

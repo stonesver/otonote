@@ -28,6 +28,24 @@ export function downsamplePng(source, size = PNG_SIZE) {
   }, 'image/png'));
 }
 
+/** Save the official scene poster when the reconstructed camera is approximate. */
+export async function posterPng(url, { signal, fetcher = fetch, decode = createImageBitmap } = {}) {
+  const response = await fetcher(url, { signal });
+  if (!response.ok) throw new Error(`poster HTTP ${response.status}`);
+  const image = await decode(await response.blob());
+  try {
+    signal?.throwIfAborted();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width; canvas.height = image.height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('png-context-unavailable');
+    context.drawImage(image, 0, 0);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('png-failed')), 'image/png'));
+    signal?.throwIfAborted();
+    return { blob, size: { width: image.width, height: image.height } };
+  } finally { image.close?.(); }
+}
+
 export function webmMimeType(Recorder = globalThis.MediaRecorder) {
   if (!Recorder?.isTypeSupported) return null;
   return ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']

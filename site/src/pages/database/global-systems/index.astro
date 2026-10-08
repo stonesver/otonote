@@ -4,6 +4,7 @@ import SourceDisclosure from "../../../components/SourceDisclosure.astro";
 import Rewards from "../../../components/systems/Rewards.astro";
 import { globalSystems } from "../../../lib/global-systems";
 import { en, say, systemHref, rewardView } from "../../../lib/system-display";
+import { filterVisual } from "../../../lib/filter-visuals";
 import "../../../styles/system-modules.css";
 import "../../../styles/growth-systems.css";
 import growthArt from "../../../../public/growth/manifest.json";
@@ -51,7 +52,7 @@ const bonusValue = (type: number, value: number) => [2, 5, 7].includes(type) ? `
         {studio.length ? <studio-practice data-units={JSON.stringify(studio)} data-en={String(en)} data-ranks={JSON.stringify(growthArt.bandRanks)} data-art-base={artBase}>
           <div class="growth-section-heading"><h2>{say("选择练习乐队", "Choose a band")}</h2><p>{say("各乐队独立选择段位与练习等级", "Each band keeps its own rank and practice level")}</p></div>
           <div class="studio-band-picker" role="group" aria-label={say("乐队", "Band")}>
-            {studio.map((unit, index) => <button type="button" data-studio-band={unit.id} aria-pressed={index === 0}><img src={`${import.meta.env.BASE_URL}images/filter-bands/band-${unit.bandId}.png`} alt="" width="100" height="56" /><span>{unit.name}</span></button>)}
+            {studio.map((unit, index) => <button type="button" data-studio-band={unit.id} aria-pressed={index === 0}>{filterVisual('band', String(unit.bandId)).icon && <img src={filterVisual('band', String(unit.bandId)).icon} alt="" width="100" height="56" />}<span>{unit.name}</span></button>)}
           </div>
           <div class="studio-controls">
             <div class="studio-rank-control"><img data-studio-rank-image src={`${artBase}${growthArt.bandRanks[0].image}`} alt={growthArt.bandRanks[0].label} width="78" height="52" /><label>{say("乐队段位", "Band rank")}<select data-studio-rank>{growthArt.bandRanks.map(rank => <option value={rank.rank}>{rank.label}</option>)}</select></label></div>

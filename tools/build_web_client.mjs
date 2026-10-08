@@ -145,6 +145,16 @@ for (const group of ['brand','images/filter-bands','vendor/live2d']) {
   const source = join(site,'public',group);
   if (await access(source).then(()=>true,()=>false)) await cp(source,join(stage,group),{recursive:true});
 }
+// A licensed local Core may be supplied privately to a code build. Keep it out
+// of Git; the final code-release manifest records its digest with every file.
+if (process.env.OURNOTES_LIVE2D_CORE_FILE) {
+  const source = resolve(process.env.OURNOTES_LIVE2D_CORE_FILE);
+  const header = (await readFile(source)).subarray(0, 512).toString('utf8');
+  if (!header.includes('Live2D Cubism Core') || !header.includes('Redistributable Code')) {
+    throw new Error('Invalid licensed Live2D Core file');
+  }
+  await cp(source, join(stage,'vendor/live2d/live2dcubismcore.min.js'));
+}
 await mkdir(join(stage, 'loading'));
 const loadingArt = {}, loadingSources = [];
 for (const file of loadingArtFiles) {

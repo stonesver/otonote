@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import secrets
 import threading
 import time
 from collections import deque
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -20,13 +22,65 @@ from tools.growth_login import GameClient, LoginError, Profile, SdkClient
 from tools.gacha_history import GachaHistoryClient
 
 ROOT = '/api/growth-export/'
+DIAGNOSTIC_STAGES = frozenset({
+    'request', 'discovering', 'sdk_login', 'checking_existing_account',
+    'game_login', 'reading_growth', 'reading_gacha_history',
+})
+DIAGNOSTIC_ERRORS = frozenset({
+    'origin_refused', 'not_found', 'invalid_request', 'request_too_large',
+    'busy', 'rate_limited', 'upstream_unavailable', 'invalid_sdk_profile',
+    'unsupported_sdk_profile', 'invalid_auth_response',
+    'sdk_parameter_override_refused', 'sdk_operation_refused',
+    'sdk_response_too_large', 'sdk_network_or_tls_error',
+    'invalid_sdk_response', 'invalid_account_input', 'invalid_password_input',
+    'invalid_rsa_key', 'sdk_rsa_encryption_failed', 'invalid_game_text',
+    'game_target_refused', 'game_authentication_failed',
+    'unexpected_game_server', 'tw_server_not_unique',
+    'no_existing_role_in_selected_server', 'unexpected_new_role_response',
+    'response_too_large', 'truncated_varint', 'varint_overflow',
+    'too_many_fields', 'invalid_field_number', 'truncated_field',
+    'unsupported_wire_type', 'ambiguous_or_invalid_growth_field',
+    'growth_integer_out_of_range', 'missing_public_master_id',
+    'expected_one_uncompressed_grpc_frame', 'invalid_player_data',
+    'expected_exactly_one_player_data', 'invalid_growth_message',
+    'too_many_growth_records', 'duplicate_tgw_message',
+    'duplicate_public_master_id', 'invalid_history_field',
+    'missing_history_prize_id', 'invalid_history_collection',
+    'too_many_history_records', 'unsupported_history_response',
+    'missing_history_pool_id', 'invalid_history_prize', 'empty_history_batch',
+})
+GRPC_ERROR_CODES = frozenset({
+    'cancelled', 'unknown', 'invalid_argument', 'deadline_exceeded', 'not_found',
+    'already_exists', 'permission_denied', 'resource_exhausted',
+    'failed_precondition', 'aborted', 'out_of_range', 'unimplemented',
+    'internal', 'unavailable', 'data_loss', 'unauthenticated',
+})
+
+
+def diagnostic_error(value):
+    """Only emit codes produced by this gateway, never exception text."""
+    if not isinstance(value, str):
+        return 'other'
+    if value in DIAGNOSTIC_ERRORS:
+        return value
+    if re.fullmatch(r'sdk_service_-?[0-9]{1,10}|sdk_http_[0-9]{3}', value):
+        return value
+    if value.startswith('game_rpc_') and value[9:] in GRPC_ERROR_CODES:
+        return value
+    if value.startswith('invalid_game_response_field_'):
+        return 'invalid_game_response_field'
+    return 'other'
+
+
+def diagnostic_request_id(value):
+    return value if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{32}', value) else secrets.token_hex(16)
 
 
 class GrowthGateway(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, profile, origins, port=0, sdk_factory=SdkClient, game_factory=GameClient,
-                 history_factory=GachaHistoryClient):
+                 history_factory=GachaHistoryClient, diagnostic_sink=None):
         self.origins = set(origins)
         if not self.origins:
             raise ValueError('at_least_one_origin_required')
@@ -44,7 +98,24 @@ class GrowthGateway(ThreadingHTTPServer):
         self.capacity = threading.BoundedSemaphore(2)
         self.connections = threading.BoundedSemaphore(16)
         self.rate_lock, self.starts = threading.Lock(), deque()
+        self.diagnostic_lock = threading.Lock()
+        self.diagnostic_sink = diagnostic_sink or (lambda record: print(json.dumps(record, separators=(',', ':')), flush=True))
         super().__init__(('127.0.0.1', port), Handler)
+
+    def diagnostic(self, request_id, route, event, stage, elapsed_ms, *, status=None, error=None):
+        record = {'time': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
+                  'requestId': request_id, 'route': route, 'event': event,
+                  'stage': stage if isinstance(stage, str) and stage in DIAGNOSTIC_STAGES else 'other',
+                  'elapsedMs': elapsed_ms}
+        if status is not None:
+            record['status'] = status
+        if error is not None:
+            record['error'] = diagnostic_error(error)
+        try:
+            with self.diagnostic_lock:
+                self.diagnostic_sink(record)
+        except Exception:
+            pass  # Logging must never change a login result.
 
     def process_request(self, request, address):
         if not self.connections.acquire(blocking=False):
@@ -75,15 +146,18 @@ class GrowthGateway(ThreadingHTTPServer):
             self.starts.append(now)
             return True
 
-    def read_growth(self, account, password, *, history=False):
+    def read_growth(self, account, password, *, history=False, progress_callback=None):
         stage = 'discovering'
         def progress(value):
             nonlocal stage
             stage = value
+            if progress_callback:
+                progress_callback(value)
         try:
+            progress(stage)
             game = (self.history_factory if history else self.game_factory)()
             host = game.discover()
-            stage = 'sdk_login'
+            progress('sdk_login')
             sdk = self.sdk_factory(self.profile)
             identity = sdk.login(account, password)
             account = password = ''
@@ -106,6 +180,9 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def reply(self, status, payload):
+        if hasattr(self, '_diagnostic'):
+            self._diagnostic['status'] = status
+            self._diagnostic['error'] = payload.get('error')
         data = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -131,11 +208,29 @@ class Handler(BaseHTTPRequestHandler):
                                'gachaHistory': True})
 
     def do_POST(self):
+        path = self.path.rstrip('/')
+        route = {ROOT + 'read': 'growth', ROOT + 'gacha-history': 'gacha_history'}.get(path)
+        if route is None:
+            return self.reply(404, {'error': 'not_found'})
+        request_id = diagnostic_request_id(self.headers.get('X-Request-ID'))
+        started = time.monotonic()
+        self._diagnostic = {'stage': 'request', 'status': None, 'error': None}
+        def elapsed():
+            return max(0, round((time.monotonic() - started) * 1000))
+        def progress(stage):
+            self._diagnostic['stage'] = stage
+            self.server.diagnostic(request_id, route, 'stage', stage, elapsed())
+        self.server.diagnostic(request_id, route, 'start', 'request', 0)
+        try:
+            return self._post_with_diagnostics(path, progress)
+        finally:
+            self.server.diagnostic(request_id, route, 'finish', self._diagnostic['stage'], elapsed(),
+                                   status=self._diagnostic['status'], error=self._diagnostic['error'])
+
+    def _post_with_diagnostics(self, path, progress):
         if (not self.valid_source() or self.headers.get('Origin') not in self.server.origins
                 or self.headers.get('X-Growth-Nonce') != self.server.nonce):
             return self.reply(403, {'error': 'origin_refused'})
-        if self.path.rstrip('/') not in (ROOT + 'read', ROOT + 'gacha-history'):
-            return self.reply(404, {'error': 'not_found'})
         if (self.headers.get('Content-Type') != 'application/json'
                 or self.headers.get('Transfer-Encoding') or len(self.headers.get_all('Content-Length', [])) != 1):
             return self.reply(400, {'error': 'invalid_request'})
@@ -158,7 +253,7 @@ class Handler(BaseHTTPRequestHandler):
             account, password = body.pop('account'), body.pop('password')
             body.clear()
             status, result = self.server.read_growth(
-                account, password, history=self.path.rstrip('/') == ROOT + 'gacha-history')
+                account, password, history=path == ROOT + 'gacha-history', progress_callback=progress)
             account = password = ''
             self.reply(status, result)
         finally:

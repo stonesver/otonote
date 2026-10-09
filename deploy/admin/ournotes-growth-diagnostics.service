@@ -1,0 +1,15 @@
+[Unit]
+Description=Export redacted growth login diagnostics for private dashboard
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /srv/ournotes-admin/growth_diagnostics_snapshot.py --access-log /var/log/nginx/ournotes-growth.access.log --output /var/log/ournotes-stats/growth-diagnostics.json
+User=root
+Group=root
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log/ournotes-stats

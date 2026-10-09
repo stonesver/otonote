@@ -198,18 +198,43 @@ function settings(){rows($('settings'),[
   ['连接方式',config.connection],['运行模式',config.preview?'本地只读预览':'认证代理保护'],
   ...config.sites.map(s=>[s.name,s.id,`统计时区 ${s.timezone||'Asia/Shanghai'} · ${s.nodes?.length||0} 个资源节点`]),
   ...config.nodes.map(n=>[n.name,n.writable?'可提交已开放的资源任务':'只读节点'])]);}
+async function refreshGrowth(gen=generation){
+  const result=await api(`/api/growth/${encodeURIComponent(siteId())}`);
+  if(gen!==generation)return;
+  const d=result.data;
+  if(result.status!=='ok'||!d){
+    metrics($('growth-metrics'),[['POST 请求','—','诊断快照不可用'],['成功','—','HTTP 2xx'],['422','—','登录或请求失败'],['408 / 429','—','超时 / 限流']]);
+    for(const id of ['growth-statuses','growth-errors','growth-failures'])empty($(id),'诊断快照暂不可用','检查宿主机导出定时器与统计服务。');
+    status('登录诊断暂不可用',true);return;
+  }
+  const counts=d.statusCounts||{}, successes=Object.entries(counts).reduce((sum,[code,count])=>sum+(Number(code)<300?count:0),0);
+  metrics($('growth-metrics'),[['POST 请求',number(d.requests),'近 24 小时'],['成功',number(successes),'HTTP 2xx'],['422',number(counts['422']||0),'通常为业务拒绝'],['408 / 429',`${number(counts['408']||0)} / ${number(counts['429']||0)}`,'请求超时 / 网关限流']]);
+  rows($('growth-statuses'),Object.entries(counts).sort((a,b)=>Number(a[0])-Number(b[0])).map(([code,count])=>[`HTTP ${code}`,number(count)]),'窗口内没有 POST');
+  rows($('growth-errors'),Object.entries(d.errorCounts||{}).sort((a,b)=>b[1]-a[1]).map(([code,count])=>[code,number(count)]),'未发现已分类网关错误','HTTP 错误可能尚未到达网关。');
+  const failures=(d.recentFailures||[]).map(row=>{
+    const item=el('div',null,'diagnostic-row');
+    const when=el('time',new Date(row.time).toLocaleString('zh-CN',{hour12:false}));
+    const detail=el('div');detail.append(el('strong',`HTTP ${row.status} · ${row.error||'无网关错误码'}`),
+      el('small',`${row.route} · ${row.stage} · ${row.reason||'原因未判明'}`));
+    item.append(when,detail,el('code',row.requestId));return item;
+  });
+  if(failures.length)$('growth-failures').replaceChildren(...failures);else empty($('growth-failures'),'窗口内没有失败 POST');
+  status('登录诊断已更新');
+  $('updated').textContent=`快照 ${new Date(d.generatedAt).toLocaleString('zh-CN',{hour12:false})} · 首条 ${d.firstRequest?new Date(d.firstRequest).toLocaleString('zh-CN',{hour12:false}):'无'} · 末条 ${d.lastRequest?new Date(d.lastRequest).toLocaleString('zh-CN',{hour12:false}):'无'}`;
+}
 async function refresh(){
   if(!config||!siteId()||inFlight)return;inFlight=true;$('refresh').disabled=true;const gen=generation;
   try{
     if(currentView==='overview'){const result=await api(`/api/summary/${encodeURIComponent(siteId())}?window=${encodeURIComponent($('window').value==='date'?'date:'+$('summary-date').value:$('window').value)}`);if(gen===generation)renderSummary(result);}
     else if(currentView==='load')await refreshLoads(gen);
+    else if(currentView==='growth')await refreshGrowth(gen);
     else if(currentView==='tasks')await refreshNodes(gen);
     else{settings();status('配置仅在后端维护 · 页面不显示密钥');}
   }catch(error){status(error.message,true);}finally{inFlight=false;$('refresh').disabled=false;if(gen!==generation)queueMicrotask(refresh);}
 }
 function navigate(){
-  const key=location.hash.slice(1);currentView=['overview','load','tasks','settings'].includes(key)?key:'overview';generation++;
-  const titles={overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
+  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings'].includes(key)?key:'overview';generation++;
+  const titles={overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==`view-${currentView}`;
   for(const a of document.querySelectorAll('[data-view]')){if(a.dataset.view===currentView)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
   status('正在读取对应数据…');$('updated').textContent='等待更新';

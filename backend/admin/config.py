@@ -45,7 +45,7 @@ def load_config(path, role=None):
         if key in config:
             config[key] = resolve(config[key])
     for site in config.get("sites", []):
-        for key in ("accessLog", "catalogFile"):
+        for key in ("accessLog", "catalogFile", "growthDiagnosticsFile"):
             if site.get(key):
                 site[key] = resolve(site[key])
         if site.get("catalogFile"):

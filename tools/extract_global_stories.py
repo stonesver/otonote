@@ -23,7 +23,7 @@ from analysis.crypto.decrypt_global_formal_scores import (
 from tools.download_global_public_asset import download
 from tools.release_preflight import check_environment, load_plan
 from tools.resource_pipeline.catalog_adapter import CatalogAdapter
-from tools.story_text import MASTER_TABLES, LOCALE_FIELDS, digest, read_rows, parse_document
+from tools.story_text import MASTER_TABLES, LOCALE_FIELDS, digest, read_rows, parse_document, story_fallback_locales
 
 
 def write(path: Path, value: object) -> None:
@@ -134,7 +134,8 @@ def extract(args) -> dict:
                 raise ValueError("no unique ADV object in bundle")
             payload["texts" if suffix else "root"] = found[0]
         for locale in LOCALE_FIELDS:
-            projected = parse_document(payload["root"], payload["texts"], locale)
+            projected = parse_document(payload["root"], payload["texts"], locale,
+                                       fallback_locale=story_fallback_locales("global", locale))
             line_counts[locale] += sum(row["kind"] in {"dialogue", "chat", "narration", "subtitle"} for row in projected["lines"])
         destination = args.output / "documents" / f"adv-{identifier}.json"
         write(destination, payload)

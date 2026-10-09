@@ -120,7 +120,7 @@ def extract_scores(resources, source, output):
 
 def extract_stories(resources, source, output):
     from tools.extract_global_stories import command_enum
-    from tools.story_text import MASTER_TABLES, LOCALE_FIELDS, parse_document
+    from tools.story_text import MASTER_TABLES, LOCALE_FIELDS, parse_document, story_fallback_locales
     from analysis.crypto.decrypt_global_formal_scores import text_payload
     enums = command_enum(resources.metadata)
     advs = {r['_id']: r for r in resources.rows('MasterAdv')}
@@ -145,7 +145,7 @@ def extract_stories(resources, source, output):
             receipts.append({'bundle': loc.primary_key, 'sha256': resources.used[loc.primary_key]['sha256']})
         for locale in LOCALE_FIELDS:
             parse_document(payload['root'], payload['texts'], locale,
-                           fallback_locale='ja' if source['region'] == 'jp' else None)
+                           fallback_locale=story_fallback_locales(source['region'], locale))
         destination = output / 'documents' / f'adv-{identifier}.json'
         write_json(destination, payload)
         documents.append({'advId': identifier, 'path': f'documents/adv-{identifier}.json', 'sha256': file_hash(destination)})

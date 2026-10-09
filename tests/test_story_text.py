@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from tools.story_text import parse_document, clean_text, read_story_inputs, project_library, digest, MASTER_TABLES
+from tools.story_text import parse_document, clean_text, read_story_inputs, project_library, digest, MASTER_TABLES, story_fallback_locales
 from tools.site_product import closed_data
 
 
@@ -56,6 +56,38 @@ class StoryTextTests(unittest.TestCase):
         self.assertEqual(result["lines"][0]["locale"],"ja")
         self.assertEqual(result["fallbackTextCount"],2)
         with self.assertRaises(ValueError):parse_document(root,rows[:1],"en",fallback_locale="ja")
+
+    def test_global_simplified_chinese_uses_only_available_official_text(self):
+        self.assertEqual(story_fallback_locales('global', 'zh-CN'), ('zh-TW', 'en', 'ja'))
+        self.assertEqual(story_fallback_locales('global', 'en'), ('zh-TW', 'zh-CN', 'ja'))
+        rows = [{"_id": "line", "_traditionalChinese": "繁體原文",
+                 "_english": "English original", "_japanese": "日本語原文"},
+                {"_id": "speaker", "_simplifiedChinese": "灯"}]
+        root = {"Collection": [command(0)]}
+        fallbacks = story_fallback_locales('global', 'zh-CN')
+        for field, text, locale in (("_traditionalChinese", "繁體原文", "zh-TW"),
+                                    ("_english", "English original", "en"),
+                                    ("_japanese", "日本語原文", "ja")):
+            result = parse_document(root, rows, 'zh-CN', fallback_locale=fallbacks)
+            self.assertEqual(result['lines'][0]['text'], text)
+            self.assertEqual(result['lines'][0]['locale'], locale)
+            self.assertEqual(result['lines'][0]['fallbackLocales'], [locale])
+            self.assertEqual(result['fallbackTextCount'], 1)
+            rows[0].pop(field)
+        with self.assertRaisesRegex(ValueError, 'unresolved zh-CN ADV text: line'):
+            parse_document(root, rows, 'zh-CN', fallback_locale=fallbacks)
+
+    def test_fallback_speaker_is_marked_even_when_body_is_translated(self):
+        rows = [{"_id": "line", "_simplifiedChinese": "简中对白"},
+                {"_id": "speaker", "_traditionalChinese": "繁中角色名"}]
+        result = parse_document({"Collection": [command(0)]}, rows, 'zh-CN',
+                                fallback_locale=story_fallback_locales('global', 'zh-CN'))
+        line = result['lines'][0]
+        self.assertEqual(line['text'], '简中对白')
+        self.assertEqual(line['speaker'], '繁中角色名')
+        self.assertNotIn('locale', line)
+        self.assertEqual(line['fallbackLocales'], ['zh-TW'])
+        self.assertEqual(result['fallbackTextCount'], 1)
 
     def test_unity_markup_and_line_breaks(self):
         self.assertEqual(clean_text('<color=#fff>Hello</color><br>world &amp; friends'), 'Hello\nworld & friends')

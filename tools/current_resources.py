@@ -38,7 +38,8 @@ class CurrentResources:
         self.metadata = MetadataV39(self.metadata_path)
         if decoder:
             from tools.bundle_decoder import resolve_bundle_decoder
-            self.key, self.seed, binding = resolve_bundle_decoder(self.metadata, decoder['clientVersion'])
+            self.key, self.seed, binding = resolve_bundle_decoder(
+                self.metadata, decoder['clientVersion'], profile=decoder.get('bundleDecoderProfile'))
             if decoder.get('bundleDecoderBindingSha256') != binding:
                 raise ValueError('bundle decoder binding changed since intake')
         else:

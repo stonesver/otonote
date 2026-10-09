@@ -17,9 +17,9 @@ from pathlib import Path
 from tools.growth_export import ExportError, MAX_BYTES, extract_growth, fields
 
 SDK_ROOT = 'https://l11-sdk-login-intl.biligame.net'
-# Official GetServerList requires 1.0.2 as observed on 2026-10-02.
+# GetServerList rejected 1.0.2 and accepted 1.0.3 on 2026-10-09.
 # Keep SDK, game requests and snapshot provenance on the same version.
-CLIENT_VERSION = '1.0.2'
+CLIENT_VERSION = '1.0.3'
 GAME_HOSTS = {'l14-prod-hk-all-gs-sirius.gamerfusiontech.com',
               'l12-prod-hk-all-gs-sirius.gamerfusiontech.com'}
 BOOTSTRAP = 'l14-prod-hk-all-gs-sirius.gamerfusiontech.com'

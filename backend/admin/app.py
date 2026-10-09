@@ -99,6 +99,15 @@ def create_admin(config, transport=request_json):
         except (OSError, ValueError):
             return {'status': 'unavailable', 'data': None}
 
+    @app.get('/api/growth/{site_id}')
+    def growth(site_id: str):
+        if site_id not in sites:
+            raise HTTPException(400, 'unknown site')
+        try:
+            return transport(sources[sites[site_id]['source']], '/growth/' + quote(site_id))
+        except (OSError, ValueError):
+            return {'status': 'unavailable', 'data': None}
+
     @app.get('/api/export/{site_id}')
     def export_csv(site_id: str, kind: str, window: str = '', seconds: int = 3600,
                    source: str = '', fields: str = '', start: float = 0, end: float = 1e12):

@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh redacted growth login diagnostics every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Persistent=true
+Unit=ournotes-growth-diagnostics.service
+
+[Install]
+WantedBy=timers.target

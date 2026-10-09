@@ -1,0 +1,38 @@
+import json
+import unittest
+from datetime import datetime, timezone
+
+from tools.growth_diagnostics_snapshot import build_snapshot
+
+
+class GrowthDiagnosticsSnapshotTests(unittest.TestCase):
+    def test_correlates_failures_without_copying_private_fields(self):
+        now = datetime(2026, 10, 9, 12, tzinfo=timezone.utc)
+        request_id = 'a' * 32
+        access = '\n'.join(json.dumps(row) for row in [
+            {'time': '2026-10-09T19:00:00+08:00', 'requestId': request_id,
+             'route': 'growth_export', 'method': 'POST', 'status': 422,
+             'account': 'private@example.com', 'upstreamStatus': '422'},
+            {'time': '2026-10-09T19:01:00+08:00', 'requestId': 'b' * 32,
+             'route': 'growth_export', 'method': 'POST', 'status': 408},
+            {'time': '2026-10-09T19:02:00+08:00', 'requestId': 'c' * 32,
+             'route': 'growth_export', 'method': 'GET', 'status': 200}])
+        gateway = json.dumps({'time': '2026-10-09T11:00:01+00:00', 'requestId': request_id,
+                              'event': 'finish', 'route': 'growth', 'stage': 'sdk_login',
+                              'error': 'sdk_service_500002', 'reason': 'unclassified',
+                              'extra': 'fixture-sensitive-canary'})+'\n'+json.dumps({
+                                  'time':'2026-10-09T11:01:01+00:00','requestId':'b'*32,
+                                  'event':'finish','route':'growth','stage':'sdk_login',
+                                  'error':'password_private', 'reason':'fixture-sensitive-canary'})
+        result = build_snapshot(access, gateway, now=now)
+        self.assertEqual(result['requests'], 2)
+        self.assertEqual(result['statusCounts'], {'422': 1, '408': 1})
+        self.assertEqual(result['errorCounts'], {'sdk_service_500002': 1})
+        self.assertIsNone(result['recentFailures'][0]['error'])
+        self.assertEqual(result['recentFailures'][1]['reason'], 'unclassified')
+        self.assertNotIn('private@example.com', json.dumps(result))
+        self.assertNotIn('fixture-sensitive-canary', json.dumps(result))
+
+
+if __name__ == '__main__':
+    unittest.main()

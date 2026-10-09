@@ -1,0 +1,35 @@
+name: Probe official Global upgrade route
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  probe:
+    runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    env:
+      OURNOTES_UPDATE_IMAGE: ${{ vars.OURNOTES_UPDATE_IMAGE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Probe official version and APK headers on runner
+        continue-on-error: true
+        run: python3 -m tools.global_runner_probe
+      - name: Probe official version and APK headers in pinned image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$OURNOTES_UPDATE_IMAGE" =~ @sha256:[a-f0-9]{64}$ ]]
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$OURNOTES_UPDATE_IMAGE"
+          docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE,target=/probe,readonly" \
+            --workdir /probe "$OURNOTES_UPDATE_IMAGE" python3 -m tools.global_runner_probe

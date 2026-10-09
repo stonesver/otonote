@@ -46,6 +46,20 @@ class CurrentClientUpgradeTest(unittest.TestCase):
             self.assertEqual(download.call_args.kwargs["request_headers"], {"User-Agent": APK_USER_AGENT})
             signature.assert_not_called()
 
+    def test_website_apk_download_keeps_android_user_agent(self):
+        package = {"url": "https://l14-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.3_1.apk",
+                   "byteSize": 3, "etag": '"etag"', "clientVersion": "1.0.3"}
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            jar = root / "apksig.jar"
+            jar.write_bytes(b"fixture")
+            with patch.object(current_client, "file_hash", return_value=current_client.APKSIG_SHA256), \
+                 patch.object(current_client, "acquire", side_effect=ValueError('stop after download options')) as download:
+                with self.assertRaisesRegex(ValueError, 'stop after download options'):
+                    current_client.intake(package, root / "cache", jar)
+            self.assertEqual(download.call_args.kwargs['request_headers'], {'User-Agent': APK_USER_AGENT})
+            self.assertNotIn('allowed_hosts', download.call_args.kwargs)
+
     def test_prior_material_requires_matching_external_profile_and_apk_signature(self):
         import os
         import sys

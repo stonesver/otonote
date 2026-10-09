@@ -101,8 +101,11 @@ def intake(package, cache, apksig):
     name = Path(urlsplit(package['url']).path).name
     package_id = hashlib.sha256(json.dumps({k: package[k] for k in ('url', 'byteSize', 'etag')}, sort_keys=True).encode()).hexdigest()[:24]
     apk = cache / 'downloads' / package_id / name
+    host = urlsplit(package['url']).hostname
     download_options = ({'allowed_hosts': APK_HOSTS, 'request_headers': {'User-Agent': APK_USER_AGENT}}
-                        if urlsplit(package['url']).hostname in APK_HOSTS else {})
+                        if host in APK_HOSTS else
+                        {'request_headers': {'User-Agent': APK_USER_AGENT}}
+                        if host in ('l12-pkg-download.biligames.com', 'l14-pkg-download.biligames.com') else {})
     acquire(package['url'], apk, package['byteSize'], expected_etag=package['etag'], **download_options)
     sha = file_hash(apk)
     profile_path = cache / sha / 'decoder.json'

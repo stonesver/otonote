@@ -19,9 +19,12 @@ from ..transport import HttpRequest, HttpTransport, TransportError
 BOOTSTRAP = "https://l14-prod-hk-all-gs-sirius.gamerfusiontech.com"
 API_HOSTS = ("l14-prod-hk-all-gs-sirius.gamerfusiontech.com", "l12-prod-hk-all-gs-sirius.gamerfusiontech.com")
 CDN_HOSTS = ("l14-prod-hk-patch-sirius.gamerfusiontech.com", "l12-prod-hk-patch-sirius.gamerfusiontech.com")
-WEB_HOSTS = ("bdon.biligames.com", "s1.biligames.com", "l12-pkg-download.biligames.com")
+WEB_HOSTS = ("bdon.biligames.com", "s1.biligames.com", "l12-pkg-download.biligames.com",
+             "l14-pkg-download.biligames.com")
 APK_HOSTS = ("pkg.biligame.com",)
 APK_USER_AGENT = "Android"
+KV_CONFIG_URL = ("https://kv1.biligames.com/x/kv-frontend/namespace/data"
+                 "?appKey=555.187&nscode=24&unlimit=true")
 VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){1,4}")
 HASH = re.compile(r"[0-9a-f]{32}")
 
@@ -180,11 +183,16 @@ class GlobalPublicClient:
                 raise TransportError(f"read-only RPC transport failed ({completed.returncode})")
             return decode_grpc(header_path.read_text(), body_path.read_bytes())
 
-    def get(self, url: str, limit: int, *, method: str = "GET"):
-        allowed_url(url, CDN_HOSTS + WEB_HOSTS)
-        transport = HttpTransport(allowed_hosts=CDN_HOSTS + WEB_HOSTS, connect_timeout_seconds=30,
+    def get(self, url: str, limit: int, *, method: str = "GET",
+            headers: dict[str, str] | None = None):
+        if url == KV_CONFIG_URL and method == "GET":
+            hosts = ("kv1.biligames.com",)
+        else:
+            allowed_url(url, CDN_HOSTS + WEB_HOSTS)
+            hosts = CDN_HOSTS + WEB_HOSTS
+        transport = HttpTransport(allowed_hosts=hosts, connect_timeout_seconds=30,
                                   read_timeout_seconds=30, max_response_bytes=limit)
-        response = transport.request(HttpRequest(method, url))
+        response = transport.request(HttpRequest(method, url, headers or {}))
         if response.status != 200:
             raise ProtocolError(f"HTTP {response.status}: {url}")
         return response
@@ -248,6 +256,39 @@ def version_identity(value: dict) -> tuple:
                                        "masterVersion", "resourceVersion", "catalogHash"))
 
 
+def website_config_package(client: GlobalPublicClient, recommended_version: str | None) -> dict:
+    """Resolve the APK link currently used by the official Global website."""
+    try:
+        raw = client.get(KV_CONFIG_URL, 4096).body
+        payload = json.loads(raw)
+        if (not isinstance(payload, dict) or payload.get("code") != 0 or
+                not isinstance(payload.get("data"), dict) or
+                not isinstance(payload["data"].get("data"), dict)):
+            raise ValueError()
+        url = payload["data"]["data"].get("apklink.link")
+        if not isinstance(url, str):
+            raise ValueError()
+    except (ValueError, KeyError, TypeError):
+        raise ProtocolError("invalid official website APK configuration") from None
+    allowed_url(url, ("l14-pkg-download.biligames.com", "l12-pkg-download.biligames.com"))
+    match = re.fullmatch(r"/sirius/apk/BanGDreamOurNotes_([0-9]+(?:\.[0-9]+){1,4})(?:_[0-9_]+)?\.apk",
+                         urlsplit(url).path)
+    if not match or (recommended_version and match.group(1) != recommended_version):
+        raise ProtocolError("official website APK version does not match recommendation")
+    head = client.get(url, 1024, method="HEAD", headers={"User-Agent": APK_USER_AGENT})
+    try:
+        size = int(head.headers.get("content-length", "0"))
+    except ValueError:
+        raise ProtocolError("invalid official website APK size") from None
+    etag, modified = head.headers.get("etag"), head.headers.get("last-modified")
+    if not 0 < size <= 2_000_000_000 or not etag or not modified:
+        raise ProtocolError("incomplete official website APK metadata")
+    return {"observedAt": utc_now(), "source": KV_CONFIG_URL, "configurationSha256": sha256(raw),
+            "url": url, "byteSize": size, "etag": etag, "lastModified": modified,
+            "clientVersion": match.group(1), "status": "official_download_available",
+            "packageIdentityVerified": False}
+
+
 def discover_package(client: GlobalPublicClient, previous: dict | None = None) -> dict:
     """Use the game's upgrade signal; reuse the prior package while accepted."""
     upgrade = None
@@ -270,6 +311,11 @@ def discover_package(client: GlobalPublicClient, previous: dict | None = None) -
             raise ProtocolError("previous official package identity is invalid")
         allowed_url(previous["url"], WEB_HOSTS + APK_HOSTS)
         return previous
+    try:
+        return website_config_package(client, upgrade.version if upgrade else None)
+    except (ProtocolError, TransportError):
+        # Older website builds embedded a static APK URL in their scripts.
+        pass
     page_url = "https://bdon.biligames.com/"
     page = client.get(page_url, 1_000_000).body.decode("utf-8")
     scripts = []

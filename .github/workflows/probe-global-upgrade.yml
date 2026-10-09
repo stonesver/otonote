@@ -37,10 +37,10 @@ jobs:
             --workdir /probe "$OURNOTES_UPDATE_IMAGE" python3 -m tools.global_runner_probe
       - name: Probe official APK through restricted egress
         env:
-          OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
+          OURNOTES_GLOBAL_APK_PROXY_NODE: ${{ secrets.OURNOTES_GLOBAL_APK_PROXY_NODE }}
         run: |
           set -euo pipefail
-          [[ -n "$OURNOTES_JP_PROXY_NODE" ]]
+          [[ -n "$OURNOTES_GLOBAL_APK_PROXY_NODE" ]]
           bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/global-apk-egress-client"
           python3 -m tools.jp_version_egress --global-apk \
             --binary "$RUNNER_TEMP/global-apk-egress-client/mihomo" -- \

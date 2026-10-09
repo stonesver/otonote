@@ -20,6 +20,7 @@ import time
 import unicodedata
 
 NODE_ENV = 'OURNOTES_JP_PROXY_NODE'
+GLOBAL_NODE_ENV = 'OURNOTES_GLOBAL_APK_PROXY_NODE'
 PROXY_ENV = 'OURNOTES_JP_VERSION_PROXY'
 PROXY_URL = 'http://127.0.0.1:17897'
 NODE_NAME = 'jp-version-node'
@@ -28,7 +29,7 @@ GLOBAL_DIRECT_HOSTS = (
     'l12-prod-hk-all-gs-sirius.gamerfusiontech.com',
     'l14-prod-hk-patch-sirius.gamerfusiontech.com',
     'l12-prod-hk-patch-sirius.gamerfusiontech.com',
-    'bdon.biligames.com', 's1.biligames.com', 'l12-pkg-download.biligames.com',
+    'bdon.biligames.com', 's1.biligames.com',
 )
 
 
@@ -113,14 +114,16 @@ def node_config(raw):
 
 
 def configuration(node, *, global_apk=False):
-    routed_host = 'pkg.biligame.com' if global_apk else 'api.bang-dream-on.jp'
+    rules = (['DOMAIN,pkg.biligame.com,' + NODE_NAME,
+              'DOMAIN,l12-pkg-download.biligames.com,' + NODE_NAME]
+             if global_apk else ['DOMAIN,api.bang-dream-on.jp,' + NODE_NAME])
     return {'mixed-port': 17897, 'bind-address': '127.0.0.1', 'allow-lan': False,
             'mode': 'rule', 'log-level': 'silent', 'ipv6': False,
             'geo-auto-update': False, 'find-process-mode': 'off',
             'profile': {'store-selected': False, 'store-fake-ip': False},
             'dns': {'enable': False}, 'tun': {'enable': False},
             'proxies': [node],
-            'rules': ['DOMAIN,' + routed_host + ',' + NODE_NAME, 'MATCH,REJECT']}
+            'rules': [*rules, 'MATCH,REJECT']}
 
 
 def _private_file(path, content=None):
@@ -184,7 +187,11 @@ def run(command, binary=None, *, global_apk=False):
     if not command:
         raise EgressError('a producer command is required')
     environment = dict(os.environ)
-    raw = environment.pop(NODE_ENV, '')
+    raw = environment.pop(GLOBAL_NODE_ENV if global_apk else NODE_ENV, '')
+    if global_apk:
+        environment.pop(NODE_ENV, None)
+    else:
+        environment.pop(GLOBAL_NODE_ENV, None)
     node = None
     if global_apk and not raw:
         raise EgressError('a configured Global APK egress node is required')
@@ -224,7 +231,7 @@ def run(command, binary=None, *, global_apk=False):
                             start_new_session=True)
                     _wait_ready(daemon)
                     if global_apk:
-                        # Only the official APK host reaches the node. Other
+                        # Only the two official APK hosts reach the node. Other
                         # Global game hosts connect directly; everything else
                         # presented to this listener is rejected by its rules.
                         for key in ('HTTPS_PROXY', 'https_proxy'):
@@ -259,7 +266,7 @@ def run(command, binary=None, *, global_apk=False):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', help='absolute path to a verified, pinned mihomo executable')
-    parser.add_argument('--global-apk', action='store_true', help='route only the official Global APK host')
+    parser.add_argument('--global-apk', action='store_true', help='route only official Global APK hosts')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ['--'] else args.command

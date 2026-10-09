@@ -163,14 +163,17 @@ jobs:
           set -euo pipefail
           printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker pull "$OURNOTES_UPDATE_IMAGE"
-      - name: Prepare pinned JP proxy client when configured
+      - name: Prepare pinned regional proxy client when configured
         shell: bash
         env:
           JP_NODE_CONFIGURED: ${{ secrets.OURNOTES_JP_PROXY_NODE != '' }}
+          GLOBAL_APK_NODE_CONFIGURED: ${{ secrets.OURNOTES_GLOBAL_APK_PROXY_NODE != '' }}
         run: |
           set -euo pipefail
           if [[ "$REGION" == jp && "$JP_NODE_CONFIGURED" == true ]]; then
             bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/jp-egress-client"
+          elif [[ "$REGION" == global && "$GLOBAL_APK_NODE_CONFIGURED" == true ]]; then
+            bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/global-apk-egress-client"
           fi
       - name: Prepare light private state proof
         id: light_prepare
@@ -331,6 +334,7 @@ jobs:
         env:
           OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
           OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
+          OURNOTES_GLOBAL_APK_PROXY_NODE: ${{ secrets.OURNOTES_GLOBAL_APK_PROXY_NODE }}
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
@@ -346,7 +350,15 @@ jobs:
             export OURNOTES_BUNDLE_DECODER_PROFILE="$STABLE_ROOT/$GLOBAL_DECODER_PROFILE_PATH"
             common+=(--env OURNOTES_BUNDLE_DECODER_PROFILE)
             probe+=(--config "$GLOBAL_CONFIG_PATH" --decoder-profile "$GLOBAL_DECODER_PROFILE_PATH")
-            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
+            if [[ -n "$OURNOTES_GLOBAL_APK_PROXY_NODE" ]]; then
+              common+=(--env HTTPS_PROXY --env https_proxy --env NO_PROXY --env no_proxy)
+              python -m tools.jp_version_egress --global-apk \
+                --binary "$RUNNER_TEMP/global-apk-egress-client/mihomo" -- \
+                docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+                "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
+            else
+              docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
+            fi
           else
             common+=(--env OURNOTES_JP_VERSION_PROXY)
             probe+=(--metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat"
@@ -378,6 +390,7 @@ jobs:
         env:
           OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
           OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
+          OURNOTES_GLOBAL_APK_PROXY_NODE: ${{ secrets.OURNOTES_GLOBAL_APK_PROXY_NODE }}
         run: |
           set -euo pipefail
           cd "$STABLE_ROOT"
@@ -392,8 +405,16 @@ jobs:
           if [[ "$REGION" == global ]]; then
             export OURNOTES_BUNDLE_DECODER_PROFILE="$STABLE_ROOT/$GLOBAL_DECODER_PROFILE_PATH"
             common+=(--env OURNOTES_BUNDLE_DECODER_PROFILE)
-            docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
-              python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
+            if [[ -n "$OURNOTES_GLOBAL_APK_PROXY_NODE" ]]; then
+              common+=(--env HTTPS_PROXY --env https_proxy --env NO_PROXY --env no_proxy)
+              python -m tools.jp_version_egress --global-apk \
+                --binary "$RUNNER_TEMP/global-apk-egress-client/mihomo" -- \
+                docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+                python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
+            else
+              docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
+                python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
+            fi
           else
             common+=(--env OURNOTES_JP_VERSION_PROXY)
             producer=(python3 -m tools.jp_update

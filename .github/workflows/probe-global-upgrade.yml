@@ -22,6 +22,8 @@ jobs:
           python-version: '3.12'
       - name: Probe official version and APK headers on runner
         continue-on-error: true
+        env:
+          FULL_WEBSITE_APK: 'true'
         run: python3 -m tools.global_runner_probe
       - name: Probe official version and APK headers in pinned image
         continue-on-error: true

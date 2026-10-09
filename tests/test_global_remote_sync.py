@@ -9,9 +9,9 @@ from unittest.mock import Mock, patch
 
 from tools.global_remote_sync import acquire, plan_assets, remote_path, validate_manifest, _update
 from tools.resource_pipeline.adapters.global_public import (
-    APK_HOSTS, APK_USER_AGENT, ClientUpdateRequired, GlobalPublicClient,
+    APK_HOSTS, APK_USER_AGENT, KV_CONFIG_URL, ClientUpdateRequired, GlobalPublicClient,
     ProtocolError, allowed_url, decode_grpc, discover_package,
-    protobuf_fields, string_field, version_identity,
+    protobuf_fields, string_field, version_identity, website_config_package,
 )
 from tools.resource_pipeline.catalog_adapter import CatalogAdapter
 from tools.resource_pipeline.transport import DownloadReceipt, HttpResponse
@@ -131,6 +131,47 @@ class GlobalRemoteTest(unittest.TestCase):
                 return HttpResponse(200, {}, b'<script src="//s1.biligames.com/fe-static/game-global-bangdreamon/gw/js/index.abc123.js"></script>')
         package = discover_package(Website())
         self.assertEqual((package["url"], package["clientVersion"]), (url, "1.0.3"))
+
+    def test_upgrade_uses_current_official_website_config_when_hint_is_blocked(self):
+        url = ('https://l14-pkg-download.biligames.com/sirius/apk/'
+               'BanGDreamOurNotes_1.0.3_2026_10_02_22_46_55.apk')
+        assert_equal = self.assertEqual
+        class Website:
+            def rpc(self, root, method):
+                raise ClientUpdateRequired('1.0.3', 'https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_1.apk')
+
+            def official_apk(self, notice):
+                raise ProtocolError('official hint blocked')
+
+            def get(self, address, limit, *, method='GET', headers=None):
+                if address == KV_CONFIG_URL:
+                    return HttpResponse(200, {}, json.dumps({'code': 0, 'data': {
+                        'data': {'apklink.link': url}}}).encode())
+                assert_equal(address, url)
+                assert_equal((method, headers), ('HEAD', {'User-Agent': APK_USER_AGENT}))
+                return HttpResponse(200, {'content-length': '457342191', 'etag': '"etag"',
+                                          'last-modified': 'Fri, 09 Oct 2026 00:00:00 GMT'}, b'')
+        package = discover_package(Website())
+        self.assertEqual((package['url'], package['clientVersion'], package['byteSize']),
+                         (url, '1.0.3', 457342191))
+        self.assertEqual(package['source'], KV_CONFIG_URL)
+
+    def test_website_config_rejects_wrong_version_and_untrusted_url(self):
+        class Website:
+            def __init__(self, link):
+                self.link = link
+
+            def get(self, address, limit, *, method='GET', headers=None):
+                return HttpResponse(200, {}, json.dumps({'code': 0, 'data': {
+                    'data': {'apklink.link': self.link}}}).encode())
+        links = (
+            'https://l14-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.2_1.apk',
+            'https://example.org/sirius/apk/BanGDreamOurNotes_1.0.3_1.apk',
+            'https://l14-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.3_1.apk?token=x',
+        )
+        for link in links:
+            with self.subTest(link=link), self.assertRaises(ProtocolError):
+                website_config_package(Website(link), '1.0.3')
 
     def test_protobuf_rejects_truncation_and_repeated_identity(self):
         for payload in (b"\x0a\x10a", b"\x80", b"\x00", b"\x08" + b"\xff" * 10):

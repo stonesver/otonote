@@ -1,12 +1,15 @@
 """Read-only, secret-free diagnostics for the official Global upgrade route."""
 import json
+import os
 import re
+import tempfile
+from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import getproxies, proxy_bypass
 
 from tools.resource_pipeline.adapters.global_public import (
-    APK_HOSTS, APK_USER_AGENT, BOOTSTRAP, ClientUpdateRequired, allowed_url,
-    GlobalPublicClient, discover_package,
+    APK_HOSTS, APK_USER_AGENT, BOOTSTRAP, WEB_HOSTS, ClientUpdateRequired, allowed_url,
+    GlobalPublicClient, discover_package, website_config_package,
 )
 from tools.resource_pipeline.transport import HttpRequest, HttpTransport
 
@@ -105,6 +108,25 @@ def main():
             report('apk_get', status='failed', errorType=type(error).__name__)
 
     probe_website_apk(upgrade.version)
+    if os.environ.get('FULL_WEBSITE_APK') == 'true':
+        try:
+            from tools.global_remote_sync import acquire
+            from tools.resource_pipeline.package_intake import inspect_apk
+            package = website_config_package(client, upgrade.version)
+            with tempfile.TemporaryDirectory(prefix='global-apk-probe-') as temporary:
+                target = Path(temporary) / 'official.apk'
+                receipt = acquire(package['url'], target, package['byteSize'],
+                                  expected_etag=package['etag'], allowed_hosts=WEB_HOSTS,
+                                  request_headers={'User-Agent': APK_USER_AGENT})
+                identity = inspect_apk(target)
+            report('website_apk_full_download', status='verified',
+                   matchesKnown103=(receipt['sha256'] ==
+                                    'e9f2ad502d77f4790ceb872972064715f57f24856eefa461bc4bcfa97616b149'),
+                   version=identity['versionName'], packageName=identity['packageName'],
+                   certificateMatches=identity['certificateSha256'] ==
+                                      'bf683e367551a3f629b90e16a63b315af74e387bcc5d94f26dcd626e7eea3637')
+        except Exception as error:
+            report('website_apk_full_download', status='failed', errorType=type(error).__name__)
     try:
         package = discover_package(client)
     except Exception as error:

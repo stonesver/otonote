@@ -7,6 +7,7 @@ import zipfile
 
 from tools.global_remote_sync import acquire, file_hash, read_json, write_json, verify_apk_signature
 from tools.resource_pipeline.package_intake import inspect_apk
+from tools.resource_pipeline.adapters.global_public import APK_HOSTS, APK_USER_AGENT
 
 CERTIFICATE = 'bf683e367551a3f629b90e16a63b315af74e387bcc5d94f26dcd626e7eea3637'
 APKSIG_SHA256 = '7ae2e5980c77d853e3513074ee7c822bbdcdcde1668889d17faa7fe8bc8aa821'
@@ -18,13 +19,16 @@ def intake(package, cache, apksig):
     name = Path(urlsplit(package['url']).path).name
     package_id = hashlib.sha256(json.dumps({k: package[k] for k in ('url', 'byteSize', 'etag')}, sort_keys=True).encode()).hexdigest()[:24]
     apk = cache / 'downloads' / package_id / name
-    acquire(package['url'], apk, package['byteSize'], expected_etag=package['etag'])
+    download_options = ({'allowed_hosts': APK_HOSTS, 'request_headers': {'User-Agent': APK_USER_AGENT}}
+                        if urlsplit(package['url']).hostname in APK_HOSTS else {})
+    acquire(package['url'], apk, package['byteSize'], expected_etag=package['etag'], **download_options)
     sha = file_hash(apk)
     profile_path = cache / sha / 'decoder.json'
     if profile_path.exists():
         profile = read_json(profile_path)
         if (profile.get('apkSha256') != sha or profile.get('certificateSha256') != CERTIFICATE
-                or profile.get('signatureVerified') is not True or file_hash(Path(profile['metadata'])) != profile['metadataSha256']):
+                or profile.get('signatureVerified') is not True or file_hash(Path(profile['metadata'])) != profile['metadataSha256']
+                or (package.get('clientVersion') and profile.get('clientVersion') != package['clientVersion'])):
             raise ValueError('cached decoder profile integrity mismatch')
         from analysis.crypto.decrypt_global_formal_scores import MetadataV39
         from tools.bundle_decoder import resolve_bundle_decoder
@@ -32,6 +36,8 @@ def intake(package, cache, apksig):
         _, _, binding = resolve_bundle_decoder(parsed, profile['clientVersion'])
         return {**profile, 'bundleDecoderBindingSha256': binding}
     identity = inspect_apk(apk)
+    if package.get('clientVersion') and identity['versionName'] != package['clientVersion']:
+        raise ValueError('official APK version differs from the recommended client version')
     if identity['packageName'] not in ('com.bilibili.sirius.official','com.bilibili.sirius'):
         raise ValueError('unexpected APK package identity')
     if identity['certificateSha256'] != CERTIFICATE: raise ValueError('APK signer changed')

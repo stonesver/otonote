@@ -11,7 +11,6 @@ jobs:
   probe:
     runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 15
-    environment: content-r2-production
     env:
       OURNOTES_UPDATE_IMAGE: ${{ vars.OURNOTES_UPDATE_IMAGE }}
     steps:
@@ -35,16 +34,3 @@ jobs:
           docker pull "$OURNOTES_UPDATE_IMAGE"
           docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE,target=/probe,readonly" \
             --workdir /probe "$OURNOTES_UPDATE_IMAGE" python3 -m tools.global_runner_probe
-      - name: Probe official APK through restricted egress
-        env:
-          OURNOTES_GLOBAL_APK_PROXY_NODE: ${{ secrets.OURNOTES_GLOBAL_APK_PROXY_NODE }}
-        run: |
-          set -euo pipefail
-          [[ -n "$OURNOTES_GLOBAL_APK_PROXY_NODE" ]]
-          bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/global-apk-egress-client"
-          python3 -m tools.jp_version_egress --global-apk \
-            --binary "$RUNNER_TEMP/global-apk-egress-client/mihomo" -- \
-            docker run --rm --network host \
-              --env HTTPS_PROXY --env https_proxy --env NO_PROXY --env no_proxy \
-              --mount "type=bind,source=$GITHUB_WORKSPACE,target=/probe,readonly" \
-              --workdir /probe "$OURNOTES_UPDATE_IMAGE" python3 -m tools.global_runner_probe

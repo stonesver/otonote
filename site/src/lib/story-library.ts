@@ -24,6 +24,7 @@ export interface TextStoryEntry extends EditionRecord {
 }
 export interface TextStoryLine {
   locale?: string;
+  fallbackLocales?: string[];
   id: string; sourceIndex: number;
   kind: "dialogue" | "chat" | "narration" | "location" | "subtitle" | "stamp";
   speaker: string; text: string;

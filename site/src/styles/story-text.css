@@ -139,6 +139,7 @@
 .st-message .st-speaker { padding-top: 8px; }
 .st-speaker small { font-size: 10px; color: var(--st-muted); }
 .st-message > p { width: 100%; max-width: 100%; margin: 0; padding: 8px 12px; border: 0; border-left: 2px solid color-mix(in srgb, var(--speaker-accent, #69717b) 35%, #e7ebee); border-radius: 0 7px 7px 0; background: #ffffffa6; color: var(--st-text); font-size: var(--story-font-size); line-height: 1.75; letter-spacing: .01em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.st-fallback-locale { display: block; margin-top: 4px; color: var(--st-muted); font: 10px/1.4 var(--font-body); letter-spacing: .03em; }
 .st-line--chat .st-message > p { background: #ecf4f8; border-color: #dae8f0; }
 .st-line--chat .st-speaker small { color: #285d7e; }
 .st-line--stamp .st-message > p { color: var(--st-muted); }

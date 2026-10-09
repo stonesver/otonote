@@ -38,7 +38,7 @@ const speakers = [...new Set(lines.flatMap(line => storyLineSpeakers(line.speake
         <h1>{entry.title || episodeLabel(entry)}</h1>
         {libraryEntry?.editionPresence?.different && libraryEntry.editionPresence.counterparts?.map(target=><a href={target.href}>{activeReleaseContext.locale==='en'?'Read in ':'阅读'}{editionLabel(target.edition,activeReleaseContext.locale==='en')}</a>)}
         {entry.description && <p class="st-reader-deck">{entry.description}</p>}
-        <div class="st-reader-meta"><span>{copy.textOnly}</span><span>{entry.lineCount} {copy.lines}</span>{entry.friendshipLevel > 0 && <span>{copy.bondLevel} {entry.friendshipLevel}</span>}{entry.fallbackTextCount && <span>{activeReleaseContext.locale === 'en' ? 'Untranslated text is shown in Japanese.' : '缺少译文的内容显示日文原文。'}</span>}</div>
+        <div class="st-reader-meta"><span>{copy.textOnly}</span><span>{entry.lineCount} {copy.lines}</span>{entry.friendshipLevel > 0 && <span>{copy.bondLevel} {entry.friendshipLevel}</span>}{entry.fallbackTextCount && <span>{activeReleaseContext.locale === 'en' ? 'Lines without a translation show their official source language.' : '缺少译文的行使用官方原文，并标明语言。'}</span>}</div>
       </div>
       <div class="st-reader-cover">
         {logo && <img class="st-reader-logo" src={logo.previewUrl} alt={band?.displayName} width="160" height="80" />}
@@ -74,12 +74,14 @@ const speakers = [...new Set(lines.flatMap(line => storyLineSpeakers(line.speake
         const character = resolveStorySpeaker(line.speaker);
         const avatar = storyAvatar(character);
         const isMessage = Boolean(line.speaker) && line.kind !== "location" && line.kind !== "narration";
+        const fallbackLocales = line.fallbackLocales?.length ? line.fallbackLocales : line.locale ? [line.locale] : [];
+        const fallbackLabel = fallbackLocales.length ? `${en ? 'Original' : '原文'}: ${fallbackLocales.join(' / ')}` : null;
         return <li id={line.id} class:list={["st-line", `st-line--${line.kind}`, { "st-line--message": isMessage, "st-line--system": !isMessage }]} data-story-line data-line-kind={line.kind} data-story-speaker={line.speaker} style={character ? `--speaker-accent:${character.mainColor}` : undefined}>
           <button class="st-line-select" type="button" data-select-line={index} aria-label={shareCopy.line.replace("{n}", String(index + 1))} aria-pressed="false"><span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span></button>
-          {line.kind === "location" ? <h2><span>{line.text}</span></h2> : isMessage ? <>
+          {line.kind === "location" ? <h2><span lang={line.locale ?? activeReleaseContext.locale}>{line.text}{fallbackLabel && <small class="st-fallback-locale">{fallbackLabel}</small>}</span></h2> : isMessage ? <>
             <div class="st-avatar" aria-hidden="true">{avatar ? <img src={avatar.thumbnailUrl} alt="" loading="lazy" width="48" height="48" /> : <span>{line.speaker}</span>}</div>
-            <div class="st-message"><div class="st-speaker"><strong>{line.speaker}</strong>{line.kind === "chat" && <small>{copy.chat}</small>}</div><p lang={line.locale ?? activeReleaseContext.locale}>{line.kind === "stamp" ? copy.stamp : line.text}</p></div>
-          </> : <div class="st-system-message"><span>{line.speaker || (line.kind === "subtitle" ? copy.subtitle : copy.narration)}</span><p lang={line.locale ?? activeReleaseContext.locale}>{line.kind === "stamp" ? copy.stamp : line.text}</p></div>}
+            <div class="st-message"><div class="st-speaker"><strong>{line.speaker}</strong>{line.kind === "chat" && <small>{copy.chat}</small>}</div><p><span lang={line.locale ?? activeReleaseContext.locale}>{line.kind === "stamp" ? copy.stamp : line.text}</span>{fallbackLabel && <small class="st-fallback-locale">{fallbackLabel}</small>}</p></div>
+          </> : <div class="st-system-message"><span>{line.speaker || (line.kind === "subtitle" ? copy.subtitle : copy.narration)}</span><p><span lang={line.locale ?? activeReleaseContext.locale}>{line.kind === "stamp" ? copy.stamp : line.text}</span>{fallbackLabel && <small class="st-fallback-locale">{fallbackLabel}</small>}</p></div>}
         </li>;
       })}
     </ol>

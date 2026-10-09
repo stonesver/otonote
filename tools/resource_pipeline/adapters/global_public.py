@@ -20,12 +20,21 @@ BOOTSTRAP = "https://l14-prod-hk-all-gs-sirius.gamerfusiontech.com"
 API_HOSTS = ("l14-prod-hk-all-gs-sirius.gamerfusiontech.com", "l12-prod-hk-all-gs-sirius.gamerfusiontech.com")
 CDN_HOSTS = ("l14-prod-hk-patch-sirius.gamerfusiontech.com", "l12-prod-hk-patch-sirius.gamerfusiontech.com")
 WEB_HOSTS = ("bdon.biligames.com", "s1.biligames.com", "l12-pkg-download.biligames.com")
+APK_HOSTS = ("pkg.biligame.com",)
+APK_USER_AGENT = "Android"
 VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){1,4}")
 HASH = re.compile(r"[0-9a-f]{32}")
 
 
 class ProtocolError(ValueError):
     pass
+
+
+class ClientUpdateRequired(ProtocolError):
+    def __init__(self, version: str, url: str | None):
+        super().__init__("Global client update required")
+        self.version = version
+        self.url = url
 
 
 def utc_now() -> str:
@@ -116,6 +125,19 @@ def decode_grpc(headers: str, body: bytes) -> tuple[dict[str, str], bytes]:
     if not statuses or statuses[-1] != "200":
         raise ProtocolError(f"RPC HTTP status {statuses[-1] if statuses else 'missing'}")
     if parsed.get("grpc-status") != "0":
+        if parsed.get("grpc-status") == "2" and _safe_grpc_message(parsed.get("grpc-message", "")) == "client update required":
+            version = parsed.get("x-client-recommended-version", "")
+            url = parsed.get("x-client-download-url", "")
+            if not VERSION.fullmatch(version):
+                raise ProtocolError("client update required without a valid recommended version")
+            if url:
+                if len(url) > 512:
+                    raise ProtocolError("client update URL is too long")
+                allowed_url(url, APK_HOSTS)
+                match = re.fullmatch(r"/games/BanGDreamOurNotes_([0-9]+(?:\.[0-9]+){1,4})_[0-9_]+\.apk", urlsplit(url).path)
+                if not match or match.group(1) != version:
+                    raise ProtocolError("client update URL does not match the recommended version")
+            raise ClientUpdateRequired(version, url or None)
         raw_status = parsed.get("grpc-status", "missing")
         status = raw_status if re.fullmatch(r"[0-9]{1,3}", raw_status) else "invalid"
         message = _safe_grpc_message(parsed.get("grpc-message", ""))
@@ -167,6 +189,26 @@ class GlobalPublicClient:
             raise ProtocolError(f"HTTP {response.status}: {url}")
         return response
 
+    def official_apk(self, notice: ClientUpdateRequired) -> dict:
+        if not notice.url:
+            raise ProtocolError("official APK URL is unavailable")
+        transport = HttpTransport(allowed_hosts=APK_HOSTS, connect_timeout_seconds=30,
+                                  read_timeout_seconds=30, max_response_bytes=1024)
+        response = transport.request(HttpRequest("HEAD", notice.url, {"User-Agent": APK_USER_AGENT}))
+        if response.status != 200 or response.headers.get("content-type", "").split(";", 1)[0] != "application/vnd.android.package-archive":
+            raise ProtocolError("official APK metadata is unavailable")
+        try:
+            size = int(response.headers.get("content-length", "0"))
+        except ValueError:
+            raise ProtocolError("invalid official APK size") from None
+        etag, modified = response.headers.get("etag"), response.headers.get("last-modified")
+        if not 0 < size <= 2_000_000_000 or not etag or not modified:
+            raise ProtocolError("incomplete official APK metadata")
+        return {"observedAt": utc_now(), "source": BOOTSTRAP, "url": notice.url,
+                "byteSize": size, "etag": etag, "lastModified": modified,
+                "clientVersion": notice.version, "status": "official_download_available",
+                "packageIdentityVerified": False}
+
     def discover(self) -> dict:
         _, payload = self.rpc(BOOTSTRAP, "app.playerlogin.PlayerLoginService/GetServerList")
         servers = []
@@ -206,7 +248,28 @@ def version_identity(value: dict) -> tuple:
                                        "masterVersion", "resourceVersion", "catalogHash"))
 
 
-def discover_package(client: GlobalPublicClient) -> dict:
+def discover_package(client: GlobalPublicClient, previous: dict | None = None) -> dict:
+    """Use the game's upgrade signal; reuse the prior package while accepted."""
+    upgrade = None
+    try:
+        client.rpc(BOOTSTRAP, "app.playerlogin.PlayerLoginService/GetServerList")
+    except ClientUpdateRequired as notice:
+        upgrade = notice
+        if notice.url:
+            try:
+                return client.official_apk(notice)
+            except (ProtocolError, TransportError):
+                # The legacy official website is a secondary source. Its APK
+                # still has to match the recommended version during intake.
+                pass
+    if upgrade is None and previous is not None:
+        if (not isinstance(previous, dict) or not isinstance(previous.get("url"), str)
+                or type(previous.get("byteSize")) is not int or not 0 < previous["byteSize"] <= 2_000_000_000
+                or not isinstance(previous.get("etag"), str) or not previous["etag"]
+                or not isinstance(previous.get("lastModified"), str) or not previous["lastModified"]):
+            raise ProtocolError("previous official package identity is invalid")
+        allowed_url(previous["url"], WEB_HOSTS + APK_HOSTS)
+        return previous
     page_url = "https://bdon.biligames.com/"
     page = client.get(page_url, 1_000_000).body.decode("utf-8")
     scripts = []
@@ -234,4 +297,5 @@ def discover_package(client: GlobalPublicClient) -> dict:
     return {"observedAt": utc_now(), "source": page_url, "scripts": evidence, "url": url,
             "byteSize": size, "etag": head.headers.get("etag"),
             "lastModified": head.headers.get("last-modified"),
+            **({"clientVersion": upgrade.version} if upgrade else {}),
             "status": "official_download_available", "packageIdentityVerified": False}

@@ -200,7 +200,7 @@ class ProductionGateTests(unittest.TestCase):
         self.assertEqual(len(private.downloads), 2)
         self.assertNotIn('state/objects/' + '9' * 64, private.downloads)
 
-    def test_light_gate_legacy_receipt_and_changed_package_require_full_path(self):
+    def test_light_gate_legacy_receipt_and_client_upgrade_require_full_path(self):
         private, selections, stage = self.light_fixture(with_receipt=False)
         with patch.object(gate, 'stable_root', return_value=self.root):
             self.assertEqual(gate.light_prepare(private, self.root, 'global', selections, stage,
@@ -214,12 +214,13 @@ class ProductionGateTests(unittest.TestCase):
                                           image=IMAGE, config='config/production.json',
                                           decoder_profile='config/decoder.json')
             self.assertEqual(prepared['status'], 'ready')
-            with patch('tools.resource_pipeline.adapters.global_public.GlobalPublicClient') as client, \
-                 patch('tools.resource_pipeline.adapters.global_public.discover_package',
-                       return_value=dict(self.package, etag='"changed"')):
-                client.return_value.discover.return_value = self.observation
+            from tools.resource_pipeline.adapters.global_public import ClientUpdateRequired
+            with patch('tools.resource_pipeline.adapters.global_public.GlobalPublicClient') as client:
+                client.return_value.discover.side_effect = ClientUpdateRequired(
+                    '1.0.3', 'https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_2026_10_02.apk')
                 observed = gate.light_probe(self.root, 'global', stage / 'proof.json', image=IMAGE)
-                client.return_value.discover.assert_not_called()
+                client.return_value.discover.assert_called_once()
+            self.assertEqual(observed['reason'], 'client_update_required')
             self.assertEqual(gate.light_check(private, self.bucket, self.root, 'global',
                              stage / 'proof.json', observed, self.public_before,
                              image=IMAGE)['status'], 'needs_full')
@@ -294,7 +295,8 @@ class ProductionGateTests(unittest.TestCase):
              patch.object(jp_update, 'FINGERPRINT_ROOTS', {'config': frozenset({'.json'})}), \
              patch.object(jp_update, 'FINGERPRINT_FILES', ()), \
              patch.object(gate, 'code_fingerprints', ORIGINAL_CODE_FINGERPRINTS), \
-             patch('tools.global_update.load_config', return_value={'clientVersion': '1.0.1', 'intakePackages': False}), \
+             patch('tools.global_update.load_config', return_value={'clientVersion': '1.0.1', 'intakePackages': False,
+                                                                      'workspace': root / 'output/global-update-workflow'}), \
              patch('tools.resource_pipeline.adapters.global_public.GlobalPublicClient', Client), \
              patch('tools.resource_pipeline.adapters.global_public.discover_package', return_value=self.package):
             observed = gate.probe(root, 'global', IMAGE, **{

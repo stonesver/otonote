@@ -105,8 +105,10 @@ def validate_manifest(value: object, version: str) -> list[dict]:
     return rows
 
 
-def acquire(url: str, path: Path, size: int, expected_sha: str | None = None, expected_etag: str | None = None) -> dict:
-    allowed_url(url, CDN_HOSTS + WEB_HOSTS)
+def acquire(url: str, path: Path, size: int, expected_sha: str | None = None,
+            expected_etag: str | None = None, *, allowed_hosts: tuple[str, ...] = CDN_HOSTS + WEB_HOSTS,
+            request_headers: dict[str, str] | None = None) -> dict:
+    allowed_url(url, allowed_hosts)
     receipt_path = path.with_name(path.name + ".receipt.json")
     if path.is_symlink() or receipt_path.is_symlink():
         raise ProtocolError("refusing a symlink output")
@@ -119,12 +121,12 @@ def acquire(url: str, path: Path, size: int, expected_sha: str | None = None, ex
             return {"path": str(path), "byteSize": size, "sha256": actual, "url": url, "reused": True}
         raise ProtocolError(f"existing file does not match expected content: {path.name}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    transport = HttpTransport(allowed_hosts=CDN_HOSTS + WEB_HOSTS, connect_timeout_seconds=30,
+    transport = HttpTransport(allowed_hosts=allowed_hosts, connect_timeout_seconds=30,
                               read_timeout_seconds=30, max_response_bytes=size)
     with tempfile.TemporaryDirectory(prefix=".download-", dir=path.parent) as tmp:
         part = Path(tmp) / "part"
         with part.open("wb") as stream:
-            response = transport.download(HttpRequest("GET", url), stream)
+            response = transport.download(HttpRequest("GET", url, request_headers or {}), stream)
         if response.status != 200 or response.byte_size != size:
             raise ProtocolError(f"HTTP {response.status} or unexpected response size: {path.name}")
         actual = file_hash(part)

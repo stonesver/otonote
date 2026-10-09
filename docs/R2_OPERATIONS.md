@@ -2,6 +2,14 @@
 
 目标：Global、JP 的内容生产在 GitHub 托管 runner 运行；现有服务器继续提供网页与其他服务。`ournotes.stonebg.cn/content/*` 由只读 Worker 从 R2 提供。本文同时保留历史实施记录；当前部署状态以本节最近的交接记录为准，后文早期记录中的“尚未切换”只描述当时状态。
 
+## Global 客户端升级与内容追新
+
+Global 日常任务先用已验证的客户端版本查询游戏接口。版本仍被接受时，复用私有状态中已验证的 APK 身份，直接比较 Master/catalog/resource 版本；官网网页脚本不再是每次资源更新的前置条件。
+
+接口返回 `client update required` 时，优先读取 `x-client-recommended-version` 与 `x-client-download-url`。只接受固定官方 HTTPS APK 域名、与推荐版本一致的文件名；以 Android 客户端标识读取包大小、ETag 和修改时间并下载。该地址不可用时才尝试原有官网脚本入口。下载后仍须核对实际字节数、ETag、APK 身份、版本和固定签名证书；升级时轻量无变化检查转入完整状态恢复。未知客户端的 metadata 与外置 decoder profile 不精确匹配时，任务停止，公开内容指针保持原值，不沿用旧字段索引。
+
+上线新版更新器前先将 `CONTENT_R2_AUTO_PROMOTE_GLOBAL` 设为 `false`，通过 PR 验证后运行 **Publish reviewed updater image**，并将审查后的新 digest 固定到 `OURNOTES_UPDATE_IMAGE`。新客户端首次出现时，私下验证其 APK、metadata 与 decoder profile，把审核后的 profile 加入私有状态并按现有 CAS 基线重新检查点；不要将 APK 或真实 profile 提交到仓库。先对 Global 手动运行 `shadow` 并核对生成、上传与读回，再运行 `promote` 或恢复自动晋级。只修改仓库源码而不更新固定镜像和私有 profile，正式任务不会获得完整升级能力。
+
 ## JP 自动探测恢复（2026-10-07）
 
 JP 服务强制更新到 1.0.5 后，旧 1.0.4 Version RPC 返回 `client update required`。当前受审客户端固定为 Android 1.0.5 / version code 10059：runner 仅在私有 seed 不是该版本时获取固定 XAPK，并同时校验归档 SHA-256、三个 split APK 的签名证书及 package-set 摘要、解码后的 v39 metadata 摘要和 Unity 版本。APKPure 只是二进制传输来源，未匹配这些 pin 的包不会进入 seed。已验证的 1.0.5 客户端继续通过四小时 JP 任务探测官方 Master/catalog/resource 版本并下载最新资源；新客户端发布仍须先更新受审 pin 和 decoder profile。自动晋级仍由 `CONTENT_R2_AUTO_PROMOTE_JP` 控制，shadow 不切换公开 current 指针。

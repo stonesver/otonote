@@ -208,7 +208,11 @@ def probe(root: Path, region: str, image: str, *, config: str | None = None,
         from tools.current_client import intake
         loaded = load_config(safe_path(root, paths["config"]))
         client = GlobalPublicClient(loaded["clientVersion"])
-        package = discover_package(client)
+        package_path = loaded['workspace'] / 'last-package.json'
+        if not package_path.exists():
+            package_path = loaded.get('initialPackage')
+        previous_package = read_json(package_path) if package_path and package_path.exists() else None
+        package = discover_package(client, previous=previous_package)
         # Match run_update's official-package -> verify-client -> sync-inputs
         # sequence. A newer APK can change the RPC client version even while
         # the private bootstrap config still names the previous version.
@@ -645,6 +649,7 @@ def light_prepare(private_bucket, root: Path, region: str, selections: list[str]
     proof = {"schemaVersion": 1, "region": region, "privatePointerSha256": pointer_sha,
              "privateManifestSha256": pointer["sha256"], "receipt": receipt,
              "clientVersion": client_version, "stablePackageSha256": stable_package_sha,
+             "package": package if region == "global" else None,
              "metadataPath": str(stage / "metadata.v39.dat") if region == "jp" else None}
     proof_path = stage / "proof.json"
     proof_path.write_bytes(canonical(proof))
@@ -662,18 +667,22 @@ def light_probe(root: Path, region: str, prepared: Path, *, image: str) -> dict:
             not isinstance(receipt, dict) or receipt.get("imageDigest") != image_digest(image)):
         raise GateError("light probe proof is invalid")
     if region == "global":
-        from tools.resource_pipeline.adapters.global_public import GlobalPublicClient, discover_package
+        from tools.resource_pipeline.adapters.global_public import ClientUpdateRequired, GlobalPublicClient
         client = GlobalPublicClient(proof["clientVersion"])
-        package = discover_package(client)
-        if not all(isinstance(package.get(key), str) and package[key] for key in ("url", "etag", "lastModified")):
+        package = proof.get("package")
+        if (not isinstance(package, dict) or
+                not all(isinstance(package.get(key), str) and package[key] for key in ("url", "etag", "lastModified"))):
             return _needs_full("package_identity_unavailable")
         package_sha = package_identity("global", package)
         stable_sha = digest(canonical({key: package[key] for key in ("url", "byteSize", "etag", "lastModified")}))
         if package_sha != receipt["packageSha256"] or stable_sha != proof.get("stablePackageSha256"):
-            # A new official APK may need a different RPC client version. Let
-            # the full producer verify and intake it before source discovery.
-            return _needs_full("official_package_changed")
-        return {"status": "probed", "region": region, "sourceSha256": source_identity(client.discover()),
+            return _needs_full("package_identity_unavailable")
+        try:
+            observation = client.discover()
+        except ClientUpdateRequired:
+            # Restore the verified state before downloading and reviewing the new APK.
+            return _needs_full("client_update_required")
+        return {"status": "probed", "region": region, "sourceSha256": source_identity(observation),
                 "packageSha256": package_sha, "stablePackageSha256": stable_sha}
     if region == "jp":
         from tools.jp_remote_sync import client_from_metadata

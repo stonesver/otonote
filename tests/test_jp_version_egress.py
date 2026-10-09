@@ -45,7 +45,9 @@ class NodeConfigurationTests(unittest.TestCase):
 
     def test_global_apk_mode_only_routes_the_official_apk_host(self):
         config = egress.configuration(egress.node_config(json.dumps(sample_node())), global_apk=True)
-        self.assertEqual(config['rules'], ['DOMAIN,pkg.biligame.com,jp-version-node', 'MATCH,REJECT'])
+        self.assertEqual(config['rules'], ['DOMAIN,pkg.biligame.com,jp-version-node',
+                                           'DOMAIN,l12-pkg-download.biligames.com,jp-version-node',
+                                           'MATCH,REJECT'])
         self.assertNotIn('api.bang-dream-on.jp', str(config['rules']))
 
     def test_rejects_full_configuration_injection_and_unsafe_tls_without_echo(self):
@@ -152,7 +154,9 @@ class EgressLifecycleTests(unittest.TestCase):
         def popen(command, **options):
             if len(command) > 1 and command[1] == '-d':
                 config = json.loads(Path(command[command.index('-f') + 1]).read_text())
-                self.assertEqual(config['rules'], ['DOMAIN,pkg.biligame.com,jp-version-node', 'MATCH,REJECT'])
+                self.assertEqual(config['rules'], ['DOMAIN,pkg.biligame.com,jp-version-node',
+                                                   'DOMAIN,l12-pkg-download.biligames.com,jp-version-node',
+                                                   'MATCH,REJECT'])
                 return daemon
             environment = options['env']
             self.assertEqual(environment['HTTPS_PROXY'], egress.PROXY_URL)
@@ -160,14 +164,23 @@ class EgressLifecycleTests(unittest.TestCase):
             self.assertEqual(environment['NO_PROXY'], ','.join(egress.GLOBAL_DIRECT_HOSTS))
             self.assertEqual(environment['no_proxy'], ','.join(egress.GLOBAL_DIRECT_HOSTS))
             self.assertNotIn(egress.NODE_ENV, environment)
+            self.assertNotIn(egress.GLOBAL_NODE_ENV, environment)
             self.assertNotIn(egress.PROXY_ENV, environment)
             return producer
-        with patch.dict(os.environ, {egress.PROXY_ENV: ''}), \
+        with patch.dict(os.environ, {egress.PROXY_ENV: '',
+                                  egress.GLOBAL_NODE_ENV: json.dumps(sample_node())}), \
                 patch.object(egress, '_require_free_port'), \
                 patch.object(egress, '_wait_ready'), \
                 patch.object(egress.subprocess, 'Popen', side_effect=popen), \
                 patch.object(egress.os, 'killpg'):
             self.assertEqual(egress.run(['producer'], sys.executable, global_apk=True), 0)
+
+    def test_global_apk_mode_requires_separate_node(self):
+        with patch.dict(os.environ, {egress.GLOBAL_NODE_ENV: ''}), \
+                patch.object(egress.subprocess, 'Popen') as popen:
+            with self.assertRaisesRegex(egress.EgressError, 'Global APK egress node is required'):
+                egress.run(['producer'], sys.executable, global_apk=True)
+            popen.assert_not_called()
 
     def test_absent_node_preserves_existing_proxy_and_removes_empty_node_env(self):
         with patch.dict(os.environ, {egress.NODE_ENV: '', egress.PROXY_ENV: 'http://local:7897'}), \

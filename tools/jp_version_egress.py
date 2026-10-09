@@ -23,6 +23,13 @@ NODE_ENV = 'OURNOTES_JP_PROXY_NODE'
 PROXY_ENV = 'OURNOTES_JP_VERSION_PROXY'
 PROXY_URL = 'http://127.0.0.1:17897'
 NODE_NAME = 'jp-version-node'
+GLOBAL_DIRECT_HOSTS = (
+    'l14-prod-hk-all-gs-sirius.gamerfusiontech.com',
+    'l12-prod-hk-all-gs-sirius.gamerfusiontech.com',
+    'l14-prod-hk-patch-sirius.gamerfusiontech.com',
+    'l12-prod-hk-patch-sirius.gamerfusiontech.com',
+    'bdon.biligames.com', 's1.biligames.com', 'l12-pkg-download.biligames.com',
+)
 
 
 class EgressError(Exception):
@@ -105,14 +112,15 @@ def node_config(raw):
         raise EgressError('invalid JP proxy node configuration') from None
 
 
-def configuration(node):
+def configuration(node, *, global_apk=False):
+    routed_host = 'pkg.biligame.com' if global_apk else 'api.bang-dream-on.jp'
     return {'mixed-port': 17897, 'bind-address': '127.0.0.1', 'allow-lan': False,
             'mode': 'rule', 'log-level': 'silent', 'ipv6': False,
             'geo-auto-update': False, 'find-process-mode': 'off',
             'profile': {'store-selected': False, 'store-fake-ip': False},
             'dns': {'enable': False}, 'tun': {'enable': False},
             'proxies': [node],
-            'rules': ['DOMAIN,api.bang-dream-on.jp,' + NODE_NAME, 'MATCH,REJECT']}
+            'rules': ['DOMAIN,' + routed_host + ',' + NODE_NAME, 'MATCH,REJECT']}
 
 
 def _private_file(path, content=None):
@@ -172,14 +180,20 @@ def _exit_code(value):
     return value if value >= 0 else 128 - value
 
 
-def run(command, binary=None):
+def run(command, binary=None, *, global_apk=False):
     if not command:
         raise EgressError('a producer command is required')
     environment = dict(os.environ)
     raw = environment.pop(NODE_ENV, '')
     node = None
+    if global_apk and not raw:
+        raise EgressError('a configured Global APK egress node is required')
+    if global_apk:
+        environment.pop(PROXY_ENV, None)
+        for key in ('HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'):
+            environment.pop(key, None)
     if raw:
-        if environment.get(PROXY_ENV):
+        if not global_apk and environment.get(PROXY_ENV):
             raise EgressError('choose either a JP proxy node or a JP proxy URL')
         node = node_config(raw)
         binary = Path(binary or '')
@@ -201,7 +215,7 @@ def run(command, binary=None):
                 if node is not None:
                     _require_free_port()
                     path = directory / 'config.json'
-                    _private_file(path, json.dumps(configuration(node)))
+                    _private_file(path, json.dumps(configuration(node, global_apk=global_apk)))
                     with _private_file(directory / 'client.log') as log:
                         daemon = subprocess.Popen(
                             [str(binary), '-d', str(directory), '-f', str(path)],
@@ -209,7 +223,16 @@ def run(command, binary=None):
                             env={'PATH': os.defpath, 'HOME': str(directory), 'TMPDIR': str(directory)},
                             start_new_session=True)
                     _wait_ready(daemon)
-                    environment[PROXY_ENV] = PROXY_URL
+                    if global_apk:
+                        # Only the official APK host reaches the node. Other
+                        # Global game hosts connect directly; everything else
+                        # presented to this listener is rejected by its rules.
+                        for key in ('HTTPS_PROXY', 'https_proxy'):
+                            environment[key] = PROXY_URL
+                        for key in ('NO_PROXY', 'no_proxy'):
+                            environment[key] = ','.join(GLOBAL_DIRECT_HOSTS)
+                    else:
+                        environment[PROXY_ENV] = PROXY_URL
                 producer = subprocess.Popen(command, env=environment, start_new_session=True)
                 while producer.poll() is None:
                     if daemon is not None and daemon.poll() is not None:
@@ -236,11 +259,12 @@ def run(command, binary=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', help='absolute path to a verified, pinned mihomo executable')
+    parser.add_argument('--global-apk', action='store_true', help='route only the official Global APK host')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
     try:
-        return run(command, args.binary)
+        return run(command, args.binary, global_apk=args.global_apk)
     except EgressError as exc:
         print(str(exc), file=sys.stderr)
         return 2

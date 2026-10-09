@@ -2,6 +2,12 @@ name: Probe official Global upgrade route
 
 on:
   workflow_dispatch:
+    inputs:
+      full_download:
+        description: Download and inspect the full official website APK
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -23,10 +29,9 @@ jobs:
       - name: Probe official version and APK headers on runner
         continue-on-error: true
         env:
-          FULL_WEBSITE_APK: 'true'
+          FULL_WEBSITE_APK: ${{ inputs.full_download && 'true' || 'false' }}
         run: python3 -m tools.global_runner_probe
       - name: Probe official version and APK headers in pinned image
-        continue-on-error: true
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

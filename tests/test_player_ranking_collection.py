@@ -1,20 +1,46 @@
 import copy
 import contextlib
+import hashlib
 import io
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from backend.player_rankings import public_high_score_deck, query_player_rankings, validate_observation
-from tools.collect_player_rankings import MUSIC_RPC, RankingClient, high_score_deck, ranking_entries, read_plan, pause_required, run_capture, main
+from tools.collect_player_rankings import MUSIC_RPC, RankingClient, high_score_deck, ranking_entries, read_plan, read_current_content_plan, pause_required, run_capture, main
 from tools.growth_login import CLIENT_VERSION, LoginError, SdkIdentity, integer, message, single
-from tools.import_player_rankings import publish
+from tools.import_player_rankings import publish, publish_observation
 
 
 def player(identity, score, name='Player'):
     return message(1, message(1, identity) + message(2, name) + message(6, 'IGNORED-PROFILE')) + integer(3, score)
+
+
+def content_fixture(events=None):
+    release = 'global-test-release'
+    events = events if events is not None else [
+        {'id': 1, 'name': 'Old event', 'schedule': {'startAt': '2026/10/01 12:00:00', 'endAt': '2026/10/08 20:59:59'}},
+        {'id': 2, 'name': 'New event', 'schedule': {'startAt': '2026/10/09 12:00:00', 'endAt': '2026/10/17 20:59:59'}},
+        {'id': 99, 'name': 'Future event', 'schedule': {'startAt': '2026/10/18 12:00:00', 'endAt': '2026/10/26 20:59:59'}},
+    ]
+    rows = [{**event, 'edition': 'global', 'sourceReleaseId': release,
+             'ranking': {'configured': {'eventPoints': False, 'music': True, 'totalMusic': True}},
+             'challengeSongs': [{'id': 2001, 'musicId': 100109, 'name': 'Song'}]} for event in events]
+    projection = {'schemaVersion': 1, 'sourceReleaseId': release,
+                  'events': {'edition': 'global', 'sourceReleaseId': release, 'records': rows}}
+    raw_projection = json.dumps(projection).encode()
+    root = '/content/releases/0123456789abcdef01234567/'
+    manifest = {'schemaVersion': 1, 'region': 'global', 'root': root, 'contentReleaseId': release,
+                'locales': {'zh-CN': {'files': {'projection/game-modes.json': {
+                    'path': 'zh-CN/game-modes.json', 'sha256': hashlib.sha256(raw_projection).hexdigest()}}}}}
+    raw_manifest = json.dumps(manifest).encode()
+    pointer = {'manifest': root + 'manifest.json', 'sha256': hashlib.sha256(raw_manifest).hexdigest(),
+               'contentReleaseId': release}
+    return {'/content/current.json': json.dumps(pointer).encode(),
+            root + 'manifest.json': raw_manifest, root + 'zh-CN/game-modes.json': raw_projection}
 
 
 class RankingCollectionTests(unittest.TestCase):
@@ -32,6 +58,98 @@ class RankingCollectionTests(unittest.TestCase):
         self.assertIn('source=${RANKING_SDK_RESOURCES},target=/run/ranking-sdk/resources.xml,readonly', unit)
         self.assertIn('--sdk-resources /run/ranking-sdk/resources.xml', unit)
         self.assertNotIn('/app/packaging/growth-tool/sdk.bhk.xml', unit)
+        self.assertIn('--event auto', unit)
+        self.assertNotIn('RANKING_EVENT_ID', unit)
+
+    def test_auto_event_selection_uses_verified_current_content_and_taipei_schedule(self):
+        files = content_fixture()
+        select = lambda now: read_current_content_plan('https://ournotes.stonebg.cn', now=now,
+                                                         fetch_bytes=files.__getitem__)
+        self.assertIsNone(select(datetime(2026, 10, 9, 3, 59, tzinfo=timezone.utc)))
+        plan = select(datetime(2026, 10, 9, 4, tzinfo=timezone.utc))
+        self.assertEqual(plan['eventId'], '2')
+        self.assertEqual(plan['boards'], [{'type': 'music', 'musicId': '100109', 'musicName': 'Song',
+                                           'challengeMusicId': 2001}])
+        self.assertEqual(plan['contentReleaseId'], 'global-test-release')
+        self.assertEqual(plan['eventProjectionSha256'], hashlib.sha256(next(reversed(files.values()))).hexdigest())
+        self.assertEqual(select(datetime(2026, 10, 17, 12, 59, 59, tzinfo=timezone.utc))['eventId'], '2')
+        self.assertIsNone(select(datetime(2026, 10, 17, 13, tzinfo=timezone.utc)))
+        self.assertEqual(select(datetime(2026, 10, 18, 4, tzinfo=timezone.utc))['eventId'], '99')
+
+    def test_auto_event_selection_rejects_tampering_and_ambiguous_schedule(self):
+        files = content_fixture()
+        path = next(reversed(files))
+        files[path] += b' '
+        with self.assertRaisesRegex(ValueError, 'event_projection_hash_mismatch'):
+            read_current_content_plan('https://ournotes.stonebg.cn', fetch_bytes=files.__getitem__)
+        current = {'id': 2, 'name': 'Current', 'schedule': {'startAt': '2026/10/09 12:00:00',
+                                                          'endAt': '2026/10/17 20:59:59'}}
+        files = content_fixture([current, {**current, 'id': 3}])
+        with self.assertRaisesRegex(ValueError, 'ambiguous_active_events'):
+            read_current_content_plan('https://ournotes.stonebg.cn', now=datetime(2026, 10, 10, tzinfo=timezone.utc),
+                                      fetch_bytes=files.__getitem__)
+        files = content_fixture([{**current, 'schedule': {**current['schedule'], 'startAt': 'bad'}}])
+        with self.assertRaisesRegex(ValueError, 'invalid_event_schedule'):
+            read_current_content_plan('https://ournotes.stonebg.cn', now=datetime(2026, 10, 10, tzinfo=timezone.utc),
+                                      fetch_bytes=files.__getitem__)
+
+    def test_auto_capture_publishes_the_active_event(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            observations = root / 'observations'
+            def fake_capture(plan, profile, account, password, output, *, progress):
+                self.assertEqual(plan['eventId'], '2')
+                self.assertEqual(plan['eventName'], 'New event')
+                self.assertEqual(output, observations)
+                return publish_observation({'schemaVersion': 1, 'serverId': 'global-hmt',
+                    'observedAt': '2026-10-10T00:00:00Z', 'expiresAt': '2026-10-10T00:15:00Z',
+                    'boards': [{'eventId': plan['eventId'], 'eventName': plan['eventName'],
+                                'type': 'event-points', 'entries': []}]}, output, 'global-hmt')
+            with patch('tools.collect_player_rankings.read_current_content_plan',
+                       side_effect=lambda base: read_current_content_plan(base, now=datetime(2026, 10, 10, tzinfo=timezone.utc),
+                                                                            fetch_bytes=content_fixture().__getitem__)), \
+                 patch('tools.collect_player_rankings.Profile.from_resources'), \
+                 patch('tools.collect_player_rankings.run_capture', side_effect=fake_capture), \
+                 patch('tools.collect_player_rankings.getpass.getpass', return_value='FAKE'), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                result = main(['--root', str(observations),
+                               '--state-dir', str(root / 'state'), '--sdk-resources', str(root / 'resources.xml'),
+                               '--prompt'])
+            self.assertEqual(result, 0)
+            self.assertEqual(query_player_rankings(observations, server='global-hmt')['eventId'], '2')
+            self.assertEqual(json.loads((root / 'state/status.json').read_text())['eventId'], 2)
+
+    def test_no_active_event_waits_without_replacing_the_last_snapshot(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            observations = root / 'observations'
+            previous = publish_observation({'schemaVersion': 1, 'serverId': 'global-hmt',
+                'observedAt': '2026-10-08T00:00:00Z', 'expiresAt': '2026-10-08T00:15:00Z',
+                'boards': [{'eventId': '1', 'type': 'event-points', 'entries': []}]}, observations, 'global-hmt')
+            original = previous.read_bytes()
+            with patch('tools.collect_player_rankings.read_current_content_plan', return_value=None), \
+                 patch('tools.collect_player_rankings.Profile.from_resources') as profile, \
+                 patch('tools.collect_player_rankings.run_capture') as capture, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                result = main(['--root', str(observations),
+                               '--state-dir', str(root / 'state'), '--sdk-resources', str(root / 'resources.xml')])
+            self.assertEqual(result, 0)
+            self.assertEqual(previous.read_bytes(), original)
+            self.assertEqual(json.loads((root / 'state/status.json').read_text())['status'], 'waiting')
+            profile.assert_not_called(); capture.assert_not_called()
+
+    def test_invalid_current_content_does_not_permanently_pause_selection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            arguments = ['--root', str(root / 'observations'),
+                         '--state-dir', str(root / 'state'), '--sdk-resources', str(root / 'resources.xml')]
+            with patch('tools.collect_player_rankings.read_current_content_plan', side_effect=ValueError('bad content')), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(arguments), 2)
+            status = json.loads((root / 'state/status.json').read_text())
+            self.assertEqual(status['stage'], 'selecting_event')
+            self.assertEqual(status['error'], 'ranking_event_selection_failed')
+            self.assertFalse(status['paused'])
 
     def test_discovery_failure_stops_before_sdk_login_or_publication(self):
         stages = []

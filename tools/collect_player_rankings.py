@@ -13,8 +13,11 @@ import getpass
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 from backend.player_rankings import public_high_score_deck, validate_observation
 from tools.growth_export import fields
@@ -26,6 +29,120 @@ from tools.resource_pipeline.localization import resolve_text
 MUSIC_RPC = 'app.event.EventService/GetChallengeMusicRanking'
 POINTS_RPC = 'app.event.EventService/GetRankingList'
 MAX_PLAYERS = 1000
+EVENT_TIME_ZONE = timezone(timedelta(hours=8), 'Asia/Taipei')
+EVENT_TIME_PATTERN = re.compile(r'^(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$')
+CONTENT_MANIFEST_PATTERN = re.compile(r'^/content/releases/[a-f0-9]{24}/manifest\.json$')
+CONTENT_FILE_PATTERN = re.compile(r'^[A-Za-z0-9_./-]+$')
+SHA256_PATTERN = re.compile(r'^[a-f0-9]{64}$')
+
+
+def _event_local_time(value) -> datetime:
+    match = EVENT_TIME_PATTERN.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
+        raise ValueError('invalid_event_schedule')
+    try:
+        return datetime(*(int(part or 0) for part in match.groups())).replace(tzinfo=EVENT_TIME_ZONE)
+    except ValueError as exc:
+        raise ValueError('invalid_event_schedule') from exc
+
+
+def read_current_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=None) -> dict | None:
+    """Bind a ranking plan to the site's hash-checked current Global event projection."""
+    parsed = urlsplit(base)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
+        raise ValueError('invalid_content_origin')
+    origin = base.rstrip('/')
+
+    def fetch(path, limit):
+        if fetch_bytes is not None:
+            raw = fetch_bytes(path)
+        else:
+            request = Request(origin + path, headers={'User-Agent': 'OurNotes-Ranking-Capture/1.0',
+                                                      'Accept': 'application/json'})
+            with urlopen(request, timeout=15) as response:
+                raw = response.read(limit + 1)
+        if not isinstance(raw, bytes) or len(raw) > limit:
+            raise ValueError('invalid_content_response')
+        return raw
+
+    pointer = json.loads(fetch('/content/current.json', 16_384))
+    manifest_path = pointer.get('manifest') if isinstance(pointer, dict) else None
+    if (not isinstance(manifest_path, str) or not CONTENT_MANIFEST_PATTERN.fullmatch(manifest_path)
+            or not SHA256_PATTERN.fullmatch(str(pointer.get('sha256', '')))):
+        raise ValueError('invalid_content_pointer')
+    raw = fetch(manifest_path, 4_000_000)
+    if hashlib.sha256(raw).hexdigest() != pointer['sha256']:
+        raise ValueError('content_manifest_hash_mismatch')
+    manifest = json.loads(raw)
+    root = manifest_path.removesuffix('manifest.json')
+    if (not isinstance(manifest, dict) or manifest.get('schemaVersion') != 1
+            or manifest.get('region') != 'global' or manifest.get('root') != root
+            or manifest.get('contentReleaseId') != pointer.get('contentReleaseId')):
+        raise ValueError('invalid_content_manifest')
+    locales = manifest.get('locales')
+    locale = locales.get('zh-CN') if isinstance(locales, dict) else None
+    files = locale.get('files') if isinstance(locale, dict) else None
+    record = files.get('projection/game-modes.json') if isinstance(files, dict) else None
+    path = record.get('path') if isinstance(record, dict) else None
+    sha = record.get('sha256') if isinstance(record, dict) else None
+    if (not isinstance(path, str) or not CONTENT_FILE_PATTERN.fullmatch(path)
+            or path.startswith('/') or '..' in path.split('/') or not SHA256_PATTERN.fullmatch(str(sha))):
+        raise ValueError('invalid_event_projection_record')
+    raw = fetch(root + path, 8_000_000)
+    if hashlib.sha256(raw).hexdigest() != sha:
+        raise ValueError('event_projection_hash_mismatch')
+    projection = json.loads(raw)
+    archive = projection.get('events') if isinstance(projection, dict) else None
+    if (not isinstance(archive, dict) or projection.get('schemaVersion') != 1
+            or projection.get('sourceReleaseId') != pointer['contentReleaseId']
+            or archive.get('edition') != 'global' or archive.get('sourceReleaseId') != pointer['contentReleaseId']
+            or not isinstance(archive.get('records'), list)):
+        raise ValueError('invalid_event_projection')
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None or current.utcoffset() is None:
+        raise ValueError('invalid_current_time')
+    current = current.astimezone(EVENT_TIME_ZONE)
+    active = []
+    for event in archive['records']:
+        schedule = event.get('schedule') if isinstance(event, dict) else None
+        if not isinstance(schedule, dict) or event.get('edition') != 'global' or event.get('sourceReleaseId') != pointer['contentReleaseId']:
+            raise ValueError('invalid_event_projection')
+        start = _event_local_time(schedule.get('startAt'))
+        end = _event_local_time(schedule.get('endAt'))
+        if end < start:
+            raise ValueError('invalid_event_schedule')
+        if start <= current <= end:
+            active.append(event)
+    if len(active) > 1:
+        raise ValueError('ambiguous_active_events')
+    if not active:
+        return None
+    event = active[0]
+    ranking = event.get('ranking')
+    flags = ranking.get('configured') if isinstance(ranking, dict) else None
+    if (type(event.get('id')) is not int or event['id'] <= 0 or not isinstance(event.get('name'), str)
+            or not event['name'] or not isinstance(flags, dict)
+            or any(type(flags.get(key)) is not bool for key in ('eventPoints', 'music', 'totalMusic'))):
+        raise ValueError('invalid_event_projection')
+    boards = []
+    if flags['music']:
+        songs = event.get('challengeSongs')
+        if not isinstance(songs, list):
+            raise ValueError('invalid_event_projection')
+        for song in songs:
+            if (not isinstance(song, dict) or type(song.get('id')) is not int or song['id'] <= 0
+                    or type(song.get('musicId')) is not int or song['musicId'] <= 0
+                    or not isinstance(song.get('name'), str) or not song['name']):
+                raise ValueError('invalid_event_projection')
+            boards.append({'type': 'music', 'musicId': str(song['musicId']),
+                           'musicName': song['name'], 'challengeMusicId': song['id']})
+    if flags['eventPoints']:
+        boards.append({'type': 'event-points'})
+    if not boards or len(boards) > 20:
+        raise ValueError('no_supported_boards_or_too_many_boards')
+    return {'eventId': str(event['id']), 'eventName': event['name'], 'boards': boards, 'ttl': 900,
+            'contentReleaseId': pointer['contentReleaseId'], 'eventProjectionSha256': sha,
+            'uncollectedBoards': ['total-music'] if flags['totalMusic'] else []}
 
 
 def read_plan(master: Path, event_id: int, *, ttl: int = 900) -> dict:
@@ -140,11 +257,14 @@ class RankingClient(GameClient):
                                'entries': ranking_entries(response, music=music)})
         finally:
             auth.clear()
+        source = {'kind': 'direct_game_read', 'clientVersion': CLIENT_VERSION}
+        for key in ('masterHashes', 'contentReleaseId', 'eventProjectionSha256'):
+            if key in self.plan:
+                source[key] = self.plan[key]
         return validate_observation({
             'schemaVersion': 1, 'serverId': 'global-hmt', 'observedAt': observed.isoformat(),
             'expiresAt': (observed + timedelta(seconds=self.plan['ttl'])).isoformat(), 'boards': boards,
-            'source': {'kind': 'direct_game_read', 'clientVersion': CLIENT_VERSION,
-                       'masterHashes': self.plan['masterHashes']},
+            'source': source,
             'uncollectedBoards': self.plan['uncollectedBoards'],
         }, 'global-hmt')
 
@@ -173,8 +293,10 @@ def run_capture(plan, profile, account, password, root, *, sdk_factory=SdkClient
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--master-dir', type=Path, required=True)
-    parser.add_argument('--event', type=int, required=True)
+    parser.add_argument('--master-dir', type=Path, help='Master tables for an explicit maintenance event')
+    parser.add_argument('--content-base', default='https://ournotes.stonebg.cn',
+                        help='public current content origin used by auto selection')
+    parser.add_argument('--event', default='auto', help='auto or an explicit event ID for maintenance')
     parser.add_argument('--root', type=Path, required=True, help='published observations root')
     parser.add_argument('--state-dir', type=Path, required=True, help='private lock/status directory')
     parser.add_argument('--sdk-resources', type=Path, required=True)
@@ -192,40 +314,59 @@ def main(argv=None):
             print('Ranking capture paused; operator action required.'); return 0
         account = password = ''
         stage = 'configuration'
+        event_id = None
         def progress(value):
             nonlocal stage
             if value in ('discovering', 'sdk_login', 'checking_existing_account', 'game_login',
                          'reading_rankings', 'publishing'):
                 stage = value
         try:
-            plan = read_plan(args.master_dir, args.event)
-            profile = Profile.from_resources(args.sdk_resources)
-            if args.prompt:
-                account = getpass.getpass('Account (hidden): ')
-                password = getpass.getpass('Password (hidden): ')
-            elif os.environ.get('CREDENTIALS_DIRECTORY'):
-                credentials = Path(os.environ['CREDENTIALS_DIRECTORY'])
-                account = (credentials / 'account').read_text().strip()
-                password = (credentials / 'password').read_text().rstrip('\r\n')
+            stage = 'selecting_event'
+            if args.event == 'auto':
+                plan = read_current_content_plan(args.content_base)
+                event_id = int(plan['eventId']) if plan else None
             else:
-                account = os.environ.get('OURNOTES_RANKING_ACCOUNT', '')
-                password = os.environ.get('OURNOTES_RANKING_PASSWORD', '')
-            if not account or not password:
-                raise LoginError('ranking_credentials_required')
-            path = run_capture(plan, profile, account, password, args.root, progress=progress)
-            value = json.loads(path.read_text())
-            result = {'status':'complete', 'paused':False, 'observedAt':value['observedAt'],
-                      'boards':len(value['boards']), 'entries':sum(len(b['entries']) for b in value['boards'])}
-            code = 0
+                try:
+                    event_id = int(args.event)
+                except ValueError as exc:
+                    raise ValueError('invalid_event_selection') from exc
+                if args.master_dir is None:
+                    raise ValueError('master_dir_required_for_manual_event')
+                plan = read_plan(args.master_dir, event_id)
+            if event_id is None:
+                result = {'status':'waiting', 'paused':False, 'reason':'no_active_event'}
+                code = 0
+            else:
+                stage = 'configuration'
+                profile = Profile.from_resources(args.sdk_resources)
+                if args.prompt:
+                    account = getpass.getpass('Account (hidden): ')
+                    password = getpass.getpass('Password (hidden): ')
+                elif os.environ.get('CREDENTIALS_DIRECTORY'):
+                    credentials = Path(os.environ['CREDENTIALS_DIRECTORY'])
+                    account = (credentials / 'account').read_text().strip()
+                    password = (credentials / 'password').read_text().rstrip('\r\n')
+                else:
+                    account = os.environ.get('OURNOTES_RANKING_ACCOUNT', '')
+                    password = os.environ.get('OURNOTES_RANKING_PASSWORD', '')
+                if not account or not password:
+                    raise LoginError('ranking_credentials_required')
+                path = run_capture(plan, profile, account, password, args.root, progress=progress)
+                value = json.loads(path.read_text())
+                result = {'status':'complete', 'paused':False, 'observedAt':value['observedAt'],
+                          'boards':len(value['boards']), 'entries':sum(len(b['entries']) for b in value['boards'])}
+                code = 0
         except LoginError as exc:
             result = {'status':'failed', 'paused':pause_required(str(exc)) or str(exc) == 'ranking_credentials_required', 'error':str(exc)}
             code = 2
         except Exception:
-            result = {'status':'failed', 'paused':True, 'error':'ranking_capture_failed'}
+            selecting = stage == 'selecting_event'
+            result = {'status':'failed', 'paused':not selecting,
+                      'error':'ranking_event_selection_failed' if selecting else 'ranking_capture_failed'}
             code = 2
         finally:
             account = password = ''
-        result.update(stage=stage, clientVersion=CLIENT_VERSION)
+        result.update(stage=stage, clientVersion=CLIENT_VERSION, eventId=event_id)
         temporary = status_path.with_suffix('.tmp')
         temporary.write_text(json.dumps(result) + '\n')
         os.chmod(temporary, 0o600)

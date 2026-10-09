@@ -4,7 +4,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from backend.player_rankings import query_player_rankings, validate_observation
-from tools.import_player_rankings import publish
+from tools.import_player_rankings import (ensure_final_archive_metadata, publish,
+                                          publish_final_observation)
 
 
 class PlayerRankingTests(unittest.TestCase):
@@ -67,6 +68,71 @@ class PlayerRankingTests(unittest.TestCase):
                 self.assertEqual(client.get("/api/v1/player-rankings?server=global-hmt").json()["entries"], [])
                 self.assertEqual(client.get("/api/v1/player-rankings?server=global").status_code, 400)
                 self.assertEqual(client.get("/api/v1/player-rankings?server=jp&cursor=broken").status_code, 400)
+
+    def test_final_archive_is_immutable_and_does_not_replace_current(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            older = self.snapshot('global-hmt')
+            older['boards'][0]['eventId'] = '1'
+            older['observedAt'] = '2026-10-09T16:00:00Z'
+            older['expiresAt'] = '2026-10-09T16:15:00Z'
+            current = self.snapshot('global-hmt')
+            current['boards'][0]['eventId'] = '2'
+            source = root / 'input.json'; source.write_text(json.dumps(current))
+            current_path = publish(source, root, 'global-hmt')
+            before = current_path.read_bytes()
+            final_path = publish_final_observation(older, root, 'global-hmt')
+            final_bytes = final_path.read_bytes()
+            self.assertEqual(current_path.read_bytes(), before)
+            self.assertEqual(final_path.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(final_path.parent.stat().st_mode & 0o777, 0o755)
+            self.assertTrue(final_path.with_suffix('.meta.json').exists())
+            changed = json.loads(json.dumps(older))
+            changed['boards'][0]['entries'][0]['score'] = 999
+            self.assertEqual(publish_final_observation(changed, root, 'global-hmt'), final_path)
+            self.assertEqual(final_path.read_bytes(), final_bytes)
+            live = query_player_rankings(root, server='global-hmt', now=datetime(2026, 10, 10, tzinfo=timezone.utc))
+            self.assertEqual(live['eventId'], '2')
+            self.assertEqual([item['id'] for item in live['events']], ['2', '1'])
+            self.assertIn('结束后归档', live['events'][1]['name'])
+            final = query_player_rankings(root, server='global-hmt', event='1', limit=1,
+                                          now=datetime(2026, 10, 10, tzinfo=timezone.utc))
+            self.assertEqual(final['eventId'], '1')
+            self.assertTrue(final['isFinal'])
+            self.assertEqual(final['status'], 'stale')
+            self.assertEqual(final['totalEntries'], 3)
+            with self.assertRaises(ValueError):
+                query_player_rankings(root, server='global-hmt', event='2', cursor=final['nextCursor'])
+            final_path.write_bytes(final_bytes + b' ')
+            with self.assertRaisesRegex(ValueError, 'digest mismatch'):
+                query_player_rankings(root, server='global-hmt', event='1')
+
+    def test_archive_metadata_can_be_repaired_without_recapture(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            value = self.snapshot('global-hmt')
+            value['boards'][0]['eventId'] = '1'
+            path = publish_final_observation(value, root, 'global-hmt')
+            sidecar = path.with_suffix('.meta.json')
+            sidecar.unlink()
+            self.assertTrue(ensure_final_archive_metadata(root, 'global-hmt', '1'))
+            self.assertTrue(sidecar.exists())
+            self.assertFalse(ensure_final_archive_metadata(root, 'global-hmt', '2'))
+            self.assertEqual(query_player_rankings(root, server='global-hmt')['eventId'], '1')
+            self.assertFalse(query_player_rankings(root, server='global-en')['events'])
+            with self.assertRaises(ValueError):
+                ensure_final_archive_metadata(root, 'global-hmt', '../1')
+
+    def test_empty_final_board_can_be_archived(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            value = self.snapshot('global-hmt')
+            value['boards'][0]['eventId'] = '1'
+            value['boards'][0]['entries'] = []
+            publish_final_observation(value, root, 'global-hmt')
+            result = query_player_rankings(root, server='global-hmt', event='1')
+            self.assertTrue(result['isFinal'])
+            self.assertEqual(result['totalEntries'], 0)
 
 
 if __name__ == "__main__": unittest.main()

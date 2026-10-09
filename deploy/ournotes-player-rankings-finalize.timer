@@ -1,0 +1,11 @@
+[Unit]
+Description=Archive completed HMT event rankings once
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=10min
+RandomizedDelaySec=30s
+Unit=ournotes-player-rankings-finalize.service
+
+[Install]
+WantedBy=timers.target

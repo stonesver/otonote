@@ -27,3 +27,10 @@
 6. 若失败，保留最后成功榜单及当前安全暂停状态，按故障阶段处理。回滚需恢复旧镜像和旧 service 组合；旧版本仍可能被上游拒绝，不得将回滚声明为采集恢复。
 
 离线验证：`python3 -m unittest tests.test_player_ranking_collection tests.test_player_rankings`。实际环境配置和私有迁移记录不随此文档提交。
+
+## 活动结束后的最终榜单
+
+- `ournotes-player-rankings-finalize.timer` 每约 10 分钟触发独立任务。任务读取并校验网站当前 Global 活动投影，选择已结束至少 10 分钟、含已支持榜单且尚未归档的最近一期活动；一次只处理一期。它与在线采集共用 `capture.lock`，状态写入独立的 `finalize-status.json`。
+- 任务重新登录并读取游戏最终榜单，全部验证成功后只创建 `observations/global-hmt/archive/event-<ID>-post-end.json` 和同名 `.meta.json`。归档文件使用不可覆盖创建；元数据包含活动身份、采集时间和 SHA-256。已有归档仅补齐缺失的元数据，不重新抓取或改写原数据。失败时保留待重试状态，不改动 `current.json`。
+- 部署时先核对归档文件的活动 ID、结束时间与摘要，再确保 `archive` 目录为 `0755`、归档文件与元数据为 `0644`，使只读排行榜服务可以访问。元数据不包含玩家信息；不要在部署日志中输出完整榜单。页面会把归档活动列入选择框，历史快照保留原采集时间。
+- 回滚时停用并停止 finalizer timer/service，恢复旧采集镜像和旧的排行榜后端目录链接；不要删除已生成的归档。现有 `current.json` 和历史归档应分别核验。

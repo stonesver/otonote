@@ -23,7 +23,8 @@ from backend.player_rankings import public_high_score_deck, validate_observation
 from tools.growth_export import fields
 from tools.growth_login import CLIENT_VERSION, GameClient, LoginError, integer, message, single, string, varint
 from tools.growth_login import Profile, SdkClient
-from tools.import_player_rankings import publish_observation
+from tools.import_player_rankings import (ensure_final_archive_metadata, publish_final_observation,
+                                          publish_observation)
 from tools.resource_pipeline.localization import resolve_text
 
 MUSIC_RPC = 'app.event.EventService/GetChallengeMusicRanking'
@@ -46,8 +47,9 @@ def _event_local_time(value) -> datetime:
         raise ValueError('invalid_event_schedule') from exc
 
 
-def read_current_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=None) -> dict | None:
-    """Bind a ranking plan to the site's hash-checked current Global event projection."""
+def _read_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=None,
+                       ended_root: Path | None = None) -> dict | None:
+    """Bind a ranking plan to the site's hash-checked Global event projection."""
     parsed = urlsplit(base)
     if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
         raise ValueError('invalid_content_origin')
@@ -103,21 +105,38 @@ def read_current_content_plan(base: str, *, now: datetime | None = None, fetch_b
         raise ValueError('invalid_current_time')
     current = current.astimezone(EVENT_TIME_ZONE)
     active = []
+    ended = []
     for event in archive['records']:
         schedule = event.get('schedule') if isinstance(event, dict) else None
-        if not isinstance(schedule, dict) or event.get('edition') != 'global' or event.get('sourceReleaseId') != pointer['contentReleaseId']:
+        if (not isinstance(schedule, dict) or event.get('edition') != 'global'
+                or event.get('sourceReleaseId') != pointer['contentReleaseId']
+                or type(event.get('id')) is not int or event['id'] <= 0):
             raise ValueError('invalid_event_projection')
         start = _event_local_time(schedule.get('startAt'))
         end = _event_local_time(schedule.get('endAt'))
         if end < start:
             raise ValueError('invalid_event_schedule')
-        if start <= current <= end:
+        ranking = event.get('ranking')
+        flags = ranking.get('configured') if isinstance(ranking, dict) else None
+        if (not isinstance(flags, dict)
+                or any(type(flags.get(key)) is not bool for key in ('eventPoints', 'music', 'totalMusic'))):
+            raise ValueError('invalid_event_projection')
+        if ended_root is None and start <= current <= end:
             active.append(event)
-    if len(active) > 1:
-        raise ValueError('ambiguous_active_events')
-    if not active:
-        return None
-    event = active[0]
+        if (ended_root is not None and end + timedelta(minutes=10) <= current
+                and (flags['eventPoints'] or flags['music'])
+                and not ensure_final_archive_metadata(ended_root, 'global-hmt', str(event['id']))):
+            ended.append((end, event))
+    if ended_root is None:
+        if len(active) > 1:
+            raise ValueError('ambiguous_active_events')
+        if not active:
+            return None
+        event = active[0]
+    else:
+        if not ended:
+            return None
+        event = max(ended, key=lambda item: item[0])[1]
     ranking = event.get('ranking')
     flags = ranking.get('configured') if isinstance(ranking, dict) else None
     if (type(event.get('id')) is not int or event['id'] <= 0 or not isinstance(event.get('name'), str)
@@ -143,6 +162,15 @@ def read_current_content_plan(base: str, *, now: datetime | None = None, fetch_b
     return {'eventId': str(event['id']), 'eventName': event['name'], 'boards': boards, 'ttl': 900,
             'contentReleaseId': pointer['contentReleaseId'], 'eventProjectionSha256': sha,
             'uncollectedBoards': ['total-music'] if flags['totalMusic'] else []}
+
+
+def read_current_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=None) -> dict | None:
+    return _read_content_plan(base, now=now, fetch_bytes=fetch_bytes)
+
+
+def read_ended_content_plan(base: str, root: Path, *, now: datetime | None = None,
+                            fetch_bytes=None) -> dict | None:
+    return _read_content_plan(base, now=now, fetch_bytes=fetch_bytes, ended_root=root)
 
 
 def read_plan(master: Path, event_id: int, *, ttl: int = 900) -> dict:
@@ -276,7 +304,7 @@ def pause_required(error: str) -> bool:
 
 
 def run_capture(plan, profile, account, password, root, *, sdk_factory=SdkClient, game_factory=RankingClient,
-                progress=lambda stage: None):
+                progress=lambda stage: None, publisher=None):
     game = game_factory(plan)
     progress('discovering')
     host = game.discover()
@@ -288,7 +316,7 @@ def run_capture(plan, profile, account, password, root, *, sdk_factory=SdkClient
     finally:
         identity = None
     progress('publishing')
-    return publish_observation(snapshot, root, 'global-hmt')
+    return (publisher or publish_observation)(snapshot, root, 'global-hmt')
 
 
 def main(argv=None):
@@ -297,6 +325,7 @@ def main(argv=None):
     parser.add_argument('--content-base', default='https://ournotes.stonebg.cn',
                         help='public current content origin used by auto selection')
     parser.add_argument('--event', default='auto', help='auto or an explicit event ID for maintenance')
+    parser.add_argument('--mode', choices=('capture', 'finalize'), default='capture')
     parser.add_argument('--root', type=Path, required=True, help='published observations root')
     parser.add_argument('--state-dir', type=Path, required=True, help='private lock/status directory')
     parser.add_argument('--sdk-resources', type=Path, required=True)
@@ -304,7 +333,7 @@ def main(argv=None):
     parser.add_argument('--resume', action='store_true', help='operator resume after resolving authentication or rate limits')
     args = parser.parse_args(argv)
     args.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    status_path = args.state_dir / 'status.json'
+    status_path = args.state_dir / ('finalize-status.json' if args.mode == 'finalize' else 'status.json')
     with (args.state_dir / 'capture.lock').open('a') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -322,7 +351,12 @@ def main(argv=None):
                 stage = value
         try:
             stage = 'selecting_event'
-            if args.event == 'auto':
+            if args.mode == 'finalize':
+                if args.event != 'auto':
+                    raise ValueError('manual_finalization_not_supported')
+                plan = read_ended_content_plan(args.content_base, args.root)
+                event_id = int(plan['eventId']) if plan else None
+            elif args.event == 'auto':
                 plan = read_current_content_plan(args.content_base)
                 event_id = int(plan['eventId']) if plan else None
             else:
@@ -334,7 +368,8 @@ def main(argv=None):
                     raise ValueError('master_dir_required_for_manual_event')
                 plan = read_plan(args.master_dir, event_id)
             if event_id is None:
-                result = {'status':'waiting', 'paused':False, 'reason':'no_active_event'}
+                result = {'status':'waiting', 'paused':False,
+                          'reason':'no_ended_event_to_archive' if args.mode == 'finalize' else 'no_active_event'}
                 code = 0
             else:
                 stage = 'configuration'
@@ -351,7 +386,9 @@ def main(argv=None):
                     password = os.environ.get('OURNOTES_RANKING_PASSWORD', '')
                 if not account or not password:
                     raise LoginError('ranking_credentials_required')
-                path = run_capture(plan, profile, account, password, args.root, progress=progress)
+                publication = {'publisher': publish_final_observation} if args.mode == 'finalize' else {}
+                path = run_capture(plan, profile, account, password, args.root, progress=progress,
+                                   **publication)
                 value = json.loads(path.read_text())
                 result = {'status':'complete', 'paused':False, 'observedAt':value['observedAt'],
                           'boards':len(value['boards']), 'entries':sum(len(b['entries']) for b in value['boards'])}
@@ -366,7 +403,7 @@ def main(argv=None):
             code = 2
         finally:
             account = password = ''
-        result.update(stage=stage, clientVersion=CLIENT_VERSION, eventId=event_id)
+        result.update(stage=stage, clientVersion=CLIENT_VERSION, eventId=event_id, mode=args.mode)
         temporary = status_path.with_suffix('.tmp')
         temporary.write_text(json.dumps(result) + '\n')
         os.chmod(temporary, 0o600)

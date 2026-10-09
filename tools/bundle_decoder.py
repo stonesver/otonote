@@ -1,8 +1,9 @@
-"""Resolve bundle material from exact external version/metadata bindings.
+"""Resolve exact bundle bindings and verify relocation of trusted material.
 
-Profiles contain FieldRef indices, never keys. Unknown metadata is rejected before
-reading fields; runtime decoding never searches candidates or falls back to a
-mapping from another client version.
+Profiles contain FieldRef indices, never keys. Unknown metadata can reuse
+previously verified material only at unique new FieldRefs, after packaged
+bundle validation by the caller. Runtime resource decoding uses the resulting
+exact version and metadata binding.
 """
 import hashlib
 import json
@@ -26,22 +27,26 @@ def _profile_entries(path):
             raise ValueError
         seen = set()
         for row in document['profiles']:
-            if not isinstance(row, dict) or set(row) != _FIELDS: raise ValueError
-            version, digest = row['clientVersion'], row['metadataSha256']
-            if (not isinstance(version, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,63}', version)
-                    or not isinstance(digest, str) or not re.fullmatch('[a-f0-9]{64}', digest)):
-                raise ValueError
-            for name in ('keyFieldUsage', 'nonceSeedFieldUsage'):
-                usage = row[name]
-                if type(usage) is not int or not 0x80000001 <= usage <= 0x9FFFFFFF or usage & 0xE0000001 != 0x80000001:
-                    raise ValueError
-            if row['keyFieldUsage'] == row['nonceSeedFieldUsage']: raise ValueError
-            binding = (version, digest)
+            _validate_row(row)
+            binding = (row['clientVersion'], row['metadataSha256'])
             if binding in seen: raise ValueError
             seen.add(binding)
         return document['profiles']
     except (OSError, ValueError, TypeError, UnicodeError):
         raise ValueError('invalid bundle decoder profile') from None
+
+
+def _validate_row(row):
+    if not isinstance(row, dict) or set(row) != _FIELDS: raise ValueError
+    version, digest = row['clientVersion'], row['metadataSha256']
+    if (not isinstance(version, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,63}', version)
+            or not isinstance(digest, str) or not re.fullmatch('[a-f0-9]{64}', digest)):
+        raise ValueError
+    for name in ('keyFieldUsage', 'nonceSeedFieldUsage'):
+        usage = row[name]
+        if type(usage) is not int or not 0x80000001 <= usage <= 0x9FFFFFFF or usage & 0xE0000001 != 0x80000001:
+            raise ValueError
+    if row['keyFieldUsage'] == row['nonceSeedFieldUsage']: raise ValueError
 
 
 def _binding(metadata, client_version, profile_path):
@@ -55,9 +60,19 @@ def _binding(metadata, client_version, profile_path):
     return selected
 
 
-def resolve_bundle_decoder(metadata, client_version, *, profile_path=None):
+def resolve_bundle_decoder(metadata, client_version, *, profile_path=None, profile=None):
     """Read one profile snapshot and bind the returned material to its receipt."""
-    selected = _binding(metadata, client_version, profile_path)
+    if profile is None:
+        selected = _binding(metadata, client_version, profile_path)
+    else:
+        try:
+            _validate_row(profile)
+        except (ValueError, TypeError):
+            raise ValueError('invalid bundle decoder profile') from None
+        if (profile['clientVersion'] != client_version or
+                profile['metadataSha256'] != hashlib.sha256(metadata.data).hexdigest()):
+            raise ValueError('unsupported bundle decoder binding')
+        selected = profile
     binding = hashlib.sha256(json.dumps(selected, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return (field_bytes(metadata, selected['keyFieldUsage'], 16),
             field_bytes(metadata, selected['nonceSeedFieldUsage'], 8), binding)
@@ -96,4 +111,44 @@ def field_bytes(metadata, usage: int, length: int) -> bytes:
     if matches[0] + length > data_size:
         raise ValueError("FieldRef default value exceeds the data section")
     return metadata.data[data_offset + matches[0]:data_offset + matches[0] + length]
+
+
+def relocated_profile(metadata, client_version: str, known_key: bytes, known_seed: bytes) -> dict:
+    """Locate the same verified material at unique FieldRefs in new metadata."""
+    if len(known_key) != 16 or len(known_seed) != 8:
+        raise ValueError('invalid prior bundle decoder material')
+    data = metadata.data
+    owners = {}
+    for index in range(metadata.type_count):
+        token = struct.unpack_from('<I', data, metadata.type_offset + index * 82 + 8)[0]
+        owners.setdefault(token, []).append(index)
+    defaults_offset, _, defaults_count = metadata.sections[7]
+    defaults = {}
+    for index in range(defaults_count):
+        field_index, _, data_index = struct.unpack_from('<III', data, defaults_offset + index * 12)
+        defaults.setdefault(field_index, []).append(data_index)
+    refs_offset, _, refs_count = metadata.sections[22]
+    data_offset, data_size, _ = metadata.sections[8]
+    keys, seeds = [], []
+    for index in range(refs_count):
+        token, local_field = struct.unpack_from('<II', data, refs_offset + index * 8)
+        matches = owners.get(token, [])
+        if len(matches) != 1 or metadata.type_name(matches[0]) != '<PrivateImplementationDetails>':
+            continue
+        field_start = struct.unpack_from('<I', data, metadata.type_offset + matches[0] * 82 + 26)[0]
+        positions = defaults.get(field_start + local_field, [])
+        if len(positions) != 1:
+            continue
+        start = positions[0]
+        usage = 0x80000001 | (index << 1)
+        if start + 16 <= data_size and data[data_offset + start:data_offset + start + 16] == known_key:
+            keys.append(usage)
+        if start + 8 <= data_size and data[data_offset + start:data_offset + start + 8] == known_seed:
+            seeds.append(usage)
+    if len(keys) != 1 or len(seeds) != 1 or keys[0] == seeds[0]:
+        raise ValueError('verified bundle material has no unique new FieldRefs')
+    row = {'clientVersion': client_version, 'metadataSha256': hashlib.sha256(data).hexdigest(),
+           'keyFieldUsage': keys[0], 'nonceSeedFieldUsage': seeds[0]}
+    _validate_row(row)
+    return row
 

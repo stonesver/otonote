@@ -81,7 +81,7 @@ python3 -m tools.runtime_bundle verify --root output/runtime-candidate --expecte
 Python/Node/系统工具由另行审查的 digest 固定基础镜像提供；程序包本身不伪装成包含这些依赖的完整镜像。新版更新器程序包仅支持内容生产，完整旧网站构建不在此包契约内。基础镜像、状态根、程序包根、配置根和容器参数属于私有部署配置，均不能写入公开仓库。
 切换程序版本前先运行现有预检，确认基础镜像依赖和外部资源契约满足要求；再对照旧版本执行样例任务。预检还须显式检查 `OURNOTES_MASTER_SALT_HEX`、`OURNOTES_MASTER_KEY_HEX`、`OURNOTES_MASTER_IV_HEX` 各为 32 字节，以及非零的 `OURNOTES_CRI_KEY`；`doctor(build=True)` 的依赖检查不能替代这些材料检查。真实值通过仓库外的受限 env 文件传入更新容器，不放入源码、镜像层或命令行。只读渲染容器不需要这些解密材料。
 
-当前资源解码还需通过 `OURNOTES_BUNDLE_DECODER_PROFILE` 指向只读外置 JSON。字段契约为 `schemaVersion: 1` 与 `profiles` 数组；每项包含 `clientVersion`、`metadataSha256`、整数 `keyFieldUsage` 和 `nonceSeedFieldUsage`。实际版本、摘要与字段映射由私有资源验证流程提供，不提交真实文件。配置必须精确匹配待用客户端和元数据，旧索引不能自动回退到新版本；缓存命中也必须重新校验绑定。该文件不含复制出的密钥，运行时只从已验证元数据解析材料。
+当前资源解码还需通过 `OURNOTES_BUNDLE_DECODER_PROFILE` 指向只读外置 JSON。字段契约为 `schemaVersion: 1` 与 `profiles` 数组；每项包含 `clientVersion`、`metadataSha256`、整数 `keyFieldUsage` 和 `nonceSeedFieldUsage`。实际版本、摘要与字段映射由私有资源验证流程提供，不提交真实文件。配置必须精确匹配待用客户端和元数据；旧索引不能直接回退到新版本。客户端升级后仅当已验证旧材料在新版元数据中各有唯一 FieldRef、且三个新版加密 bundle 验证通过时，才在私有缓存收据中保存新版绑定；否则仍需人工审核外置 profile。缓存命中也必须重新校验绑定。该文件和缓存收据都不含复制出的密钥，运行时只从已验证元数据解析材料。
 
 预检以原工作目录、原路径和新只读程序覆盖运行，状态挂载也设为只读，并禁用网络，验证 import、依赖、私有输入存在及路径绑定。记录程序摘要与基础镜像 digest，保留旧单元、原配置和上个版本用于回滚。预检成功不等于生产已切换；需在单次真实任务和两服渲染验证后才宣称不可变程序交付已在线生效。不得继续在活动版本目录覆盖源码。
 

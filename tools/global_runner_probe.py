@@ -1,5 +1,6 @@
 """Read-only, secret-free diagnostics for the official Global upgrade route."""
 import json
+from urllib.request import getproxies, proxy_bypass
 
 from tools.resource_pipeline.adapters.global_public import (
     APK_HOSTS, APK_USER_AGENT, BOOTSTRAP, ClientUpdateRequired,
@@ -27,6 +28,18 @@ def main():
         report('rpc', status='accepted')
         return 0
 
+    report('proxy_selection', httpsProxyConfigured=bool(getproxies().get('https')),
+           apkHostBypassed=proxy_bypass('pkg.biligame.com'))
+    transport = HttpTransport(allowed_hosts=APK_HOSTS, connect_timeout_seconds=30,
+                              read_timeout_seconds=30, max_response_bytes=1024)
+    try:
+        head = transport.request(HttpRequest('HEAD', upgrade.url, {'User-Agent': APK_USER_AGENT}))
+        report('apk_head_response', status=head.status,
+               isApkType=head.headers.get('content-type', '').split(';', 1)[0] == 'application/vnd.android.package-archive',
+               hasEtag=bool(head.headers.get('etag')),
+               serverIsCloudflare='cloudflare' in head.headers.get('server', '').lower())
+    except Exception as error:
+        report('apk_head_response', status='failed', errorType=type(error).__name__)
     try:
         package = client.official_apk(upgrade)
     except Exception as error:
@@ -35,8 +48,6 @@ def main():
         report('apk_head', status='available', byteSize=package['byteSize'], hasEtag=bool(package['etag']))
 
     if upgrade.url:
-        transport = HttpTransport(allowed_hosts=APK_HOSTS, connect_timeout_seconds=30,
-                                  read_timeout_seconds=30, max_response_bytes=1024)
         try:
             response = transport._send(HttpRequest('GET', upgrade.url, {'User-Agent': APK_USER_AGENT}))
             with response:

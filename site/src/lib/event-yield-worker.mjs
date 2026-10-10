@@ -10,7 +10,7 @@ self.addEventListener('message',async({data})=>{
    const {rules,eventId,candidates,challengeCandidates,input}=data;
    const partition=await eventSearchPartition(rules,eventId,input);
    const preparedKey=partition+':prepared';
-   const failures=[],rows=[],challengeRows=[],charts=new Map();
+   const failures=[],rows=[],challengeRows=[],charts=new Map(),challengePlanCache=new Map();
    const candidateCache=new Map(await store.get(preparedKey)??[]);
    let done=0,cacheHits=0,calculations=0,storedCandidates=candidateCache.size;
    const plan=planEventSearch(candidates,rules,input.draft);
@@ -39,15 +39,17 @@ self.addEventListener('message',async({data})=>{
        for(const goal of eventYieldGoals(input.goal,mode)){
          let reportedAt=0,reportedStage='';
          self.postMessage({type:'progress',done,total,title:c.title,stage:`${mode==='challenge'?'挑战':'普通'} · ${EVENT_YIELD_GOAL_LABELS[goal]}`});
-         const result=await optimizeEventYield({rules,eventId,...stageInput,candidate:c,chart,challengeRows,candidateCache,scoreCache,yieldControl,
+         const result=await optimizeEventYield({rules,eventId,...stageInput,candidate:c,chart,challengeRows,candidateCache,scoreCache,challengePlanCache,yieldControl,
            includeChallenge:mode==='ordinary'&&input.includeChallenge,goal,onProgress:p=>{
+             if(p.phase==='event-exact')p={...p,stage:'验证配对与收益上界'};
              if(!p.stage)return;
              const now=Date.now();if(p.stage===reportedStage&&now-reportedAt<120&&p.completed!==p.total)return;
              reportedAt=now;reportedStage=p.stage;
              self.postMessage({type:'progress',done,total,title:c.title,stage:`${mode==='challenge'?'挑战':'普通'} · ${EVENT_YIELD_GOAL_LABELS[goal]}`,detail:`${p.stage} ${p.completed} / ${p.total??'…'}`});
            }});
          cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;newScores+=result.practical.scoreCalculations;
-         found.push(...result.results.map(row=>({...row,recommendationGoals:[goal]})));
+         found.push(...result.results.map(row=>({...row,recommendationGoals:[goal],
+           search:{optimality:result.optimality,status:result.status,...result.certifiedSearch}})));
        }
        if(newScores)await store.put(scoreKey,[...scoreCache]);
        const prepared=[...candidateCache].filter(([key])=>!key.startsWith('power:'));

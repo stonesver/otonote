@@ -76,10 +76,10 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   const maximumLife = setting('life_base');
   const musicLengthMs = Math.max(...timeline.events.map(event => event.timeMs), ...timeline.skillTimes);
 
-  function run(draft, { includeTrace = false, withoutSkills = false, skillOrder = input.skillOrder } = {}) {
+  function run(draft, { includeTrace = false, withoutSkills = false, skillOrder = input.skillOrder, prepared } = {}) {
     if (draft.slots?.length !== 5 || draft.slots.some(slot => !slot.memberCardId || !slot.supportCardId)) throw new Error('请选择五张成员卡和五张留影');
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error('歌曲或难度与载入谱面不一致');
-    const power = formation.calculate(draft), skills = resolve(draft);
+    const { power, skills } = prepared ?? { power: formation.calculate(draft), skills: resolve(draft) };
     const eventPipeline = createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
     const common = { totalPower: power.total.total, scoreAdjustmentFactor: setting('note_score_adjustment_factor'),
       musicScoreLevelFactor: timeline.difficultyFactor, luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
@@ -92,7 +92,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       const comboAtScore = combo.at(event.timeMs);
       const scoreUpFactor = f32(factors.general + (factors[judgementField[event.judgement]] ?? 0));
       return { ...comboAtScore, scoreUpFactor, score: noteValue(event, comboAtScore.comboFactor, scoreUpFactor),
-        baseScore: noteValue(event, comboAtScore.comboFactor, 1) };
+        baseScore: includeTrace ? noteValue(event, comboAtScore.comboFactor, 1) : 0 };
     } });
     const arrivals = new Map(), stateTrace = [], factorCommands = [];
     const addFactor = command => { replay.addFactor(command); if (includeTrace) factorCommands.push(command); };
@@ -134,7 +134,11 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
     }
     const finalMs = Math.max(musicLengthMs, clock.at(lastFrame + 1).timeMs);
     replay.calculate(finalMs);
-    const noteTotal = replay.score, score = eventPipeline.apply('fixed_score', noteTotal, { draft, order: skillOrder });
+    const noteTotal = replay.score;
+    // The reference contains no skill effects, so its note total is invariant
+    // under skill order. Fixed-score adapters are deliberately outside it.
+    if (withoutSkills) return { baseScore: noteTotal };
+    const score = eventPipeline.apply('fixed_score', noteTotal, { draft, order: skillOrder });
     if (!Number.isSafeInteger(score) || score < 0) throw new Error('Invalid event fixed score result');
     const baseScore = replay.notes.reduce((sum, note) => sum + note.result.baseScore, 0);
     let cumulativeScore = 0;
@@ -161,16 +165,25 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
         skillPlayback: { skills, skillTimes: timeline.skillTimes, frameRate: input.frameRate,
           variants: [{ kind: 'explicit', order: skillOrder, score, notes, commands: factorCommands, skillTrace }] } } : {}) };
   }
-  function calculate(draft, options = {}) {
-    const order = options.skillOrder ?? input.skillOrder;
+  function validateOrder(order) {
     if (!Array.isArray(order) || order.length !== 5 || new Set(order).size !== 5 || order.some(i => !Number.isInteger(i) || i < 0 || i > 4)) throw new Error('技能顺序必须是 0 至 4 的完整排列');
-    const baseline = run(draft, { withoutSkills: true, skillOrder: order });
-    const result = run(draft, { includeTrace: Boolean(options.includeTrace), skillOrder: order });
+  }
+  function calculateOrders(draft, { skillOrders, includeTrace = false } = {}) {
+    if (!Array.isArray(skillOrders) || !skillOrders.length) throw new Error('至少需要一个技能顺序');
+    skillOrders.forEach(validateOrder);
+    const prepared = { power: formation.calculate(draft), skills: resolve(draft) };
+    const baseline = run(draft, { withoutSkills: true, skillOrder: skillOrders[0], prepared });
     // A second explicit scenario removes score, conversion and recovery
     // effects together; the gain includes their resulting combo/life changes.
-    result.baseScore = baseline.expectedScore - baseline.eventFixedScoreGain;
-    result.skillScoreGain = result.expectedScore - result.eventFixedScoreGain - result.baseScore;
-    return result;
+    return skillOrders.map(order => {
+      const result = run(draft, { includeTrace: Boolean(includeTrace), skillOrder: order, prepared });
+      result.baseScore = baseline.baseScore;
+      result.skillScoreGain = result.expectedScore - result.eventFixedScoreGain - result.baseScore;
+      return result;
+    });
   }
-  return { calculate, timeline };
+  function calculate(draft, options = {}) {
+    return calculateOrders(draft, { skillOrders: [options.skillOrder ?? input.skillOrder], includeTrace: options.includeTrace })[0];
+  }
+  return { calculate, calculateOrders, timeline };
 }

@@ -16,10 +16,13 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
     if (mode === 'gekisou') return [{ sampleIndex, calculator: createGekisouSongCalculator(rules, chart, { performance, performanceOrder: player.profile === 'explicit' ? 'fixed' : 'sampled', scenario, scorePrecision, eventAdapters }) }];
     const orders = player.profile === 'explicit' ? [performance.skillOrder] : skillOrdersFor(scorePrecision);
     const calculator = createPerformanceSongCalculator(rules, chart, { performance, eventAdapters });
-    return orders.map(skillOrder => ({ sampleIndex, skillOrder, calculator }));
+    return [{ sampleIndex, orders, calculator }];
   });
   function calculate(draft, { includeTrace = false } = {}) {
-    const results = calculators.map(entry => ({ ...entry, result: entry.calculator.calculate(draft, { skillOrder: entry.skillOrder }) }));
+    const results = calculators.flatMap(entry => mode === 'gekisou'
+      ? [{ ...entry, result: entry.calculator.calculate(draft) }]
+      : entry.calculator.calculateOrders(draft, { skillOrders: entry.orders })
+        .map((result, i) => ({ ...entry, skillOrder: entry.orders[i], result })));
     const scores = results.flatMap(({ result }) => result.scoreDistribution.outcomes.flatMap(row => Array(row.count).fill(row.score)));
     const distribution = summarizeScoreDistribution(scores, { kind: 'seed_samples', complete: false });
     const best = results.reduce((a, b) => a.result.maximumScore >= b.result.maximumScore ? a : b);
@@ -37,9 +40,9 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
       '同一批原始操作用于所有候选；玩家波动、技能顺序、游戏随机和对手条件分别保存。'])];
     const result = { ...trace, score: distribution.mean, expectedScore: distribution.mean, minimumScore: distribution.minimum, maximumScore: distribution.maximum,
       scorePrecision, scoreDistribution: distribution, sampleCount: scores.length,
-      orderCount: mode === 'gekisou' ? best.result.orderCount : calculators.length / inputs.length,
+      orderCount: mode === 'gekisou' ? best.result.orderCount : results.length / inputs.length,
       randomSources: { player: player.profile !== 'explicit' && (player.timingSpreadMs > 0 || player.missRate > 0),
-        skillOrder: mode === 'gekisou' ? best.result.orderCount > 1 : calculators.length > inputs.length, game: Boolean(trace.randomSampling) },
+        skillOrder: mode === 'gekisou' ? best.result.orderCount > 1 : results.length > inputs.length, game: Boolean(trace.randomSampling) },
       scenario: { ...(mode === 'gekisou' ? trace.scenario : {}), performanceScenario: player },
       playerScenario: player, performanceScenario: player, playerSampleCount: inputs.length,
       playerSamples: inputs.map((_, i) => {

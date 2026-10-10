@@ -9,9 +9,11 @@ import { stableSnapshotHash } from "./scoring-engine.mjs";
 const emptySlots = () => Array.from({ length: 5 }, () => ({ memberCardId: null, supportCardId: null }));
 const metric = { expected_song_score: "expectedScore", minimum_song_score: "minimumScore", maximum_song_score: "maximumScore" };
 const keyOf = (m, s) => `${m}|${s}`;
+const jobModels = new WeakMap();
 export { gekisouPlacements } from "./scoring-rules/formation-placements.mjs";
 import { createCandidateEvaluator } from "./formation-candidate-evaluator.mjs";
 import { SearchQueue } from "./scoring-rules/search-queue.mjs";
+import { createOrdinaryScoreBound } from '../../../packages/scoring/scoring-rules/ordinary-score-bound.mjs';
 
 export function compareScoredFormations(candidate, baseline) {
   if (!baseline) return null;
@@ -31,7 +33,27 @@ export function compareScoredFormations(candidate, baseline) {
 
 /** Fixed leader makes the current ordinary power model additive over pairs.
  * Use the SAME native arithmetic as the calculator to obtain edge weights. */
-export async function compilePairingModels(rules, input, { signal, yieldControl, onProgress, eventAdapters = [], pairCache, pairCacheKey } = {}) {
+function reweightModels(models, weight) {
+  const changed = new WeakMap();
+  return models.map(model => ({ leader: model.leader, edges: model.edges.map(edge => {
+    if (!changed.has(edge)) changed.set(edge, { ...edge, weight: weight(edge) });
+    return changed.get(edge);
+  }) }));
+}
+
+export async function compilePairingModels(rules, input, { signal, yieldControl, onProgress, eventAdapters = [], pairCache, pairCacheKey, modelCache } = {}) {
+  // A fresh token belongs to one optimizer call. Practical seeds and exact
+  // refinement share immutable models without copying another full edge matrix.
+  const modelKey = modelCache ? JSON.stringify(input) : null, saved = modelCache && jobModels.get(modelCache);
+  if (saved?.rules === rules && saved.key === modelKey && saved.adapters.length === eventAdapters.length
+    && saved.adapters.every((adapter,i) => adapter === eventAdapters[i])) {
+    await yieldControl?.();
+    return signal?.aborted ? null : saved.models;
+  }
+  const remember = models => {
+    if (modelCache) jobModels.set(modelCache, { rules, key: modelKey, adapters: [...eventAdapters], models });
+    return models;
+  };
   const calculator = createFormationCalculator(rules, { eventAdapters }), members = input.inventory.memberCardIds, supports = input.inventory.supportCardIds;
   const memberRows = new Map(members.map((id) => [id, calculator.card(id, "member")]));
   const pairs = [];
@@ -39,7 +61,7 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
     const slots = emptySlots(), index = member === leader ? 2 : 0;
     if (leader) slots[2].memberCardId = leader;
     slots[index] = { memberCardId: member, supportCardId: support };
-    return calculator.calculate({ ...input.draft, slots }).slots[index];
+    return calculator.calculateSlot({ ...input.draft, slots }, index);
   };
   const cached=pairCacheKey==null?null:pairCache?.get(pairCacheKey);
   if(cached){
@@ -50,7 +72,7 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
       musicBonuses.set(member,slot.breakdown.musicType.total+slot.breakdown.musicTag.total);
       onProgress?.({phase:'pair_weights',completed:i+1,total:members.length});await yieldControl?.();
     }
-    return cached.models.map(model=>({leader:model.leader,edges:model.edges.map(edge=>({...edge,weight:edge.weight+musicBonuses.get(edge.member)}))}));
+    return remember(reweightModels(cached.models, edge=>edge.weight+musicBonuses.get(edge.member)));
   }
   const musicBonuses=new Map();
   for (const [i, member] of members.entries()) {
@@ -65,19 +87,31 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
   }
   const leaders = input.constraints.leaderId ? [input.constraints.leaderId] : members;
   const models = [];
+  // Most leaders give the same bonus to a given pair. Intern immutable edges
+  // by their final integer weight instead of storing one object per leader.
+  const variants = Array(pairs.length);
   for (const [i, leader] of leaders.entries()) {
     if (signal?.aborted) return null;
     const bonuses = new Map(members.filter((m) => m === leader || memberRows.get(m)._characterID !== memberRows.get(leader)._characterID)
       .map((member) => [member, evaluateSlot(member, null, leader).breakdown.leader.total]));
-    models.push({ leader, edges: pairs.filter((e) => bonuses.has(e.member)).map((e) => ({ ...e, weight: e.weight + bonuses.get(e.member) })) });
+    const edges=[];
+    for(let j=0;j<pairs.length;j++) {
+      const edge=pairs[j], bonus=bonuses.get(edge.member);
+      if(bonus===undefined)continue;
+      if(bonus===0){edges.push(edge);continue;}
+      const weight=edge.weight+bonus, byWeight=variants[j]??=new Map();
+      let variant=byWeight.get(weight);
+      if(!variant)byWeight.set(weight,variant={...edge,weight});
+      edges.push(variant);
+    }
+    models.push({leader,edges});
     onProgress?.({ phase: "leader_weights", completed: i + 1, total: leaders.length });
     await yieldControl?.();
   }
   // Song/type bonuses use only the member base, independently of support and
   // leader. This optional job cache is only used with the audited event adapter.
-  if(pairCacheKey!=null)pairCache?.set(pairCacheKey,{models:models.map(model=>({leader:model.leader,
-    edges:model.edges.map(edge=>({...edge,weight:edge.weight-musicBonuses.get(edge.member)}))}))});
-  return models;
+  if(pairCacheKey!=null)pairCache?.set(pairCacheKey,{models:reweightModels(models,edge=>edge.weight-musicBonuses.get(edge.member))});
+  return remember(models);
 }
 
 export function draftFromPairing(input, leader, edges) {
@@ -106,12 +140,13 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
   const calculator = createFormationCalculator(rules);
   const song = metric[objective] ? (mode === "gekisou" ? createGekisouSongCalculator(rules, chart, { scenario: gekisouScenario }) : createFormalSongCalculator(rules, chart)) : null;
   const inputHash = stableSnapshotHash({ input, objective, mode, scenario: song?.scenario, topN, chartHash: song?.timeline.chartHash,
-    placementSearchVersion: 1, ruleSetVersion: rules.ruleSetVersion, rulesHash: stableSnapshotHash(rules) });
+    placementSearchVersion: 1, boundVersion: 4, ruleSetVersion: rules.ruleSetVersion, rulesHash: stableSnapshotHash(rules) });
   if (checkpoint && (checkpoint.inputHash !== inputHash || checkpoint.schemaVersion !== 1)) throw new Error("checkpoint input_mismatch");
   const models = await compilePairingModels(rules, input, { signal, yieldControl, onProgress });
   if (!models) return { status: "cancelled", results: [], evaluated: 0, warnings: [], optimality: "incomplete", upperBound: null, optimalityGap: null, topNComplete: false };
   const modelById = new Map(models.map((m) => [m.leader, m]));
   let factorBound = 1;
+  const pairSkills = new Map();
   if (song) {
     const resolve = createFormalSkillResolver(rules), resolveJust = createFormalSkillResolver(rules, { judgement: 6 }), maxima = [];
     // Every start AND removal is bounded by adding the absolute command value.
@@ -119,7 +154,9 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
     for (const member of input.inventory.memberCardIds) {
       let max = 0;
       for (const support of input.inventory.supportCardIds) {
-        const effects = resolve({ slots: [{ memberCardId: member, supportCardId: support }], modifiers: input.draft.modifiers })[0].liveEffects;
+        const skill = resolve({ slots: [{ memberCardId: member, supportCardId: support }], modifiers: input.draft.modifiers })[0];
+        pairSkills.set(keyOf(member, support), skill);
+        const effects = skill.liveEffects;
         const justEffects = mode === "gekisou" ? resolveJust({ slots: [{ memberCardId: member, supportCardId: support }], modifiers: input.draft.modifiers })[0].liveEffects : [];
         const sum = effects.filter((e, i) => e.active || justEffects[i]?.active).reduce((s, e) => s + Math.abs(Math.fround(Math.floor(Math.fround(e.rate * 100000)) / 100000)), 0);
         max = Math.max(max, sum);
@@ -132,6 +169,8 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
     factorBound = Math.fround((1 + 2 * maxima.sort((a, b) => b - a).slice(0, 5).reduce((a, b) => a + b, 0)) * 1.0001);
   }
   const boundCache = new Map();
+  const ordinaryBound = song && mode === 'ordinary' ? createOrdinaryScoreBound({ song, pairSkills,
+    legacyFactor: factorBound, input, metric: metric[objective] }) : null;
   const bound = (power) => {
     if (!song) return power;
     if (!boundCache.has(power)) {
@@ -145,12 +184,27 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
     if (!model) throw new Error("Invalid checkpoint leader");
     const solution = maximumPairing({ edges: model.edges, required: state.required, forbidden: state.forbidden,
       requiredMembers: [...input.constraints.requiredMemberIds, state.leader], requiredSupports: input.constraints.requiredSupportIds });
-    return solution ? { ...state, solution, upperBound: bound(solution.weight) } : null;
+    return solution ? { ...state, solution, upperBound: ordinaryBound
+      ? ordinaryBound(state, model, solution, () => draftFromPairing(input, state.leader, solution.edges))
+      : bound(solution.weight) } : null;
   };
   const required = input.constraints.lockedPairs.map((p) => keyOf(p.memberCardId, p.supportCardId));
-  const priority = (a,b) => b.upperBound-a.upperBound || b.solution.weight-a.solution.weight ||
-    a.leader.localeCompare(b.leader) || JSON.stringify([a.required,a.forbidden]).localeCompare(JSON.stringify([b.required,b.forbidden]));
+  const tie = (a,b) => a.leader.localeCompare(b.leader)
+    || JSON.stringify([a.required,a.forbidden]).localeCompare(JSON.stringify([b.required,b.forbidden]));
+  // Preserve the previous power-first expansion order for short budgets. A
+  // second heap tracks the certificate, independently of candidate priority.
+  const priority = (a,b) => b.solution.weight-a.solution.weight || tie(a,b);
   const frontier = new SearchQueue((checkpoint?.frontier ?? models.map(m => ({leader:m.leader,required,forbidden:[]}))).map(solve).filter(Boolean), priority);
+  let boundFrontier = new SearchQueue(frontier.snapshot(), (a,b) => b.upperBound-a.upperBound || priority(a,b));
+  const active = new Set(frontier.snapshot());
+  const push = state => { frontier.push(state); boundFrontier.push(state); active.add(state); };
+  const remainingBound = () => {
+    while (boundFrontier.length && !active.has(boundFrontier.peek())) boundFrontier.pop();
+    // Discard buried stale entries so memory remains proportional to the live frontier.
+    if (boundFrontier.length > 2 * active.size + 128)
+      boundFrontier = new SearchQueue([...active], (a,b) => b.upperBound-a.upperBound || priority(a,b));
+    return boundFrontier.peek()?.upperBound ?? 0;
+  };
   const evaluator = createCandidateEvaluator({rules,chart,mode,objective,gekisouScenario},{calculator,song});
   const scoreDraft = evaluator.score;
   let baselineResult = null;
@@ -162,15 +216,20 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
   resultSort(); results.splice(topN);
   let evaluated = checkpoint?.evaluated ?? 0, runEvaluated = 0;
   const prune = () => {
-    // The best remaining upper bound dominates the entire heap. Keep weaker
-    // nodes lazily instead of filtering and sorting the whole frontier per team.
-    if (results.length === topN && frontier.peek()?.upperBound <= results.at(-1).value) frontier.clear();
+    if (results.length === topN && remainingBound() <= results.at(-1).value) {
+      frontier.clear(); boundFrontier.clear(); active.clear();
+    }
   };
   prune();
   while (frontier.length && !signal?.aborted && (!maxEvaluations || runEvaluated < maxEvaluations)) {
     const states = [];
     const width = Math.min(batchSize, maxEvaluations ? maxEvaluations-runEvaluated : batchSize);
-    while (states.length < width && frontier.length) states.push(frontier.pop());
+    while (states.length < width && frontier.length) {
+      const state=frontier.pop(); active.delete(state);
+      if (results.length === topN && state.upperBound <= results.at(-1).value) continue;
+      states.push(state);
+    }
+    if (!states.length) break;
     const drafts = states.map(state => draftFromPairing(input,state.leader,state.solution.edges));
     const values = evaluateBatch ? await evaluateBatch(drafts) : await Promise.all(drafts.map(candidate => evaluator.evaluate(candidate, {
       signal,yieldControl,onProgress:p=>onProgress?.({...p,evaluated})
@@ -179,26 +238,27 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
     for (const [i,state] of states.entries()) {
       const value = values[i];
       // Every uncompleted subspace survives cancellation and can be resumed.
-      if (!value) { if (!signal?.aborted) throw new Error("Candidate batch did not complete"); frontier.push(state); continue; }
+      if (!value) { if (!signal?.aborted) throw new Error("Candidate batch did not complete"); push(state); continue; }
       if (value.power !== state.solution.weight) throw new Error("Pairing model disagrees with native power calculator");
+      if (value.value > state.upperBound) throw new Error("Search bound below evaluated candidate");
       const id = `${state.leader}:${state.solution.edges.map(e=>e.key).join(",")}`;
       results.push({id,...withComparison(value),delta:baseline==null?null:value.value-baseline});
       resultSort(); results.splice(topN);
       for (const child of partitionPairing(state,state.solution)) {
         const solved=solve({leader:child.leader,required:child.required,forbidden:child.forbidden});
-        if(solved) frontier.push(solved);
+        if(solved) push(solved);
       }
       evaluated++; runEvaluated++;
     }
     prune();
     onProgress?.({phase:"search",completed:evaluated,frontier:frontier.length,concurrency:batchSize,
-      best:results[0]?.value??null,upperBound:Math.max(results[0]?.value??0,frontier.peek()?.upperBound??0),
+      best:results[0]?.value??null,upperBound:Math.max(results[0]?.value??0,remainingBound()),
       // A small live preview, never the entire growing search frontier.
       bestCandidate:results[0]??null});
     await yieldControl();
   }
   const complete = frontier.length === 0;
-  const upperBound = Math.max(results[0]?.value ?? 0, frontier.peek()?.upperBound ?? 0);
+  const upperBound = Math.max(results[0]?.value ?? 0, remainingBound());
   return { status: complete ? (results.length ? "completed" : "no_feasible_formation") : signal?.aborted ? "cancelled" : "budget_exhausted", objective, mode,
     searchScope: scope, inputHash, sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
     optimality: complete ? (results.length ? (mode === "gekisou" && song ? "best_within_simulation" : "proven_within_model") : "infeasible") : "incomplete", topNComplete: complete, upperBound,

@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { build, transform as transformTs } from '../site/node_modules/esbuild/lib/main.js';
 import { transform } from '../site/node_modules/@astrojs/compiler-rs/dist/index.mjs';
 import { loadingArtFiles } from '../site/src/runtime/loading-presentation.mjs';
-import { attachDataProfiles } from './web_client_dependencies.mjs';
+import { attachDataProfiles,interactionPreloads } from './web_client_dependencies.mjs';
 import { buildPrerenderRuntime } from './build_prerender_runtime.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -136,6 +136,7 @@ const scriptOutputs = Object.fromEntries(Object.entries(interactions.metafile.ou
 const routes = pages.map(p => ({ pattern: relative(join(site,'src/pages'),p).replace(/\.astro$/,'').replace(/(^|\/)index$/,''), ...byEntry.get(p) }));
 routes.sort((a,b) => Number(a.pattern.includes('['))-Number(b.pattern.includes('[')) || b.pattern.length-a.pattern.length);
 const appManifest = { schemaVersion:1, contentSchemaVersion:1, routes, scripts:scriptOutputs,
+  ...interactionPreloads(interactions.metafile,stage),
   endpoints: {'search-index.json':byEntry.get(entries['endpoints/search-index'])} };
 const profiledManifest = {...appManifest, buildRoot:stage};
 attachDataProfiles(profiledManifest, compiled.metafile, groupsByInput);

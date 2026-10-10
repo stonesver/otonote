@@ -14,6 +14,7 @@ export async function loadTeamWorkspaceData(context,{
 }={}) {
  const rules=context?.rules??context?.data?.formalRules??context?.data?.rules;
  if(context?.data?.memberCards&&rules){
+  if(context.data.filterVisualOptions&&context.data.growthIcons)return {...context.data,formalRules:rules};
   const {sharedTeamPresentation}=await loadPresentation();
   return {...context.data,...sharedTeamPresentation(),formalRules:rules};
  }

@@ -68,6 +68,9 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
       node.childNodes = [];
       set(node, 'data-deferred-json', derivedRoot + 'payloads/' + hash + '.json');
       set(node, 'data-sha256', hash);
+      // Match checkedJson's same-origin credentials/CORS fetch so the later
+      // integrity-checked read consumes this response rather than downloading twice.
+      append(head,fragment(`<link rel="preload" as="fetch" crossorigin="anonymous" href="${derivedRoot}payloads/${hash}.json" fetchpriority="high">`)[0]);
     });
     const en = locale === 'en';
     const scene = loadingPresentation('tool', locale);
@@ -87,11 +90,20 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     const shared = new Set(Object.entries(app.scripts).filter(([key]) => /\/(BaseLayout|ArchiveImage|SiteAnalytics|TransitionPreview|UnifiedSearch|FilterDrawer)\.astro\?/.test(key)).map(([,value]) => codeRoot + value));
     for (const node of all) {
       if (node.tagName !== 'script' || attr(node, 'type') !== 'module' || !attr(node, 'src') || shared.has(attr(node, 'src'))) continue;
-      if (tool) append(head, fragment(`<link rel="modulepreload" href="${attr(node, 'src')}">`)[0]);
       set(node, 'data-deferred-module', attr(node, 'src')); remove(node, 'src'); set(node, 'type', 'application/x-ournotes-deferred');
     }
   }
-  const config = {schemaVersion:1, pointer, codeRoot, loadingArt, app:{schemaVersion:app.schemaVersion, routes:app.routes, endpoints:app.endpoints, scripts:app.scripts}};
+  const preloaded=new Set();
+  for(const node of all){
+    if(node.tagName!=='script')continue;
+    const src=attr(node,'data-deferred-module')??(attr(node,'type')==='module'?attr(node,'src'):null);
+    if(!src?.startsWith(codeRoot)||attr(node,'data-deferred-module')&&!tool)continue;
+    for(const path of app.modulePreloads?.[src.slice(codeRoot.length)]??[src.slice(codeRoot.length)]){
+      if(preloaded.has(path))continue;preloaded.add(path);
+      append(head,fragment(`<link rel="modulepreload" href="${codeRoot+path}">`)[0]);
+    }
+  }
+  const config = {schemaVersion:1, pointer, codeRoot, loadingArt, app:{schemaVersion:app.schemaVersion, routes:app.routes, endpoints:app.endpoints, scripts:app.scripts,workspacePreloads:app.workspacePreloads??[]}};
   const initializer = fragment(`<script>globalThis[Symbol.for('ournotes.prerender.v1')]=${safeJson(config)};${bootstrap.replace(/<\/script/gi, '<\\/script')};${navigationScript.replace(/<\/script/gi, '<\\/script')}</script>`)[0];
   initializer.parentNode = head; head.childNodes.unshift(initializer);
   if (stylesheet !== undefined) {

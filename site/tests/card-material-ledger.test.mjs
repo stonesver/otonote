@@ -22,8 +22,8 @@ test("separates two skills at the same level instead of merging their coins", ()
   assert.deepEqual(ledger.map((section) => section.key), ["level", "rank", "awake", "skill:live", "skill:gekisou"]);
   assert.deepEqual(ledger[3].total, [{ itemId: "item-3", amount: 10000 }, { itemId: "item-24", amount: 10 }]);
   assert.deepEqual(ledger[4].total, [{ itemId: "item-3", amount: 10000 }, { itemId: "item-25", amount: 10 }]);
-  assert.equal(ledger[2].steps[0].label, "觉醒 0 → 1");
-  assert.equal(ledger[1].steps[0].label, "Rank 1 → 2");
+  assert.equal(ledger[2].steps[0].label, "突破（特训） 0 → 1");
+  assert.equal(ledger[1].steps[0].label, "觉醒 1 → 2");
 });
 test("level milestones are incremental costs and do not double count cumulative experience", () => {
   const [level] = createCardMaterialLedger({ profile, projection });

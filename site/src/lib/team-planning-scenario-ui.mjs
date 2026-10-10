@@ -111,12 +111,12 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
       if(check.checked){
         const details=node('details'),summary=node('summary','单独设置这张卡的目标');details.append(summary);
         const fields=node('div');fields.className='planning-fields';
-        for(const [field,title,max] of [['level','等级',200],['rank',card.kind==='member'?'觉醒阶数':'突破阶数',5],...(card.kind==='member'?[['awake','特训阶数',5],['skillLevel','演出技能',5],['gekisouSkillLevel','激奏技能',5]]:[])]) {
+        for(const [field,title,max] of [['level','等级',200],['rank',card.kind==='member'?'觉醒阶数':'突破阶数',5],...(card.kind==='member'?[['awake','突破（特训）阶数',5],['skillLevel','演出技能',5],['gekisouSkillLevel','激奏技能',5]]:[])]) {
           const l=node('label');l.className='planning-field';const input=node('input');input.type='number';input.min='1';input.max=String(max);input.step='1';input.placeholder=ui('沿用上方目标');input.value=targets[card.id]?.[field]??'';
           input.addEventListener('change',()=>{if(!input.checkValidity()){input.reportValidity();notify();return;}targets[card.id]??={};if(input.value==='')delete targets[card.id][field];else targets[card.id][field]=Number(input.value);notify();});
           l.append(node('span',title),input);fields.append(l);
         }
-        details.append(fields,node('p','突破、觉醒和特训使用游戏记录的阶数；具体上限会在计算时核对。'));row.append(details);
+        details.append(fields,node('p','觉醒与突破（特训）使用游戏记录的阶数；具体上限会在计算时核对。'));row.append(details);
       }
       root.append(row);
     }

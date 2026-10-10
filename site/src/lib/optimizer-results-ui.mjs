@@ -1,3 +1,4 @@
+import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {requestTeamSave} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
@@ -7,7 +8,6 @@ import {toolRoute} from './tool-route.mjs';
 const ui=text=>planningUiText(text,typeof document==='undefined'?'zh-CN':document.documentElement.lang);
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=ui(text);if(cls)n.className=cls;return n;};
 const number=n=>n==null?'—':n.toLocaleString(undefined,{maximumFractionDigits:2});
-const growthFields={level:'等级',rank:'突破阶数',awake:'觉醒阶数',skillLevel:'演出技能',gekisouSkillLevel:'激奏技能'};
 export function recommendationScenarioLabel(result) {
   if(result.planning?.label)return result.planning.label;
   const s=result.draft?.modifiers?.planningScenario;
@@ -27,7 +27,7 @@ function trainingDescription(change,workbench) {
   const kind=change.type??change.kind??(String(change.id).startsWith('support')?'support':'member');
   const card=workbench.cardFor?.(kind,change.id),name=change.name??card?.shortLabel??change.id;
   const fields=Array.isArray(change.fields)?change.fields:Object.entries(change.fields??change.changes??{}).map(([field,values])=>({field,...values}));
-  return `${name}：${fields.map(item=>`${ui(growthFields[item.field]??item.field)} ${item.from??ui('未记录')} → ${item.to??'—'}`).join('，')}`;
+  return `${name}：${fields.map(item=>`${cardGrowthLabel(item.field,kind,typeof document==='undefined'?'zh-CN':document.documentElement.lang)} ${item.from??ui('未记录')} → ${item.to??'—'}`).join('，')}`;
 }
 export function renderOptimizerResults(workbench,results,{mode,objective,live=false}={}) {
   const root=workbench.querySelector('[data-pairing-results]');root.replaceChildren();

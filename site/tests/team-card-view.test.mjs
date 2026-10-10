@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createTeamCardView,resolveTeamCardGrowth} from '../src/lib/team-card-view.mjs';
+import {createInventoryManager} from '../src/lib/inventory-manager.mjs';
+import {createFormationCalculator} from '../../packages/scoring/scoring-rules/formation-power.mjs';
 import {createSharedTeamRules} from './fixtures/shared-team-rules.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 const rules=createSharedTeamRules();
@@ -16,18 +18,43 @@ class Element extends EventTarget {
 const document={createElement:tag=>new Element(tag)};
 const all=node=>[node,...node.children.flatMap(child=>typeof child==='string'?[]:all(child))];
 
-test('awakening uses its own game marker for progress instead of the breakthrough star or localized text art',()=>{
- const icons={rank:'/breakthrough-star.png',awake:'/awakened-text.png',awakeBase:'/awakening-marker.png'};
+test('new explicit CSV headers preserve the established field mapping and old templates remain readable',()=>{
+ const manager=createInventoryManager(rules);
+ const headers=['id,阶数（成员觉醒／留影突破）,突破（特训）阶数','id,rank,awake','id,突破阶数,觉醒阶数'];
+ for(const header of headers){
+   const rows=manager.preview(`${header}\nmember-card-1,3,2`);
+   const value=manager.merge(manager.empty(),rows).inventory.growth[card.id];
+   assert.equal(value.rank,3);assert.equal(value.awake,2);
+ }
+});
+
+test('member breakthrough changes the level cap; awakening does not, while memory rank does',()=>{
+ const calculator=createFormationCalculator(rules),member=calculator.card(card.id,'member'),support=calculator.card('support-card-1','support');
+ const memberLevel=g=>calculator.resolveGrowth(member,'Member',g).level;
+ assert.equal(memberLevel({rank:1,awake:1}),30);
+ assert.equal(memberLevel({rank:5,awake:1}),30);
+ assert.equal(memberLevel({rank:1,awake:2}),40);
+ assert.equal(calculator.resolveGrowth(support,'Support',{rank:2}).level,40);
+});
+
+test('member awakening and breakthrough labels match the fields that control the level cap',()=>{
+ const view=createTeamCardView(card,{growth:{rank:3,awake:2},data:{document}});
+ const stats=all(view).filter(node=>node.className==='tw-card-stat');
+ assert.equal(stats.find(node=>node.dataset.field==='rank').title,'觉醒 3');
+ assert.equal(stats.find(node=>node.dataset.field==='awake').title,'突破（特训） 2');
+ const support=createTeamCardView({...card,kind:'support'},{growth:{rank:3},data:{document}});
+ assert.equal(all(support).find(node=>node.dataset.field==='rank').title,'突破 3');
+});
+
+test('awakening uses the star while breakthrough stays a concise label with its own value',()=>{
+ const icons={rank:'/awakening-star.png',awake:'/awakened-text.png',awakeBase:'/awakening-marker.png'};
  const view=createTeamCardView(card,{growth:{rank:3,awake:2},data:{document,growthIcons:icons}});
  const stats=all(view).filter(node=>node.className==='tw-card-stat');
  const awake=stats.find(node=>node.dataset.field==='awake'),rank=stats.find(node=>node.dataset.field==='rank');
  assert.equal(all(rank).find(node=>node.tagName==='img').src,icons.rank);
- assert.deepEqual(all(awake).filter(node=>node.tagName==='img').map(node=>node.src),Array(5).fill(icons.awakeBase));
- assert.deepEqual(all(awake).filter(node=>node.className==='tw-awake-bloom').map(node=>node.dataset.active),['true','true','false','false','false']);
- const unknown=createTeamCardView(card,{data:{document,growthIcons:icons}});
- const unknownAwake=all(unknown).find(node=>node.dataset.field==='awake');
- assert.equal(all(unknownAwake).find(node=>node.tagName==='img').src,icons.awakeBase);
- assert.equal(unknownAwake.children.at(-1).textContent,'—');
+ assert.equal(awake.children[0].textContent,'突');
+ assert.equal(awake.children.at(-1).textContent,'2');
+ assert.equal(all(awake).some(node=>node.tagName==='img'),false);
 });
 
 test('unknown fields stay visibly unknown and game icon URLs are reused without interactive descendants',()=>{
@@ -35,7 +62,7 @@ test('unknown fields stay visibly unknown and game icon URLs are reused without 
  assert.equal(view.tagName,'span');assert.equal(view.className,'tw-card-view');
  const nodes=all(view),stats=nodes.filter(node=>node.className==='tw-card-stat');assert.equal(stats.length,5);
  assert.equal(stats[0].children.at(-1).textContent,'Lv.2');assert.equal(stats[1].children.at(-1).textContent,'—');
- assert.ok(stats.some(node=>node.title==='突破 —'));assert.ok(nodes.some(node=>node.src==='/awake.png'));assert.ok(nodes.some(node=>node.src==='/attribute.png'));assert.ok(nodes.some(node=>node.src==='/band.png'));
+ assert.ok(stats.some(node=>node.title==='觉醒 —'));assert.ok(nodes.some(node=>node.src==='/attribute.png'));assert.ok(nodes.some(node=>node.src==='/band.png'));
  assert.equal(nodes.some(node=>['button','input','select','a'].includes(node.tagName)),false);
  const support=createTeamCardView({...card,kind:'support'},{data:{document},compact:true});assert.equal(all(support).filter(node=>node.className==='tw-card-stat').length,2);
  assert.ok(all(support).some(node=>node.textContent==='养成未记录'));

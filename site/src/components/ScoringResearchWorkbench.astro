@@ -3,12 +3,17 @@ import "../styles/calculator-workflow.css";
 import CalculatorSongPicker from "./CalculatorSongPicker.astro";
 import GekisouOpponentInputs from "./GekisouOpponentInputs.astro";
 import CalculatorStrategyGuide from "./CalculatorStrategyGuide.astro";
+import {memberCards,supportCards} from "../lib/inventory-catalog";
+import {bandItemDatabase} from "../lib/band-items";
 import { catalog, getAsset } from "../lib/catalog";
-import { cardDetailProjections } from "../lib/game-database";
+import { cardDetailProjections } from "../lib/game-card-data";
 import { scoringEvidence } from "../lib/scoring-capability";
 import { globalSystems } from "../lib/global-systems";
 import { activeReleaseContext } from "../lib/release-context";
 import { getRuntimeUiLabels } from "../lib/runtime-ui-labels";
+import {sharedTeamPresentation} from "../lib/shared-team-presentation.mjs";
+import "../styles/task-workbench.css";
+import "../styles/task-prototype-theme.css";
 import formalRules from "../data/formal-scoring-rules.json";
 import { scoringRulesAvailable } from "../lib/scoring-release-gate.mjs";
 import ScoringUnavailable from "./ScoringUnavailable.astro";
@@ -20,11 +25,16 @@ const vipRanks = globalSystems.sourceReleaseId === catalog.release.id
   ? globalSystems.vipRanks
   : [];
 const clientData = JSON.stringify({
+  ...sharedTeamPresentation(),
+  locale:runtimeUi.locale,
+  bands:catalog.bands.map(b=>({id:b.masterId,name:b.displayName})),
+  characters:catalog.characters.map(c=>({id:c.masterId,name:c.displayName})),
+  instruments:bandItemDatabase.items.map(i=>({id:i.masterId,name:i.name})),
   sourceReleaseId: catalog.release.id,
   formalRules,
   vipRanks,
-  memberCards: catalog.memberCards.map(c=>({...c,imageUrl:getAsset(c.thumbnailAssetId)?.previewUrl})),
-  supportCards: catalog.supportCards.map(c=>({...c,imageUrl:getAsset(c.thumbnailAssetId)?.previewUrl})),
+  memberCards,
+  supportCards,
   projections: [
     ...cardDetailProjections.memberCards,
     ...cardDetailProjections.supportCards
@@ -32,11 +42,12 @@ const clientData = JSON.stringify({
     cardId: projection.cardId,
     skillSummaries: projection.skillSummaries
   })),
-  tracks: catalog.musicTracks.map((track) => ({ id: track.id, title: track.title })),
+  tracks: catalog.musicTracks,
   charts: catalog.musicCharts.map((chart) => ({
     id: chart.id,
     trackId: chart.trackId,
     difficulty: chart.difficulty,
+    level: chart.level,
     duration: chart.duration,
     fullComboCount: chart.fullComboCount,
     analysisDataUrl: chart.analysisDataUrl

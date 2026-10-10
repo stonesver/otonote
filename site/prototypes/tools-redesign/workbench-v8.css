@@ -1,0 +1,17 @@
+/* Native band emblems and a shared skill popover in the top layer. */
+.band-emblem{border:0;background:transparent;box-shadow:0 1px 3px #0003;}
+.band-emblem img{width:100%;height:100%;object-fit:contain;}
+[data-skill-card]{cursor:help;}
+[data-skill-card]:focus-visible{outline:2px solid #aa82c2;outline-offset:-2px;}
+.skill-help{position:fixed;inset:auto;margin:0;padding:14px 16px;border:1px solid #e1d5eb;border-radius:10px;background:#fff;color:#735581;box-shadow:0 12px 36px #49375929;pointer-events:none;box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto;}
+.skill-help-header{display:flex;gap:9px;align-items:center;padding-bottom:10px;border-bottom:1px solid #eee5f3;}
+.skill-help-header .band-emblem{flex:none;width:26px;height:26px;}
+.skill-help-header strong{display:block;font-size:13px;font-weight:600;line-height:1.5;}
+.skill-help-header small{display:block;font-size:10px;color:#a18cad;margin-top:2px;}
+.skill-help-section{padding-top:10px;}
+.skill-help-section>div{display:flex;justify-content:space-between;gap:8px;align-items:center;}
+.skill-help-section b{font-size:10px;color:#9574a8;font-weight:500;}
+.skill-help-section small{font-size:9px;color:#a28cb0;background:#f7f2fa;border-radius:3px;padding:2px 5px;white-space:nowrap;}
+.skill-help-section h4{font-size:12px;font-weight:600;margin:4px 0;color:#755484;}
+.skill-help-section p{font-size:11px;line-height:1.75;margin:0;white-space:pre-line;}
+.skill-help-note{font-size:9px;color:#aa96b5;margin:10px 0 0;padding-top:8px;border-top:1px solid #eee5f3;}

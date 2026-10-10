@@ -4,6 +4,17 @@ export const toolTags = ['personal-growth-workbench', 'team-draft-workbench',
 // Component display:grid/flex rules must not override the initial hidden state.
 export const toolPendingStyle = '[data-tool-pending] { display: none !important; }';
 
+/** All controls exist at interactive; unrelated deferred scripts may delay DCL. */
+export function whenDocumentParsed(document,start) {
+  if(document.readyState!=='loading'){start();return;}
+  const parsed=()=>{
+    if(document.readyState==='loading')return;
+    document.removeEventListener('readystatechange',parsed);
+    start();
+  };
+  document.addEventListener('readystatechange',parsed);
+}
+
 export function revealTool(region) {
   region.inert = false;
   region.hidden = false;

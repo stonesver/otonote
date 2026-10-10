@@ -1,3 +1,4 @@
+import {setupTaskWorkbench} from './task-workbench.mjs';
 import {createPersonalGrowthStore,applyPersonalGrowth} from './personal-growth-store.mjs';
 import {toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged} from './shared-team-context.mjs';
 import {skillPeek,destroySkillPopover} from './calculator-card-ui.mjs';
@@ -53,6 +54,7 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
         applyDraft:draft=>{this.draft=createTeamDraft(draft);this.planningScenarios?.restore(this.draft.modifiers);this.commit();},
         onInventoryChange:()=>this.planningScenarios?.refreshInventory()
       });
+      setupTaskWorkbench(this,'team');
     }
 
     bindEvents() {
@@ -176,7 +178,9 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
     commit() {
       this.productionPower?.changed();
       this.draft = createTeamDraft(this.draft);
-      const query = serializeTeamDraftSearch(this.draft);
+      const parameters=new URLSearchParams(serializeTeamDraftSearch(this.draft));
+      const server=new URLSearchParams(window.location.search).get('server');if(server)parameters.set('server',server);
+      const query = parameters.size?'?'+parameters.toString():'';
       window.history.replaceState(null, "", `${window.location.pathname}${query}${window.location.hash}`);
       this.render();
       notifyToolTeamChanged(this.teamWorkspaceContext);
@@ -192,7 +196,8 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
       this.quickOptions?.sync();
     }
 
-    disconnectedCallback() { this.teamWorkspaceCleanup?.(); destroySkillPopover(this); this.productionPower?.disconnect(); this.journey?.disconnect(); this.quickOptions?.destroy(); }
+    disconnectedCallback() {
+      this.taskWorkbench?.destroy(); this.teamWorkspaceCleanup?.(); destroySkillPopover(this); this.productionPower?.disconnect(); this.journey?.disconnect(); this.quickOptions?.destroy(); }
   }
 
   if (!customElements.get("team-draft-workbench")) {

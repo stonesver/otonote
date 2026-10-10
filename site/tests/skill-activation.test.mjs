@@ -5,7 +5,7 @@ import {createFormalSongCalculator} from '../../packages/scoring/scoring-rules/f
 import {createGekisouSongCalculator} from '../../packages/scoring/scoring-rules/gekisou-song-score.mjs';
 import {createPerformanceSongCalculator,createPerformanceTemplate} from '../../packages/scoring/scoring-rules/formal-performance-replay.mjs';
 import {calculateSongSkillReplay} from '../src/lib/song-skill-replay.mjs';
-import {activationRows,noteDensity} from '../src/lib/skill-activation-model.mjs';
+import {activationRows,noteDensity,createReplayClock} from '../src/lib/skill-activation-model.mjs';
 const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
 const chart={id:'music-chart-10000103',trackId:'music-100001',difficulty:'expert',sourceReleaseId:rules.sourceReleaseId,
   bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,3,5,7,9],duration:15,gekisouRanges:[{start:0,end:4},{start:5,end:9},{start:10,end:14}],
@@ -18,6 +18,7 @@ test('optional ordinary traces reproduce both extrema without changing score res
  for(const [i,key] of ['maximumScore','minimumScore'].entries()){
    const variant=detailed.skillPlayback.variants[i];assert.equal(variant.score,plain[key]);
    assert.equal(variant.notes.reduce((s,n)=>s+n.score,0)+variant.fixedScore,variant.score);
+   const clock=createReplayClock(detailed.skillPlayback,variant);assert.equal(clock.at(clock.duration).score,variant.score);
    assert.equal(activationRows(detailed.skillPlayback,variant).length,5);
  }
 });
@@ -50,8 +51,21 @@ test('Gekisou extrema are reproducible samples and traced scores include section
  for(const [i,key] of ['maximumScore','minimumScore'].entries()){
    const variant=a.skillPlayback.variants[i];assert.equal(variant.score,a[key]);assert.equal(variant.seed,b.skillPlayback.variants[i].seed);
    assert.equal(variant.notes.reduce((s,n)=>s+n.score,0)+variant.rankingBonus+variant.eventFixedScore,variant.score);
+   const clock=createReplayClock(a.skillPlayback,variant);assert.equal(clock.at(clock.duration).score,variant.score);
    assert.deepEqual(variant.skillTransitions,b.skillPlayback.variants[i].skillTransitions);
  }
+});
+
+test('replay clock seeks both ways, excludes end boundaries and settles rewards only when a section ends',()=>{
+ const playback={skills:Array.from({length:5},(_,slotIndex)=>({slotIndex})),skillTimes:[100,500,600,700,800],ranges:[{index:1,startMs:100,endMs:400}]};
+ const variant={order:[0,1,2,3,4],score:175,notes:[{timeMs:100,score:40,scoreUpFactor:1.5},{timeMs:200,score:60,scoreUpFactor:1.5},{timeMs:500,score:50,scoreUpFactor:1}],sections:[{index:1,rankingBonus:20}],commands:[{timeMs:100,ownerId:1,general:.5},{timeMs:200,ownerId:1,general:-.5}]};
+ const clock=createReplayClock(playback,variant,{stateTrace:[{timeMs:100,life:700,combo:1},{timeMs:200,life:900,combo:2}]});
+ assert.equal(clock.at(99).score,0);assert.equal(clock.at(100).score,40);assert.equal(clock.at(100).active.length,1);
+ assert.equal(clock.at(200).active.length,0);assert.equal(clock.at(399).rewards,0);assert.equal(clock.at(400).rewards,20);
+ assert.equal(clock.at(500).score,170);assert.equal(clock.at(clock.duration).score,175);
+ assert.equal(clock.at(100).life,700);assert.equal(clock.at(99).life,undefined);assert.equal(clock.at(200).count,2);
+ assert.equal(clock.next(100),500);assert.equal(clock.at(100).section.index,1);assert.equal(clock.at(400).section,undefined);
+ assert.equal(variant.score,175);assert.equal(variant.notes[0].score,40);
 });
 
 test('detail worker preserves challenge scoring, rejects missing charts and resolves conditions only on request',async()=>{
@@ -110,4 +124,13 @@ test('Gekisou converters show discrete triggers, not invented continuous lifetim
  const track=gekisouEffectTrack(effect,section);assert.equal(track.starts,3);assert.deepEqual(track.windows,[]);
  assert.equal(gekisouEffectTrack({...effect,source:'missing'},section).status,'not_triggered');
  assert.equal(gekisouEffectTrack({...effect,source:'missing',active:false},section).status,'condition_unmet');
+});
+
+test('conditional skill branches are grouped by the scored trace; simultaneous effects stay visible',async()=>{
+ const {partitionActivationEffects}=await import('../src/lib/skill-activation-model.mjs');
+ const skill={liveEffects:[{id:1,active:false,rate:1.2},{id:2,active:true,rate:1.4},{id:3,active:true,rate:.2}],supportEffects:[{id:4,active:true,type:15000}]};
+ const result=partitionActivationEffects(skill);
+ assert.deepEqual(result.active.map(e=>e.effect.id),[2,3,4]);assert.deepEqual(result.inactive.map(e=>e.effect.id),[1]);
+ const traced=partitionActivationEffects(skill,[{effectId:1,active:true},{effectId:2,active:false}]);
+ assert.deepEqual(traced.active.map(e=>e.effect.id),[1,3,4]);assert.deepEqual(traced.inactive.map(e=>e.effect.id),[2]);
 });

@@ -1,3 +1,6 @@
+import {recordsFromGlob} from "./database-records";
+import {cardDetailProjections,publicSkills} from "./game-card-data";
+const skillDetails=publicSkills;
 import type {EditionRecord} from "./catalog";
 import summaryData from "@projection-data/database-shards/summary.json";
 import skillIndexData from "@projection-data/database-shards/skills-index.json";
@@ -318,35 +321,6 @@ interface ConditionsRecord {
   cumulativeConditions: Array<Record<string, unknown>>;
 }
 
-const recordsFromGlob = <T>(
-  collectionName: string,
-  recordIdField: "id" | "cardId",
-  modules: Record<string, unknown>
-): T[] =>
-  Object.entries(modules).map(([path, module]) => {
-    if (
-      typeof module !== "object" ||
-      module === null ||
-      !("default" in module)
-    ) {
-      throw new TypeError(`${collectionName}:${path}: default must be an object`);
-    }
-    return validateArtifact<DetailShard<T>>(
-      `${collectionName}:${path}`,
-      module.default,
-      {
-        schemaVersion: 1,
-        fields: {
-          contentReleaseId: "string",
-          kind: "string",
-          recordCount: "number",
-          sha256: "string",
-          record: "object",
-          [`record.${recordIdField}`]: "string"
-        }
-      }
-    ).record;
-  });
 
 const summary = validateArtifact<RecordShard<DatabaseSummaryRecord>>(
   "database-shards/summary.json",
@@ -445,13 +419,6 @@ const skillResourceArtifact = validateArtifact<
   }
 );
 
-const skillDetails = recordsFromGlob<SkillDefinition>(
-  "database-shards/skills",
-  "id",
-  import.meta.glob("@projection-data/database-shards/skills/*.json", {
-    eager: true
-  })
-);
 const itemDetails = recordsFromGlob<Item>(
   "database-shards/items",
   "id",
@@ -463,20 +430,6 @@ const growthDetails = recordsFromGlob<GrowthProfile>(
   "database-shards/growth",
   "id",
   import.meta.glob("@projection-data/database-shards/growth/*.json", {
-    eager: true
-  })
-);
-const memberCardDetails = recordsFromGlob<CardDetailProjection>(
-  "database-shards/member-cards",
-  "cardId",
-  import.meta.glob("@projection-data/database-shards/member-cards/*.json", {
-    eager: true
-  })
-);
-const supportCardDetails = recordsFromGlob<CardDetailProjection>(
-  "database-shards/support-cards",
-  "cardId",
-  import.meta.glob("@projection-data/database-shards/support-cards/*.json", {
     eager: true
   })
 );
@@ -497,12 +450,7 @@ export const gameDatabase = {
   items: itemDetails,
   quality: summary.record.quality
 } satisfies GameDatabase;
-export const cardDetailProjections = {
-  schemaVersion: summary.schemaVersion,
-  memberCards: memberCardDetails,
-  supportCards: supportCardDetails
-} satisfies CardDetailProjections;
-export const publicSkills = skillDetails;
+export {cardDetailProjections,publicSkills};
 
 const skillsById = new Map(
   publicSkills.map((skill) => [skill.id, skill])

@@ -8,6 +8,7 @@ import {renderOptimizerResults} from './optimizer-results-ui.mjs';
 import { readGekisouOpponentInputs } from './gekisou-opponent-inputs.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
 import {createInventoryManager} from './inventory-manager.mjs';
+import {createCalculationProgress} from './calculation-progress.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import { createFormationCalculator } from './scoring-rules/formation-power.mjs';
 const format = n => n == null ? '—' : n.toLocaleString(undefined, {maximumFractionDigits: 2});
@@ -20,8 +21,9 @@ export function setupInventoryOptimizer(workbench) {
   const ui=text=>planningUiText(text,workbench.data.locale);
   if(!q('[data-optimize-pairing]')) return null;
   const calculator=createFormationCalculator(rules);
-  let worker, request=0, lastResult, scenarios;
+  let worker, chartRequest, request=0, lastResult, scenarios;
   const progress=q('[data-pairing-progress]');
+  const feedback=createCalculationProgress(progress,'pairing');
   const inventoryManager=createInventoryManager(rules);
   const profileStore=createPersonalGrowthStore({rules,vipRanks:workbench.data.vipRanks});
   const editor={get inventory(){try{return profileStore.read()?.inventory??inventoryManager.empty();}catch{return inventoryManager.empty();}},validate:inventoryManager.validate};
@@ -29,12 +31,13 @@ export function setupInventoryOptimizer(workbench) {
   scenarios=setupTeamPlanningScenarios(workbench,{getInventory:()=>editor.inventory,onChange:()=>{invalidate();progress.textContent=ui('条件已更新，请重新比较。');}});
   workbench.planningScenarios=scenarios;
   function publish(extra={}) {workbench.optimizerState={...workbench.optimizerState,...extra};workbench.dispatchEvent(new CustomEvent('optimizer-ui-state',{detail:workbench.optimizerState}));}
-  function stop() {publish({running:false});q('[data-search-state]').dataset.running='false';request++;worker?.terminate();worker=null;q('[data-optimize-pairing]').disabled=false;q('[data-cancel-pairing]').disabled=true;}
+  function stop() {publish({running:false});q('[data-search-state]').dataset.running='false';request++;chartRequest?.abort();chartRequest=null;worker?.terminate();worker=null;q('[data-optimize-pairing]').disabled=false;q('[data-cancel-pairing]').disabled=true;}
   function fail(error) {
     stop();lastResult=null;
     const detail=String(error?.message??error);
     q('[data-search-state]').textContent=ui('比较失败');
     progress.textContent=ui(/^Unsupported\b/.test(detail)?'当前资料包含计算器尚未支持的技能规则，请等待规则更新后重试。':detail);
+    feedback.finish(ui('比较失败'),progress.textContent,'error');
     q('[data-search-diagnostics]').textContent=detail;
     q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=true;
     q('[data-export-pairing]').disabled=true;q('[data-resume-pairing]').disabled=true;
@@ -75,14 +78,14 @@ export function setupInventoryOptimizer(workbench) {
       :q('[data-search-scope]').value==='theoretical'?'无需手动选卡。参考卡片按满养成搜索，账号加成单独设置。':'只比较当前队伍的成员与留影；不会自动加入其他卡。');
     publish({...state,hasResults:Boolean(lastResult?.results.length),finished:Boolean(lastResult),running:Boolean(worker),space});
   }
-  function invalidate() {stop();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent=ui('等待开始');guide();}
+  function invalidate() {stop();feedback.reset();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent=ui('等待开始');guide();}
 
   q('[data-pairing-mode]').addEventListener('change',()=>{q('[data-gekisou-settings]').hidden=q('[data-pairing-mode]').value!=='gekisou';if(q('[data-gekisou-rank-note]'))q('[data-gekisou-rank-note]').hidden=q('[data-pairing-mode]').value!=='gekisou';});
   for(const selector of ['[data-search-scope]','[data-pairing-objective]','[data-search-constraints]','[data-search-band]','[data-search-attribute]','[data-search-support-attribute]','[data-pairing-mode]','[data-gekisou-settings]','[data-planning-window-limit]','[data-planning-variant-limit]'])q(selector).addEventListener('change',()=>{invalidate();q('[data-pairing-results]').replaceChildren();progress.textContent=ui('输入已更新，请重新搜索。');});
-  q('[data-cancel-pairing]').addEventListener('click',()=>{worker?.postMessage({type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent=ui('正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。');});
+  q('[data-cancel-pairing]').addEventListener('click',()=>{if(!worker){stop();feedback.finish(ui('已停止'),ui('可调整条件后重新计算'),'stopped');progress.textContent=ui('已停止。可调整条件后重新计算。');guide();return;}feedback.update({label:ui('正在停止'),detail:ui('保留已经完成的方案')});worker?.postMessage({type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent=ui('正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。');});
   q('[data-export-pairing]').addEventListener('click',()=>{if(lastResult)download('otonote-pairing-result.json',lastResult);});
   async function run() {
-    stop();const current=request;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;
+    stop();feedback.update({label:ui('准备配队比较'),detail:ui('正在读取谱面与养成条件')});const current=request;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;
     q('[data-pairing-results]').replaceChildren();
     try {
       assertToolTeamCompatible(workbench.teamWorkspaceContext);
@@ -99,13 +102,14 @@ export function setupInventoryOptimizer(workbench) {
       const inventory=editor.validate(editor.inventory);
       const constraints=readOptimizerConstraints(workbench),draft=structuredClone(workbench.draft);
       if(scope==='owned')draft.modifiers.growth={...draft.modifiers.growth,...inventory.growth};
-      q('[data-optimize-pairing]').disabled=true;progress.textContent=ui('准备计算…');q('[data-search-state]').textContent=ui('正在寻找更好的编成');q('[data-search-state]').dataset.running='true';publish({running:true,finished:false});
+      q('[data-optimize-pairing]').disabled=true;q('[data-cancel-pairing]').disabled=false;progress.textContent=ui('准备计算…');q('[data-search-state]').textContent=ui('正在寻找更好的编成');q('[data-search-state]').dataset.running='true';publish({running:true,finished:false});
       let chart;
       if(objective!=='formation_power') {
         const summary=workbench.data.charts?.find(c=>c.trackId===draft.selectedSongId&&c.difficulty===draft.selectedDifficulty);
         if(!summary?.analysisDataUrl)throw new Error('请先选择歌曲和难度');
-        const response=await fetch(summary.analysisDataUrl);if(!response.ok)throw new Error('谱面加载失败');
-        chart={...await response.json(),sourceReleaseId:rules.sourceReleaseId};if(current!==request)return;
+        chartRequest=new AbortController();
+        const response=await fetch(summary.analysisDataUrl,{signal:chartRequest.signal});if(!response.ok)throw new Error('谱面加载失败');
+        chart={...await response.json(),sourceReleaseId:rules.sourceReleaseId};if(current!==request)return;chartRequest=null;
       }
       worker=new Worker(new URL('./production-optimizer-worker.mjs',import.meta.url),{type:'module'});q('[data-cancel-pairing]').disabled=false;
       worker.onerror=()=>{if(current===request)fail('后台计算失败，请重试。');};
@@ -114,6 +118,7 @@ export function setupInventoryOptimizer(workbench) {
         if(data.type==='error'){fail(data.error);return;}
         if(data.type==='progress') {
           const p=data.progress;
+          if(p.phase!=='practical-result')feedback.update({label:ui(p.stage??p.message??({planning:'比较养成范围',placements:'比较候选站位',pair_weights:'准备卡片配对',search:'搜索更好的编成'}[p.phase]??'准备队长加成')),completed:p.completed,total:p.total,detail:ui(p.phase==='search'?'搜索分支会变化，尚不能估计总量':'当前阶段进度，完成后继续下一阶段')});
           if(p.phase==='planning'){progress.textContent=ui(p.message??`已比较 ${p.completed} 组培养范围`);return;}
           if(p.phase==='practical'){
             progress.textContent=(p.planningVariant?`${ui(`比较培养方案 ${p.planningVariant}`)} · `:'')+ui(`${p.stage} · ${p.completed}/${p.total}`);
@@ -131,6 +136,7 @@ export function setupInventoryOptimizer(workbench) {
         if(data.type!=='result')return;
         stop();lastResult=data.result;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=false;
         const r=data.result;
+        feedback.finish(ui(r.status==='cancelled'?'已停止':r.status==='completed'?'本次配队比较完成':'本轮比较结束'),ui(`已比较 ${r.evaluated??r.practical?.screened??0} 组；结果仅覆盖已检查的候选`),r.status==='cancelled'?'stopped':'complete');
         progress.textContent=ui(`${r.optimality==='proven_within_model'?'已证明当前规则与范围内最优':r.optimality==='best_within_simulation'?'搜索完成：当前模拟情景及抽样下最佳，非实战最优保证':r.optimality==='infeasible'?'当前约束下不存在合法队伍':'搜索未完成，以下是目前最佳候选'}；已比较 ${r.evaluated} 组。`);
         if(r.searchMethod==='planning'){
           progress.textContent=ui(r.status==='completed'?'本次比较完成，可查看不同方向的搭配。':r.status==='cancelled'?'已停止，下面保留已经算完的方案。':'本轮比较完成；仍有部分培养组合未检查。可以限定愿意培养的卡后再比较。');

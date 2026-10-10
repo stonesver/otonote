@@ -1,7 +1,7 @@
 // Disposable, local-only acceleration. Failure or eviction never blocks a run.
 // Bump when candidate generation or scoring behaviour changes.
 import {SCORE_MODEL_VERSION} from './scoring-rules/model-version.mjs';
-export const EVENT_SEARCH_VERSION = 2;
+export const EVENT_SEARCH_VERSION = 3;
 const ruleKeys=new WeakMap();
 export async function searchDigest(value){
   const bytes=new TextEncoder().encode(JSON.stringify(value));
@@ -14,7 +14,7 @@ function rulesKey(rules){
 }
 export async function eventSearchPartition(rules,eventId,input){
   const {selectedSongId,selectedDifficulty,...draft}=input.draft;
-  return searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),eventId,scope:input.scope,inventory:input.inventory,draft});
+  return searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),eventId,scope:input.scope,inventory:input.inventory,rewardCards:input.rewardCards,rewardGrowth:input.rewardGrowth,draft});
 }
 export async function bindEventScoreCache(cache,{rules,chart,draft}){
   const context=await searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),chart,draft});

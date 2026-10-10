@@ -1,12 +1,25 @@
 ---
 import '../styles/shared-team-workspace.css';
+import '../styles/task-workbench.css';
+import '../styles/task-prototype-theme.css';
+import '../styles/card-skill-popover.css';
+import '../styles/shared-inventory-imports.css';
+import '../styles/calculation-progress.css';
+import AccountGrowthImport from './AccountGrowthImport.astro';
+import ScreenshotImport from './ScreenshotImport.astro';
 const en = Astro.props.locale === 'en';
 ---
 <div data-team-workspace-shell>
+  <template data-team-inventory-import-template>
+    <section class="tw-inventory-import-workbench">
+      <section class="tw-inventory-login-panel" hidden><header><h3>{en?'Account login':'账号登录'}</h3><button type="button" data-inventory-login-close aria-label={en?'Close account login':'关闭账号登录'}>×</button></header><AccountGrowthImport standalone loginOnly /></section>
+      <ScreenshotImport headingId="tw-screenshot-import-heading" />
+    </section>
+  </template>
   <button type="button" class="tw-launcher" data-team-workspace-open aria-haspopup="dialog" aria-expanded="false">{en ? 'Cards & teams' : '卡库与队伍'}</button>
   <dialog class="tw-panel" data-team-workspace-panel aria-labelledby="tw-title">
     <header class="tw-heading"><div><small>OTONOTE / MY TEAMS</small><h2 id="tw-title">{en ? 'Cards & teams' : '卡库与队伍'}</h2></div><button type="button" data-team-workspace-close aria-label={en?'Close':'关闭'}>×</button></header>
-    <div class="tw-body" data-team-workspace-body><p role="status">{en?'Loading your collection…':'正在读取卡库与队伍…'}</p></div>
+    <div class="tw-body" data-team-workspace-body><div class="tw-loading" role="status"><p>{en?'Loading your collection…':'正在读取卡库与队伍…'}</p><small>{en?'Reusing loaded cards where available. You can close this window.':'优先复用本页已加载的卡片资料，等待时也可以关闭。'}</small><div class="tw-loading-track" aria-hidden="true"></div><div class="tw-loading-cards" aria-hidden="true">{Array.from({length:5},()=> <i />)}</div></div></div>
   </dialog>
 </div>
 <script>
@@ -16,7 +29,23 @@ const en = Astro.props.locale === 'en';
     const panel = shell.querySelector('dialog')!;
     const launcher = shell.querySelector('[data-team-workspace-open]')!;
     const body = shell.querySelector('[data-team-workspace-body]')!;
+    const loadingView = body.firstElementChild!.cloneNode(true);
     let workspace, ready = false, request = 0;
+    let modulePromise;
+    let codeWarmed=false;
+    const loadModule = () => {
+      if(!codeWarmed){
+        codeWarmed=true;
+        const config=globalThis[Symbol.for('ournotes.prerender.v1')];
+        const root=globalThis[Symbol.for('ournotes.code-root.v1')];
+        const paths=config?.app.workspacePreloads??globalThis[Symbol.for('ournotes.code-manifest.v1')]?.workspacePreloads??[];
+        for(const path of paths){const link=document.createElement('link');link.rel='modulepreload';link.href=new URL(path,root).href;document.head.append(link);}
+      }
+      return modulePromise ??= import('../lib/shared-team-workspace.mjs').catch(error => {modulePromise = null; throw error;});
+    };
+    // Warm code on intent, without reading account data or creating a workspace.
+    launcher.addEventListener('pointerenter', () => {loadModule().catch(() => {});}, {once:true});
+    launcher.addEventListener('focus', () => {loadModule().catch(() => {});}, {once:true});
     const stopLoadingDismiss = installWorkspaceDismiss(panel, launcher, () => { if (!ready) panel.close(); });
     panel.addEventListener('close', () => {
       request++;
@@ -27,13 +56,16 @@ const en = Astro.props.locale === 'en';
       const detail = event instanceof CustomEvent ? event.detail : undefined;
       const currentRequest = ++request;
       if (!panel.open) {
-        if (matchMedia('(min-width: 1680px)').matches) panel.show(); else panel.showModal();
+        if (!document.querySelector('.task-studio') && matchMedia('(min-width: 1680px)').matches) panel.show(); else panel.showModal();
         document.body.classList.add('tw-is-open');
         launcher.setAttribute('aria-expanded', 'true');
       }
-      if (!ready) body.setAttribute('aria-busy', 'true');
+      if (!ready) {
+        body.setAttribute('aria-busy', 'true');
+        if (!workspace) body.replaceChildren(loadingView.cloneNode(true));
+      }
       try {
-        workspace ??= import('../lib/shared-team-workspace.mjs').then(m => m.setupSharedTeamWorkspace(shell));
+        workspace ??= loadModule().then(m => m.setupSharedTeamWorkspace(shell));
         const instance = await workspace;
         ready = true;
         stopLoadingDismiss();

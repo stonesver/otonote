@@ -96,3 +96,25 @@ test('certified challenge optimum matches exhaustive pairings with member and su
     assert.equal(result.optimality,'proven_within_model');assert.equal(result.results[0].value,maxima[key]);
   }
 });
+
+test('full catalog reference searches beyond selected cards without claiming actual growth or gains',async()=>{
+ const input=fixture();
+ input.rules.tables.MemberCard=input.rules.tables.MemberCard.slice(0,6);
+ input.rules.tables.SupportCard=input.rules.tables.SupportCard.slice(0,6);
+ input.draft.modifiers.tgwCardRank=20;
+ const original=structuredClone(input.draft);
+ const result=await optimizeChallenge({...input,scope:'reference',inventory:undefined});
+ assert.equal(result.searchScope,'reference');assert.equal(result.status,'completed');assert.ok(result.results.length);
+ assert.equal(result.baseline,null);assert.equal(result.baselineResult,null);
+ for(const row of result.results){
+  assert.equal(row.delta,null);assert.equal(row.comparison,null);
+  assert.equal(row.draft.modifiers.planningScenario.scope,'reference');
+  assert.equal(row.draft.modifiers.planningScenario.referenceGrowth,'maximum');
+  assert.equal(row.draft.modifiers.tgwCardRank,20);
+  assert.ok(row.draft.modifiers.growth['member-card-6']);
+  assert.ok(row.draft.modifiers.growth['support-card-6']);
+  assert.equal(row.draft.modifiers.growth['member-card-6'].skillLevel,5);
+  assert.equal(row.orderCount,120);
+ }
+ assert.deepEqual(input.draft,original);
+});

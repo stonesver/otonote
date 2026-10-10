@@ -1,0 +1,15 @@
+/* Shared by calculator cards and the site-wide inventory workspace. */
+.card-skill-popover{position:fixed;z-index:1000;width:min(320px,calc(100vw - 24px));max-height:min(360px,calc(100dvh - 28px));overflow:auto;box-sizing:border-box;padding:12px;border:1px solid #d4d9e3;border-radius:8px;background:#fff;box-shadow:0 6px 24px #25304626;color:#273446;font-family:var(--font-body,system-ui);overscroll-behavior:contain;scrollbar-width:thin}
+.card-skill-popover[hidden]{display:none!important}
+.card-skill-popover .skill-popover-heading{display:flex;justify-content:space-between;align-items:start;gap:8px;position:sticky;top:-12px;background:#fff;padding:0 0 5px;z-index:1}
+.card-skill-popover .skill-popover-heading>strong{font-size:12px;line-height:1.5;padding-top:2px}
+.card-skill-popover .skill-popover-close,.tw-panel .card-skill-popover .skill-popover-close{flex-shrink:0;width:22px;height:22px;min-height:22px;padding:0;border:0;background:#f1f3f6;border-radius:4px;font-size:17px;line-height:1;color:#677486;cursor:pointer}
+.card-skill-popover .card-growth-note{font-size:10px;line-height:1.5;color:#677486;margin:0 0 7px}
+.card-skill-popover .card-skill-list{display:grid;gap:8px}
+.card-skill-popover .card-skill{border-top:1px solid #e6e9ef;padding-top:7px;display:grid;gap:3px}
+.card-skill-popover .card-skill-label{font-size:10px;line-height:1.5;color:#46566e;font-weight:650}
+.card-skill-popover .card-skill>strong{font-size:11px;line-height:1.5}
+.card-skill-popover .card-skill>p{margin:0;white-space:pre-line;font-size:11px;line-height:1.55;color:#3e4b5e;overflow-wrap:anywhere}
+.card-skill-popover .card-skill[data-mission="1"] .card-skill-label{color:#247659}
+.card-skill-popover .card-skill[data-mission="2"] .card-skill-label{color:#946515}
+.card-skill-popover .card-skill[data-mission="3"] .card-skill-label{color:#7856a1}

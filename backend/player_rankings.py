@@ -10,6 +10,58 @@ from pathlib import Path
 
 SERVERS = {"jp", "global-hmt", "global-en", "global-kr"}
 BOARDS = {"event-points", "music", "total-music"}
+FINAL_EVENT_ID = re.compile(r"[1-9][0-9]*")
+FINAL_METADATA_NAME = re.compile(r"event-([1-9][0-9]*)-post-end\.meta\.json")
+SHA256 = re.compile(r"[a-f0-9]{64}")
+
+
+def final_archive_paths(root: Path, server: str, event_id: str) -> tuple[Path, Path]:
+    if server not in SERVERS or not isinstance(event_id, str) or not FINAL_EVENT_ID.fullmatch(event_id):
+        raise ValueError("invalid final ranking identity")
+    folder = root / server / "archive"
+    stem = f"event-{event_id}-post-end"
+    return folder / f"{stem}.json", folder / f"{stem}.meta.json"
+
+
+def final_archive_metadata(value: dict, server: str, raw: bytes) -> dict:
+    validate_observation(value, server)
+    boards = value["boards"]
+    identities = {board["eventId"] for board in boards}
+    names = {board.get("eventName") for board in boards}
+    event_id = next(iter(identities)) if len(identities) == 1 else None
+    event_name = next(iter(names)) if len(names) == 1 else None
+    if (len(identities) != 1 or len(names) != 1 or not boards
+            or not FINAL_EVENT_ID.fullmatch(event_id)
+            or not isinstance(event_name, str) or not event_name):
+        raise ValueError("invalid final ranking snapshot")
+    return {"schemaVersion": 1, "eventId": event_id, "eventName": event_name,
+            "observedAt": value["observedAt"], "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def list_final_archives(root: Path, server: str) -> dict[str, dict]:
+    folder = root / server / "archive"
+    if not folder.is_dir():
+        return {}
+    result = {}
+    for path in folder.glob("event-*-post-end.meta.json"):
+        match = FINAL_METADATA_NAME.fullmatch(path.name)
+        if match is None:
+            continue
+        try:
+            if path.stat().st_size > 4096:
+                continue
+            metadata = json.loads(path.read_text())
+            data_path, _ = final_archive_paths(root, server, match[1])
+            if (not isinstance(metadata, dict) or metadata.get("schemaVersion") != 1
+                    or metadata.get("eventId") != match[1] or not data_path.is_file()
+                    or not isinstance(metadata.get("eventName"), str) or not metadata["eventName"]
+                    or not isinstance(metadata.get("observedAt"), str)
+                    or not SHA256.fullmatch(str(metadata.get("sha256", "")))):
+                continue
+            result[match[1]] = metadata
+        except (OSError, ValueError, TypeError):
+            continue
+    return result
 
 
 def public_high_score_deck(value):
@@ -104,14 +156,34 @@ def query_player_rankings(root: Path, *, server: str, board: str = "auto", event
     path = root / server / "current.json"
     result = {"schemaVersion": 1, "serverId": server, "board": board, "eventId": event, "musicId": music,
               "status": "unavailable", "observedAt": None, "expiresAt": None, "events": [], "songs": [], "boards": [], "entries": [], "nextCursor": None}
-    if not path.exists():
-        return result
-    raw = path.read_bytes()
-    data = validate_observation(json.loads(raw), server)
-    result.update(observedAt=data["observedAt"], expiresAt=data["expiresAt"])
-    result["events"] = list({b["eventId"]: {"id": b["eventId"], "name": b.get("eventName", b["eventId"])} for b in data["boards"]}.values())
+    current_raw = path.read_bytes() if path.exists() else None
+    current = validate_observation(json.loads(current_raw), server) if current_raw is not None else None
+    current_events = list({b["eventId"]: {"id": b["eventId"], "name": b.get("eventName", b["eventId"])}
+                           for b in current["boards"]}.values()) if current else []
+    archives = list_final_archives(root, server)
+    current_ids = {item["id"] for item in current_events}
+    result["events"] = current_events + [
+        {"id": key, "name": archives[key]["eventName"] + " · 结束后归档"}
+        for key in sorted(archives, key=int, reverse=True) if key not in current_ids]
     event = event or (result["events"][0]["id"] if result["events"] else None)
     result["eventId"] = event
+    archived = False
+    if event in current_ids:
+        raw, data = current_raw, current
+    elif event in archives:
+        archive_path, _ = final_archive_paths(root, server, event)
+        raw = archive_path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != archives[event]["sha256"]:
+            raise ValueError("final ranking digest mismatch")
+        data = validate_observation(json.loads(raw), server)
+        metadata = final_archive_metadata(data, server, raw)
+        if metadata != archives[event]:
+            raise ValueError("final ranking metadata mismatch")
+        archived = True
+    else:
+        return result
+    result.update(observedAt=data["observedAt"], expiresAt=data["expiresAt"])
+    result["isFinal"] = archived
     result["boards"] = list(dict.fromkeys(b['type'] for b in data['boards'] if b['eventId'] == event))
     if board == 'auto' and result['boards']:
         board = result['boards'][0]

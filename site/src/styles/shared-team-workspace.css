@@ -22,5 +22,8 @@
 @media(prefers-reduced-motion:reduce){.tw-panel *{scroll-behavior:auto!important}}
 [data-team-workspace-summary]{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;max-width:620px;margin:12px 0}[data-team-workspace-summary]>div{display:flex;flex-wrap:wrap;gap:3px;min-width:0}[data-team-workspace-summary] img{width:calc(50% - 2px);height:auto;aspect-ratio:1;object-fit:cover;border-radius:5px}[data-team-workspace-summary] small{font-size:12px;flex:1 0 100%;text-align:center}
 
+/* Keep portrait crops on the upper half so wide member tiles retain faces. */
+.tw-panel .tw-card-view[data-kind=member] .tw-card-art>img{object-position:center 28%}
+
 /* Rarity stays with the artwork, while growth labels remain explicit at small sizes. */
 .tw-card-view--compact{position:relative}.tw-card-view--compact .tw-card-art>img{object-fit:contain!important}.tw-card-view--compact .tw-card-rarity{position:absolute;right:8px;top:8px;background:#fffE;border-radius:5px}.tw-card-view--compact .tw-card-rarity img{width:30px!important;height:22px!important}.tw-card-view--compact .tw-card-band img{width:44px!important}.tw-card-view--compact .tw-card-meta img{width:22px!important;height:22px!important}.tw-panel .ux-card-picker button{min-height:40px;font-size:13px}.tw-panel .ux-card-selection-options label{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px}.tw-panel .ux-card-grid>button:disabled{opacity:1}.tw-panel .ux-card-grid>button:disabled .tw-card-art{opacity:.55}.tw-panel .ux-card-grid>button:disabled>small{color:#76586b}

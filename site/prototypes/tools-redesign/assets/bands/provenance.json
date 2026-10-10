@@ -1,0 +1,45 @@
+{
+  "catalogSha256": "39b5d81ff337bfe0ef0af668f5b473a18e20aa1f8ce6d1c18ca4d6ffe0583c65",
+  "assets": [
+    {
+      "bandId": 1,
+      "file": "band-1.png",
+      "containerPath": "Assets/AddressableResources/Band/1/band_small_Icon.png",
+      "sourceBundle": "band_assets_band_1_band_small_icon_0ccc5885ab657aa2ff5c2b234c8dbd4c.bundle",
+      "encryptedSha256": "004ce97d6423d50477317c5e42bbf21929e0fd99c35b8f20dea40d5a9b30375d",
+      "sha256": "8b8d2efdd7002d962617631bb9f53fe2bac9539f3216d7780366592295514a70"
+    },
+    {
+      "bandId": 2,
+      "file": "band-2.png",
+      "containerPath": "Assets/AddressableResources/Band/2/band_small_Icon.png",
+      "sourceBundle": "band_assets_band_2_band_small_icon_6e5b79a3258c1d8a32ccc369c5b3adfe.bundle",
+      "encryptedSha256": "d9b0c2534e327766975cc2885fc512acc063fe9a1d5c9f9340fdca024a48d999",
+      "sha256": "5d927b8f49349a4111a9da44d832b05e0a8a230dacc4d08f49b48a3e2b7f4488"
+    },
+    {
+      "bandId": 3,
+      "file": "band-3.png",
+      "containerPath": "Assets/AddressableResources/Band/3/band_small_Icon.png",
+      "sourceBundle": "band_assets_band_3_band_small_icon_377973cf9f6522dee9126ce6d3908802.bundle",
+      "encryptedSha256": "416f52afc2959618a85fa2f49d729c9a313941a2b8c0858163ce718c7ab7b91b",
+      "sha256": "ae368aa737147997086d11f79153abac960bb596deea7da2c98deeed6a31ae2a"
+    },
+    {
+      "bandId": 4,
+      "file": "band-4.png",
+      "containerPath": "Assets/AddressableResources/Band/4/band_small_Icon.png",
+      "sourceBundle": "band_assets_band_4_band_small_icon_8a1cd6d29e96ba576c85c966aef7cdb6.bundle",
+      "encryptedSha256": "4b0a1d88091710a19b158fdf3d84b6babf5bc707b63727c4ae1f58b5eddcb96c",
+      "sha256": "fc18c7b762db97c1170639a756cd9edd5226a5bdf3ed526c58f324363a764e07"
+    },
+    {
+      "bandId": 5,
+      "file": "band-5.png",
+      "containerPath": "Assets/AddressableResources/Band/5/band_small_Icon.png",
+      "sourceBundle": "band_assets_band_5_band_small_icon_cd911e80051dcceb5d840461d963574d.bundle",
+      "encryptedSha256": "105a88b146bf9ddc3ec7d68b50e974cfadbdcb7e8be6c5533a601ceabe136424",
+      "sha256": "1eebc603154ce6aae47576450d2f54cfe81183a2289055e665fdcaebd691c495"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 """Export bounded, credential-free growth diagnostics for the private dashboard."""
 import argparse
+import gzip
 import json
 import os
 import re
@@ -45,7 +46,13 @@ STAGES = frozenset({'request', 'discovering', 'sdk_login', 'checking_existing_ac
                     'game_login', 'reading_growth', 'reading_gacha_history', 'other'})
 REASONS = frozenset({'credentials_rejected', 'account_not_found',
                      'verification_required', 'rate_limited', 'unclassified'})
+MESSAGE_STATES = frozenset({'original', 'redacted', 'omitted', 'missing'})
 ROUTES = frozenset({'growth', 'gacha_history'})
+PRIVATE_PATTERN = re.compile(r'https?://|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|'
+                             r'(?<!\d)(?:\+?\d[\d\s-]{7,}\d)(?!\d)|'
+                             r'\b(?:password|pwd|token|secret|cookie|authorization|access[_-]?key|id[_-]?token)\b\s*[:=]|'
+                             r'(?<![A-Za-z0-9])[A-Za-z0-9+/_=-]{24,}(?![A-Za-z0-9])',
+                             re.IGNORECASE)
 
 
 def parse_time(value):
@@ -94,6 +101,15 @@ def build_snapshot(access_text, gateway_text, *, now=None):
         error = row.get('error')
         reason = row.get('reason')
         route = row.get('route')
+        message_state = row.get('messageState')
+        message = row.get('message')
+        message_state = message_state if isinstance(message_state, str) and message_state in MESSAGE_STATES else None
+        if (message_state not in ('original', 'redacted') or not isinstance(message, str)
+                or not 0 < len(message) <= 200 or any(ord(char) < 32 or ord(char) == 127 for char in message)
+                or PRIVATE_PATTERN.search(message)):
+            message = None
+            if message_state in ('original', 'redacted'):
+                message_state = 'omitted'
         gateway[request_id] = {
             'route': route if isinstance(route, str) and route in ROUTES else 'unknown',
             'stage': stage if isinstance(stage, str) and stage in STAGES else 'other',
@@ -101,6 +117,7 @@ def build_snapshot(access_text, gateway_text, *, now=None):
                       (error in ERROR_CODES or SERVICE_ERROR.fullmatch(error) or
                        (error.startswith('game_rpc_') and error[9:] in GRPC_CODES)) else None),
             'reason': reason if isinstance(reason, str) and reason in REASONS else None,
+            'message': message, 'messageState': message_state,
         }
     counts = Counter()
     errors = Counter()
@@ -126,7 +143,8 @@ def build_snapshot(access_text, gateway_text, *, now=None):
         recent.append({'time': timestamp.isoformat(timespec='seconds'), 'requestId': request_id,
                        'status': status, 'route': detail.get('route', 'unknown'),
                        'stage': detail.get('stage', 'no_gateway_finish'),
-                       'error': error, 'reason': detail.get('reason')})
+                       'error': error, 'reason': detail.get('reason'),
+                       'message': detail.get('message'), 'messageState': detail.get('messageState')})
     recent.sort(key=lambda row: row['time'], reverse=True)
     return {'schemaVersion': 1, 'generatedAt': now.isoformat(timespec='seconds'),
             'windowStart': start.isoformat(timespec='seconds'),
@@ -136,23 +154,54 @@ def build_snapshot(access_text, gateway_text, *, now=None):
             'errorCounts': dict(errors.most_common(12)), 'recentFailures': recent[:50]}
 
 
+def read_access_logs(filename):
+    """Read the active log and recent rotations, including dateext names."""
+    current = Path(filename)
+    rotated = list(current.parent.glob(current.name + '-*'))
+    legacy = current.parent / (current.name + '.1')
+    if legacy.is_file():
+        rotated.append(legacy)
+    rotated = sorted((path for path in rotated if path.is_file()),
+                     key=lambda path: path.stat().st_mtime, reverse=True)[:2]
+    paths = list(reversed(rotated)) + [current]
+    parts = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        if path.suffix == '.gz':
+            # Keep only the bounded tail even when an older rotation is compressed.
+            with gzip.open(str(path), 'rb') as stream:
+                tail = b''
+                while True:
+                    chunk = stream.read(65536)
+                    if not chunk:
+                        break
+                    tail = (tail + chunk)[-8 * 1024 * 1024:]
+                parts.append(tail.decode('utf-8', errors='replace'))
+        else:
+            with path.open('rb') as stream:
+                stream.seek(0, os.SEEK_END)
+                stream.seek(max(0, stream.tell() - 8 * 1024 * 1024))
+                parts.append(stream.read().decode('utf-8', errors='replace'))
+    return '\n'.join(parts)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--access-log', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--container', default='ournotes-growth')
     args = parser.parse_args()
-    access_parts = []
-    for path in (Path(args.access_log + '.1'), Path(args.access_log)):
-        if path.exists():
-            with path.open('rb') as stream:
-                stream.seek(0, os.SEEK_END)
-                stream.seek(max(0, stream.tell() - 8 * 1024 * 1024))
-                access_parts.append(stream.read().decode('utf-8', errors='replace'))
-    access = '\n'.join(access_parts)
-    result = subprocess.run(['docker', 'logs', '--since', '24h', args.container],
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            timeout=20, check=True)
+    access = read_access_logs(args.access_log)
+    try:
+        result = subprocess.run(['journalctl', '-u', 'ournotes-growth.service',
+                                 '--since', '24 hours ago', '--no-pager', '-o', 'cat'],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                timeout=20, check=True)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        result = subprocess.run(['docker', 'logs', '--since', '24h', args.container],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                timeout=20, check=True)
     gateway = result.stdout[-4 * 1024 * 1024:].decode('utf-8', errors='replace')
     snapshot = build_snapshot(access, gateway)
     destination = Path(args.output)

@@ -58,6 +58,17 @@ test('ordinary pages retain data and scripts, expose first images without waitin
   assert.match(result.html,/<h1>Cards<\/h1>/);
   assert.doesNotMatch(result.html,/data-tool-start/);
 });
+
+test('tool payload and complete static code closure start from the HTML head',()=>{
+ const app={...args.app,modulePreloads:{'scripts/tool.js':['scripts/tool.js','chunks/shared.js','chunks/leaf.js'],'scripts/base.js':['scripts/base.js','chunks/shared.js']},workspacePreloads:['chunks/workspace.js','chunks/leaf.js']};
+ const result=prepareHtml('<html><head></head><body><main><team-draft-workbench><script type="application/json">{"cards":[]}</script></team-draft-workbench></main><script type="module" src="/app/releases/abc/scripts/tool.js"></script><script type="module" src="/app/releases/abc/scripts/base.js"></script></body></html>',{...args,app,route:'tools/deck-builder'});
+ const head=result.html.split('</head>')[0];
+ const payload=args.derivedRoot+'payloads/'+result.payloads[0].name;
+ assert.ok(head.includes(`rel="preload" as="fetch" crossorigin="anonymous" href="${payload}"`),'data download must not wait for DOMContentLoaded');
+ for(const file of ['scripts/tool.js','scripts/base.js','chunks/shared.js','chunks/leaf.js'])assert.equal(head.split(`rel="modulepreload" href="${args.codeRoot+file}"`).length-1,1,`${file} should be preloaded once`);
+ assert.ok(head.includes('workspacePreloads'),'intent can preload the workspace closure');
+ assert.ok(!head.includes('rel="modulepreload" href="/app/releases/abc/chunks/workspace.js"'),'popup remains lazy until intent');
+});
 for (const [route, tag] of [['song-ranking','song-ranking'],['event-efficiency','event-efficiency-tool'],['ap-grade','ap-grade-tool'],['deck-builder','team-draft-workbench'],['song-calculator','scoring-research-workbench']]) {
   test(`${route} keeps its controls hidden while preparing the cached payload`, () => {
     const result = prepareHtml(`<html><head></head><body><main><${tag}><h2>Results</h2><script type="application/json">{"rows":[1,2]}</script></${tag}></main><script type="module" src="/app/releases/abc/scripts/tool.js"></script></body></html>`, {...args,route:`tools/${route}`});

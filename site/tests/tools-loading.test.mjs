@@ -26,6 +26,17 @@ test('workspace reuses calculator data without opening the collection dependency
  await loadTeamWorkspaceData(null,loaders);assert.equal(collections,1);
 });
 
+test('complete calculator presentation opens the workspace without any content loader',async()=>{
+ const rules={sourceReleaseId:'current'};
+ const data={memberCards:[],supportCards:[],formalRules:rules,filterVisualOptions:{band:[]},growthIcons:{rank:'rank.webp'}};
+ const unexpected=async()=>{throw Error('Calculator already contains presentation data');};
+ const actual=await loadTeamWorkspaceData({data},{loadPresentation:unexpected,loadCollection:unexpected});
+ assert.equal(actual.memberCards,data.memberCards);
+ assert.equal(actual.filterVisualOptions,data.filterVisualOptions);
+ assert.equal(actual.growthIcons,data.growthIcons);
+ assert.equal(actual.formalRules,rules);
+});
+
 test('calculator data profiles exclude unrelated database archives',()=>{
  const temp=mkdtempSync(join(process.cwd(),'output/tools-loading-test-'));
  try {

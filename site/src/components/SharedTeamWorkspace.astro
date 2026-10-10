@@ -32,7 +32,17 @@ const en = Astro.props.locale === 'en';
     const loadingView = body.firstElementChild!.cloneNode(true);
     let workspace, ready = false, request = 0;
     let modulePromise;
-    const loadModule = () => modulePromise ??= import('../lib/shared-team-workspace.mjs').catch(error => {modulePromise = null; throw error;});
+    let codeWarmed=false;
+    const loadModule = () => {
+      if(!codeWarmed){
+        codeWarmed=true;
+        const config=globalThis[Symbol.for('ournotes.prerender.v1')];
+        const root=globalThis[Symbol.for('ournotes.code-root.v1')];
+        const paths=config?.app.workspacePreloads??globalThis[Symbol.for('ournotes.code-manifest.v1')]?.workspacePreloads??[];
+        for(const path of paths){const link=document.createElement('link');link.rel='modulepreload';link.href=new URL(path,root).href;document.head.append(link);}
+      }
+      return modulePromise ??= import('../lib/shared-team-workspace.mjs').catch(error => {modulePromise = null; throw error;});
+    };
     // Warm code on intent, without reading account data or creating a workspace.
     launcher.addEventListener('pointerenter', () => {loadModule().catch(() => {});}, {once:true});
     launcher.addEventListener('focus', () => {loadModule().catch(() => {});}, {once:true});

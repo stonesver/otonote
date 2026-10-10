@@ -1,4 +1,22 @@
-import {resolve} from 'node:path';
+import {resolve,relative} from 'node:path';
+
+/** Fetch a module's static closure in one round, without evaluating lazy data. */
+export function interactionPreloads(metafile,root,cwd=process.cwd()) {
+ const outputs=new Map(Object.entries(metafile.outputs).map(([name,value])=>[resolve(cwd,name),value]));
+ const closure=name=>{
+  const visited=new Set();
+  const visit=path=>{
+   if(visited.has(path))return;
+   const output=outputs.get(path);if(!output)throw Error('Missing interaction dependency: '+path);
+   visited.add(path);
+   for(const dependency of output.imports)if(!dependency.external&&dependency.kind==='import-statement')visit(resolve(cwd,dependency.path));
+  };
+  visit(name);return [...visited].map(path=>relative(root,path).replaceAll('\\','/'));
+ };
+ const entries=[...outputs].filter(([,value])=>value.entryPoint);
+ const workspace=entries.find(([,value])=>value.entryPoint.endsWith('/shared-team-workspace.mjs'));
+ return {modulePreloads:Object.fromEntries(entries.map(([path])=>[relative(root,path).replaceAll('\\','/'),closure(path)])),workspacePreloads:workspace?closure(workspace[0]):[]};
+}
 
 /** Describe only the static data dependencies of each compiled page. */
 export function attachDataProfiles(manifest, metafile, groupsByInput, cwd = process.cwd()) {

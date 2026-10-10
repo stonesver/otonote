@@ -46,7 +46,13 @@ STAGES = frozenset({'request', 'discovering', 'sdk_login', 'checking_existing_ac
                     'game_login', 'reading_growth', 'reading_gacha_history', 'other'})
 REASONS = frozenset({'credentials_rejected', 'account_not_found',
                      'verification_required', 'rate_limited', 'unclassified'})
+MESSAGE_STATES = frozenset({'original', 'redacted', 'omitted', 'missing'})
 ROUTES = frozenset({'growth', 'gacha_history'})
+PRIVATE_PATTERN = re.compile(r'https?://|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|'
+                             r'(?<!\d)(?:\+?\d[\d\s-]{7,}\d)(?!\d)|'
+                             r'\b(?:password|pwd|token|secret|cookie|authorization|access[_-]?key|id[_-]?token)\b\s*[:=]|'
+                             r'(?<![A-Za-z0-9])[A-Za-z0-9+/_=-]{24,}(?![A-Za-z0-9])',
+                             re.IGNORECASE)
 
 
 def parse_time(value):
@@ -95,6 +101,15 @@ def build_snapshot(access_text, gateway_text, *, now=None):
         error = row.get('error')
         reason = row.get('reason')
         route = row.get('route')
+        message_state = row.get('messageState')
+        message = row.get('message')
+        message_state = message_state if isinstance(message_state, str) and message_state in MESSAGE_STATES else None
+        if (message_state not in ('original', 'redacted') or not isinstance(message, str)
+                or not 0 < len(message) <= 200 or any(ord(char) < 32 or ord(char) == 127 for char in message)
+                or PRIVATE_PATTERN.search(message)):
+            message = None
+            if message_state in ('original', 'redacted'):
+                message_state = 'omitted'
         gateway[request_id] = {
             'route': route if isinstance(route, str) and route in ROUTES else 'unknown',
             'stage': stage if isinstance(stage, str) and stage in STAGES else 'other',
@@ -102,6 +117,7 @@ def build_snapshot(access_text, gateway_text, *, now=None):
                       (error in ERROR_CODES or SERVICE_ERROR.fullmatch(error) or
                        (error.startswith('game_rpc_') and error[9:] in GRPC_CODES)) else None),
             'reason': reason if isinstance(reason, str) and reason in REASONS else None,
+            'message': message, 'messageState': message_state,
         }
     counts = Counter()
     errors = Counter()
@@ -127,7 +143,8 @@ def build_snapshot(access_text, gateway_text, *, now=None):
         recent.append({'time': timestamp.isoformat(timespec='seconds'), 'requestId': request_id,
                        'status': status, 'route': detail.get('route', 'unknown'),
                        'stage': detail.get('stage', 'no_gateway_finish'),
-                       'error': error, 'reason': detail.get('reason')})
+                       'error': error, 'reason': detail.get('reason'),
+                       'message': detail.get('message'), 'messageState': detail.get('messageState')})
     recent.sort(key=lambda row: row['time'], reverse=True)
     return {'schemaVersion': 1, 'generatedAt': now.isoformat(timespec='seconds'),
             'windowStart': start.isoformat(timespec='seconds'),
@@ -176,9 +193,15 @@ def main():
     parser.add_argument('--container', default='ournotes-growth')
     args = parser.parse_args()
     access = read_access_logs(args.access_log)
-    result = subprocess.run(['docker', 'logs', '--since', '24h', args.container],
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            timeout=20, check=True)
+    try:
+        result = subprocess.run(['journalctl', '-u', 'ournotes-growth.service',
+                                 '--since', '24 hours ago', '--no-pager', '-o', 'cat'],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                timeout=20, check=True)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        result = subprocess.run(['docker', 'logs', '--since', '24h', args.container],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                timeout=20, check=True)
     gateway = result.stdout[-4 * 1024 * 1024:].decode('utf-8', errors='replace')
     snapshot = build_snapshot(access, gateway)
     destination = Path(args.output)

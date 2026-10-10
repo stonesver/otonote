@@ -36,6 +36,7 @@ class GrowthDiagnosticsSnapshotTests(unittest.TestCase):
         gateway = json.dumps({'time': '2026-10-09T11:00:01+00:00', 'requestId': request_id,
                               'event': 'finish', 'route': 'growth', 'stage': 'sdk_login',
                               'error': 'sdk_service_500002', 'reason': 'unclassified',
+                              'message': '帳號或密碼錯誤', 'messageState': 'original',
                               'extra': 'fixture-sensitive-canary'})+'\n'+json.dumps({
                                   'time':'2026-10-09T11:01:01+00:00','requestId':'b'*32,
                                   'event':'finish','route':'growth','stage':'sdk_login',
@@ -46,6 +47,14 @@ class GrowthDiagnosticsSnapshotTests(unittest.TestCase):
         self.assertEqual(result['errorCounts'], {'sdk_service_500002': 1})
         self.assertIsNone(result['recentFailures'][0]['error'])
         self.assertEqual(result['recentFailures'][1]['reason'], 'unclassified')
+        self.assertEqual(result['recentFailures'][1]['message'], '帳號或密碼錯誤')
+        unsafe=json.dumps({'time':'2026-10-09T11:00:01+00:00','requestId':request_id,
+                           'event':'finish','route':'growth','stage':'sdk_login',
+                           'error':'sdk_service_500002','message':'user@example.invalid',
+                           'messageState':'original'})
+        hidden=build_snapshot(access, unsafe, now=now)
+        self.assertIsNone(hidden['recentFailures'][1]['message'])
+        self.assertEqual(hidden['recentFailures'][1]['messageState'], 'omitted')
         self.assertNotIn('private@example.com', json.dumps(result))
         self.assertNotIn('fixture-sensitive-canary', json.dumps(result))
 

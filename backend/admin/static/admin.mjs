@@ -216,6 +216,8 @@ async function refreshGrowth(gen=generation){
     const when=el('time',new Date(row.time).toLocaleString('zh-CN',{hour12:false}));
     const detail=el('div');detail.append(el('strong',`HTTP ${row.status} · ${row.error||'无网关错误码'}`),
       el('small',`${row.route} · ${row.stage} · ${row.reason||'原因未判明'}`));
+    if(row.message)detail.append(el('small',`SDK 提示：${row.message}${row.messageState==='redacted'?'（敏感片段已遮蔽）':''}`));
+    else if(row.messageState==='omitted')detail.append(el('small','SDK 提示包含无法安全保留的内容，已省略。'));
     item.append(when,detail,el('code',row.requestId));return item;
   });
   if(failures.length)$('growth-failures').replaceChildren(...failures);else empty($('growth-failures'),'窗口内没有失败 POST');

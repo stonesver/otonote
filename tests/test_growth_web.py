@@ -18,7 +18,8 @@ class FakeSdk:
         pass
     def login(self, account, password):
         if password == 'reject':
-            raise LoginError('sdk_service_500002', reason='credentials_rejected')
+            raise LoginError('sdk_service_500002', reason='credentials_rejected',
+                             diagnostic_message='帳號或密碼錯誤', message_state='original')
         return SdkIdentity('FAKE-UID', 'FAKE-TOKEN')
 
 
@@ -90,6 +91,8 @@ class GrowthWebTests(unittest.TestCase):
         self.assertEqual(self.diagnostics[-1]['status'],422)
         self.assertEqual(self.diagnostics[-1]['error'],'sdk_service_500002')
         self.assertEqual(self.diagnostics[-1]['reason'],'credentials_rejected')
+        self.assertEqual(self.diagnostics[-1]['message'],'帳號或密碼錯誤')
+        self.assertEqual(self.diagnostics[-1]['messageState'],'original')
         self.assertNotIn('PRIVATE',json.dumps(self.diagnostics))
         self.assertNotIn('"password": "reject"',json.dumps(self.diagnostics))
 

@@ -8,8 +8,8 @@ import {createFormationWorkerPool} from '../src/lib/formation-worker-pool.mjs';
 import {createCandidateEvaluator} from '../src/lib/formation-candidate-evaluator.mjs';
 import {optimizeInventory} from '../src/lib/inventory-optimizer.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
-const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
-const original=JSON.parse(readFileSync(new URL('../public/data/music-charts/music-chart-10000103.json',import.meta.url)));
+const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
+const original={id:'music-chart-10000103',trackId:'music-100001',difficulty:'expert',sourceReleaseId:rules.sourceReleaseId};
 const chart={...original,feverRanges:[],bpmEvents:[{tick:0,bpm:125}],skillTimings:[0,1,2,3,4],notes:[0,10,500,1000,1010,2000,5000].map((tick,i)=>({id:`batch${i}`,type:'tap',tick}))};
 const draft=()=>createTeamDraft({slots:[1,2,3,4,5].map(i=>({memberCardId:`member-card-${i}`,supportCardId:`support-card-${i}`})),selectedSongId:chart.trackId,selectedDifficulty:chart.difficulty});
 const context={rules,chart,mode:'ordinary',objective:'expected_song_score'};
@@ -43,7 +43,9 @@ test('batched frontier and resumed budget converge to the serial exhaustive opti
  const evaluator=createCandidateEvaluator(context),opts={...context,draft:draft(),maxEvaluations:0,topN:5,yieldControl:async()=>{}};
  const serial=await optimizeInventory(opts);
  const evaluateBatch=ds=>Promise.all(ds.map(d=>evaluator.evaluate(d)));
- const partial=await optimizeInventory({...opts,batchSize:4,evaluateBatch,maxEvaluations:7});assert.equal(partial.evaluated,7);assert.equal(partial.optimality,'incomplete');
+ // A one-candidate budget cannot fill a top-five result, even when the tighter
+ // homogeneous-skill bound now proves the old seven-candidate fixture early.
+ const partial=await optimizeInventory({...opts,batchSize:4,evaluateBatch,maxEvaluations:1});assert.equal(partial.evaluated,1);assert.equal(partial.optimality,'incomplete');
  const resumed=await optimizeInventory({...opts,batchSize:4,evaluateBatch,checkpoint:partial.checkpoint});
  assert.equal(resumed.optimality,'proven_within_model');assert.deepEqual(resumed.results.map(r=>r.value),serial.results.map(r=>r.value));
 });

@@ -7,8 +7,10 @@ import {createFormalSongCalculator} from '../src/lib/scoring-rules/formal-song-s
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 
 function fixture(){
-  const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
-  const chart=JSON.parse(readFileSync(new URL('../public/data/music-charts/music-chart-10003803.json',import.meta.url)));
+  const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
+  const chart={id:'music-chart-10003803',trackId:'music-100038',difficulty:'expert',
+   bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+   notes:Array.from({length:40},(_,i)=>({id:`offline-${i}`,type:'tap',tick:i*157+1}))};
   chart.sourceReleaseId=rules.sourceReleaseId;
   const musicId=Number(chart.trackId.split('-').at(-1));
   rules.tables.Event=[{_id:1,_eventType:1}];
@@ -25,7 +27,8 @@ test('challenge search keeps actual growth and compares full event-aware scores 
   const input=fixture(),original=structuredClone(input.draft);
   const result=await optimizeChallenge(input);
   assert.equal(result.status,'completed');assert.equal(result.mode,'challenge');assert.ok(result.results[0].value>=result.baseline);
-  assert.deepEqual(input.draft,original);assert.equal(result.optimality,'practical_checked');
+  assert.deepEqual(input.draft,original);assert.equal(result.optimality,'proven_within_model');
+  assert.equal(result.certifiedSearch.frontier,0);
   const model=createEventEfficiency({tables:input.rules.tables,sourceReleaseId:input.rules.sourceReleaseId,eventId:1});
   const calc=createFormalSongCalculator(input.rules,input.chart,{eventAdapters:[model.challengeAdapter(input.rules)]});
   for(const r of result.results){
@@ -64,6 +67,35 @@ test('saved player performance flows through challenge scoring with event power 
     assert.equal(row.expectedScore,0);assert.equal(row.maximumScore,0);
     assert.equal(row.performanceScenario.missRate,1);
     assert.ok(row.power>0);assert.equal(row.scenario.performanceScenario.missRate,1);
+  }
+});
+
+function* arrangements(values,n=values.length){
+  if(!n){yield [];return;}
+  for(let i=0;i<values.length;i++)for(const rest of arrangements(values.filter((_,j)=>j!==i),n-1))yield [values[i],...rest];
+}
+
+test('certified challenge optimum matches exhaustive pairings with member and support event power',async()=>{
+  const input=fixture();
+  Object.assign(input.chart,{bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+    notes:Array.from({length:12},(_,i)=>({id:`note-${i}`,type:'tap',tick:i*383+1}))});
+  input.inventory.supportCardIds.push('support-card-6');input.inventory.growth['support-card-6']={level:1,rank:1};
+  input.rules.tables.EventEffect[0]._memberCardId=3;input.rules.tables.EventEffect[1]._supportCardId=6;
+  const model=createEventEfficiency({tables:input.rules.tables,sourceReleaseId:input.rules.sourceReleaseId,eventId:1});
+  const calculator=createFormalSongCalculator(input.rules,input.chart,{eventAdapters:[model.challengeAdapter(input.rules)]});
+  const maxima={expectedScore:0,maximumScore:0};
+  for(const leader of input.inventory.memberCardIds){
+    const members=input.inventory.memberCardIds.filter(id=>id!==leader);members.splice(2,0,leader);
+    for(const supports of arrangements(input.inventory.supportCardIds,5)){
+      const draft={...input.draft,slots:members.map((memberCardId,i)=>({memberCardId,supportCardId:supports[i]})),
+        modifiers:{growth:input.inventory.growth,event:{id:1,sourceReleaseId:input.rules.sourceReleaseId}}};
+      const result=calculator.calculate(draft);
+      for(const key of Object.keys(maxima))maxima[key]=Math.max(maxima[key],result[key]);
+    }
+  }
+  for(const [objective,key] of [['expected_song_score','expectedScore'],['maximum_song_score','maximumScore']]){
+    const result=await optimizeChallenge({...input,objective,maxEvaluations:0});
+    assert.equal(result.optimality,'proven_within_model');assert.equal(result.results[0].value,maxima[key]);
   }
 });
 

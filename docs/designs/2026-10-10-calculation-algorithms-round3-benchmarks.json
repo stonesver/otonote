@@ -1,0 +1,3058 @@
+{
+  "generatedAt": "2026-10-10T03:39:48.584Z",
+  "directory": "/Users/stone/.codex/worktrees/0d7c/otonote/output/calculation-algorithms/round3",
+  "phases": {
+    "replay": {
+      "beforeRows": 1400,
+      "afterRows": 1400,
+      "complete": true,
+      "missing": [],
+      "extra": [],
+      "errors": [],
+      "hashMismatches": [],
+      "optimumMismatches": [],
+      "rewardRegressions": [],
+      "boundedRegressions": [],
+      "proofRegressions": [],
+      "gapRegressions": [],
+      "searchChanges": [],
+      "modes": {
+        "ideal": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 8.633417000004556,
+            "p95": 25.51295800000662,
+            "maximum": 42.41579199999978,
+            "total": 7368.478133000084
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 8.586916999978712,
+            "p95": 25.16766700000153,
+            "maximum": 45.74749999999767,
+            "total": 7456.853323999727
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 13.693,
+            "p95": 40.548,
+            "maximum": 82.542,
+            "total": 11670.835999999996
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 13.672,
+            "p95": 42.518,
+            "maximum": 88.575,
+            "total": 11866.953000000012
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 404373504,
+            "p95": 415399936,
+            "maximum": 416120832,
+            "total": 271177695232
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 1.0031664178766906,
+            "p95": 1.4303604973611235,
+            "maximum": 2.4503263234227703,
+            "total": 712.0785612267608
+          },
+          "beforeEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "beforeGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "unspecified": 700
+          },
+          "afterStatus": {
+            "estimated": 700
+          }
+        },
+        "steady": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 704.1413330000069,
+            "p95": 1138.67008299999,
+            "maximum": 1774.8547499999986,
+            "total": 508068.66133199993
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 706.1564170000056,
+            "p95": 1132.9285839999793,
+            "maximum": 1949.8508750000037,
+            "total": 510026.4802059997
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 842.533,
+            "p95": 1400.194,
+            "maximum": 2219.598,
+            "total": 610660.7070000004
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 845.911,
+            "p95": 1381.445,
+            "maximum": 2166.428,
+            "total": 609924.5890000005
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 404307968,
+            "p95": 415301632,
+            "maximum": 416120832,
+            "total": 271214379008
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 1.0062654029598206,
+            "p95": 1.1016815290104423,
+            "maximum": 1.2547790856406085,
+            "total": 701.5713608216172
+          },
+          "beforeEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "beforeGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "unspecified": 700
+          },
+          "afterStatus": {
+            "estimated": 700
+          }
+        }
+      },
+      "datasets": [
+        {
+          "sourceReleaseId": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77",
+          "rulesHash": "fnv1a32:231aa26f",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "d0cd2df026c4657cb49fbcd878208d295e737150a669254de3bff5d491572848",
+          "chartsSha256": "37a20e7a54867850b85c759047a3c2640722601e7e79f195f73a1ffef60fd8e8",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 69,
+          "masterCharts": 352,
+          "chartFiles": 352,
+          "testedCharts": 352,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-70",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        },
+        {
+          "sourceReleaseId": "jp-prod-1-0-5-10059-6c0d9a254a3b",
+          "rulesHash": "fnv1a32:f288a5c4",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "8ac744065a09c6e94d339402f3bd88513fa6f7838aa113470c67d69eb0e07e45",
+          "chartsSha256": "029e0d5eb29b18bdf8fdc4a5acc012c39c1f2e3425c5a6a872f9c9c32cdfbc6b",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 68,
+          "masterCharts": 348,
+          "chartFiles": 348,
+          "testedCharts": 348,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        }
+      ],
+      "machine": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5",
+        "logicalCPUs": 10
+      },
+      "node": "v24.19.0",
+      "startedAt": [
+        "2026-10-10T01:29:21.613Z",
+        "2026-10-10T03:03:44.119Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T01:37:58.041Z",
+        "2026-10-10T03:12:23.033Z"
+      ],
+      "afterMaxRssKiB": 408000
+    },
+    "gekisou": {
+      "beforeRows": 1400,
+      "afterRows": 1400,
+      "complete": true,
+      "missing": [],
+      "extra": [],
+      "errors": [],
+      "hashMismatches": [],
+      "optimumMismatches": [],
+      "rewardRegressions": [],
+      "boundedRegressions": [],
+      "proofRegressions": [],
+      "gapRegressions": [],
+      "searchChanges": [],
+      "modes": {
+        "gekisou-ideal": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 204.04054099999485,
+            "p95": 1013.9580000000424,
+            "maximum": 2309.9850420000002,
+            "total": 284243.90173600026
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 203.36866699997336,
+            "p95": 1256.062957999995,
+            "maximum": 2447.810875000003,
+            "total": 308702.5191560004
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 277.805,
+            "p95": 1188.886,
+            "maximum": 3598.818,
+            "total": 341813.7080000004
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 283.175,
+            "p95": 1416.388,
+            "maximum": 2833.679,
+            "total": 365115.874
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 398966784,
+            "p95": 424640512,
+            "maximum": 425787392,
+            "total": 272884252672
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 0.9906022531524326,
+            "p95": 1.153343669587696,
+            "maximum": 1.990573801152091,
+            "total": 686.0554174732703
+          },
+          "beforeEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "beforeGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "unspecified": 700
+          },
+          "afterStatus": {
+            "estimated": 700
+          }
+        },
+        "gekisou-steady-fixed-order": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 18.403707999998005,
+            "p95": 32.40108300000429,
+            "maximum": 53.04541700000118,
+            "total": 13815.855285999796
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 19.195041999999376,
+            "p95": 36.93162499999744,
+            "maximum": 60.825792000003275,
+            "total": 14511.247632000224
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 28.318,
+            "p95": 51.753,
+            "maximum": 94.584,
+            "total": 21039.392999999985
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 29.08,
+            "p95": 53.756,
+            "maximum": 111.456,
+            "total": 21763.860999999994
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 399048704,
+            "p95": 424640512,
+            "maximum": 425787392,
+            "total": 272925999104
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 0.985399559857072,
+            "p95": 1.4432186522604493,
+            "maximum": 2.324026164209704,
+            "total": 701.5177500348093
+          },
+          "beforeEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterEvaluated": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "beforeGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "unspecified": 700
+          },
+          "afterStatus": {
+            "estimated": 700
+          }
+        }
+      },
+      "datasets": [
+        {
+          "sourceReleaseId": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77",
+          "rulesHash": "fnv1a32:231aa26f",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "d0cd2df026c4657cb49fbcd878208d295e737150a669254de3bff5d491572848",
+          "chartsSha256": "37a20e7a54867850b85c759047a3c2640722601e7e79f195f73a1ffef60fd8e8",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 69,
+          "masterCharts": 352,
+          "chartFiles": 352,
+          "testedCharts": 352,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-70",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        },
+        {
+          "sourceReleaseId": "jp-prod-1-0-5-10059-6c0d9a254a3b",
+          "rulesHash": "fnv1a32:f288a5c4",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "8ac744065a09c6e94d339402f3bd88513fa6f7838aa113470c67d69eb0e07e45",
+          "chartsSha256": "029e0d5eb29b18bdf8fdc4a5acc012c39c1f2e3425c5a6a872f9c9c32cdfbc6b",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 68,
+          "masterCharts": 348,
+          "chartFiles": 348,
+          "testedCharts": 348,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        }
+      ],
+      "machine": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5",
+        "logicalCPUs": 10
+      },
+      "node": "v24.19.0",
+      "startedAt": [
+        "2026-10-10T01:37:58.114Z",
+        "2026-10-10T03:12:23.154Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T01:42:57.089Z",
+        "2026-10-10T03:17:47.381Z"
+      ],
+      "afterMaxRssKiB": 417456
+    },
+    "search": {
+      "beforeRows": 2100,
+      "afterRows": 2100,
+      "complete": true,
+      "missing": [],
+      "extra": [],
+      "errors": [],
+      "hashMismatches": [],
+      "optimumMismatches": [],
+      "rewardRegressions": [],
+      "boundedRegressions": [],
+      "proofRegressions": [],
+      "gapRegressions": [],
+      "searchChanges": [],
+      "modes": {
+        "power": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 126.77604199999769,
+            "p95": 144.15708400006406,
+            "maximum": 242.3337499999907,
+            "total": 89520.58758000025
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 125.350666000013,
+            "p95": 143.48587500001304,
+            "maximum": 256.4875839999877,
+            "total": 88494.93537200012
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 147.389,
+            "p95": 172.504,
+            "maximum": 252.114,
+            "total": 104388.00499999996
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 144.82,
+            "p95": 167.08,
+            "maximum": 264.15,
+            "total": 102294.63200000009
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 486391808,
+            "p95": 558694400,
+            "maximum": 571277312,
+            "total": 342908141568
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 1.021327967806841,
+            "p95": 1.1730155765030463,
+            "maximum": 1.6238343190343134,
+            "total": 717.5991139614795
+          },
+          "beforeEvaluated": {
+            "count": 700,
+            "p50": 1,
+            "p95": 1,
+            "maximum": 1,
+            "total": 700
+          },
+          "afterEvaluated": {
+            "count": 700,
+            "p50": 1,
+            "p95": 1,
+            "maximum": 1,
+            "total": 700
+          },
+          "beforeGap": {
+            "count": 700,
+            "p50": 0,
+            "p95": 0,
+            "maximum": 0,
+            "total": 0
+          },
+          "afterGap": {
+            "count": 700,
+            "p50": 0,
+            "p95": 0,
+            "maximum": 0,
+            "total": 0
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "proven_within_model": 700
+          },
+          "afterStatus": {
+            "completed": 700
+          }
+        },
+        "score": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 396.1287499999162,
+            "p95": 532.9893329999759,
+            "maximum": 971.8020000000251,
+            "total": 284850.0560029993
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 400.31574999997974,
+            "p95": 535.2144169999519,
+            "maximum": 1028.6511249999749,
+            "total": 287518.7529180001
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 502.865,
+            "p95": 690.1,
+            "maximum": 994.022,
+            "total": 362338.3759999999
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 517.265,
+            "p95": 704.462,
+            "maximum": 987.368,
+            "total": 370849.152
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 466075648,
+            "p95": 534265856,
+            "maximum": 565788672,
+            "total": 334422196224
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 0.9596385050716252,
+            "p95": 1.186836996278062,
+            "maximum": 1.5453491975546312,
+            "total": 687.6295376202585
+          },
+          "beforeEvaluated": {
+            "count": 700,
+            "p50": 20,
+            "p95": 20,
+            "maximum": 20,
+            "total": 14000
+          },
+          "afterEvaluated": {
+            "count": 700,
+            "p50": 20,
+            "p95": 20,
+            "maximum": 20,
+            "total": 14000
+          },
+          "beforeGap": {
+            "count": 700,
+            "p50": 291939.3999999999,
+            "p95": 488339.19999999995,
+            "maximum": 806955,
+            "total": 212343480.73333338
+          },
+          "afterGap": {
+            "count": 700,
+            "p50": 95347,
+            "p95": 130916.80000000005,
+            "maximum": 155546.19999999995,
+            "total": 67327252.73333333
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "incomplete": 700
+          },
+          "afterStatus": {
+            "budget_exhausted": 700
+          }
+        },
+        "practical": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 324.5880840000027,
+            "p95": 382.2895830000052,
+            "maximum": 503.75204099999974,
+            "total": 229737.5569239998
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 319.35324999998556,
+            "p95": 381.419666999951,
+            "maximum": 908.4336669999757,
+            "total": 227591.83279199954
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 378.546,
+            "p95": 466.51,
+            "maximum": 562.093,
+            "total": 270274.1250000002
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 375.652,
+            "p95": 457.067,
+            "maximum": 620.184,
+            "total": 266663.7589999995
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 489275392,
+            "p95": 559005696,
+            "maximum": 570294272,
+            "total": 346512113664
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 1.016398002753863,
+            "p95": 1.134045283511321,
+            "maximum": 1.362667160242469,
+            "total": 711.9173173675621
+          },
+          "beforeEvaluated": {
+            "count": 700,
+            "p50": 6,
+            "p95": 6,
+            "maximum": 6,
+            "total": 4200
+          },
+          "afterEvaluated": {
+            "count": 700,
+            "p50": 6,
+            "p95": 6,
+            "maximum": 6,
+            "total": 4200
+          },
+          "beforeGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterGap": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "practical_checked": 700
+          },
+          "afterStatus": {
+            "completed": 700
+          }
+        }
+      },
+      "datasets": [
+        {
+          "sourceReleaseId": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77",
+          "rulesHash": "fnv1a32:231aa26f",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "d0cd2df026c4657cb49fbcd878208d295e737150a669254de3bff5d491572848",
+          "chartsSha256": "37a20e7a54867850b85c759047a3c2640722601e7e79f195f73a1ffef60fd8e8",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 69,
+          "masterCharts": 352,
+          "chartFiles": 352,
+          "testedCharts": 352,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-70",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        },
+        {
+          "sourceReleaseId": "jp-prod-1-0-5-10059-6c0d9a254a3b",
+          "rulesHash": "fnv1a32:f288a5c4",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "8ac744065a09c6e94d339402f3bd88513fa6f7838aa113470c67d69eb0e07e45",
+          "chartsSha256": "029e0d5eb29b18bdf8fdc4a5acc012c39c1f2e3425c5a6a872f9c9c32cdfbc6b",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 68,
+          "masterCharts": 348,
+          "chartFiles": 348,
+          "testedCharts": 348,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        }
+      ],
+      "machine": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5",
+        "logicalCPUs": 10
+      },
+      "node": "v24.19.0",
+      "startedAt": [
+        "2026-10-10T01:42:57.147Z",
+        "2026-10-10T03:17:47.481Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T01:53:03.561Z",
+        "2026-10-10T03:27:53.550Z"
+      ],
+      "afterMaxRssKiB": 567440
+    },
+    "events": {
+      "beforeRows": 724,
+      "afterRows": 724,
+      "complete": true,
+      "missing": [],
+      "extra": [],
+      "errors": [],
+      "hashMismatches": [],
+      "optimumMismatches": [],
+      "rewardRegressions": [],
+      "boundedRegressions": [],
+      "proofRegressions": [],
+      "gapRegressions": [],
+      "searchChanges": [],
+      "modes": {
+        "yield": {
+          "rows": 700,
+          "beforeWallMs": {
+            "count": 700,
+            "p50": 950.0076249999693,
+            "p95": 1870.9148750000168,
+            "maximum": 2838.1035840000113,
+            "total": 793842.7365959991
+          },
+          "afterWallMs": {
+            "count": 700,
+            "p50": 814.0820000000022,
+            "p95": 1740.5037499999999,
+            "maximum": 2383.136459000001,
+            "total": 660751.6707129995
+          },
+          "beforeCpuMs": {
+            "count": 700,
+            "p50": 1130.892,
+            "p95": 2414.924,
+            "maximum": 3690.283,
+            "total": 963165.0879999996
+          },
+          "afterCpuMs": {
+            "count": 700,
+            "p50": 1012.221,
+            "p95": 2260.763,
+            "maximum": 3073.575,
+            "total": 823878.5889999991
+          },
+          "afterRssBytes": {
+            "count": 700,
+            "p50": 485933056,
+            "p95": 556056576,
+            "maximum": 586874880,
+            "total": 347094843392
+          },
+          "pairedCpuSpeedup": {
+            "count": 700,
+            "p50": 1.119697415908763,
+            "p95": 1.8809313228432691,
+            "maximum": 2.442180677838749,
+            "total": 832.5666752014378
+          },
+          "beforeEvaluated": {
+            "count": 700,
+            "p50": 12,
+            "p95": 36,
+            "maximum": 36,
+            "total": 13440
+          },
+          "afterEvaluated": {
+            "count": 700,
+            "p50": 12,
+            "p95": 36,
+            "maximum": 36,
+            "total": 11616
+          },
+          "beforeGap": {
+            "count": 700,
+            "p50": 0,
+            "p95": 19500,
+            "maximum": 19500,
+            "total": 2719800
+          },
+          "afterGap": {
+            "count": 700,
+            "p50": 0,
+            "p95": 19500,
+            "maximum": 19500,
+            "total": 1237800
+          },
+          "values": {
+            "improved": 0,
+            "equal": 700,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "proven_within_model": 566,
+            "incomplete": 134
+          },
+          "afterStatus": {
+            "completed": 566,
+            "budget_exhausted": 134
+          }
+        },
+        "challenge": {
+          "rows": 24,
+          "beforeWallMs": {
+            "count": 24,
+            "p50": 885.2347500000033,
+            "p95": 1172.9583340000827,
+            "maximum": 1195.1382079999894,
+            "total": 21456.22433300002
+          },
+          "afterWallMs": {
+            "count": 24,
+            "p50": 921.6046659999993,
+            "p95": 1184.508375000034,
+            "maximum": 1184.6685000000289,
+            "total": 22254.58516700013
+          },
+          "beforeCpuMs": {
+            "count": 24,
+            "p50": 1125.671,
+            "p95": 1516.253,
+            "maximum": 1592.929,
+            "total": 26825.044
+          },
+          "afterCpuMs": {
+            "count": 24,
+            "p50": 1179.369,
+            "p95": 1570.93,
+            "maximum": 1579.554,
+            "total": 28165.942000000003
+          },
+          "afterRssBytes": {
+            "count": 24,
+            "p50": 479969280,
+            "p95": 505593856,
+            "maximum": 539197440,
+            "total": 11631230976
+          },
+          "pairedCpuSpeedup": {
+            "count": 24,
+            "p50": 0.9574594723640276,
+            "p95": 1.0356655297261692,
+            "maximum": 1.0551245076200493,
+            "total": 22.756169165431817
+          },
+          "beforeEvaluated": {
+            "count": 24,
+            "p50": 30,
+            "p95": 30,
+            "maximum": 30,
+            "total": 720
+          },
+          "afterEvaluated": {
+            "count": 24,
+            "p50": 30,
+            "p95": 30,
+            "maximum": 30,
+            "total": 720
+          },
+          "beforeGap": {
+            "count": 24,
+            "p50": 495944,
+            "p95": 690435,
+            "maximum": 690436,
+            "total": 10877633
+          },
+          "afterGap": {
+            "count": 24,
+            "p50": 97212,
+            "p95": 146695,
+            "maximum": 146695,
+            "total": 2527022
+          },
+          "values": {
+            "improved": 0,
+            "equal": 24,
+            "decreased": 0
+          },
+          "afterOptimality": {
+            "incomplete": 24
+          },
+          "afterStatus": {
+            "budget_exhausted": 24
+          }
+        }
+      },
+      "datasets": [
+        {
+          "sourceReleaseId": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77",
+          "rulesHash": "fnv1a32:231aa26f",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "d0cd2df026c4657cb49fbcd878208d295e737150a669254de3bff5d491572848",
+          "chartsSha256": "37a20e7a54867850b85c759047a3c2640722601e7e79f195f73a1ffef60fd8e8",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 69,
+          "masterCharts": 352,
+          "chartFiles": 352,
+          "testedCharts": 352,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-70",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        },
+        {
+          "sourceReleaseId": "jp-prod-1-0-5-10059-6c0d9a254a3b",
+          "rulesHash": "fnv1a32:f288a5c4",
+          "ruleSetVersion": "ournotes-scoring-model-v1",
+          "rulesSha256": "8ac744065a09c6e94d339402f3bd88513fa6f7838aa113470c67d69eb0e07e45",
+          "chartsSha256": "029e0d5eb29b18bdf8fdc4a5acc012c39c1f2e3425c5a6a872f9c9c32cdfbc6b",
+          "verificationStatus": "reference_compatible",
+          "members": 67,
+          "supports": 68,
+          "masterCharts": 348,
+          "chartFiles": 348,
+          "testedCharts": 348,
+          "missing": [],
+          "extra": [],
+          "coveredMembers": [
+            "member-card-1",
+            "member-card-10",
+            "member-card-11",
+            "member-card-12",
+            "member-card-13",
+            "member-card-14",
+            "member-card-15",
+            "member-card-16",
+            "member-card-17",
+            "member-card-18",
+            "member-card-19",
+            "member-card-2",
+            "member-card-20",
+            "member-card-21",
+            "member-card-22",
+            "member-card-23",
+            "member-card-24",
+            "member-card-25",
+            "member-card-26",
+            "member-card-27",
+            "member-card-28",
+            "member-card-29",
+            "member-card-3",
+            "member-card-30",
+            "member-card-31",
+            "member-card-32",
+            "member-card-33",
+            "member-card-34",
+            "member-card-35",
+            "member-card-36",
+            "member-card-37",
+            "member-card-38",
+            "member-card-39",
+            "member-card-4",
+            "member-card-40",
+            "member-card-41",
+            "member-card-42",
+            "member-card-43",
+            "member-card-44",
+            "member-card-45",
+            "member-card-46",
+            "member-card-47",
+            "member-card-48",
+            "member-card-49",
+            "member-card-5",
+            "member-card-50",
+            "member-card-51",
+            "member-card-52",
+            "member-card-53",
+            "member-card-54",
+            "member-card-55",
+            "member-card-56",
+            "member-card-57",
+            "member-card-58",
+            "member-card-59",
+            "member-card-6",
+            "member-card-60",
+            "member-card-61",
+            "member-card-62",
+            "member-card-63",
+            "member-card-64",
+            "member-card-65",
+            "member-card-66",
+            "member-card-67",
+            "member-card-7",
+            "member-card-8",
+            "member-card-9"
+          ],
+          "coveredSupports": [
+            "support-card-1",
+            "support-card-10",
+            "support-card-11",
+            "support-card-12",
+            "support-card-13",
+            "support-card-14",
+            "support-card-15",
+            "support-card-16",
+            "support-card-17",
+            "support-card-18",
+            "support-card-19",
+            "support-card-2",
+            "support-card-20",
+            "support-card-21",
+            "support-card-22",
+            "support-card-23",
+            "support-card-24",
+            "support-card-25",
+            "support-card-26",
+            "support-card-27",
+            "support-card-28",
+            "support-card-29",
+            "support-card-3",
+            "support-card-30",
+            "support-card-31",
+            "support-card-32",
+            "support-card-33",
+            "support-card-34",
+            "support-card-35",
+            "support-card-36",
+            "support-card-37",
+            "support-card-38",
+            "support-card-39",
+            "support-card-4",
+            "support-card-40",
+            "support-card-41",
+            "support-card-42",
+            "support-card-43",
+            "support-card-44",
+            "support-card-45",
+            "support-card-46",
+            "support-card-47",
+            "support-card-48",
+            "support-card-49",
+            "support-card-5",
+            "support-card-50",
+            "support-card-51",
+            "support-card-52",
+            "support-card-53",
+            "support-card-54",
+            "support-card-55",
+            "support-card-56",
+            "support-card-57",
+            "support-card-58",
+            "support-card-59",
+            "support-card-6",
+            "support-card-60",
+            "support-card-61",
+            "support-card-62",
+            "support-card-63",
+            "support-card-64",
+            "support-card-65",
+            "support-card-66",
+            "support-card-67",
+            "support-card-68",
+            "support-card-7",
+            "support-card-8",
+            "support-card-9"
+          ],
+          "eventIds": [
+            2
+          ]
+        }
+      ],
+      "machine": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5",
+        "logicalCPUs": 10
+      },
+      "node": "v24.19.0",
+      "startedAt": [
+        "2026-10-10T01:53:03.629Z",
+        "2026-10-10T03:27:53.680Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T02:06:41.012Z",
+        "2026-10-10T03:39:18.837Z"
+      ],
+      "afterMaxRssKiB": 620352
+    }
+  },
+  "failures": [],
+  "cardAudit": {
+    "startedAt": "2026-10-10T02:46:56.441Z",
+    "matching": 1000,
+    "growth": 4035,
+    "skills": 229475,
+    "datasets": [
+      {
+        "release": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77",
+        "members": 67,
+        "supports": 69
+      },
+      {
+        "release": "jp-prod-1-0-5-10059-6c0d9a254a3b",
+        "members": 67,
+        "supports": 68
+      }
+    ],
+    "finishedAt": "2026-10-10T02:47:52.918Z",
+    "failures": 0
+  },
+  "controls": {
+    "replay": {
+      "order": [
+        "baseline",
+        "optimized",
+        "optimized",
+        "baseline"
+      ],
+      "rowsPerRun": 16,
+      "startedAt": [
+        "2026-10-10T02:47:52.965Z",
+        "2026-10-10T02:47:59.999Z",
+        "2026-10-10T02:48:06.893Z",
+        "2026-10-10T02:48:13.615Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T02:47:59.952Z",
+        "2026-10-10T02:48:06.851Z",
+        "2026-10-10T02:48:13.572Z",
+        "2026-10-10T02:48:20.257Z"
+      ],
+      "peakRssMiB": [
+        384.1875,
+        383.671875,
+        386.671875,
+        381.28125
+      ],
+      "modes": {
+        "ideal": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 10.098000499999898,
+            "p95": 24.257187499999873,
+            "maximum": 24.257187499999873,
+            "total": 110.55906199999953
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 10.703729000000067,
+            "p95": 24.173729500000263,
+            "maximum": 24.173729500000263,
+            "total": 110.63620950000083
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 13.834,
+            "p95": 43.9255,
+            "maximum": 43.9255,
+            "total": 204.97
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 15.744,
+            "p95": 46.4595,
+            "maximum": 46.4595,
+            "total": 202.78300000000002
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 395919360,
+            "p95": 399376384,
+            "maximum": 399376384,
+            "total": 2883420160
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 396967936,
+            "p95": 402137088,
+            "maximum": 402137088,
+            "total": 2888712192
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 0.9498661313609376,
+            "p95": 1.094928509680177,
+            "maximum": 1.094928509680177,
+            "total": 7.8648955345322324
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 0.9454578719099431,
+            "p95": 1.2267729182110205,
+            "maximum": 1.2267729182110205,
+            "total": 7.91379753495624
+          }
+        },
+        "steady": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 740.1487915000002,
+            "p95": 1081.218875,
+            "maximum": 1081.218875,
+            "total": 6593.6953754999995
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 725.8096455000001,
+            "p95": 1075.9026454999998,
+            "maximum": 1075.9026454999998,
+            "total": 6547.952978
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 929.0765,
+            "p95": 1436.5865,
+            "maximum": 1436.5865,
+            "total": 8328.7415
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 914.2915,
+            "p95": 1402.688,
+            "maximum": 1402.688,
+            "total": 8219.002499999999
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 395526144,
+            "p95": 399622144,
+            "maximum": 399622144,
+            "total": 3128238080
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 396255232,
+            "p95": 402432000,
+            "maximum": 402432000,
+            "total": 3136430080
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 1.0074234818232493,
+            "p95": 1.0359477332509597,
+            "maximum": 1.0359477332509597,
+            "total": 8.053600169100251
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 1.0161709914179449,
+            "p95": 1.0414069035457083,
+            "maximum": 1.0414069035457083,
+            "total": 8.116654931624678
+          }
+        }
+      }
+    },
+    "gekisou": {
+      "order": [
+        "baseline",
+        "optimized",
+        "optimized",
+        "baseline"
+      ],
+      "rowsPerRun": 16,
+      "startedAt": [
+        "2026-10-10T02:48:20.300Z",
+        "2026-10-10T02:48:24.829Z",
+        "2026-10-10T02:48:29.331Z",
+        "2026-10-10T02:48:33.828Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T02:48:24.782Z",
+        "2026-10-10T02:48:29.288Z",
+        "2026-10-10T02:48:33.785Z",
+        "2026-10-10T02:48:38.626Z"
+      ],
+      "peakRssMiB": [
+        399.078125,
+        399.640625,
+        397.5,
+        400.90625
+      ],
+      "modes": {
+        "gekisou-ideal": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 194.90197899999998,
+            "p95": 1464.1153125,
+            "maximum": 1464.1153125,
+            "total": 4305.059001
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 191.72974999999997,
+            "p95": 1471.3069795000001,
+            "maximum": 1471.3069795000001,
+            "total": 4126.487958
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 292.876,
+            "p95": 1890.04,
+            "maximum": 1890.04,
+            "total": 6050.83
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 286.255,
+            "p95": 1901.9355,
+            "maximum": 1901.9355,
+            "total": 5925.950500000001
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 397508608,
+            "p95": 418799616,
+            "maximum": 418799616,
+            "total": 2934218752
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 397983744,
+            "p95": 417308672,
+            "maximum": 417308672,
+            "total": 3008970752
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 1.016545314433467,
+            "p95": 1.1946995740660968,
+            "maximum": 1.1946995740660968,
+            "total": 8.262654833518944
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 1.0231297269916682,
+            "p95": 1.1076535677604056,
+            "maximum": 1.1076535677604056,
+            "total": 8.28512865148799
+          }
+        },
+        "gekisou-steady-fixed-order": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 28.36149999999975,
+            "p95": 42.35433350000005,
+            "maximum": 42.35433350000005,
+            "total": 233.220105
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 27.838333499999862,
+            "p95": 42.24008350000008,
+            "maximum": 42.24008350000008,
+            "total": 226.8742919999998
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 45.3755,
+            "p95": 71.57499999999999,
+            "maximum": 71.57499999999999,
+            "total": 406.184
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 46.834,
+            "p95": 73.479,
+            "maximum": 73.479,
+            "total": 403.3075
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 397549568,
+            "p95": 418799616,
+            "maximum": 418799616,
+            "total": 2947342336
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 398327808,
+            "p95": 417308672,
+            "maximum": 417308672,
+            "total": 3022544896
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 1.0027047768501682,
+            "p95": 1.1956870980973224,
+            "maximum": 1.1956870980973224,
+            "total": 8.182759666970261
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 0.974087834619415,
+            "p95": 1.1641318741236955,
+            "maximum": 1.1641318741236955,
+            "total": 8.087929552494753
+          }
+        }
+      }
+    },
+    "search": {
+      "order": [
+        "baseline",
+        "optimized",
+        "optimized",
+        "baseline"
+      ],
+      "rowsPerRun": 24,
+      "startedAt": [
+        "2026-10-10T03:02:09.317Z",
+        "2026-10-10T03:02:16.789Z",
+        "2026-10-10T03:02:24.060Z",
+        "2026-10-10T03:02:31.434Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T03:02:16.741Z",
+        "2026-10-10T03:02:24.016Z",
+        "2026-10-10T03:02:31.374Z",
+        "2026-10-10T03:02:39.103Z"
+      ],
+      "peakRssMiB": [
+        529.453125,
+        486.609375,
+        503.65625,
+        529.390625
+      ],
+      "modes": {
+        "power": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 140.794083,
+            "p95": 170.29139650000002,
+            "maximum": 170.29139650000002,
+            "total": 1166.026688
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 135.1462295,
+            "p95": 156.84193750000009,
+            "maximum": 156.84193750000009,
+            "total": 1114.9565619999998
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 161.333,
+            "p95": 278.512,
+            "maximum": 278.512,
+            "total": 1469.383
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 166.5155,
+            "p95": 272.337,
+            "maximum": 272.337,
+            "total": 1464.1305000000002
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 534298624,
+            "p95": 552853504,
+            "maximum": 552853504,
+            "total": 3914776576
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 468049920,
+            "p95": 514195456,
+            "maximum": 514195456,
+            "total": 3531907072
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 1.0417906849558092,
+            "p95": 1.0926208210070565,
+            "maximum": 1.0926208210070565,
+            "total": 8.362790213700617
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 1.0087741773423762,
+            "p95": 1.0855314967741003,
+            "maximum": 1.0855314967741003,
+            "total": 8.04873934295859
+          }
+        },
+        "score": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 428.74862499999995,
+            "p95": 505.6150000000001,
+            "maximum": 505.6150000000001,
+            "total": 3545.1751239999994
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 425.7069789999996,
+            "p95": 500.94070799999963,
+            "maximum": 500.94070799999963,
+            "total": 3425.860875
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 575.9445000000001,
+            "p95": 663.351,
+            "maximum": 663.351,
+            "total": 4717.005999999999
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 559.663,
+            "p95": 712.701,
+            "maximum": 712.701,
+            "total": 4627.4895
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 532086784,
+            "p95": 536027136,
+            "maximum": 536027136,
+            "total": 4088668160
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 473890816,
+            "p95": 487407616,
+            "maximum": 487407616,
+            "total": 3686285312
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 0.991667634840444,
+            "p95": 1.1738374462712076,
+            "maximum": 1.1738374462712076,
+            "total": 8.283252577676585
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 0.9965407754309289,
+            "p95": 1.1680584328864474,
+            "maximum": 1.1680584328864474,
+            "total": 8.198617431339612
+          }
+        },
+        "practical": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 338.5474789999994,
+            "p95": 369.2890210000005,
+            "maximum": 369.2890210000005,
+            "total": 2712.2420414999997
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 332.0841455,
+            "p95": 353.9557500000001,
+            "maximum": 353.9557500000001,
+            "total": 2620.5830014999997
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 404.5815,
+            "p95": 438.248,
+            "maximum": 438.248,
+            "total": 3246.2815000000005
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 400.927,
+            "p95": 436.2305,
+            "maximum": 436.2305,
+            "total": 3176.1960000000004
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 537133056,
+            "p95": 551870464,
+            "maximum": 551870464,
+            "total": 4222902272
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 483057664,
+            "p95": 518217728,
+            "maximum": 518217728,
+            "total": 3872153600
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 1.035641165597677,
+            "p95": 1.0516631601879707,
+            "maximum": 1.0516631601879707,
+            "total": 8.281111358443516
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 1.0187299588390994,
+            "p95": 1.0930867714072636,
+            "maximum": 1.0930867714072636,
+            "total": 8.179772087283627
+          }
+        }
+      }
+    },
+    "events": {
+      "order": [
+        "baseline",
+        "optimized",
+        "optimized",
+        "baseline"
+      ],
+      "rowsPerRun": 9,
+      "startedAt": [
+        "2026-10-10T03:02:39.153Z",
+        "2026-10-10T03:02:49.927Z",
+        "2026-10-10T03:02:59.338Z",
+        "2026-10-10T03:03:08.594Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T03:02:49.861Z",
+        "2026-10-10T03:02:59.294Z",
+        "2026-10-10T03:03:08.548Z",
+        "2026-10-10T03:03:19.014Z"
+      ],
+      "peakRssMiB": [
+        595.078125,
+        521.46875,
+        518.765625,
+        589.09375
+      ],
+      "modes": {
+        "yield": {
+          "beforeWallMs": {
+            "count": 8,
+            "p50": 997.3856250000003,
+            "p95": 1787.8241035,
+            "maximum": 1787.8241035,
+            "total": 9390.932479000001
+          },
+          "afterWallMs": {
+            "count": 8,
+            "p50": 814.156583,
+            "p95": 1672.6829790000002,
+            "maximum": 1672.6829790000002,
+            "total": 8145.847021000001
+          },
+          "beforeCpuMs": {
+            "count": 8,
+            "p50": 1249.4785,
+            "p95": 2402.525,
+            "maximum": 2402.525,
+            "total": 11931.234999999999
+          },
+          "afterCpuMs": {
+            "count": 8,
+            "p50": 1074.524,
+            "p95": 2325.839,
+            "maximum": 2325.839,
+            "total": 10835.2005
+          },
+          "beforeRssBytes": {
+            "count": 8,
+            "p50": 551739392,
+            "p95": 609959936,
+            "maximum": 609959936,
+            "total": 4410204160
+          },
+          "afterRssBytes": {
+            "count": 8,
+            "p50": 490070016,
+            "p95": 493625344,
+            "maximum": 493625344,
+            "total": 3822878720
+          },
+          "pairedWallSpeedup": {
+            "count": 8,
+            "p50": 1.2091623428368496,
+            "p95": 1.2260653586214505,
+            "maximum": 1.2260653586214505,
+            "total": 9.3929193777037
+          },
+          "pairedCpuSpeedup": {
+            "count": 8,
+            "p50": 1.1294626941968136,
+            "p95": 1.1816702167491384,
+            "maximum": 1.1816702167491384,
+            "total": 8.946172986489817
+          }
+        },
+        "challenge": {
+          "beforeWallMs": {
+            "count": 1,
+            "p50": 1065.030917,
+            "p95": 1065.030917,
+            "maximum": 1065.030917,
+            "total": 1065.030917
+          },
+          "afterWallMs": {
+            "count": 1,
+            "p50": 1035.0683960000006,
+            "p95": 1035.0683960000006,
+            "maximum": 1035.0683960000006,
+            "total": 1035.0683960000006
+          },
+          "beforeCpuMs": {
+            "count": 1,
+            "p50": 1400.968,
+            "p95": 1400.968,
+            "maximum": 1400.968,
+            "total": 1400.968
+          },
+          "afterCpuMs": {
+            "count": 1,
+            "p50": 1372.6799999999998,
+            "p95": 1372.6799999999998,
+            "maximum": 1372.6799999999998,
+            "total": 1372.6799999999998
+          },
+          "beforeRssBytes": {
+            "count": 1,
+            "p50": 603725824,
+            "p95": 603725824,
+            "maximum": 603725824,
+            "total": 603725824
+          },
+          "afterRssBytes": {
+            "count": 1,
+            "p50": 492838912,
+            "p95": 492838912,
+            "maximum": 492838912,
+            "total": 492838912
+          },
+          "pairedWallSpeedup": {
+            "count": 1,
+            "p50": 1.028947382719624,
+            "p95": 1.028947382719624,
+            "maximum": 1.028947382719624,
+            "total": 1.028947382719624
+          },
+          "pairedCpuSpeedup": {
+            "count": 1,
+            "p50": 1.0206078619925987,
+            "p95": 1.0206078619925987,
+            "maximum": 1.0206078619925987,
+            "total": 1.0206078619925987
+          }
+        }
+      }
+    },
+    "planner": {
+      "order": [
+        "baseline",
+        "optimized",
+        "optimized",
+        "baseline"
+      ],
+      "rowsPerRun": 4,
+      "startedAt": [
+        "2026-10-10T02:49:50.909Z",
+        "2026-10-10T02:49:51.109Z",
+        "2026-10-10T02:49:51.257Z",
+        "2026-10-10T02:49:51.405Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T02:49:51.065Z",
+        "2026-10-10T02:49:51.221Z",
+        "2026-10-10T02:49:51.369Z",
+        "2026-10-10T02:49:51.518Z"
+      ],
+      "peakRssMiB": [
+        157.046875,
+        153.078125,
+        152.65625,
+        153.125
+      ],
+      "modes": {
+        "badges": {
+          "beforeWallMs": {
+            "count": 2,
+            "p50": 2.8182079999999985,
+            "p95": 3.925833500000003,
+            "maximum": 3.925833500000003,
+            "total": 6.744041500000002
+          },
+          "afterWallMs": {
+            "count": 2,
+            "p50": 2.9376040000000074,
+            "p95": 3.3662499999999937,
+            "maximum": 3.3662499999999937,
+            "total": 6.303854000000001
+          },
+          "beforeCpuMs": {
+            "count": 2,
+            "p50": 7.2509999999999994,
+            "p95": 7.436999999999999,
+            "maximum": 7.436999999999999,
+            "total": 14.687999999999999
+          },
+          "afterCpuMs": {
+            "count": 2,
+            "p50": 5.231,
+            "p95": 7.634,
+            "maximum": 7.634,
+            "total": 12.865
+          },
+          "beforeRssBytes": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterRssBytes": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "pairedWallSpeedup": {
+            "count": 2,
+            "p50": 0.9593559921623172,
+            "p95": 1.1662334942443402,
+            "maximum": 1.1662334942443402,
+            "total": 2.1255894864066573
+          },
+          "pairedCpuSpeedup": {
+            "count": 2,
+            "p50": 0.9741943935027507,
+            "p95": 1.3861594341426113,
+            "maximum": 1.3861594341426113,
+            "total": 2.360353827645362
+          }
+        },
+        "eventPoints": {
+          "beforeWallMs": {
+            "count": 2,
+            "p50": 2.3031454999999994,
+            "p95": 2.6431249999999906,
+            "maximum": 2.6431249999999906,
+            "total": 4.94627049999999
+          },
+          "afterWallMs": {
+            "count": 2,
+            "p50": 2.2336664999999982,
+            "p95": 2.6009789999999953,
+            "maximum": 2.6009789999999953,
+            "total": 4.8346454999999935
+          },
+          "beforeCpuMs": {
+            "count": 2,
+            "p50": 4.9345,
+            "p95": 5.265000000000001,
+            "maximum": 5.265000000000001,
+            "total": 10.1995
+          },
+          "afterCpuMs": {
+            "count": 2,
+            "p50": 4.8765,
+            "p95": 6.1125,
+            "maximum": 6.1125,
+            "total": 10.989
+          },
+          "beforeRssBytes": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "afterRssBytes": {
+            "count": 0,
+            "p50": null,
+            "p95": null,
+            "maximum": null,
+            "total": 0
+          },
+          "pairedWallSpeedup": {
+            "count": 2,
+            "p50": 1.016203898608945,
+            "p95": 1.0311053597302915,
+            "maximum": 1.0311053597302915,
+            "total": 2.0473092583392365
+          },
+          "pairedCpuSpeedup": {
+            "count": 2,
+            "p50": 0.8613496932515339,
+            "p95": 1.011893776273967,
+            "maximum": 1.011893776273967,
+            "total": 1.873243469525501
+          }
+        }
+      }
+    },
+    "challenge": {
+      "order": [
+        "baseline",
+        "optimized",
+        "optimized",
+        "baseline"
+      ],
+      "rowsPerRun": 24,
+      "startedAt": [
+        "2026-10-10T03:00:44.074Z",
+        "2026-10-10T03:01:05.503Z",
+        "2026-10-10T03:01:26.856Z",
+        "2026-10-10T03:01:48.279Z"
+      ],
+      "finishedAt": [
+        "2026-10-10T03:01:05.440Z",
+        "2026-10-10T03:01:26.812Z",
+        "2026-10-10T03:01:48.229Z",
+        "2026-10-10T03:02:09.273Z"
+      ],
+      "peakRssMiB": [
+        589.515625,
+        524.53125,
+        515.640625,
+        604.34375
+      ],
+      "modes": {
+        "challenge": {
+          "beforeWallMs": {
+            "count": 24,
+            "p50": 868.164729,
+            "p95": 1142.5876879999996,
+            "maximum": 1171.4421455000002,
+            "total": 20769.626564000006
+          },
+          "afterWallMs": {
+            "count": 24,
+            "p50": 871.0755625,
+            "p95": 1155.3415210000003,
+            "maximum": 1178.833396,
+            "total": 20968.548207500004
+          },
+          "beforeCpuMs": {
+            "count": 24,
+            "p50": 1075.007,
+            "p95": 1466.4270000000001,
+            "maximum": 1519.0625,
+            "total": 26160.277000000006
+          },
+          "afterCpuMs": {
+            "count": 24,
+            "p50": 1113.862,
+            "p95": 1533.9995,
+            "maximum": 1583.934,
+            "total": 27129.647000000004
+          },
+          "beforeRssBytes": {
+            "count": 24,
+            "p50": 570310656,
+            "p95": 607657984,
+            "maximum": 608501760,
+            "total": 13658087424
+          },
+          "afterRssBytes": {
+            "count": 24,
+            "p50": 496992256,
+            "p95": 515219456,
+            "maximum": 522493952,
+            "total": 11843395584
+          },
+          "pairedWallSpeedup": {
+            "count": 24,
+            "p50": 0.9893248656801431,
+            "p95": 1.0141513692133184,
+            "maximum": 1.0350332654870056,
+            "total": 23.744919281997014
+          },
+          "pairedCpuSpeedup": {
+            "count": 24,
+            "p50": 0.9642705780956181,
+            "p95": 1.0053630335263226,
+            "maximum": 1.0154264140158764,
+            "total": 23.12639863888178
+          }
+        }
+      }
+    }
+  },
+  "complete": true
+}

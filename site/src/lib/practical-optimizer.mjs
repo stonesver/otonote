@@ -12,6 +12,11 @@ import { skillMechanismIssue } from '../../../packages/scoring/scoring-rules/ski
 const signature = draft => draft.slots.map(s => `${s.memberCardId}|${s.supportCardId}`).join(';');
 const pause = () => new Promise(resolve => setTimeout(resolve, 0));
 export const PRACTICAL_PLAN = Object.freeze({ version: 1, localRounds: 1, screenOrders: 10, finalists: 6, finalOrders: 120 });
+export const PRACTICAL_SEARCH_WARNINGS = Object.freeze([
+  '实用推荐采用多方向起点和一轮局部粗筛，不穷举卡库，不保证全局或局部最优。',
+  '粗筛中的技能特征不是分数；只有最终复算的队伍会作为推荐结果。',
+  '快速模拟使用 10 种均衡技能顺序；最终使用全部 120 种。仅检查有限站位，不枚举全部 24 种站位。'
+]);
 
 // Overlapping two-standard-error intervals are a caution, not a probability
 // that either team is best. Pairing correlations and model errors are unknown.
@@ -51,7 +56,7 @@ export function* practicalNeighbours(draft, inventory) {
 }
 
 export async function optimizePractical({ rules, draft, scope = 'selected', inventory, constraints = {}, theoreticalGrowth, chart,
-  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value, finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
+  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value, finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, modelCache, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
   if(!Number.isInteger(finalistLimit)||finalistLimit<2||finalistLimit>24)throw Error('Invalid finalist limit');
   if(!Number.isInteger(maxWindowCards)||maxWindowCards<0||maxWindowCards>5)throw Error('扩窗卡上限应为 0–5');
   if(!Number.isInteger(resultLimit)||resultLimit<1||resultLimit>24)throw Error('Invalid result limit');
@@ -63,10 +68,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     { id: 'screen', label: '快速模拟候选', completed: 0, total: null },
     { id: 'final', label: '完整复算领先队伍', completed: 0, total: null }];
   const report = { plan: {...PRACTICAL_PLAN, finalists: finalistLimit}, stages, directions: [], neighbourChecks: 0, neighbourGenerated: 0, screened: 0, finalists: 0, scoreCacheHits: 0, scoreCalculations: 0, unsupportedPairs: [], unsupportedCandidates: [] };
-  const results = [], warnings = [...input.assumptions,
-    '实用推荐采用多方向起点和一轮局部粗筛，不穷举卡库，不保证全局或局部最优。',
-    '粗筛中的技能特征不是分数；只有最终复算的队伍会作为推荐结果。',
-    '快速模拟使用 10 种均衡技能顺序；最终使用全部 120 种。仅检查有限站位，不枚举全部 24 种站位。'];
+  const results = [], warnings = [...input.assumptions, ...PRACTICAL_SEARCH_WARNINGS];
   let baselineResult = null;
   const result = status => ({ status, searchMethod: 'practical', objective, searchScope: scope, mode,
     sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
@@ -88,7 +90,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   if (prepared) {
     Object.assign(report,structuredClone(prepared.report),{candidateCacheHit:true});
   } else {
-    const candidates=await prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report,objective,performanceScenario});
+    const candidates=await prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,modelCache,signal,yieldControl,update,report,objective,performanceScenario});
     if(!candidates||signal?.aborted)return result('cancelled');
     prepared={...candidates,report:{directions:report.directions,neighbourChecks:report.neighbourChecks,neighbourGenerated:report.neighbourGenerated,unsupportedPairs:report.unsupportedPairs}};
     if(candidateCacheKey!=null)candidateCache?.set(candidateCacheKey,structuredClone(prepared));
@@ -151,7 +153,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   return result('completed');
 }
 
-async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,signal,yieldControl,update,report,objective,performanceScenario}) {
+async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,modelCache,signal,yieldControl,update,report,objective,performanceScenario}) {
   const calculator = createFormationCalculator(rules, { eventAdapters }), members = new Map(rules.tables.MemberCard.map(r => [`member-card-${r._id}`, r]));
   const supports = new Map(rules.tables.SupportCard.map(r => [`support-card-${r._id}`, r]));
   const characterFor = id => members.get(id)._characterID;
@@ -187,7 +189,7 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
   const legal = d => legalPracticalDraft(d,input,characterFor,isWindow,maxWindowCards) && d.slots.every(s => features.has(`${s.memberCardId}|${s.supportCardId}`));
   const memberCount = input.inventory.memberCardIds.length;
   let leaderCount = input.constraints.leaderId ? 1 : memberCount;
-  let models = await compilePairingModels(rules, input, { signal, yieldControl, eventAdapters, pairCache, pairCacheKey,
+  let models = await compilePairingModels(rules, input, { signal, yieldControl, eventAdapters, pairCache, pairCacheKey, modelCache,
     onProgress: p => {
       if (p.phase === 'leader_weights') leaderCount = p.total;
       update(0, p.completed + (p.phase === 'leader_weights' ? memberCount : 0), 2 * memberCount + leaderCount);
@@ -241,11 +243,25 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
   const seedRows = [], screenDrafts = new Map();
   const add = (d, profile, kind) => { if (legal(d)) { const key = signature(d); const existing = screenDrafts.get(key);
     if (existing) existing.origins.add(profile.id); else screenDrafts.set(key, { draft: d, origins: new Set([profile.id]), kind }); } };
-  const modelMaps = new Map(models.map(m => [m.leader, new Map(m.edges.map(e => [e.key, e]))]));
+  const modelMaps = new Map(), modelsByLeader = new Map(models.map(m => [m.leader, m]));
+  const weightsFor = leader => {
+    if (!modelMaps.has(leader)) modelMaps.set(leader, new Map(modelsByLeader.get(leader)?.edges.map(e => [e.key, e]) ?? []));
+    return modelMaps.get(leader);
+  };
   const proxy = (d, profile) => d.slots.reduce((sum, slot) => { const key = `${slot.memberCardId}|${slot.supportCardId}`;
-    return sum + (profile.powerWeight??1)*(modelMaps.get(d.slots[2].memberCardId)?.get(key)?.weight ?? -1e12) + scale * (profile.featureWeight??0.4) * profile.feature(features.get(key),slot); }, 0);
+    return sum + (profile.powerWeight??1)*(weightsFor(d.slots[2].memberCardId).get(key)?.weight ?? -1e12) + scale * (profile.featureWeight??0.4) * profile.feature(features.get(key),slot); }, 0);
   for (const [index, profile] of profiles.entries()) {
     if (signal?.aborted) return null;
+    const featureWeights = new Map([...features].map(([key, feature]) => {
+      const [memberCardId,supportCardId] = key.split('|');
+      return [key, scale * (profile.featureWeight??0.4) * profile.feature(feature,{memberCardId,supportCardId})];
+    }));
+    const weights = new WeakMap();
+    const weight = edge => {
+      let value=weights.get(edge);
+      if(value===undefined)weights.set(edge,value=Math.round((profile.powerWeight??1)*edge.weight+featureWeights.get(edge.key)));
+      return value;
+    };
     let best;
     const windows = profile.window ? (requiredWindows.length ? requiredWindows : input.inventory.supportCardIds.filter(isWindow)) : [requiredWindows[0] ?? null];
     for (const windowId of windows) for (const model of models) {
@@ -259,12 +275,11 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
           (b.weight + scale * 0.4 * profile.feature(features.get(b.key))) - (a.weight + scale * 0.4 * profile.feature(features.get(a.key))));
         for (const edge of ranked) { if (allowedWindows.size >= maxWindowCards) break; allowedWindows.add(edge.support); }
       }
-      const edges = model.edges.filter(e => !isWindow(e.support) || allowedWindows.has(e.support))
-        .map(e => ({ ...e, weight: Math.round((profile.powerWeight??1)*e.weight + scale * (profile.featureWeight??0.4) * profile.feature(features.get(e.key),{memberCardId:e.member,supportCardId:e.support})) }));
-      if (best && pairingProfileBound(edges,model.leader) <= best.weight) {
+      const edges = model.edges.filter(e => !isWindow(e.support) || allowedWindows.has(e.support));
+      if (best && pairingProfileBound(edges,model.leader,5,weight) <= best.weight) {
         report.prunedLeaders=(report.prunedLeaders??0)+1; await yieldControl(); continue;
       }
-      const solution = maximumPairing({ edges, required: input.constraints.lockedPairs.map(p => `${p.memberCardId}|${p.supportCardId}`),
+      const solution = maximumPairing({ edges, weight, required: input.constraints.lockedPairs.map(p => `${p.memberCardId}|${p.supportCardId}`),
         requiredMembers: [...input.constraints.requiredMemberIds, model.leader], requiredSupports: [...input.constraints.requiredSupportIds, ...(windowId ? [windowId] : [])] });
       if (solution && (!best || solution.weight > best.weight)) best = { draft: draftFromPairing(input, model.leader, solution.edges), weight: solution.weight };
       await yieldControl();

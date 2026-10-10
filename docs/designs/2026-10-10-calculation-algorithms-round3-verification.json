@@ -1,0 +1,1415 @@
+{
+  "memoryDiagnostics": {
+    "memory-final-{}-music-chart-10011101": {
+      "rowsPerRun": 4,
+      "forcedGC": true,
+      "sampledRetainedHeapMaxMiB": [
+        50.25816345214844,
+        24.055023193359375
+      ],
+      "lastReturnedHeapMiB": [
+        8.587310791015625,
+        8.725662231445312
+      ],
+      "resultsFingerprintChanges": []
+    },
+    "memory-final-{}-music-chart-10001503": {
+      "rowsPerRun": 2,
+      "forcedGC": true,
+      "sampledRetainedHeapMaxMiB": [
+        53.329307556152344,
+        24.688644409179688
+      ],
+      "lastReturnedHeapMiB": [
+        9.079681396484375,
+        9.15509033203125
+      ],
+      "resultsFingerprintChanges": []
+    },
+    "memory-batch-{}": {
+      "rowsPerRun": 9,
+      "forcedGC": true,
+      "sampledRetainedHeapMaxMiB": [
+        71.70381927490234,
+        29.519493103027344
+      ],
+      "lastReturnedHeapMiB": [
+        30.216217041015625,
+        15.640739440917969
+      ],
+      "resultsFingerprintChanges": []
+    }
+  },
+  "failures": [],
+  "recommendationComparison": {
+    "changedFingerprints": [
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000901:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000902:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10001501:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003202:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003203:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003303:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003403:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10004003:yield:event-2",
+      "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10007003:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000901:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000902:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10001501:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003202:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003203:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003303:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003403:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10004003:yield:event-2",
+      "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10007003:yield:event-2"
+    ],
+    "details": [
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000901:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1313975,
+          "maximumScore": 1324071
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1273402.4,
+          "maximumScore": 1284811
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000901:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1354484,
+          "maximumScore": 1362700
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1265522.4,
+          "maximumScore": 1276297
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000901:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1354427.4,
+          "maximumScore": 1362641
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1264879,
+          "maximumScore": 1274973
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000901:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1313975,
+          "maximumScore": 1324071
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1273402.4,
+          "maximumScore": 1284811
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000901:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1354484,
+          "maximumScore": 1362700
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1265522.4,
+          "maximumScore": 1276297
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000901:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1354427.4,
+          "maximumScore": 1362641
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1264879,
+          "maximumScore": 1274973
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000902:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1384185.6,
+          "maximumScore": 1389895
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1343041,
+          "maximumScore": 1351509
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000902:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1426470.8,
+          "maximumScore": 1432806
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1334448.8,
+          "maximumScore": 1342543
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10000902:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1426449,
+          "maximumScore": 1432784
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1333442.8,
+          "maximumScore": 1339621
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000902:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1384185.6,
+          "maximumScore": 1389895
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1343041,
+          "maximumScore": 1351509
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000902:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1426470.8,
+          "maximumScore": 1432806
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1334448.8,
+          "maximumScore": 1342543
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10000902:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1426449,
+          "maximumScore": 1432784
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1333442.8,
+          "maximumScore": 1339621
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10001501:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1327965.8,
+          "maximumScore": 1338962
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 45500
+          },
+          "scoreRank": 4,
+          "expectedScore": 1070258.4,
+          "maximumScore": 1088784
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10001501:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1368014.2,
+          "maximumScore": 1376158
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 45500
+          },
+          "scoreRank": 4,
+          "expectedScore": 1070187.8,
+          "maximumScore": 1088720
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10001501:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1367808,
+          "maximumScore": 1376158
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1327965.8,
+          "maximumScore": 1338962
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10001501:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1327965.8,
+          "maximumScore": 1338962
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 45500
+          },
+          "scoreRank": 4,
+          "expectedScore": 1070258.4,
+          "maximumScore": 1088784
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10001501:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1368014.2,
+          "maximumScore": 1376158
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 45500
+          },
+          "scoreRank": 4,
+          "expectedScore": 1070187.8,
+          "maximumScore": 1088720
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10001501:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1367808,
+          "maximumScore": 1376158
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1327965.8,
+          "maximumScore": 1338962
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003202:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1453781.8,
+          "maximumScore": 1464884
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1382874.8,
+          "maximumScore": 1393577
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003202:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1466731.2,
+          "maximumScore": 1476265
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1369005.4,
+          "maximumScore": 1375240
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003202:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1466204.8,
+          "maximumScore": 1475553
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1368298.8,
+          "maximumScore": 1376208
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003202:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1453781.8,
+          "maximumScore": 1464884
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1382874.8,
+          "maximumScore": 1393577
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003202:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1466731.2,
+          "maximumScore": 1476265
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1369005.4,
+          "maximumScore": 1375240
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003202:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1466204.8,
+          "maximumScore": 1475553
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1368298.8,
+          "maximumScore": 1376208
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003203:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1508245.4,
+          "maximumScore": 1519372
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1435161.2,
+          "maximumScore": 1447035
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003203:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1522108.2,
+          "maximumScore": 1531112
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1420942.2,
+          "maximumScore": 1430646
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003203:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1521654.6,
+          "maximumScore": 1528347
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1420282.4,
+          "maximumScore": 1428073
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003203:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1508245.4,
+          "maximumScore": 1519372
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1435161.2,
+          "maximumScore": 1447035
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003203:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1522108.2,
+          "maximumScore": 1531112
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1420942.2,
+          "maximumScore": 1430646
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003203:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1521654.6,
+          "maximumScore": 1528347
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1420282.4,
+          "maximumScore": 1428073
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003303:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 21000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1414578.2,
+          "maximumScore": 1420982
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1390099.2,
+          "maximumScore": 1402746
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003303:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1444291,
+          "maximumScore": 1450575
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1379260.2,
+          "maximumScore": 1387599
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003303:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1443521.4,
+          "maximumScore": 1449801
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1379093.8,
+          "maximumScore": 1387459
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003303:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 21000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1414578.2,
+          "maximumScore": 1420982
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1390099.2,
+          "maximumScore": 1402746
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003303:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1444291,
+          "maximumScore": 1450575
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1379260.2,
+          "maximumScore": 1387599
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003303:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1443521.4,
+          "maximumScore": 1449801
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1379093.8,
+          "maximumScore": 1387459
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003403:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1420226,
+          "maximumScore": 1423593
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1351683,
+          "maximumScore": 1354567
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003403:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1430390.8,
+          "maximumScore": 1433031
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1342512.2,
+          "maximumScore": 1345549
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10003403:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1430227.6,
+          "maximumScore": 1432843
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1342506.2,
+          "maximumScore": 1345539
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003403:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1420226,
+          "maximumScore": 1423593
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1351683,
+          "maximumScore": 1354567
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003403:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1430390.8,
+          "maximumScore": 1433031
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1342512.2,
+          "maximumScore": 1345549
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10003403:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1430227.6,
+          "maximumScore": 1432843
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1342506.2,
+          "maximumScore": 1345539
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10004003:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1612302.6,
+          "maximumScore": 1624008
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1521959.8,
+          "maximumScore": 1535197
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10004003:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1607751.2,
+          "maximumScore": 1615718
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1500844,
+          "maximumScore": 1509510
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10004003:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1607208.4,
+          "maximumScore": 1615246
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1500844,
+          "maximumScore": 1509510
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10004003:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1612302.6,
+          "maximumScore": 1624008
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1521959.8,
+          "maximumScore": 1535197
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10004003:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1607751.2,
+          "maximumScore": 1615718
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1500844,
+          "maximumScore": 1509510
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10004003:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1607208.4,
+          "maximumScore": 1615246
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1500844,
+          "maximumScore": 1509510
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10007003:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1399951.4,
+          "maximumScore": 1410216
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1388193.7,
+          "maximumScore": 1402442
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10007003:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1427606.2,
+          "maximumScore": 1435095
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1375752.6,
+          "maximumScore": 1382339
+        }
+      },
+      {
+        "key": "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10007003:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1427598.2,
+          "maximumScore": 1435086
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1375752.6,
+          "maximumScore": 1382339
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10007003:yield:event-2",
+        "rank": 1,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 29700
+          },
+          "scoreRank": 4,
+          "expectedScore": 1399951.4,
+          "maximumScore": 1410216
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1388193.7,
+          "maximumScore": 1402442
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10007003:yield:event-2",
+        "rank": 2,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1427606.2,
+          "maximumScore": 1435095
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1375752.6,
+          "maximumScore": 1382339
+        }
+      },
+      {
+        "key": "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10007003:yield:event-2",
+        "rank": 3,
+        "before": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 19200
+          },
+          "scoreRank": 4,
+          "expectedScore": 1427598.2,
+          "maximumScore": 1435086
+        },
+        "after": {
+          "value": 68200,
+          "total": {
+            "badges": 68200,
+            "eventPoints": 42000
+          },
+          "scoreRank": 4,
+          "expectedScore": 1375752.6,
+          "maximumScore": 1382339
+        }
+      }
+    ],
+    "failures": [],
+    "secondaryRewardImprovedCharts": 18,
+    "sameRewardScoreDecreases": [],
+    "gradeDecreases": []
+  },
+  "outlierCheck": {
+    "global-prod-remote-1-0-0-400-3b5a25fe-3cf4870f2c70d67432fe444b4dee743a-ce9f2ad502d77:music-chart-10004102:practical": [
+      {
+        "wallMs": 493.09179199999994,
+        "cpuMs": 551.289
+      },
+      {
+        "wallMs": 352.17145800000003,
+        "cpuMs": 480.229
+      },
+      {
+        "wallMs": 361.857083,
+        "cpuMs": 483.378
+      },
+      {
+        "wallMs": 360.1937919999999,
+        "cpuMs": 467.584
+      }
+    ],
+    "jp-prod-1-0-5-10059-6c0d9a254a3b:music-chart-10004102:practical": [
+      {
+        "wallMs": 342.15758300000016,
+        "cpuMs": 388.406
+      },
+      {
+        "wallMs": 328.93287499999997,
+        "cpuMs": 393.16
+      },
+      {
+        "wallMs": 334.3042090000001,
+        "cpuMs": 385.402
+      },
+      {
+        "wallMs": 335.765083,
+        "cpuMs": 381.517
+      }
+    ]
+  },
+  "sourceModules": 297,
+  "sourceUnchanged": true,
+  "sourceManifestSha256": "3317416ad3e7a0e43ee8938414a5514b716549a4fa2b437fa7cd915491f013a1",
+  "regressionTests": {
+    "tests": 178,
+    "passed": 178,
+    "failed": 0,
+    "log": "output/calculation-algorithms/round3/final-regression.log"
+  }
+}

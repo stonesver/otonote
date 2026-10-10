@@ -7,8 +7,10 @@ import {createFormalSongCalculator} from '../src/lib/scoring-rules/formal-song-s
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 
 function fixture(){
-  const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
-  const chart=JSON.parse(readFileSync(new URL('../public/data/music-charts/music-chart-10003803.json',import.meta.url)));
+  const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
+  const chart={id:'music-chart-10003803',trackId:'music-100038',difficulty:'expert',
+   bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+   notes:Array.from({length:40},(_,i)=>({id:`offline-${i}`,type:'tap',tick:i*157+1}))};
   chart.sourceReleaseId=rules.sourceReleaseId;
   const musicId=Number(chart.trackId.split('-').at(-1));
   rules.tables.Event=[{_id:1,_eventType:1}];

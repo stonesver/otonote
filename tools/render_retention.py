@@ -52,7 +52,7 @@ def protected_views(root):
     return protected, pointers
 
 
-def make_plan(root, cutoff, max_views=20):
+def make_plan(root, cutoff, max_views=8):
     if type(cutoff) is not int or cutoff < 0 or cutoff > time.time() - 86400:
         raise AuditError('retention_requires_at_least_one_day')
     if type(max_views) is not int or not 1 <= max_views <= 100:
@@ -110,7 +110,7 @@ def make_plan(root, cutoff, max_views=20):
     return dict(value, planId=identity(value))
 
 
-def plan(root, cutoff, max_views=20):
+def plan(root, cutoff, max_views=8):
     root = root_path(root)
     with render_lock(root):
         return make_plan(root, cutoff, max_views)
@@ -209,7 +209,7 @@ def main():
     parser.add_argument('--plan', type=Path, required=True)
     parser.add_argument('--archive', type=Path)
     parser.add_argument('--minimum-age-days', type=int, default=7)
-    parser.add_argument('--max-views', type=int, default=20)
+    parser.add_argument('--max-views', type=int, default=8)
     args = parser.parse_args()
     try:
         if args.action == 'plan':
@@ -226,7 +226,10 @@ def main():
             expected = json.loads(args.plan.read_text())
             operation = archive_html if args.action == 'archive' else apply
             print(json.dumps(operation(args.root, expected, args.archive), sort_keys=True))
-    except (AuditError, OSError, ValueError, TypeError, KeyError, tarfile.TarError):
+    except AuditError as error:
+        print(json.dumps({'status': 'blocked', 'reason': str(error)}))
+        return 2
+    except (OSError, ValueError, TypeError, KeyError, tarfile.TarError):
         print(json.dumps({'status': 'blocked', 'reason': 'retention_validation_failed'}))
         return 2
     return 0

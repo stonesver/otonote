@@ -167,6 +167,13 @@ export function eventFarmingCycle({ normal, challenge, normalPlays, startingCP =
  * selected reward, then the other reward, then use fewer plays. */
 export function planChallengeSpending(options, availableCP, metric = 'badges') {
   integer(availableCP, 'available CP');
+  return createChallengeSpendingPlanner(options, metric)(availableCP);
+}
+
+/** Job-local value function: extend the exact DP once and reuse its prefixes
+ * for every team's earned CP instead of rebuilding the table per query. */
+export function createChallengeSpendingPlanner(options, metric = 'badges') {
+  options = options.map(row => ({ ...row }));
   if(!['badges','eventPoints'].includes(metric))throw Error('Invalid challenge reward objective');
   if (!options.length) throw new Error('Challenge options required');
   const first = options[0];
@@ -176,29 +183,35 @@ export function planChallengeSpending(options, availableCP, metric = 'badges') {
   }
   if (new Set(options.map(r => r.challengeCost)).size !== options.length) throw new Error('Duplicate challenge cost');
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
-  const unit = options.map(r => r.challengeCost).reduce(gcd), size = Math.floor(availableCP / unit);
-  if (size > 100000) throw new Error('Challenge budget too large');
-  const states = Array(size + 1).fill(null); states[0] = { badges: 0, plays: 0, eventPoints: 0 };
+  const unit = options.map(r => r.challengeCost).reduce(gcd);
+  const states = [{ badges: 0, plays: 0, eventPoints: 0 }], prefixes = [0];
   const secondary = metric === 'badges' ? 'eventPoints' : 'badges';
   const better = (a, b) => !b || a[metric] > b[metric] || a[metric] === b[metric]
     && (a[secondary] > b[secondary] || a[secondary] === b[secondary] && a.plays < b.plays);
-  let bestIndex = 0;
-  for (let i = 1; i <= size; i++) {
-    for (const [index, row] of options.entries()) {
-      const previous = i - row.challengeCost / unit;
-      if (previous < 0 || !states[previous]) continue;
-      const before = states[previous];
-      const next = { badges: before.badges + row.badges, eventPoints: before.eventPoints + row.eventPoints, plays: before.plays + 1, previous, index };
-      if (better(next, states[i])) states[i] = next;
+  return function query(availableCP) {
+    integer(availableCP, 'available CP');
+    const size = Math.floor(availableCP / unit);
+    if (size > 100000) throw new Error('Challenge budget too large');
+    for (let i = states.length; i <= size; i++) {
+      states[i] = null;
+      for (const [index, row] of options.entries()) {
+        const previous = i - row.challengeCost / unit;
+        if (previous < 0 || !states[previous]) continue;
+        const before = states[previous];
+        const next = { badges: before.badges + row.badges, eventPoints: before.eventPoints + row.eventPoints, plays: before.plays + 1, previous, index };
+        if (better(next, states[i])) states[i] = next;
+      }
+      const previousBest = prefixes[i - 1];
+      prefixes[i] = states[i] && better(states[i], states[previousBest]) ? i : previousBest;
     }
-    if (states[i] && better(states[i], states[bestIndex])) bestIndex = i;
-  }
-  const counts = new Map();
-  for (let i = bestIndex; i > 0; i = states[i].previous) {
-    const cost = options[states[i].index].challengeCost; counts.set(cost, (counts.get(cost) ?? 0) + 1);
-  }
-  const best = states[bestIndex];
-  return { badges: best.badges, eventPoints: best.eventPoints, plays: best.plays,
-    spentCP: bestIndex * unit, remainingCP: availableCP - bestIndex * unit,
-    consumption: [...counts].sort((a, b) => b[0] - a[0]).map(([cost, plays]) => ({ cost, plays })) };
+    const bestIndex = prefixes[size];
+    const counts = new Map();
+    for (let i = bestIndex; i > 0; i = states[i].previous) {
+      const cost = options[states[i].index].challengeCost; counts.set(cost, (counts.get(cost) ?? 0) + 1);
+    }
+    const best = states[bestIndex];
+    return { badges: best.badges, eventPoints: best.eventPoints, plays: best.plays,
+      spentCP: bestIndex * unit, remainingCP: availableCP - bestIndex * unit,
+      consumption: [...counts].sort((a, b) => b[0] - a[0]).map(([cost, plays]) => ({ cost, plays })) };
+  };
 }

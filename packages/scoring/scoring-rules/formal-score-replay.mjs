@@ -14,16 +14,15 @@ export const compareScoreFactors = (a, b) => byTime(a, b) || a.ownerId - b.owner
  * scoreNote must not accumulate side effects: a bucket may execute repeatedly.
  * External count history may change between frames, just as in the client.
  */
-export function createScoreReplay({ musicLengthMs, scoreNote }) {
+export function createScoreReplay({ musicLengthMs, scoreNote, retainNotes = true }) {
   if (!Number.isSafeInteger(musicLengthMs) || musicLengthMs < 0) throw new Error('Invalid score replay length');
   const lastFrame = scoreFrame(musicLengthMs) + 49;
   const frameOf = time => Math.min(lastFrame, scoreFrame(time));
-  const buckets = new Map(), notes = [];
+  const buckets = [], notes = [];
   const state = { ...emptyDelta(), general: 1 };
   let previous = -1, changed = Infinity, total = 0, sequence = 0, pendingFixed;
   const bucketAt = frame => {
-    if (!buckets.has(frame)) buckets.set(frame, { factors: [], notes: [], delta: emptyDelta(), score: 0, fixed: 0 });
-    return buckets.get(frame);
+    return buckets[frame] ??= { factors: [], notes: [], delta: null, score: 0, fixed: 0 };
   };
   function register(command, kind) {
     if (!Number.isSafeInteger(command.timeMs)) throw new Error('Invalid score command timestamp');
@@ -38,6 +37,14 @@ export function createScoreReplay({ musicLengthMs, scoreNote }) {
     register(command, 'factors');
   }
   function addNote(note) {
+    // Score-only callers do not inspect sequence/result fields. Stable sorting
+    // preserves registration order for tied native IDs without copying notes.
+    if (!retainNotes) {
+      if (!Number.isSafeInteger(note.timeMs)) throw new Error('Invalid score command timestamp');
+      const frame = frameOf(note.timeMs);
+      bucketAt(frame).notes.push(note); sequence++; changed = Math.min(changed, frame);
+      return note;
+    }
     const entry = register(note, 'notes');
     notes.push(entry);
     return entry;
@@ -57,32 +64,36 @@ export function createScoreReplay({ musicLengthMs, scoreNote }) {
     const target = frameOf(timeMs), retain = Math.min(target, changed - 1);
     if (retain < previous) {
       for (let frame = previous; frame > retain; frame--) {
-        const bucket = buckets.get(frame);
+        const bucket = buckets[frame];
         if (!bucket) continue;
         total -= bucket.score;
         // Native subtracts each bucket's accumulated diff ONCE. Restoring a
         // state snapshot, or reversing individual commands, loses f32 residue.
-        for (const key of floatFields) state[key] = f32(state[key] - bucket.delta[key]);
-        for (const key of intFields) state[key] = (state[key] - bucket.delta[key]) | 0;
-        bucket.delta = emptyDelta(); bucket.score = 0;
+        if (bucket.delta) {
+          for (const key of floatFields) state[key] = f32(state[key] - bucket.delta[key]);
+          for (const key of intFields) state[key] = (state[key] - bucket.delta[key]) | 0;
+          bucket.delta = null;
+        }
+        bucket.score = 0;
       }
       previous = retain;
     }
     for (let frame = previous + 1; frame <= target; frame++) {
-      const bucket = buckets.get(frame);
+      const bucket = buckets[frame];
       if (!bucket) continue;
-      bucket.factors.sort(compareScoreFactors);
+      if (bucket.factors.length > 1) bucket.factors.sort(compareScoreFactors);
       // A captured native stream can supply its actual ID. Projected charts
       // retain the explicit ideal source order, not a fabricated native ID.
-      bucket.notes.sort((a, b) => byTime(a, b) || (a.nativeNoteId ?? a.sourceIndex ?? 0) - (b.nativeNoteId ?? b.sourceIndex ?? 0) || a.sequence - b.sequence);
+      if (bucket.notes.length > 1) bucket.notes.sort((a, b) => byTime(a, b) || (a.nativeNoteId ?? a.sourceIndex ?? 0) - (b.nativeNoteId ?? b.sourceIndex ?? 0) || (retainNotes ? a.sequence - b.sequence : 0));
       let cursor = 0;
       for (const note of bucket.notes) {
-        while (cursor < bucket.factors.length && bucket.factors[cursor].timeMs <= note.timeMs) apply(bucket.factors[cursor++], bucket.delta);
-        note.result = scoreNote(note, state);
-        if (!Number.isSafeInteger(note.result.score) || note.result.score < 0) throw new Error('Invalid replay note score');
-        bucket.score += note.result.score;
+        while (cursor < bucket.factors.length && bucket.factors[cursor].timeMs <= note.timeMs) apply(bucket.factors[cursor++], bucket.delta ??= emptyDelta());
+        const result = scoreNote(note, state);
+        if (retainNotes) note.result = result;
+        if (!Number.isSafeInteger(result.score) || result.score < 0) throw new Error('Invalid replay note score');
+        bucket.score += result.score;
       }
-      while (cursor < bucket.factors.length) apply(bucket.factors[cursor++], bucket.delta);
+      while (cursor < bucket.factors.length) apply(bucket.factors[cursor++], bucket.delta ??= emptyDelta());
       bucket.score += bucket.fixed;
       total += bucket.score;
     }
@@ -133,7 +144,7 @@ export function liveSkillCommands(order, perfectSkills, times, frameRate, justSk
  * frameActions run after scoring; callers can update count-history views,
  * query endpoints, or enqueue a fixed award without a second scoring engine.
  */
-export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNote, frameActions = [], clock: clockInput = null, beforeInputs = () => {} }) {
+export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNote, frameActions = [], clock: clockInput = null, beforeInputs = () => {}, retainNotes = true }) {
   const clock = clockInput ?? createFrameClock({ frameRate });
   const arrivals = new Map();
   function enqueue(frame, kind, value) {
@@ -149,7 +160,7 @@ export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNot
   }
   for (const action of frameActions) enqueue(action.frame, 'actions', action.run);
   const musicLengthMs = Math.max(0, ...events.map(e => e.timeMs), ...commands.map(c => c.timeMs));
-  const replay = createScoreReplay({ musicLengthMs, scoreNote });
+  const replay = createScoreReplay({ musicLengthMs, scoreNote, retainNotes });
   let previousFrame = -1;
   for (const [frame, entries] of [...arrivals].sort((a, b) => a[0] - b[0])) {
     if (frame > previousFrame + 1) {

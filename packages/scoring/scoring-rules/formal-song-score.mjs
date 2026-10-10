@@ -93,11 +93,17 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
   const resolveSkills = createFormalSkillResolver(rules);
   const setting = (key) => Number(rules.tables.LiveSettings.find((r) => r._key === key)?._value);
   const judgement = rules.tables.LiveJudgementParameter.find((r) => r._noteSimulateJudgement === 5)._scorePercent;
+  // The ideal factor history depends on the chart and effective skill commands,
+  // never on formation power. Reuse that history across candidate teams inside
+  // this calculator, retaining native replay for every previously unseen stream.
+  const factorHistories = new Map();
+  let factorHistoryBytes = 0;
   function calculate(draft, { includeTrace = false } = {}) {
     if (draft.slots?.length !== 5 || draft.slots.some((s) => !s.memberCardId || !s.supportCardId)) throw new Error("请选择五张成员卡和五张留影");
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error("歌曲或难度与载入谱面不一致");
     const power = formation.calculate(draft);
     const eventPipeline = createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
+    const scoreAdapters = eventPipeline.context.effects.some(e => e.phase === 'note_score' || e.phase === 'fixed_score');
     const skills = resolveSkills(draft);
     const common = { totalPower: power.total.total, scoreAdjustmentFactor: setting("note_score_adjustment_factor"),
       musicScoreLevelFactor: timeline.difficultyFactor, judgementFactorPercent: judgement,
@@ -106,28 +112,53 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
       assistModeNoteScoreFactor: 1, currentLife: setting("life_base") };
     const noteScore = (event, factor) => calculateFormalNoteCore(eventPipeline.apply("note_score", { ...common, noteFactorPercent: event.weight,
       comboBonusFactor: event.comboFactor, scoreUpFactor: factor }, { draft, note: event })).score;
-    const baseNotes = timeline.events.map((event) => noteScore(event, 1));
+    const groups = new Map(), scoreCaches = [], baseNotes = [];
+    for (const event of timeline.events) {
+      let cache;
+      if (!scoreAdapters) {
+        let combos = groups.get(event.weight);
+        if (!combos) groups.set(event.weight, combos = new Map());
+        cache = combos.get(event.comboFactor);
+        if (!cache) combos.set(event.comboFactor, cache = new Map());
+      } else cache = new Map();
+      if (!cache.has(1)) cache.set(1, noteScore(event, 1));
+      scoreCaches.push(cache); baseNotes.push(cache.get(1));
+    }
     const baseScore = baseNotes.reduce((a, b) => a + b, 0);
     // ApplyFactorCommand (0x55e2a14) adds/removes EACH float32 factor.
     // Accumulating integers and dividing once loses native rounding history,
     // including the small residual after a skill ends. Cache note scores by
     // factor, but retain that history across all 120 complete order sweeps.
-    const scoreCaches = baseNotes.map((score) => new Map([[1, score]]));
     const orderCache = new Map();
     const scoreOrder = (order, trace = false) => {
       const commands = liveSkillCommands(order, skills, timeline.skillTimes, frameRate);
       // Key the effective command order, keeping duplicate order probability.
-      const cacheKey = !trace && !eventAdapters.length && eventPipeline.context.id == null
+      const cacheKey = !trace && !scoreAdapters
         ? JSON.stringify(commands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c)) : null;
       if (cacheKey !== null && orderCache.has(cacheKey)) return orderCache.get(cacheKey);
-      const replay = replayScoreTimeline({ events: timeline.events, commands, frameRate,
+      const valueAt = (event, factor) => {
+        const cache = scoreCaches[event.scoreIndex];
+        let value = cache.get(factor);
+        if (value === undefined) { value = noteScore(event, factor); cache.set(factor, value); }
+        return value;
+      };
+      const history = cacheKey === null ? null : factorHistories.get(cacheKey);
+      const factors = !history && cacheKey !== null && timeline.events.length * 4 <= 4 * 1024 * 1024
+        ? new Float32Array(timeline.events.length) : null;
+      const replay = history ? null : replayScoreTimeline({ events: timeline.events, commands, frameRate, retainNotes: trace || scoreAdapters,
         scoreNote(event, state) {
           const factor = f32(state.general + state.perfect), i = event.scoreIndex;
-          let value = scoreCaches[i].get(factor);
-          if (value === undefined) { value = noteScore(event, factor); scoreCaches[i].set(factor, value); }
-          return { scoreUpFactor: factor, score: value };
+          if (factors) factors[i] = factor;
+          return { scoreUpFactor: factor, score: valueAt(event, factor) };
         } });
-      let score = replay.score, cumulativeScore = 0;
+      if (factors) {
+        while (factorHistories.size && (factorHistories.size >= 512 || factorHistoryBytes + factors.byteLength > 4 * 1024 * 1024)) {
+          const key = factorHistories.keys().next().value;
+          factorHistoryBytes -= factorHistories.get(key).byteLength; factorHistories.delete(key);
+        }
+        factorHistories.set(cacheKey, factors); factorHistoryBytes += factors.byteLength;
+      }
+      let score = history ? timeline.events.reduce((sum,event,i) => sum + valueAt(event, history[i]), 0) : replay.score, cumulativeScore = 0;
       const notes = trace ? replay.notes.sort((a, b) => a.scoreIndex - b.scoreIndex).map(event => {
         cumulativeScore += event.result.score;
         const { result, sequence, ...note } = event;
@@ -167,13 +198,47 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
           { kind: 'worst', order: [...worstOrder], ...worstTrace }
         ] } } : {}) };
   }
-  function upperBound(totalPower, scoreUpFactor) {
-    if (eventAdapters.length) throw new Error("Event optimizer requires an independently audited upper bound");
-    return timeline.events.reduce((sum, event) => sum + calculateFormalNoteCore({ totalPower,
+  function checkBoundContext(eventContext) {
+    // Pure power/song-context adapters have already been incorporated in the
+    // pairing's power. Any note/fixed-score phase needs its own bound instead.
+    if (eventAdapters.length && (eventContext == null || createEventPipeline(rules, eventContext, eventAdapters)
+      .context.effects.some(e => ['note_score','fixed_score'].includes(e.phase)))) {
+      throw new Error("Event optimizer requires an independently audited upper bound");
+    }
+  }
+  function upperBound(totalPower, scoreUpFactor, { eventContext = null } = {}) {
+    checkBoundContext(eventContext);
+    const cache=new Map();
+    return timeline.events.reduce((sum, event, index) => {
+      const factor=typeof scoreUpFactor === 'function' ? scoreUpFactor(event,index) : scoreUpFactor;
+      let combos=cache.get(event.weight);if(!combos)cache.set(event.weight,combos=new Map());
+      let factors=combos.get(event.comboFactor);if(!factors)combos.set(event.comboFactor,factors=new Map());
+      if(!factors.has(factor))factors.set(factor,calculateFormalNoteCore({ totalPower,
       scoreAdjustmentFactor: setting("note_score_adjustment_factor"), musicScoreLevelFactor: timeline.difficultyFactor,
       noteFactorPercent: event.weight, judgementFactorPercent: judgement, comboBonusFactor: event.comboFactor,
-      scoreUpFactor, luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
-      eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000 }).score, 0);
+      scoreUpFactor: factor,
+      luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
+      eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000 }).score);
+      return sum+factors.get(factor);
+    },0);
   }
-  return { calculate, timeline, upperBound };
+  // For any nonnegative factor f, native noteScore(P,f) <= coefficient(P)*f.
+  // Use the exact native prefix at f=1, then cover the factor multiplication,
+  // division and integer-to-f32 conversion after the floor. Multiplications by
+  // 1 are exact. (1+u)^3/(1-u) < 1+8u for u=2^-24. Floors only lower the score.
+  function linearUpperBound(totalPower, { eventContext = null } = {}) {
+    checkBoundContext(eventContext);
+    const cache=new Map();
+    return timeline.events.map(event => {
+      let combos=cache.get(event.weight);if(!combos)cache.set(event.weight,combos=new Map());
+      if(!combos.has(event.comboFactor))combos.set(event.comboFactor,calculateFormalNoteCore({ totalPower,
+      scoreAdjustmentFactor: setting('note_score_adjustment_factor'), musicScoreLevelFactor: timeline.difficultyFactor,
+      noteFactorPercent: event.weight, judgementFactorPercent: judgement, comboBonusFactor: event.comboFactor,
+      scoreUpFactor: 1, luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
+      eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000
+      }).beforeFirstFloor * (1 + 2 ** -21));
+      return combos.get(event.comboFactor);
+    });
+  }
+  return { calculate, timeline, upperBound, linearUpperBound };
 }

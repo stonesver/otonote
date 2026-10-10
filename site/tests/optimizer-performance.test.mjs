@@ -43,7 +43,9 @@ test('batched frontier and resumed budget converge to the serial exhaustive opti
  const evaluator=createCandidateEvaluator(context),opts={...context,draft:draft(),maxEvaluations:0,topN:5,yieldControl:async()=>{}};
  const serial=await optimizeInventory(opts);
  const evaluateBatch=ds=>Promise.all(ds.map(d=>evaluator.evaluate(d)));
- const partial=await optimizeInventory({...opts,batchSize:4,evaluateBatch,maxEvaluations:7});assert.equal(partial.evaluated,7);assert.equal(partial.optimality,'incomplete');
+ // A one-candidate budget cannot fill a top-five result, even when the tighter
+ // homogeneous-skill bound now proves the old seven-candidate fixture early.
+ const partial=await optimizeInventory({...opts,batchSize:4,evaluateBatch,maxEvaluations:1});assert.equal(partial.evaluated,1);assert.equal(partial.optimality,'incomplete');
  const resumed=await optimizeInventory({...opts,batchSize:4,evaluateBatch,checkpoint:partial.checkpoint});
  assert.equal(resumed.optimality,'proven_within_model');assert.deepEqual(resumed.results.map(r=>r.value),serial.results.map(r=>r.value));
 });

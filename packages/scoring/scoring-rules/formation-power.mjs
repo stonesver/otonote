@@ -41,8 +41,32 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
   const gekisouSkills = index("GekisouSkill");
   const parameters = new Map(t.Parameter.map((r) => [r._id, Number(r._value)]));
   const param = (name) => requireInteger(parameters.get(name), name);
+  // A calculator is bound to one release. Preserve first-row lookup semantics
+  // while removing repeated linear scans for every edge in the pair matrix.
+  const firstIndex = (rows, first, second) => {
+    const result = new Map();
+    for (const row of rows) {
+      const a = row[first], b = row[second];
+      // Match the original strict-equality predicate, including field types.
+      if (a !== a || b !== b) continue;
+      if (!result.has(a)) result.set(a, new Map());
+      const group = result.get(a);
+      if (!group.has(b)) group.set(b, row);
+    }
+    return result;
+  };
+  const ranks = Object.fromEntries(['Member','Support'].map(kind => [kind, firstIndex(t[`${kind}CardRank`], '_group', '_rank')]));
+  const levels = Object.fromEntries(['Member','Support'].map(kind => [kind, firstIndex(t[`${kind}CardLevel`], '_group', '_level')]));
+  const limits = firstIndex(t.MemberCardLevelLimit, '_rarity', '_awakeCount');
+  const awakes = firstIndex(t.MemberCardAwake, '_group', '_awakeCount');
+  const indexed = (table, first, second, name) => {
+    const row = table.get(first)?.get(second);
+    if (!row) throw new RangeError(`Master input not found: ${name}`);
+    return row;
+  };
+  const idPatterns = new Map(['member','support','music'].map(kind => [kind, new RegExp(`^(?:${kind}-(?:card-)?)?([0-9]+)$`)]));
   const id = (value, kind) => {
-    const match = new RegExp(`^(?:${kind}-(?:card-)?)?([0-9]+)$`).exec(String(value));
+    const match = (idPatterns.get(kind) ?? new RegExp(`^(?:${kind}-(?:card-)?)?([0-9]+)$`)).exec(String(value));
     if (!match) throw new RangeError(`Invalid ${kind} id: ${value}`);
     return Number(match[1]);
   };
@@ -51,8 +75,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     if (!row) throw new RangeError(`Unknown ${kind}: ${value}`);
     return row;
   };
-  const getRank = (row, kind, rank) => required(t[`${kind}CardRank`],
-    (r) => r._group === row[`_${kind.toLowerCase()}CardRankGroup`] && r._rank === rank,
+  const getRank = (row, kind, rank) => indexed(ranks[kind], row[`_${kind.toLowerCase()}CardRankGroup`], rank,
     `${kind} rank ${rank}`);
 
   function resolveGrowth(row, kind, input = {}) {
@@ -60,15 +83,13 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     const rankRow = getRank(row, kind, rank);
     const awake = kind === "Member" ? requireInteger(input.awake ?? 1, "awake", 1, 5) : 1;
     const maxLevel = kind === "Member"
-      ? required(t.MemberCardLevelLimit, (r) => r._rarity === row._rarity && r._awakeCount === awake,
+      ? indexed(limits, row._rarity, awake,
         "member level limit")._limitLevel
       : rankRow._limitLevel;
     const level = requireInteger(input.level ?? maxLevel, "level", 1, maxLevel);
-    const levelRow = required(t[`${kind}CardLevel`], (r) =>
-      r._group === row[`_${kind.toLowerCase()}CardLevelGroup`] && r._level === level,
+    const levelRow = indexed(levels[kind], row[`_${kind.toLowerCase()}CardLevelGroup`], level,
     `${kind} level ${level}`);
-    const awakeRow = kind === "Member" ? required(t.MemberCardAwake, (r) =>
-      r._group === row._memberCardAwakeGroup && r._awakeCount === awake, "awake") : null;
+    const awakeRow = kind === "Member" ? indexed(awakes, row._memberCardAwakeGroup, awake, "awake") : null;
     const values = masterComponents.map((key) => {
       const max = row[`_${key}PowerMax`];
       // Level: integer product -> float32 -> /10000 -> floor. Rank uses
@@ -123,7 +144,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     return values;
   }
 
-  function calculate(draft, { sourceReleaseId = rules.sourceReleaseId } = {}) {
+  function calculate(draft, { sourceReleaseId = rules.sourceReleaseId, slotOnly } = {}) {
     if (sourceReleaseId !== rules.sourceReleaseId) throw new Error("release_mismatch");
     if (!Array.isArray(draft?.slots) || draft.slots.length !== 5) throw new Error("Exactly five slots required");
     const modifiers = draft.modifiers ?? {};
@@ -169,7 +190,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     if (vipRank !== 1 && !Number.isSafeInteger(vipValue)) throw new Error(`Missing T.G.W bonus ${vipRank}`);
 
     const slots = resolved.map((entry) => {
-      if (!entry) return null;
+      if (!entry || slotOnly != null && entry.slotIndex !== slotOnly) return null;
       const { member, support, memberGrowth, supportGrowth, slotIndex } = entry;
       const memberValues = event.apply("member_power", memberGrowth.values, { draft, member, support, slotIndex });
       if (!Array.isArray(memberValues) || memberValues.length !== 3) throw new Error("Invalid event member power");
@@ -215,6 +236,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
         total: cardPowerPoints(sum(Object.values(breakdown)))
       };
     });
+    if (slotOnly != null) return slots[slotOnly];
     const breakdown = {};
     for (const slot of slots.filter(Boolean)) {
       for (const [name, value] of Object.entries(slot.breakdown)) {
@@ -229,5 +251,8 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
       assumptions: ["Unspecified growth: rank 1, awake 1, maximum level at that awake/rank",
         "Unspecified character ranks: 1; T.G.W: 1; instruments and memory: 0", event.context.id == null ? "No event power bonus" : `Event ${event.context.id} applied by version-bound adapter`] };
   }
-  return { calculate, resolveGrowth, card, matchesTarget, effectRates };
+  // Pair matrices need one slot, not a second leader slot and a formation-wide
+  // report. Use the identical validated arithmetic, without those allocations.
+  const calculateSlot = (draft, slotIndex) => calculate(draft, { slotOnly: requireInteger(slotIndex, 'slot index', 0, 4) });
+  return { calculate, calculateSlot, resolveGrowth, card, matchesTarget, effectRates };
 }

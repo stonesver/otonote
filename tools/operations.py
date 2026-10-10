@@ -101,8 +101,13 @@ def store_lock(root, name, busy):
         os.close(fd)
 
 
+@contextlib.contextmanager
 def render_lock(root):
-    return store_lock(root, '.render.lock', 'render_in_progress')
+    # Live R2 promotion and legacy publication use different locks. Maintenance
+    # must exclude both publishers without stopping either service.
+    with store_lock(root, '.r2-prerender.lock', 'render_in_progress'):
+        with store_lock(root, '.render.lock', 'render_in_progress'):
+            yield
 
 
 def code_lock(root):

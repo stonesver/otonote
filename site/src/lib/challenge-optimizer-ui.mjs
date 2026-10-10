@@ -1,3 +1,4 @@
+import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {currentEventDraft,eventTeamSaveButton} from './event-team-view.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {createWorkbenchTeamView} from './workbench-team-view.mjs';
@@ -12,7 +13,7 @@ export function setupChallengeOptimizer(tool){
   let worker=null,key='',results=null;
   const stop=()=>{worker?.terminate();worker=null;q('cancel').hidden=true;q('run').disabled=false;root.setAttribute('aria-busy','false');};
   const currentDraft=()=>currentEventDraft(tool);
-  const fingerprint=()=>JSON.stringify({mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level'});
+  const fingerprint=()=>JSON.stringify({mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('reward-override')?.checked??false});
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge'||Boolean(tool.classList?.contains('task-workbench')&&tool.dataset.task!=='challenge');
     if(key!==fingerprint()){
@@ -25,7 +26,7 @@ export function setupChallengeOptimizer(tool){
   }
   function render(){
     q('results').replaceChildren();
-    if(q('rewards')?.checked&&q('scope').value!=='reference')q('results').append(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。新增卡按${q('reward-growth').value==='maximum'?'全满养成假设':'满等级、初始突破 / 觉醒、技能 1'}计算；已持有卡仍按卡库中的实际养成计算，不会自动升满。`,'task-event-reward-result-note'));
+    if(q('rewards')?.checked&&q('scope').value!=='reference')q('results').append(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('reward-override')?.checked??false)}`,'task-event-reward-result-note'));
     const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');q('results').append(tabs);
     const maximum=results.objective==='maximum_song_score';
     const reference=results.searchScope==='reference';
@@ -80,7 +81,7 @@ export function setupChallengeOptimizer(tool){
         }else {q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
       worker.addEventListener('error',()=>{if(worker!==active)return;stop();q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});
-      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level'});
+      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('reward-override')?.checked??false});
     }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;}
   });
   q('cancel').addEventListener('click',()=>{stop();feedback.finish('已停止','可调整条件后重新计算','stopped');q('status').textContent='已停止。可调整条件后重新计算。';});

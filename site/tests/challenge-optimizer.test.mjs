@@ -120,3 +120,15 @@ test('full catalog reference searches beyond selected cards without claiming act
  }
  assert.deepEqual(input.draft,original);
 });
+
+test('owned reward override scores exactly like the same explicitly trained inventory',async()=>{
+ const input=fixture(),before=structuredClone(input.inventory);
+ const {createInventoryManager}=await import('../src/lib/inventory-manager.mjs');
+ const manager=createInventoryManager(input.rules),rewardCards=[{resourceType:2,resourceId:1},{resourceType:3,resourceId:1}];
+ const expectedInventory=structuredClone(input.inventory);
+ for(const kind of ['member','support'])expectedInventory.growth[`${kind}-card-1`]=manager.preset(`${kind}-card-1`,kind,'maximum');
+ const actual=await optimizeChallenge({...input,rewardCards,rewardGrowth:'maximum',rewardGrowthOverride:true});
+ const expected=await optimizeChallenge({...input,inventory:expectedInventory});
+ assert.deepEqual(actual.results.map(r=>[r.id,r.value,r.draft.modifiers.growth]),expected.results.map(r=>[r.id,r.value,r.draft.modifiers.growth]));
+ assert.deepEqual(input.inventory,before);
+});

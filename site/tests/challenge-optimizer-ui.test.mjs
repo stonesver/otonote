@@ -33,6 +33,7 @@ test('challenge controls remain functional after moving outside the result panel
  assert.match(node('[data-challenge-opt-status]').textContent,/尚未证明/);
  assert.doesNotMatch(node('[data-challenge-opt-status]').textContent,/上界搜索阶段/);
  assert.equal(progress.dataset.state,'stopped');
+ node('[data-challenge-opt-reward-override]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
  ui.destroy();
  tool.dataset.task='team';ui.sync();assert.equal(node('challenge-optimizer').hidden,true);assert.equal(node('[data-challenge-opt-run]').disabled,true);
  tool.dataset.task='challenge';ui.sync();assert.equal(node('challenge-optimizer').hidden,false);assert.equal(node('[data-challenge-opt-run]').disabled,false);

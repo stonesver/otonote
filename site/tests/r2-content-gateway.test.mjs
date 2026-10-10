@@ -233,6 +233,25 @@ function sameShardPath(f) {
   }
 }
 
+test('concurrent cold reads do not charge the same cached shard repeatedly', async () => {
+  const f = sharedFixture();
+  const bytes = encode({schemaVersion: 1, releaseId: id, files: {[f.path]: f.entry},
+    padding: 'x'.repeat(1024 * 1024)});
+  f.objects.set(`content/storage/${id}/${f.h}.json`, bytes);
+  f.descriptor.shards[f.h] = {sha256: hash(bytes), bytes: bytes.length};
+  f.objects.set(f.descriptorKey, encode(f.descriptor));
+  const responses = await Promise.all(Array.from({length: 12}, () =>
+    gateway.fetch(new Request(f.url, {method: 'HEAD'}), f.env)));
+  assert.ok(responses.every(response => response.status === 200));
+  const controlReads = () => f.calls.filter(([key]) =>
+    key.startsWith('content/storage/') || key.endsWith('/manifest.json')).length;
+  const before = controlReads();
+  for (let i = 0; i < 3; i++) {
+    assert.equal((await gateway.fetch(new Request(f.url, {method: 'HEAD'}), f.env)).status, 200);
+  }
+  assert.equal(controlReads(), before, 'warm requests must keep the verified controls cached');
+});
+
 test('shared lookup validates only the requested entry in a large authenticated shard', async () => {
   const f = sharedFixture();
   const files = Object.fromEntries(Array.from({length: 10000}, (_, i) => [`public/media/unrelated-${i}.webp`, f.entry]));

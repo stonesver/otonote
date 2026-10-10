@@ -163,7 +163,7 @@ def package_check(config, client):
     path = config['workspace'] / 'last-package.json'
     previous_path = path if path.exists() else config['initialPackage']
     previous = read_json(previous_path) if previous_path.exists() else None
-    package = discover_package(client)
+    package = discover_package(client, previous=previous)
     changed = None if previous is None else any(previous.get(k) != package.get(k) for k in ('url', 'byteSize', 'etag'))
     # This is the last successful observation, not proof of APK verification.
     write_json(path, package)

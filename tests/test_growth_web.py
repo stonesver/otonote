@@ -89,8 +89,9 @@ class GrowthWebTests(unittest.TestCase):
         self.assertEqual({row['requestId'] for row in self.diagnostics}, {'a'*32})
         self.assertEqual(self.diagnostics[-1]['status'],422)
         self.assertEqual(self.diagnostics[-1]['error'],'sdk_service_500002')
+        self.assertEqual(self.diagnostics[-1]['reason'],'credentials_rejected')
         self.assertNotIn('PRIVATE',json.dumps(self.diagnostics))
-        self.assertNotIn('reject',json.dumps(self.diagnostics))
+        self.assertNotIn('"password": "reject"',json.dumps(self.diagnostics))
 
     def test_diagnostics_are_bounded_and_scrub_unknown_values(self):
         status,_,_=self.request(delta={'X-Request-ID':'PRIVATE-PASSWORD'})
@@ -103,8 +104,17 @@ class GrowthWebTests(unittest.TestCase):
                                error='PRIVATE-PASSWORD')
         self.assertEqual(self.diagnostics[-1]['stage'],'other')
         self.assertEqual(self.diagnostics[-1]['error'],'other')
+        self.server.diagnostic('b'*32,'growth','finish','sdk_login',1,
+                               error='sdk_service_500002',reason={'private':'PRIVATE-PASSWORD'})
+        self.assertEqual(self.diagnostics[-1]['reason'],'unclassified')
         self.assertEqual(diagnostic_error('game_rpc_deadline_exceeded'),'game_rpc_deadline_exceeded')
         self.assertNotIn('PRIVATE',json.dumps(self.diagnostics))
+    def test_global_minute_limit_is_24_starts_and_recovers_after_window(self):
+        with patch('tools.growth_web.time.monotonic', return_value=1000):
+            self.assertTrue(all(self.server.admit() for _ in range(24)))
+            self.assertFalse(self.server.admit())
+        with patch('tools.growth_web.time.monotonic', return_value=1061):
+            self.assertTrue(self.server.admit())
     def test_capacity_rejects_without_logging_in_and_recovers(self):
         self.server.capacity.acquire();self.server.capacity.acquire()
         try:

@@ -21,7 +21,7 @@ from tools.release_preflight import PreflightError, inspect_plan, load_plan, dig
 from tools.site_product import prepare_public_data
 from tools.score_inputs import read_score_inputs
 from tools.music_audio_inputs import read_music_audio_inputs
-from tools.story_text import read_story_inputs, project_library
+from tools.story_text import read_story_inputs, project_library, story_fallback_locales
 from tools.gallery import project_gallery
 from tools.supplemental_inputs import read_supplemental
 from tools.immutable_files import link_or_copy
@@ -101,7 +101,7 @@ def compile_core(source: dict, destination: Path, locales: tuple[str, ...], root
                 shutil.copytree(gallery_input, public / 'gallery')
             story_library, story_documents = project_library(
                 root / source['masterRoot'], context.content_release_id, locale, story_inputs,
-                fallback_locale='ja' if source['region'] == 'jp' else None)
+                fallback_locale=story_fallback_locales(source['region'], locale))
             bgm = project_bgm(source, root, public, locale, inputs=bgm_inputs)
             live2d_path = destination / 'supplemental-data/live2d-catalog.json'
             costumes = project_costumes(root / source['masterRoot'], build.catalog,

@@ -9,11 +9,12 @@ from unittest.mock import Mock, patch
 
 from tools.global_remote_sync import acquire, plan_assets, remote_path, validate_manifest, _update
 from tools.resource_pipeline.adapters.global_public import (
-    GlobalPublicClient, ProtocolError, allowed_url, decode_grpc, discover_package,
-    protobuf_fields, string_field, version_identity,
+    APK_HOSTS, APK_USER_AGENT, KV_CONFIG_URL, ClientUpdateRequired, GlobalPublicClient,
+    ProtocolError, allowed_url, decode_grpc, discover_package,
+    protobuf_fields, string_field, version_identity, website_config_package,
 )
 from tools.resource_pipeline.catalog_adapter import CatalogAdapter
-from tools.resource_pipeline.transport import HttpResponse
+from tools.resource_pipeline.transport import DownloadReceipt, HttpResponse
 from tools.build_remote_global_inputs import bundle_stem, contained, same_bundle, release_id
 
 
@@ -69,6 +70,109 @@ class GlobalRemoteTest(unittest.TestCase):
         headers, _ = decode_grpc("HTTP/2 200\ncontent-type: application/grpc\nx-auth-token: SECRET\ngrpc-status: 0\n", bytes(5))
         self.assertNotIn("x-auth-token", headers)
 
+    def test_forced_client_upgrade_uses_only_matching_official_apk_hint(self):
+        url = "https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_2026_10_02_22_46_55.apk"
+        def response(version="1.0.3", address=url):
+            return ("HTTP/2 200\ncontent-type: application/grpc\ngrpc-status: 2\n"
+                    "grpc-message: client update required\n"
+                    f"x-client-recommended-version: {version}\n"
+                    f"x-client-download-url: {address}\n")
+        with self.assertRaises(ClientUpdateRequired) as caught:
+            decode_grpc(response(), b"")
+        self.assertEqual((caught.exception.version, caught.exception.url), ("1.0.3", url))
+        with self.assertRaises(ClientUpdateRequired) as missing:
+            decode_grpc(response(address=""), b"")
+        self.assertIsNone(missing.exception.url)
+        for version, address in (("1.0.4", url),
+                                 ("1.0.3", url.replace("pkg.biligame.com", "example.net")),
+                                 ("1.0.3", url + "?token=bad")):
+            with self.subTest(version=version, address=address), self.assertRaises(ProtocolError):
+                decode_grpc(response(version, address), b"")
+
+    def test_official_apk_metadata_uses_android_client_and_requires_complete_headers(self):
+        notice = ClientUpdateRequired(
+            "1.0.3", "https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_2026_10_02.apk")
+        headers = {"content-type": "application/vnd.android.package-archive",
+                   "content-length": "457342191", "etag": '"multipart-55"',
+                   "last-modified": "Mon, 05 Oct 2026 04:07:49 GMT"}
+        with patch("tools.resource_pipeline.adapters.global_public.HttpTransport") as transport:
+            transport.return_value.request.return_value = HttpResponse(200, headers, b"")
+            package = GlobalPublicClient().official_apk(notice)
+        request = transport.return_value.request.call_args.args[0]
+        self.assertEqual((request.method, request.url, request.headers["User-Agent"]),
+                         ("HEAD", notice.url, APK_USER_AGENT))
+        self.assertEqual(transport.call_args.kwargs["allowed_hosts"], APK_HOSTS)
+        self.assertEqual((package["clientVersion"], package["byteSize"]), ("1.0.3", 457342191))
+        with patch("tools.resource_pipeline.adapters.global_public.HttpTransport") as transport:
+            transport.return_value.request.return_value = HttpResponse(403, {}, b"")
+            with self.assertRaises(ProtocolError):
+                GlobalPublicClient().official_apk(notice)
+
+    def test_accepted_client_reuses_verified_package_without_web_script(self):
+        package = {"url": "https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_2026_10_02.apk",
+                   "byteSize": 123, "etag": '"etag"', "lastModified": "date"}
+        client = Mock()
+        self.assertEqual(discover_package(client, previous=package), package)
+        client.rpc.assert_called_once()
+        client.get.assert_not_called()
+
+    def test_upgrade_without_usable_hint_uses_only_matching_official_site_package(self):
+        url = "https://l12-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.3.apk"
+        class Website:
+            def rpc(self, root, method):
+                raise ClientUpdateRequired("1.0.3", None)
+
+            def get(self, address, limit, *, method="GET"):
+                if method == "HEAD":
+                    return HttpResponse(200, {"content-length": "1234", "etag": '"etag"',
+                                              "last-modified": "date"}, b"")
+                if address.endswith(".js"):
+                    return HttpResponse(200, {}, ('var apk="' + url + '"').encode())
+                return HttpResponse(200, {}, b'<script src="//s1.biligames.com/fe-static/game-global-bangdreamon/gw/js/index.abc123.js"></script>')
+        package = discover_package(Website())
+        self.assertEqual((package["url"], package["clientVersion"]), (url, "1.0.3"))
+
+    def test_upgrade_uses_current_official_website_config_when_hint_is_blocked(self):
+        url = ('https://l14-pkg-download.biligames.com/sirius/apk/'
+               'BanGDreamOurNotes_1.0.3_2026_10_02_22_46_55.apk')
+        assert_equal = self.assertEqual
+        class Website:
+            def rpc(self, root, method):
+                raise ClientUpdateRequired('1.0.3', 'https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_1.apk')
+
+            def official_apk(self, notice):
+                raise ProtocolError('official hint blocked')
+
+            def get(self, address, limit, *, method='GET', headers=None):
+                if address == KV_CONFIG_URL:
+                    return HttpResponse(200, {}, json.dumps({'code': 0, 'data': {
+                        'data': {'apklink.link': url}}}).encode())
+                assert_equal(address, url)
+                assert_equal((method, headers), ('HEAD', {'User-Agent': APK_USER_AGENT}))
+                return HttpResponse(200, {'content-length': '457342191', 'etag': '"etag"',
+                                          'last-modified': 'Fri, 09 Oct 2026 00:00:00 GMT'}, b'')
+        package = discover_package(Website())
+        self.assertEqual((package['url'], package['clientVersion'], package['byteSize']),
+                         (url, '1.0.3', 457342191))
+        self.assertEqual(package['source'], KV_CONFIG_URL)
+
+    def test_website_config_rejects_wrong_version_and_untrusted_url(self):
+        class Website:
+            def __init__(self, link):
+                self.link = link
+
+            def get(self, address, limit, *, method='GET', headers=None):
+                return HttpResponse(200, {}, json.dumps({'code': 0, 'data': {
+                    'data': {'apklink.link': self.link}}}).encode())
+        links = (
+            'https://l14-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.2_1.apk',
+            'https://example.org/sirius/apk/BanGDreamOurNotes_1.0.3_1.apk',
+            'https://l14-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.3_1.apk?token=x',
+        )
+        for link in links:
+            with self.subTest(link=link), self.assertRaises(ProtocolError):
+                website_config_package(Website(link), '1.0.3')
+
     def test_protobuf_rejects_truncation_and_repeated_identity(self):
         for payload in (b"\x0a\x10a", b"\x80", b"\x00", b"\x08" + b"\xff" * 10):
             with self.subTest(payload=payload), self.assertRaises(ProtocolError):
@@ -121,6 +225,21 @@ class GlobalRemoteTest(unittest.TestCase):
                 "url": CDN + "/package.apk", "sha256": hashlib.sha256(b"old").hexdigest(), "etag": "old"}))
             with self.assertRaises(ProtocolError):
                 acquire(CDN + "/package.apk", path, 3, expected_etag="new")
+
+    def test_official_apk_download_preserves_android_header_and_etag(self):
+        url = "https://pkg.biligame.com/games/BanGDreamOurNotes_1.0.3_2026_10_02.apk"
+        with tempfile.TemporaryDirectory() as tmp, patch("tools.global_remote_sync.HttpTransport") as transport:
+            def download(request, output):
+                output.write(b"apk")
+                return DownloadReceipt(200, {"etag": '"expected"'}, 3)
+            transport.return_value.download.side_effect = download
+            path = Path(tmp) / "official.apk"
+            result = acquire(url, path, 3, expected_etag='"expected"',
+                             allowed_hosts=APK_HOSTS, request_headers={"User-Agent": APK_USER_AGENT})
+            request = transport.return_value.download.call_args.args[0]
+            self.assertEqual((request.url, request.headers["User-Agent"]), (url, APK_USER_AGENT))
+            self.assertEqual(transport.call_args.kwargs["allowed_hosts"], APK_HOSTS)
+            self.assertEqual((result["reused"], path.read_bytes()), (False, b"apk"))
 
     def test_unchanged_update_does_not_download_or_build(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -256,6 +375,9 @@ class GlobalRemoteTest(unittest.TestCase):
     def test_package_url_comes_from_current_official_scripts(self):
         url = "https://l12-pkg-download.biligames.com/sirius/apk/BanGDreamOurNotes_1.0.1.apk"
         class Website:
+            def rpc(self, root, method):
+                return {}, b""
+
             def get(self, address, limit, *, method="GET"):
                 if method == "HEAD":
                     return HttpResponse(200, {"content-length": "1234"}, b"")

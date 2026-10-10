@@ -32,10 +32,31 @@ def clean_text(value: str) -> str:
     return html.unescape(value).replace("\r\n", "\n").strip()
 
 
+def locale_order(locale: str, fallback_locale=None) -> tuple[str, ...]:
+    fallbacks = (fallback_locale,) if isinstance(fallback_locale, str) else tuple(fallback_locale or ())
+    return (locale, *(candidate for candidate in fallbacks if candidate != locale))
+
+
+def story_fallback_locales(region: str, locale: str) -> tuple[str, ...]:
+    if region == "jp":
+        return ("ja",) if locale != "ja" else ()
+    if region == "global":
+        priorities = {
+            "zh-CN": ("zh-TW", "en", "ja"),
+            "zh-TW": ("zh-CN", "en", "ja"),
+            "en": ("zh-TW", "zh-CN", "ja"),
+            "ja": ("en", "zh-TW", "zh-CN"),
+        }
+        return priorities[locale]
+    return ()
+
+
 def localized(row: dict, locale: str, fallback_locale=None) -> str:
-    value = row.get(LOCALE_FIELDS[locale])
-    if not value and fallback_locale: value = row.get(LOCALE_FIELDS[fallback_locale])
-    return clean_text(str(value or ""))
+    for candidate in locale_order(locale, fallback_locale):
+        value = clean_text(str(row.get(LOCALE_FIELDS[candidate]) or ""))
+        if value:
+            return value
+    return ""
 
 
 def parse_document(root: dict, text_rows: list[dict], locale: str, *, fallback_locale=None) -> dict:
@@ -47,12 +68,16 @@ def parse_document(root: dict, text_rows: list[dict], locale: str, *, fallback_l
     if len(texts) != len(text_rows):
         raise ValueError("duplicate ADV text IDs")
 
-    fallback_refs = set()
+    fallback_refs = {}
     def resolve(ref: str) -> str:
-        if ref not in texts or not localized(texts[ref], locale, fallback_locale):
-            raise ValueError(f"unresolved {locale} ADV text: {ref}")
-        if not localized(texts[ref], locale): fallback_refs.add(ref)
-        return localized(texts[ref], locale, fallback_locale)
+        row = texts.get(ref)
+        if row is not None:
+            for candidate in locale_order(locale, fallback_locale):
+                value = localized(row, candidate)
+                if value:
+                    if candidate != locale: fallback_refs[ref] = candidate
+                    return value
+        raise ValueError(f"unresolved {locale} ADV text: {ref}")
 
     # Subtitle commands sometimes omit TargetTextIDs. Reuse only an unambiguous
     # name binding recorded by this script, never infer a person's name from art.
@@ -74,9 +99,12 @@ def parse_document(root: dict, text_rows: list[dict], locale: str, *, fallback_l
         ref = command.get("AdvTextID")
         if not ref:
             if code == 38:  # ChatStamp: make the missing non-text message visible.
-                lines.append({"id": f"line-{command['Index']}", "sourceIndex": command["Index"],
-                              "kind": "stamp", "speaker": " / ".join(resolve(r) for r in command.get("TargetTextIDs", [])),
-                              "text": ""})
+                refs = command.get("TargetTextIDs", [])
+                line = {"id": f"line-{command['Index']}", "sourceIndex": command["Index"],
+                        "kind": "stamp", "speaker": " / ".join(resolve(r) for r in refs), "text": ""}
+                used_locales = sorted({fallback_refs[r] for r in refs if r in fallback_refs})
+                if used_locales: line['fallbackLocales'] = used_locales
+                lines.append(line)
             continue
         if code == 65:  # ChatTyping previews the next ChatTalk, not another message.
             continue
@@ -93,7 +121,9 @@ def parse_document(root: dict, text_rows: list[dict], locale: str, *, fallback_l
             kind = "narration"
         lines.append({"id": f"line-{command['Index']}", "sourceIndex": command["Index"],
                       "kind": kind, "speaker": speaker, "text": resolve(ref)})
-        if ref in fallback_refs: lines[-1]['locale'] = fallback_locale
+        if ref in fallback_refs: lines[-1]['locale'] = fallback_refs[ref]
+        used_locales = sorted({fallback_refs[r] for r in (*refs, ref) if r in fallback_refs})
+        if used_locales: lines[-1]['fallbackLocales'] = used_locales
     if not any(line["kind"] in {"dialogue", "chat", "narration", "subtitle"} for line in lines):
         raise ValueError("ADV has no readable body")
     return {"lines": lines, "ignoredCommandCount": skipped,

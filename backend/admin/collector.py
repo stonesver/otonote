@@ -9,6 +9,7 @@ import sqlite3
 import time
 from collections import OrderedDict
 from contextlib import asynccontextmanager
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -204,6 +205,32 @@ def create_collector(config, *, sampling=True, clock=time.time):
             raise HTTPException(400, 'invalid load window')
         return {'sources': [{**store.loads(s['id'], seconds, clock(), window=window or None, timezone=timezone), 'name': s.get('name', s['id'])}
                             for s in c.get('loadSources', [])]}
+
+    @app.get('/growth/{site_id}')
+    def growth(site_id: str):
+        site = sites.get(site_id)
+        if not site:
+            raise HTTPException(404, 'unknown site')
+        path = site.get('growthDiagnosticsFile')
+        if not path:
+            return {'status': 'unavailable', 'data': None}
+        try:
+            raw = Path(path).read_bytes()
+            if len(raw) > 131072:
+                raise ValueError('snapshot too large')
+            data = json.loads(raw)
+            generated = data.get('generatedAt')
+            if data.get('schemaVersion') != 1 or not isinstance(generated, str):
+                raise ValueError('invalid snapshot')
+            from datetime import datetime
+            age = clock() - datetime.fromisoformat(generated).timestamp()
+            if not -30 <= age <= 300:
+                raise ValueError('stale snapshot')
+            if not isinstance(data.get('recentFailures'), list) or len(data['recentFailures']) > 50:
+                raise ValueError('invalid failures')
+            return {'status': 'ok', 'data': data}
+        except (OSError, ValueError, TypeError, AttributeError, KeyError):
+            return {'status': 'unavailable', 'data': None}
 
     @app.get('/health')
     def health():

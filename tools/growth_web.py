@@ -49,6 +49,10 @@ DIAGNOSTIC_ERRORS = frozenset({
     'too_many_history_records', 'unsupported_history_response',
     'missing_history_pool_id', 'invalid_history_prize', 'empty_history_batch',
 })
+DIAGNOSTIC_REASONS = frozenset({
+    'credentials_rejected', 'account_not_found', 'verification_required', 'rate_limited',
+})
+MAX_LOGIN_STARTS_PER_MINUTE = 24
 GRPC_ERROR_CODES = frozenset({
     'cancelled', 'unknown', 'invalid_argument', 'deadline_exceeded', 'not_found',
     'already_exists', 'permission_denied', 'resource_exhausted',
@@ -102,7 +106,8 @@ class GrowthGateway(ThreadingHTTPServer):
         self.diagnostic_sink = diagnostic_sink or (lambda record: print(json.dumps(record, separators=(',', ':')), flush=True))
         super().__init__(('127.0.0.1', port), Handler)
 
-    def diagnostic(self, request_id, route, event, stage, elapsed_ms, *, status=None, error=None):
+    def diagnostic(self, request_id, route, event, stage, elapsed_ms, *, status=None, error=None,
+                   reason=None):
         record = {'time': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
                   'requestId': request_id, 'route': route, 'event': event,
                   'stage': stage if isinstance(stage, str) and stage in DIAGNOSTIC_STAGES else 'other',
@@ -111,6 +116,9 @@ class GrowthGateway(ThreadingHTTPServer):
             record['status'] = status
         if error is not None:
             record['error'] = diagnostic_error(error)
+            if record['error'].startswith('sdk_service_'):
+                record['reason'] = (reason if isinstance(reason, str) and reason in DIAGNOSTIC_REASONS
+                                    else 'unclassified')
         try:
             with self.diagnostic_lock:
                 self.diagnostic_sink(record)
@@ -141,7 +149,7 @@ class GrowthGateway(ThreadingHTTPServer):
             now = time.monotonic()
             while self.starts and self.starts[0] < now - 60:
                 self.starts.popleft()
-            if len(self.starts) >= 12:
+            if len(self.starts) >= MAX_LOGIN_STARTS_PER_MINUTE:
                 return False
             self.starts.append(now)
             return True
@@ -183,6 +191,7 @@ class Handler(BaseHTTPRequestHandler):
         if hasattr(self, '_diagnostic'):
             self._diagnostic['status'] = status
             self._diagnostic['error'] = payload.get('error')
+            self._diagnostic['reason'] = payload.get('reason')
         data = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -214,7 +223,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(404, {'error': 'not_found'})
         request_id = diagnostic_request_id(self.headers.get('X-Request-ID'))
         started = time.monotonic()
-        self._diagnostic = {'stage': 'request', 'status': None, 'error': None}
+        self._diagnostic = {'stage': 'request', 'status': None, 'error': None, 'reason': None}
         def elapsed():
             return max(0, round((time.monotonic() - started) * 1000))
         def progress(stage):
@@ -225,7 +234,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._post_with_diagnostics(path, progress)
         finally:
             self.server.diagnostic(request_id, route, 'finish', self._diagnostic['stage'], elapsed(),
-                                   status=self._diagnostic['status'], error=self._diagnostic['error'])
+                                   status=self._diagnostic['status'], error=self._diagnostic['error'],
+                                   reason=self._diagnostic['reason'])
 
     def _post_with_diagnostics(self, path, progress):
         if (not self.valid_source() or self.headers.get('Origin') not in self.server.origins

@@ -224,6 +224,28 @@ class AdminAnalyticsTest(unittest.TestCase):
                 self.assertNotIn(str(self.root),json.dumps(result))
                 self.assertEqual(admin.get('/api/config').headers['x-frame-options'],'DENY')
 
+    def test_growth_diagnostics_are_private_and_snapshot_must_be_fresh(self):
+        snapshot=self.root/'growth.json'
+        self.site['growthDiagnosticsFile']=str(snapshot)
+        data={'schemaVersion':1,'generatedAt':dt.datetime.fromtimestamp(self.now,dt.timezone.utc).isoformat(),
+              'requests':2,'statusCounts':{'422':1,'408':1},'errorCounts':{'sdk_service_500002':1},
+              'recentFailures':[{'time':'2026-09-28T04:00:00+00:00','requestId':'a'*32,'status':422,
+                                 'route':'growth','stage':'sdk_login','error':'sdk_service_500002','reason':'unclassified'}]}
+        snapshot.write_text(json.dumps(data))
+        with self.client() as collector:
+            self.assertEqual(collector.get('/growth/test').status_code,401)
+            def transport(source,path,*args):
+                response=collector.get(path,headers={'Authorization':'Bearer '+'r'*40})
+                response.raise_for_status()
+                return response.json()
+            with TestClient(create_admin(self.admin_config(True),transport),base_url='http://127.0.0.1:18080') as admin:
+                response=admin.get('/api/growth/test')
+                self.assertEqual(response.json()['data']['recentFailures'][0]['error'],'sdk_service_500002')
+                self.assertNotIn(str(snapshot),response.text)
+            data['generatedAt']=dt.datetime.fromtimestamp(self.now-301,dt.timezone.utc).isoformat()
+            snapshot.write_text(json.dumps(data))
+            self.assertEqual(collector.get('/growth/test',headers={'Authorization':'Bearer '+'r'*40}).json()['status'],'unavailable')
+
     def test_load_rollup_preserves_peak_and_does_not_count_both_resolutions(self):
         store=Store(self.root/'load.sqlite')
         try:

@@ -2,6 +2,7 @@
 import EditionBadge from "../../../components/EditionBadge.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { bandItemDatabase, getBandItemsForBand } from "../../../lib/shared-band-items";
+import { filterVisual } from "../../../lib/filter-visuals";
 import "../../../styles/database.css";
 import "../../../styles/band-items.css";
 
@@ -31,7 +32,7 @@ const number = new Intl.NumberFormat("zh-CN");
         return (
           <section class="bi-band" style={`--band-color: ${band.mainColor}`} aria-labelledby={`band-item-band-${band.masterId}`}>
             <header class="bi-band-heading">
-              <img src={`/images/filter-bands/${band.id}.png`} alt="" width="48" height="48" />
+              {filterVisual('band', band.id).icon && <img src={filterVisual('band', band.id).icon} alt="" width="48" height="48" />}
               <h2 id={`band-item-band-${band.masterId}`}>{band.name}</h2>
               <span>{items.length} 件道具</span>
             </header>
@@ -81,7 +82,7 @@ const number = new Intl.NumberFormat("zh-CN");
                 {item.previewUrl ? <img src={item.previewUrl} alt={item.name} width="270" height="516" loading="lazy" /> : <span>暂无图片</span>}
               </div>
               <div class="bi-dialog-title">
-                <span class="bi-band-label"><img src={`/images/filter-bands/${item.bandId}.png`} alt="" width="26" height="26" />{item.bandName}</span>
+                <span class="bi-band-label">{filterVisual('band', item.bandId).icon && <img src={filterVisual('band', item.bandId).icon} alt="" width="26" height="26" />}{item.bandName}</span>
                 <h2 id={`${item.id}-dialog-title`}>{item.name}</h2>
                 <p>乐队全员能力提升</p><EditionBadge record={item} />
               </div>

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from tools.bundle_decoder import bundle_material, resolve_bundle_decoder
+from tools.bundle_decoder import bundle_material, relocated_profile, resolve_bundle_decoder
 
 
 def metadata_fixture(*, swapped=False, owner='<PrivateImplementationDetails>'):
@@ -90,6 +90,28 @@ class BundleDecoderProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'outside metadata'):
             bundle_material(metadata,'fixture.2',profile_path=self.path)
 
+    def test_relocation_requires_unique_prior_material_in_new_metadata(self):
+        current=metadata_fixture(swapped=True)
+        derived=relocated_profile(current,'fixture.2',bytes(range(16)),b'SEEDDEMO')
+        self.assertEqual(derived,entry(current,swapped=True))
+        self.assertEqual(resolve_bundle_decoder(current,'fixture.2',profile=derived)[:2],
+                         (bytes(range(16)),b'SEEDDEMO'))
+        with self.assertRaisesRegex(ValueError,'no unique new FieldRefs'):
+            relocated_profile(current,'fixture.2',b'X'*16,b'SEEDDEMO')
+        duplicate=bytearray(current.data)
+        struct.pack_into('<II',duplicate,16,7,1)
+        current.data=bytes(duplicate)
+        current.sections[22]=(0,24,3)
+        with self.assertRaisesRegex(ValueError,'no unique new FieldRefs'):
+            relocated_profile(current,'fixture.2',bytes(range(16)),b'SEEDDEMO')
+
+    def test_explicit_relocation_remains_bound_to_exact_metadata_and_version(self):
+        current=metadata_fixture(swapped=True)
+        derived=relocated_profile(current,'fixture.2',bytes(range(16)),b'SEEDDEMO')
+        for version, metadata in [('fixture.3',current),('fixture.2',metadata_fixture())]:
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError,'unsupported bundle decoder binding'):
+                resolve_bundle_decoder(metadata,version,profile=derived)
+
 class CachedClientBindingTests(unittest.TestCase):
     def test_preexisting_cached_decoder_cannot_bypass_external_binding(self):
         from tools import current_client
@@ -118,3 +140,6 @@ class CachedClientBindingTests(unittest.TestCase):
                 result=current_client.intake({'url':'https://example.invalid/client.apk','byteSize':4,'etag':'test'},cache,verifier)
                 self.assertEqual({k:result[k] for k in profile},profile)
                 self.assertRegex(result['bundleDecoderBindingSha256'],r'^[a-f0-9]{64}$')
+                (directory/'decoder.json').write_text(json.dumps({**profile,'bundleDecoderBindingSha256':'0'*64}))
+                with self.assertRaisesRegex(ValueError,'cached bundle decoder binding mismatch'):
+                    current_client.intake({'url':'https://example.invalid/client.apk','byteSize':4,'etag':'test'},cache,verifier)

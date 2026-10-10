@@ -1,6 +1,6 @@
 import {pinSnapshot} from './pin-snapshot.mjs';
 import {checkedJson, pageContext} from './content.mjs';
-import {prepareTool} from './tool-startup.mjs';
+import {prepareTool,whenDocumentParsed} from './tool-startup.mjs';
 
 const config = globalThis[Symbol.for('ournotes.prerender.v1')];
 const context = pageContext();
@@ -13,7 +13,7 @@ globalThis[Symbol.for('ournotes.page-resource.v1')] = async (url, options) => {
   return module.renderPageResource(url, app, context, options);
 };
 
-async function ready() {
+whenDocumentParsed(document,() => {
   const retry = document.querySelector('[data-tool-retry]');
   retry?.addEventListener('click', () => location.reload());
   void prepareTool({document, locale:context.locale,
@@ -21,6 +21,8 @@ async function ready() {
     importModule:url => import(new URL(url, location.href).href),
     onReady:() => document.dispatchEvent(new Event('astro:page-load'))
   });
+});
+function ready() {
   document.documentElement.dataset.contentReady = 'true';
   document.dispatchEvent(new Event('astro:page-load'));
 }

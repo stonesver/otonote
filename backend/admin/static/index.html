@@ -40,7 +40,7 @@
       <div class="section-bar"><h2>BHK 登录与养成读取</h2><span>最近 24 小时 · 仅统计到达 Nginx 的 POST</span></div>
       <div class="metrics" id="growth-metrics"></div>
       <div class="columns"><div class="panel"><div class="panel-heading"><h2>HTTP 状态</h2><span>按响应码</span></div><div id="growth-statuses"></div></div><div class="panel"><div class="panel-heading"><h2>网关错误码</h2><span>已完成且可关联的请求</span></div><div id="growth-errors"></div></div></div>
-      <div class="panel"><div class="panel-heading"><h2>最近失败</h2><span>最多 50 条</span></div><div id="growth-failures"></div><p class="caption">显示请求 ID、阶段、错误码与已验证的原因分类。没有网关结束事件时只显示 HTTP 结果。无浏览器请求的页面卡住不会出现在这里。原始 SDK 文本可能包含账号或令牌，因此不会记录或显示。</p></div>
+      <div class="panel"><div class="panel-heading"><h2>最近失败</h2><span>最多 50 条</span></div><div id="growth-failures"></div><p class="caption">显示请求 ID、阶段、错误码、原因分类和可安全保留的 SDK 原始提示。账号、密码、令牌等敏感片段会遮蔽；无法安全保留的提示会明确标记为省略。没有网关结束事件时只显示 HTTP 结果。</p></div>
     </section>
     <section id="view-tasks" class="view" hidden><div class="section-bar"><h2>生产与交付</h2><span>关闭面板不影响后台更新</span></div><div id="nodes"></div></section>
     <section id="view-settings" class="view" hidden><div class="panel"><div class="panel-heading"><h2>站点与连接</h2><span>只读配置</span></div><div id="settings"></div><p class="caption">配置文件由部署管理员维护。浏览器不接收节点地址、密钥和服务器文件路径。</p></div></section>

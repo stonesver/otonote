@@ -107,7 +107,7 @@ class GrowthGateway(ThreadingHTTPServer):
         super().__init__(('127.0.0.1', port), Handler)
 
     def diagnostic(self, request_id, route, event, stage, elapsed_ms, *, status=None, error=None,
-                   reason=None):
+                   reason=None, message=None, message_state=None):
         record = {'time': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
                   'requestId': request_id, 'route': route, 'event': event,
                   'stage': stage if isinstance(stage, str) and stage in DIAGNOSTIC_STAGES else 'other',
@@ -119,6 +119,11 @@ class GrowthGateway(ThreadingHTTPServer):
             if record['error'].startswith('sdk_service_'):
                 record['reason'] = (reason if isinstance(reason, str) and reason in DIAGNOSTIC_REASONS
                                     else 'unclassified')
+                if message_state in ('original', 'redacted', 'omitted', 'missing'):
+                    record['messageState'] = message_state
+                    if (message_state in ('original', 'redacted') and isinstance(message, str)
+                            and 0 < len(message) <= 200 and not any(ord(c) < 32 for c in message)):
+                        record['message'] = message
         try:
             with self.diagnostic_lock:
                 self.diagnostic_sink(record)
@@ -154,7 +159,8 @@ class GrowthGateway(ThreadingHTTPServer):
             self.starts.append(now)
             return True
 
-    def read_growth(self, account, password, *, history=False, progress_callback=None):
+    def read_growth(self, account, password, *, history=False, progress_callback=None,
+                    failure_callback=None):
         stage = 'discovering'
         def progress(value):
             nonlocal stage
@@ -172,6 +178,8 @@ class GrowthGateway(ThreadingHTTPServer):
             snapshot = game.export(identity, sdk.device_id, host, progress)
             return 200, {'snapshot': snapshot}
         except (LoginError, ExportError) as exc:
+            if failure_callback:
+                failure_callback(exc)
             return 422, {'error': str(exc), 'stage': stage, 'reason': getattr(exc, 'reason', None)}
         except Exception:
             return 502, {'error': 'upstream_unavailable', 'stage': stage}
@@ -223,21 +231,26 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(404, {'error': 'not_found'})
         request_id = diagnostic_request_id(self.headers.get('X-Request-ID'))
         started = time.monotonic()
-        self._diagnostic = {'stage': 'request', 'status': None, 'error': None, 'reason': None}
+        self._diagnostic = {'stage': 'request', 'status': None, 'error': None, 'reason': None,
+                            'message': None, 'message_state': None}
         def elapsed():
             return max(0, round((time.monotonic() - started) * 1000))
         def progress(stage):
             self._diagnostic['stage'] = stage
             self.server.diagnostic(request_id, route, 'stage', stage, elapsed())
+        def failure(exc):
+            self._diagnostic['message'] = getattr(exc, 'diagnostic_message', None)
+            self._diagnostic['message_state'] = getattr(exc, 'message_state', None)
         self.server.diagnostic(request_id, route, 'start', 'request', 0)
         try:
-            return self._post_with_diagnostics(path, progress)
+            return self._post_with_diagnostics(path, progress, failure)
         finally:
             self.server.diagnostic(request_id, route, 'finish', self._diagnostic['stage'], elapsed(),
                                    status=self._diagnostic['status'], error=self._diagnostic['error'],
-                                   reason=self._diagnostic['reason'])
+                                   reason=self._diagnostic['reason'], message=self._diagnostic['message'],
+                                   message_state=self._diagnostic['message_state'])
 
-    def _post_with_diagnostics(self, path, progress):
+    def _post_with_diagnostics(self, path, progress, failure):
         if (not self.valid_source() or self.headers.get('Origin') not in self.server.origins
                 or self.headers.get('X-Growth-Nonce') != self.server.nonce):
             return self.reply(403, {'error': 'origin_refused'})
@@ -263,7 +276,8 @@ class Handler(BaseHTTPRequestHandler):
             account, password = body.pop('account'), body.pop('password')
             body.clear()
             status, result = self.server.read_growth(
-                account, password, history=path == ROOT + 'gacha-history', progress_callback=progress)
+                account, password, history=path == ROOT + 'gacha-history',
+                progress_callback=progress, failure_callback=failure)
             account = password = ''
             self.reply(status, result)
         finally:

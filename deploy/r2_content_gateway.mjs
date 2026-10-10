@@ -35,6 +35,13 @@ function cacheFor(bucket) {
 }
 
 function remember(cache, key, value, bytes) {
+  // Concurrent cold requests may finish loading the same immutable control.
+  // Replacing its value must replace its byte charge as well.
+  const previous = cache.entries.get(key);
+  if (previous) {
+    cache.bytes -= previous.bytes;
+    cache.entries.delete(key);
+  }
   while (cache.entries.size >= 64 || cache.bytes + bytes > MAX_CACHE_BYTES) {
     const oldest = cache.entries.keys().next().value;
     if (oldest === undefined) return value;

@@ -306,3 +306,9 @@ python3 tools/preview_independent_site.py \
 - 仅在共享弹窗内将成员卡图片裁切焦点从中心 50% 调至上半部 28%，与原配对展示一致，避免宽卡面截掉人物头部；留影保持原有 50% 焦点。
 - 当前浏览器实际验证卡库成员图片为 center 28%、留影为 center 50%，卡面高度与标签位置保持不变。客户端构建和 git diff --check 通过；仅 CSS 调整，无新增测试。
 - 本地预览 output/tools-member-crop-v37，codeId 34b3827f78822532e05a293f，端口 4329；截图 v37-member-crop.png 位于本任务 tools-redesign 目录。未推送或部署。
+
+### 成员觉醒与突破术语修正
+
+- 之前 V31/V32 把内部 `rank` 写为突破、`awake` 写为觉醒，术语判断有误。成员 `rank` 对应觉醒星数；成员 `awake` 对应突破（特训），由 `MemberCardLevelLimit._awakeCount` 决定等级上限。留影 `rank` 仍对应突破，并影响等级上限与技能等级。
+- 卡面保留右上星标用于成员觉醒；左下改为简短的突破数值，移除错误的觉醒花瓣进度示意。同步队伍、卡库、手动养成和资料页说明。
+- 不交换已保存的 `rank` / `awake`，不修改计算或账号／截图导入映射。CSV 新模板使用明确列名，旧模板兼容原字段映射。

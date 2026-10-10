@@ -2,7 +2,7 @@ import {createInventory, canonicalCardId} from './scoring-rules/formation-input.
 import {createFormationCalculator} from './scoring-rules/formation-power.mjs';
 
 export const growthFields = ['level','rank','awake','skillLevel','gekisouSkillLevel'];
-export const growthLabels = {level:'等级',rank:'突破阶数',awake:'觉醒阶数',skillLevel:'演出技能',gekisouSkillLevel:'激奏技能'};
+export const growthLabels = {level:'等级',rank:'阶数（成员觉醒／留影突破）',awake:'突破（特训）阶数',skillLevel:'演出技能',gekisouSkillLevel:'激奏技能'};
 const baseGrowth = kind => ({level:1,rank:1,...(kind==='member'?{awake:1,skillLevel:1,gekisouSkillLevel:1}:{})});
 const fieldsFor = kind => kind==='member'?growthFields:growthFields.slice(0,2);
 const kindOf = value => ({member:'member','成员':'member','成员卡':'member',support:'support','留影':'support'})[String(value).trim().toLowerCase()];
@@ -91,7 +91,7 @@ export function createInventoryManager(rules, cards=[]) {
       records=['member','support'].flatMap(k=>parsed[`${k}CardIds`].map(id=>({id,kind:k,...parsed.growth[id]})));
     } else {
       const rows=parseDelimited(trimmed);
-      const aliases={kind:'kind','类型':'kind',id:'id','卡片id':'id',name:'name','名称':'name','卡名':'name',level:'level','等级':'level',rank:'rank','突破':'rank','突破阶数':'rank',awake:'awake','觉醒':'awake','觉醒阶数':'awake',skilllevel:'skillLevel','演出技能':'skillLevel',gekisouskilllevel:'gekisouSkillLevel','激奏技能':'gekisouSkillLevel'};
+      const aliases={kind:'kind','类型':'kind',id:'id','卡片id':'id',name:'name','名称':'name','卡名':'name',level:'level','等级':'level',rank:'rank','突破':'rank','突破阶数':'rank',awake:'awake','觉醒':'awake','觉醒阶数':'awake','阶数（成员觉醒／留影突破）':'rank','突破（特训）阶数':'awake',skilllevel:'skillLevel','演出技能':'skillLevel',gekisouskilllevel:'gekisouSkillLevel','激奏技能':'gekisouSkillLevel'};
       const headers=rows[0]?.map(h=>aliases[h.toLowerCase()]);
       if(headers?.some(h=>h==='id'||h==='name')) {
         if(headers.some(h=>!h)||new Set(headers).size!==headers.length)throw new Error('表头有未知或重复列；请使用模板中的列名');

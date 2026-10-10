@@ -60,12 +60,12 @@ export function convertGrowthSnapshot(snapshot,rules,vipRanks=[]) {
         const kind=group==='memberCards'?'member':'support',type=kind==='member'?'Member':'Support';
         const master=rules.tables[`${type}Card`].find(r=>r._id===id);
         if(!master)throw new Error(`网站资料中没有${kind==='member'?'成员卡':'留影'} ${id}，请更新资料后导入`);
-        const exp=integer(row.exp,'卡片经验'),rank=integer(row.cardRank,'突破阶数',1,5);
+        const exp=integer(row.exp,'卡片经验'),rank=integer(row.cardRank,kind==='member'?'觉醒阶数':'突破阶数',1,5);
         const cardId=`${kind}-card-${id}`,level=threshold(rules.tables[`${type}CardLevel`]
           .filter(r=>r._group===master[`_${kind}CardLevelGroup`]),exp,'_exp','_level');
         const g={level,rank},safe={masterId:id,exp,cardRank:rank};
         if(kind==='member') {
-          g.awake=integer(row.awakeCount,'觉醒阶数',1,5);
+          g.awake=integer(row.awakeCount,'突破（特训）阶数',1,5);
           g.skillLevel=integer(row.liveSkillLevel,'演出技能',1,5);
           g.gekisouSkillLevel=integer(row.gekisouSkillLevel,'激奏技能',1,5);
           Object.assign(safe,{awakeCount:g.awake,liveSkillLevel:g.skillLevel,gekisouSkillLevel:g.gekisouSkillLevel});

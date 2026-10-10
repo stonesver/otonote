@@ -41,9 +41,9 @@ export function createCardMaterialLedger({ profile, projection, locale = "zh-CN"
   if (steps.length) result.push({ key: "level", title: en ? "Level experience" : "等级经验", steps, total: totals(steps.flatMap((step) => step.items)) });
   const rankKind = profile.cardKind === "support" ? "support_rank" : "member_rank";
   const rank = profile.materialRequirements.filter((row) => row.usageKind === rankKind);
-  if (rank.length) result.push(section("rank", en ? "Rank" : "升星 / Rank", rank, (stage) => `Rank ${stage - 1} → ${stage}`));
+  if (rank.length) result.push(section("rank", en ? (profile.cardKind === "support" ? "Breakthrough" : "Awakening") : (profile.cardKind === "support" ? "突破" : "觉醒"), rank, (stage) => `${en ? (profile.cardKind === "support" ? "Breakthrough" : "Awakening") : (profile.cardKind === "support" ? "突破" : "觉醒")} ${stage - 1} → ${stage}`));
   const awake = profile.materialRequirements.filter((row) => row.usageKind === "member_awake");
-  if (awake.length) result.push(section("awake", en ? "Awakening" : "觉醒", awake, (stage) => `${en ? "Awakening" : "觉醒"} ${stage - 2} → ${stage - 1}`));
+  if (awake.length) result.push(section("awake", en ? "Breakthrough (training)" : "突破（特训）", awake, (stage) => `${en ? "Breakthrough (training)" : "突破（特训）"} ${stage - 2} → ${stage - 1}`));
   for (const ref of projection.skillRefs ?? []) {
     const materials = ref.materialRequirements ?? [];
     if (!materials.length) continue;

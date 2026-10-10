@@ -78,7 +78,7 @@ const {rarities=[], standalone=false} = Astro.props;
           <button type="button" data-inventory-edit-preset="maximum"><strong>一键满养成</strong><small>等级、阶数、技能全部升满</small></button>
         </div>
         <div class="inventory-growth-fields">
-          {Object.entries({level:'等级',rank:'突破阶数',awake:'觉醒阶数',skillLevel:'演出技能等级',gekisouSkillLevel:'激奏技能等级'}).map(([field,label])=><label data-inventory-edit-label={field}><span data-inventory-edit-title={field}>{label}</span><select aria-label={label} data-inventory-edit-field={field}></select><small data-inventory-edit-range={field}></small></label>)}
+          {Object.entries({level:'等级',rank:'阶数（成员觉醒／留影突破）',awake:'突破（特训）阶数',skillLevel:'演出技能等级',gekisouSkillLevel:'激奏技能等级'}).map(([field,label])=><label data-inventory-edit-label={field}><span data-inventory-edit-title={field}>{label}</span><select aria-label={label} data-inventory-edit-field={field}></select><small data-inventory-edit-range={field}></small></label>)}
         </div>
         <div class="inventory-toolbar inventory-edit-shortcuts"><button type="button" data-inventory-edit-reset>恢复原值</button></div>
         <p data-inventory-edit-status role="status" aria-live="polite"></p>
@@ -88,7 +88,7 @@ const {rarities=[], standalone=false} = Astro.props;
     <div class="inventory-pagination"><button type="button" data-inventory-prev>上一页</button><span data-inventory-page></span><button type="button" data-inventory-next>下一页</button></div>
     <details class="inventory-import-panel inventory-sheet-import">
       <summary>粘贴名单或导入表格 <span>Excel / CSV / JSON 备份</span></summary>
-      <p class="inventory-help">可直接粘贴 Excel 表格，或每行一个完整卡名／卡片 ID。模板支持等级、突破阶数、觉醒阶数和两种技能等级。名称不唯一时请用 ID；缺少的养成按下方选择补齐。</p>
+      <p class="inventory-help">可直接粘贴 Excel 表格，或每行一个完整卡名／卡片 ID。模板支持等级、成员觉醒／留影突破、成员突破（特训）和两种技能等级。旧模板按原列映射读取，建议重新下载模板。名称不唯一时请用 ID；缺少的养成按下方选择补齐。</p>
       <div class="inventory-toolbar">
         <label>清单类型 <select data-inventory-import-kind><option value="member">成员卡</option><option value="support">留影</option></select></label>
         <label>新卡缺省养成 <select data-inventory-import-preset><option value="minimum">等级 1／阶数 1／技能 1</option><option value="maximum">满养成（请确认实际持有）</option></select></label>

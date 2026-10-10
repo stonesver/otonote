@@ -1,3 +1,4 @@
+import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {confirmManualGrowth,incompleteManualGrowth} from './manual-growth-input.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 import { createFormationCalculator } from "./scoring-rules/formation-power.mjs";
@@ -72,11 +73,11 @@ export function setupProductionPower(workbench) {
         r._rarity === row._rarity && r._awakeCount === (input.awake ?? 1))?._limitLevel
         : rules.tables.SupportCardRank.find((r) => r._group === row._supportCardRankGroup && r._rank === (input.rank ?? 1))?._limitLevel;
       controls?.append(numberInput(`${label}等级（上限 ${max}）`, input.level, 1, max, (v) => update("level", v), true, {cardId,field:"level"}));
-      controls?.append(numberInput(`${label}突破阶数（1 = 未突破）`, input.rank ?? 1, 1, 5, (v) => update("rank", v), false, {cardId,field:"rank"}));
+      controls?.append(numberInput(`${label}${cardGrowthLabel("rank",kind.toLowerCase())}阶数（1 = 初始阶段）`, input.rank ?? 1, 1, 5, (v) => update("rank", v), false, {cardId,field:"rank"}));
       if (kind === "Member") {
         controls?.append(numberInput("成员激奏技能等级", input.gekisouSkillLevel ?? 1, 1, 5, (v) => update("gekisouSkillLevel", v), false, {cardId,field:"gekisouSkillLevel"}));
         controls?.append(numberInput("成员演出技能等级", input.skillLevel ?? 1, 1, 5, (v) => update("skillLevel", v), false, {cardId,field:"skillLevel"}));
-        controls?.append(numberInput("成员觉醒阶数（1 = 未觉醒）", input.awake ?? 1, 1, 5, (v) => update("awake", v), false, {cardId,field:"awake"}));
+        controls?.append(numberInput("成员突破（特训）阶数（1 = 未突破）", input.awake ?? 1, 1, 5, (v) => update("awake", v), false, {cardId,field:"awake"}));
         controls?.append(numberInput("该角色评级", modifiers.characterRanks?.[row._characterID] ?? 1, 1, 50, (v) => {
           modifiers.characterRanks ??= {}; modifiers.characterRanks[row._characterID] = v;
         }));

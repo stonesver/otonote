@@ -1,5 +1,6 @@
 import {resolveGrowthScenario} from '../../../packages/scoring/scoring-rules/growth-scenarios.mjs';
 import {teamCardFacets,teamCardFilterOptions} from './team-card-filters.mjs';
+import {cardGrowthLabel} from './card-growth-labels.mjs';
 const copy=value=>structuredClone(value??{});
 
 /** Presentation reads scenario evidence; it never fills or changes the actual collection. */
@@ -65,18 +66,13 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
   }
   art.append(meta);
   const stats=node('span',null,'tw-card-growth');
-  const fields=kind==='support'?[['level','等级','Level','supportLevel'],['rank','突破','Rank','rank']]:[
-    ['level','等级','Level','memberLevel'],['rank','突破','Rank','rank'],['awake','觉醒','Awakening','awake'],
-    ['skillLevel','演出技能','Live skill'],['gekisouSkillLevel','激奏技能','Gekisou skill']];
-  for(const [field,zh,english,icon] of fields){
-    const value=Number.isInteger(growth?.[field])?growth[field]:'—',label=say(zh,english),stat=node('span',null,'tw-card-stat');stat.dataset.field=field;stat.title=`${label} ${value}`;
+  const fields=kind==='support'?[['level','supportLevel'],['rank','rank']]:[
+    ['level','memberLevel'],['rank','rank'],['awake'],['skillLevel'],['gekisouSkillLevel']];
+  for(const [field,icon] of fields){
+    const value=Number.isInteger(growth?.[field])?growth[field]:'—',label=cardGrowthLabel(field,kind,locale),stat=node('span',null,'tw-card-stat');stat.dataset.field=field;stat.title=`${label} ${value}`;
     if(field==='awake'){
-      stat.append(node('span',say('觉','AW'),'tw-card-stat-label'));
-      const awakeIcon=data.growthIcons?.awakeBase;
-      if(Number.isInteger(growth?.awake))for(let i=0;i<5;i++){const bloom=node('span',null,'tw-awake-bloom');bloom.dataset.active=String(i<growth.awake);if(awakeIcon)appendImage(bloom,awakeIcon,'',node('span','✿'));else bloom.append(node('span','✿'));stat.append(bloom);}
-      else if(awakeIcon)appendImage(stat,awakeIcon,label,node('span','✿'));
-      else stat.append(node('span','✿'));
-    }else if(icon&&data.growthIcons?.[icon])appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',field==='skillLevel'?'演':field==='gekisouSkillLevel'?(card.skillFacets?.['gekisou-type']?.map(t=>t.toUpperCase()).join('/')||'激'):field==='rank'?'突':label,'tw-card-stat-label'));
+      stat.append(node('span',say('突','BT'),'tw-card-stat-label'));
+    }else if(icon&&data.growthIcons?.[icon])appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',field==='skillLevel'?'演':field==='gekisouSkillLevel'?(card.skillFacets?.['gekisou-type']?.map(t=>t.toUpperCase()).join('/')||'激'):field==='rank'?say(kind==='support'?'突':'觉',kind==='support'?'BT':'AW'):label,'tw-card-stat-label'));
     stat.append(node('span',field==='level'?`Lv.${value}`:String(value),'tw-card-stat-value'));stats.append(stat);
   }
   art.append(stats);

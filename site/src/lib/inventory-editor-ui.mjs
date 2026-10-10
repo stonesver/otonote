@@ -11,7 +11,7 @@ const el=(tag,text='',cls='')=>{const n=document.createElement(tag);n.textConten
 function download(name,text,type) {
   const url=URL.createObjectURL(new Blob([text],{type})),a=el('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-const describeGrowth=g=>`Lv.${g.level} · 突破 ${g.rank}${g.awake?` · 觉醒 ${g.awake} · 技能 ${g.skillLevel}/${g.gekisouSkillLevel}`:''}`;
+const describeGrowth=g=>`Lv.${g.level} · ${g.awake?'觉醒':'突破'} ${g.rank}${g.awake?` · 突破（特训） ${g.awake} · 技能 ${g.skillLevel}/${g.gekisouSkillLevel}`:''}`;
 
 export function setupInventoryEditor(workbench,{onChange,onUse}) {
   const q=s=>workbench.querySelector(s),cards=[...workbench.data.memberCards,...workbench.data.supportCards];
@@ -158,7 +158,7 @@ export function setupInventoryEditor(workbench,{onChange,onUse}) {
     commit(manager.merge(inventory,rows).inventory,'已加入当前编成，已有卡的养成保留。');
   }));
   q('[data-inventory-export]').addEventListener('click',()=>action(()=>download('otonote-personal-growth.json',JSON.stringify(store.read()??store.empty(),null,2),'application/json')));
-  q('[data-inventory-template]').addEventListener('click',()=>download('otonote-inventory-template.csv','\uFEFF类型,卡片ID,等级,突破阶数,觉醒阶数,演出技能,激奏技能\n成员,member-card-1,1,1,1,1,1\n留影,support-card-1,1,1,,,\n','text/csv;charset=utf-8'));
+  q('[data-inventory-template]').addEventListener('click',()=>download('otonote-inventory-template.csv','\uFEFF类型,卡片ID,等级,阶数（成员觉醒／留影突破）,突破（特训）阶数,演出技能,激奏技能\n成员,member-card-1,1,1,1,1,1\n留影,support-card-1,1,1,,,\n','text/csv;charset=utf-8'));
   q('[data-inventory-preview]').addEventListener('click',preparePreview);
   q('[data-inventory-apply]').addEventListener('click',()=>action(()=>{if(!preview)return;commit(preview.inventory,'导入完成，已有卡库已合并。可撤销上次修改。');}));
   for(const selector of ['[data-inventory-paste]','[data-inventory-import-kind]','[data-inventory-import-preset]','[data-inventory-overwrite]'])q(selector).addEventListener('input',()=>{fileRequest++;clearPreview();});

@@ -48,7 +48,7 @@ class APGradeTool extends HTMLElement{
     button.setAttribute('aria-label',`位置 ${i+1} ${kind==='member'?'成员':'留影'}：${preview?.displayName??'未选择'}`);
     if(preview?.imageUrl){const img=el('img');img.src=preview.imageUrl;img.alt='';img.loading='lazy';button.append(img);}
     button.append(el('span',preview?.displayName??`＋ 选择${kind==='member'?'成员':'留影'}`));button.dataset.openTeamWorkspace='teams';
-    const g=this.draft.modifiers.growth?.[id]??{},meta=el('span',id?`Lv.${g.level??'默认上限'} · 突破 ${g.rank??1}${kind==='member'?` · 技能 ${g.skillLevel??1}`:''}`:'');meta.className='ap-card-meta';label.append(button,meta);row.append(label);
+    const g=this.draft.modifiers.growth?.[id]??{},meta=el('span',id?`Lv.${g.level??'默认上限'} · ${kind==='member'?'觉醒':'突破'} ${g.rank??1}${kind==='member'?` · 技能 ${g.skillLevel??1}`:''}`:'');meta.className='ap-card-meta';label.append(button,meta);row.append(label);
    }root.append(row);
   }
   this.q('growth').textContent=this.profile?'已读取本区服保存的卡库与账号加成。上方显示此次计算采用的等级、突破和技能。':'尚未导入养成；未设置的卡片使用计算器默认值。可在“卡库与队伍”中导入或补全养成。';

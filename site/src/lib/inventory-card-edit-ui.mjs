@@ -1,7 +1,7 @@
 import {growthFields,growthLabels} from './inventory-manager.mjs';
 import {closeSkillPopover} from './calculator-card-ui.mjs';
 
-const maximumLabels={level:'当前满级',rank:'满突破',awake:'满特训',skillLevel:'满演出技能',gekisouSkillLevel:'满激奏技能'};
+const maximumLabels={level:'当前满级',rank:'满突破',awake:'满突破（特训）',skillLevel:'满演出技能',gekisouSkillLevel:'满激奏技能'};
 const el=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
 
 export function setupInventoryCardEdit(workbench,{manager,getInventory,commit}) {
@@ -85,7 +85,7 @@ export function setupInventoryCardEdit(workbench,{manager,getInventory,commit}) 
     values={...initial};closeSkillPopover(workbench);
     const card=cards[0],title=batch?`批量修改 ${cards.length} 张${card.kind==='member'?'成员卡':'留影'}`:'修改养成';
     q('h2').textContent=title;dialog.setAttribute('aria-label',batch?title:`修改 ${card.shortLabel} 的养成`);
-    for(const [field,label] of Object.entries({level:'等级',rank:card.kind==='member'?'觉醒星数':'突破花瓣',awake:'特训',skillLevel:'演出技能等级',gekisouSkillLevel:'激奏技能等级'})){q(`[data-inventory-edit-title="${field}"]`).textContent=label;controls[field].setAttribute('aria-label',label);}
+    for(const [field,label] of Object.entries({level:'等级',rank:card.kind==='member'?'觉醒星数':'突破花瓣',awake:'突破（特训）',skillLevel:'演出技能等级',gekisouSkillLevel:'激奏技能等级'})){q(`[data-inventory-edit-title="${field}"]`).textContent=label;controls[field].setAttribute('aria-label',label);}
     q('[data-inventory-edit-name]').textContent=batch?`已选 ${cards.length} 张卡`:card.shortLabel;
     q('[data-inventory-edit-relation]').textContent=batch?'仅修改选中的卡片，保存后可整批撤销。':card.relationLabel??'';
     const missing=cards.filter(c=>!original[`${c.kind}CardIds`].includes(c.id)).length;

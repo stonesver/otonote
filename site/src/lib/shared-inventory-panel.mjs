@@ -1,3 +1,4 @@
+import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
 import {createInventoryManager, growthFields} from './inventory-manager.mjs';
 import {currentServerContext, gameServer} from './game-servers.mjs';
@@ -167,10 +168,9 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     const location=node('p',t('正在编辑的卡片不在本页，输入已保留。','The card being edited is outside this page. Your input is preserved.'),'tw-editor-location');editor={card,key,form,location};
     const title=node('h3',card.shortLabel??card.id);title.tabIndex=-1;form.append(title);
     if(!saved)form.append(node('p',t('尚未记录这张卡。以下从 1 级开始，请填写实际养成后保存。','This card is unrecorded. Values start at level 1; enter its actual growth before saving.')));
-    const labels={level:t('等级','Level'),rank:t('突破阶数','Rank'),awake:t('觉醒阶数','Awakening'),skillLevel:t('演出技能','Live skill'),gekisouSkillLevel:t('激奏技能','Gekisou skill')};
     const grid=node('div','','tw-growth-fields');
     for(const name of card.kind==='member'?growthFields:growthFields.slice(0,2)){
-      const input=select(manager.choices(card.id,card.kind,name,growth).map(value=>[value,String(value)]));input.value=String(growth[name]);input.name=name;inputs.set(name,input);grid.append(field(labels[name],input));
+      const input=select(manager.choices(card.id,card.kind,name,growth).map(value=>[value,String(value)]));input.value=String(growth[name]);input.name=name;inputs.set(name,input);grid.append(field(cardGrowthLabel(name,card.kind,english?'en':'zh-CN'),input));
       input.addEventListener('change',()=>{
         growth[name]=Number(input.value);
         if(name==='rank'||name==='awake'){

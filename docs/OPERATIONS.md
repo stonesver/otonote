@@ -62,7 +62,7 @@ python3 -m tools.render_retention apply --root /PRIVATE_RENDER_STORE --plan /PRI
 
 先安装支持历史 HTML 重新生成的 `deploy/promote_r2_prerender.py` 版本，再启用回收。旧代码/内容重新成为当前版本时，预渲染器可恢复 HTML，同时保留旧浏览器载荷。离线恢复也可由管理员先验证归档，再将计划内 HTML 还原到原路径；不要解压未知归档或覆盖当前视图。
 
-定时维护模板见 `deploy/ournotes-render-maintenance.*.example` 和 `deploy/run-render-maintenance.sh`，程序目录必须固定到已验证版本，三个目录环境变量保存在私有配置中。首次人工核对方案及归档后再启用。压缩归档仍占空间且不会自动删除，应监控归档目录容量并另行制定备份保留策略；归档预算失败不能被视为清理成功。
+定时维护模板见 `deploy/ournotes-render-maintenance.*.example` 和 `deploy/run-render-maintenance.sh`，程序目录必须固定到已验证版本，三个目录环境变量保存在私有配置中。`RENDER_MAINTENANCE_AGE_DAYS` 可按实际容量指定 1–30 天，默认七天；缩短窗口仍保留 current/previous/pending 和全部载荷。首次人工核对方案及归档后再启用。每批最多回收二十个视图，后续周期继续处理；压缩归档仍占空间且不会自动删除，应监控归档目录容量并另行制定备份保留策略；归档预算失败不能被视为清理成功。
 
 内容生产模式的更新器和预渲染发布器不再在发布成功后自动删除历史版本、输入或 HTML。发布结果明确报告 `retention.status = deferred_to_operations`；保留成功记录和版本历史不代表已回收空间。失败产生且未发布的临时目录仍由对应任务清理。
 

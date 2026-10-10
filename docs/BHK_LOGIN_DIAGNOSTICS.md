@@ -15,7 +15,7 @@
 
 ```sh
 grep '2026-10-08T06:' /var/log/nginx/ournotes-growth.access.log
-docker logs --timestamps --since 2h ournotes-growth 2>&1 | grep '"requestId":"这里替换为日志中的ID"'
+journalctl -u ournotes-growth.service --since '2 hours ago' --no-pager -o cat | grep '"requestId":"这里替换为日志中的ID"'
 ```
 
 Nginx 有记录、网关无同 ID：检查代理到回环网关的连接。网关只有开始和阶段、没有结束：检查容器退出或正在等待的阶段。`finish` 的状态是网关尝试发送的响应，Nginx 状态才是代理对客户端的结果；两者不同可提示客户端中断。错误码用于区别官方 SDK、游戏登录、游戏读取、限流和输入拒绝。浏览器自身未发送请求时两层都没有相应 POST 记录；仍需用户提供准确时间和页面状态。

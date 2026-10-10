@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {optimizeEventYield,compareEventPlans,challengeContinuation} from '../src/lib/event-yield-optimizer.mjs';
 import {eventGradeEstimate,estimateEventSong} from '../src/lib/event-song-ranking.mjs';
-import {createEventEfficiency,planChallengeSpending} from '../src/lib/scoring-rules/event-efficiency.mjs';
+import {createEventEfficiency,planChallengeSpending,createChallengeSpendingPlanner} from '../src/lib/scoring-rules/event-efficiency.mjs';
+import {createFormalSongCalculator} from '../src/lib/scoring-rules/formal-song-score.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 
 test('AP basis chooses the grade threshold, not a continuous score multiplier',()=>{
@@ -51,8 +52,10 @@ test('challenge ties preserve the secondary reward before time or fewer plays',(
 });
 
 function fixture(){
- const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
- const chart=JSON.parse(readFileSync(new URL('../public/data/music-charts/music-chart-10003803.json',import.meta.url)));
+ const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
+ const chart={id:'music-chart-10003803',trackId:'music-100038',difficulty:'expert',
+   bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+   notes:Array.from({length:40},(_,i)=>({id:`offline-${i}`,type:'tap',tick:i*157+1}))};
  chart.sourceReleaseId=rules.sourceReleaseId;
  const music=rules.tables.LiveMusic.find(m=>`music-${m._id}`===chart.trackId);music._liveScoreRankGroup=999;
  Object.assign(rules.tables,{
@@ -179,5 +182,94 @@ test('event yield uses saved non-AP performance and invalidates score caches whe
  for(const row of missed.results){
    assert.equal(row.expectedScore,0);assert.equal(row.estimatedScore,0);assert.equal(row.reward.scoreRank,2);
    assert.equal(row.performanceScenario.missRate,1);
+ }
+});
+
+test('incremental challenge DP preserves primary, secondary and play ties for out-of-order budgets',()=>{
+ const base={mode:'challenge',sourceReleaseId:'global-test',eventId:1};
+ const options=[{...base,challengeCost:200,badges:100,eventPoints:80},{...base,challengeCost:350,badges:190,eventPoints:120},
+   {...base,challengeCost:500,badges:255,eventPoints:210}];
+ for(const metric of ['badges','eventPoints']){
+   const query=createChallengeSpendingPlanner(options,metric),secondary=metric==='badges'?'eventPoints':'badges';
+   for(const budget of [0,199,200,950,450,3000,123,1750,350,3001]){
+     const all=[];
+     for(let a=0;a*200<=budget;a++)for(let b=0;a*200+b*350<=budget;b++)for(let c=0;a*200+b*350+c*500<=budget;c++)
+       all.push({badges:a*100+b*190+c*255,eventPoints:a*80+b*120+c*210,plays:a+b+c,spentCP:a*200+b*350+c*500});
+     all.sort((a,b)=>b[metric]-a[metric]||b[secondary]-a[secondary]||a.plays-b.plays||a.spentCP-b.spentCP);
+     const actual=query(budget),best=all[0];
+     for(const key of ['badges','eventPoints','plays','spentCP'])assert.equal(actual[key],best[key],`${metric}, ${budget}, ${key}`);
+     assert.equal(actual.remainingCP,budget-actual.spentCP);
+   }
+ }
+});
+
+test('global grade/bonus ceiling proves reward objectives without enumerating score ties',async()=>{
+ const input=fixture();
+ input.rules.tables.LiveScoreRank.forEach(row=>row._requiredScore=row._liveScoreRank-2);
+ const result=await optimizeEventYield({...input,includeChallenge:false});
+ assert.equal(result.optimality,'proven_within_model');
+ assert.equal(result.certifiedSearch.proof,'global_grade_and_bonus_ceiling');
+ assert.equal(result.certifiedSearch.objective,'reward_tuple');
+ assert.equal(result.certifiedSearch.scoreTieOptimality,'not_proven');
+ assert.equal(result.certifiedSearch.evaluated,0);
+ const practical=await optimizeEventYield({...input,includeChallenge:false,searchMethod:'practical'});
+ assert.deepEqual(result.results,practical.results);
+ await assert.rejects(optimizeEventYield({...input,maxEvaluations:-1}),/budget/);
+});
+
+test('shared continuation planners invalidate both mutated challenge rows and reward tables',async()=>{
+ const input=fixture(),challenge=await optimizeEventYield({...input,mode:'challenge'}),challengePlanCache=new Map();
+ const options={...input,challengeRows:challenge.results,challengePlanCache,budget:11,startingCP:199};
+ await optimizeEventYield(options);
+ for(const row of input.rules.tables.ChallengeLiveEventReward)row._resourceCount*=2;
+ const warm=await optimizeEventYield(options),cold=await optimizeEventYield({...options,challengePlanCache:undefined});
+ assert.deepEqual(warm.results,cold.results);
+ challenge.results[0].bonuses.rewardBP+=10000;
+ assert.deepEqual((await optimizeEventYield(options)).results,
+   (await optimizeEventYield({...options,challengePlanCache:undefined})).results);
+});
+
+function* arrangements(values,n=values.length){
+ if(!n){yield [];return;}
+ for(let i=0;i<values.length;i++)for(const rest of arrangements(values.filter((_,j)=>j!==i),n-1))yield [values[i],...rest];
+}
+
+test('certified event search matches exhaustive full-order scoring with six supports and all three reward objectives',async()=>{
+ const input=fixture();
+ Object.assign(input.chart,{bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+   notes:Array.from({length:16},(_,i)=>({id:`note-${i}`,type:'tap',tick:i*317+1}))});
+ input.inventory.supportCardIds.push('support-card-6');input.inventory.growth['support-card-6']={level:1,rank:1};
+ const template=input.rules.tables.LiveSkillEffect.find(e=>e._liveSkillID===1&&e._level===1);
+ for(const id of [1,2]){
+   input.rules.tables.MemberCard.find(m=>m._id===id)._liveSkillID=900000+id;
+   input.rules.tables.LiveSkillEffect.push({...template,_id:900000+id,_liveSkillID:900000+id,
+     _effectValue:id*1733,_activationTimeSecond:id*1.321,_skillConditionGroup:0});
+ }
+ input.rules.tables.EventEffect.push({_id:3,_eventId:1,_resourceTypeConstraint:3,_supportCardId:6,_eventBonusType:1,
+   ...Object.fromEntries([1,2,3,4,5].map(n=>[`_rank${n}EffectValue`,9000]))});
+ input.draft.selectedSongId=input.chart.trackId;input.draft.selectedDifficulty=input.chart.difficulty;
+ input.draft.modifiers={growth:input.inventory.growth};
+ const model=createEventEfficiency({tables:input.rules.tables,sourceReleaseId:input.rules.sourceReleaseId,eventId:1});
+ const calculator=createFormalSongCalculator(input.rules,input.chart),all=[];
+ for(const leader of input.inventory.memberCardIds){
+   const members=input.inventory.memberCardIds.filter(id=>id!==leader);members.splice(2,0,leader);
+   for(const supports of arrangements(input.inventory.supportCardIds,5)){
+     const draft={...input.draft,slots:members.map((memberCardId,i)=>({memberCardId,supportCardId:supports[i]}))};
+     const score=calculator.calculate(draft),bonuses=model.teamBonus(draft.slots.map(s=>({memberId:Number(s.memberCardId.split('-').at(-1)),supportId:Number(s.supportCardId.split('-').at(-1)),memberRank:1,supportRank:1})));
+     all.push({score,bonuses});
+   }
+ }
+ for(const [goal,basis] of [['badges','expectedScore'],['eventPoints','minimumScore'],['grade','maximumScore']]){
+   const plans=all.map(({score,bonuses})=>{
+     const reward=model.rewards({mode:'ordinary',scoreRank:model.scoreRank(Number(input.chart.trackId.split('-').at(-1)),score[basis]),...bonuses,liveBoost:1});
+     return {...score,reward,total:{badges:reward.badges*11,eventPoints:reward.eventPoints*11},song:input.candidate};
+   }).sort((a,b)=>compareEventPlans(a,b,goal));
+   const result=await optimizeEventYield({...input,goal,basis,budget:11,includeChallenge:false,maxEvaluations:0,refineScoreTies:true});
+   assert.equal(result.optimality,'proven_within_model');
+   assert.equal(compareEventPlans(result.results[0],plans[0],goal),0,`${goal}, ${basis}`);
+   const rewardsOnly=await optimizeEventYield({...input,goal,basis,budget:11,includeChallenge:false,maxEvaluations:0});
+   assert.equal(rewardsOnly.optimality,'proven_within_model');
+   assert.equal(compareEventPlans({...rewardsOnly.results[0],expectedScore:0},{...plans[0],expectedScore:0},goal),0);
+   assert.equal(rewardsOnly.certifiedSearch.objective,'reward_tuple');
  }
 });

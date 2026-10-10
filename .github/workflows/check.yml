@@ -56,6 +56,11 @@ jobs:
           tests.test_r2_production_gate -q
       - name: R2 gateway compatibility
         run: node --test site/tests/r2-content-gateway.test.mjs
+      - name: Calculation algorithm and certificate regression gates
+        run: >-
+          node --test --test-concurrency=1 site/tests/calculation-algorithms.test.mjs
+          site/tests/calculation-kernels.test.mjs site/tests/challenge-optimizer.test.mjs
+          site/tests/event-yield-optimizer.test.mjs site/tests/optimizer-performance.test.mjs
       - name: Persistent ranking calculation gates
         run: node --test site/tests/ranking-cache.test.mjs site/tests/shared-scoring-package.test.mjs
       - name: Admin content delivery gates

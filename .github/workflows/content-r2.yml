@@ -488,6 +488,10 @@ jobs:
           mapfile -t paths < "$RUNNER_TEMP/r2-state-paths"
           args=()
           for path in "${paths[@]}"; do args+=(--path "$path"); done
+          if [[ "$REGION" == global ]]; then
+            args+=(--global-working-set-config "$STABLE_ROOT/$GLOBAL_CONFIG_PATH"
+                   --production-result "$RUNNER_TEMP/production.json")
+          fi
           expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/state-before.json")"
           python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
             --workers 8 --expected-current "$expected" \
@@ -507,31 +511,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          {
-            printf 'Workflow result: `%s`. The Actions run is the last-attempt record.\n\n' "$JOB_STATUS"
-            if [[ -f "$RUNNER_TEMP/light-check.json" ]]; then
-              printf 'Light unchanged gate: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/light-check.json")"
-            elif [[ -f "$RUNNER_TEMP/light-prepare.json" ]]; then
-              printf 'Light preparation: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/light-prepare.json")"
-            fi
-            if [[ -f "$RUNNER_TEMP/gate-check.json" ]]; then
-              printf 'Verified unchanged gate: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/gate-check.json")"
-            fi
-            if [[ -f "$RUNNER_TEMP/state-after.json" ]]; then
-              printf 'Private state checkpoint: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/state-after.json")"
-              python - "$RUNNER_TEMP/state-after.json" <<'PY'
-          import json, sys
-          state = json.load(open(sys.argv[1]))
-          print(f'Private objects reused from verified restore: `{state.get("verifiedReuse", 0)}`; '
-                f'newly uploaded: `{state.get("uploaded", 0)}`.\n')
-          PY
-            fi
-            if [[ -f "$RUNNER_TEMP/promotion.json" ]]; then
-              printf 'Public promotion: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status", "unknown"))' "$RUNNER_TEMP/promotion.json")"
-            fi
-            if [[ -f "$RUNNER_TEMP/jp-retention.json" ]]; then
-              printf 'JP obsolete local runs removed: `%s`.\n\n' "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["removedRuns"])' "$RUNNER_TEMP/jp-retention.json")"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          python -m tools.r2_run_summary --directory "$RUNNER_TEMP" --job-status "$JOB_STATUS" \
+            >> "$GITHUB_STEP_SUMMARY"
         env:
           JOB_STATUS: ${{ job.status }}

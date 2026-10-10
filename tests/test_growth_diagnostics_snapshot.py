@@ -1,11 +1,27 @@
 import json
+import gzip
+import os
+import tempfile
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 
-from tools.growth_diagnostics_snapshot import build_snapshot
+from tools.growth_diagnostics_snapshot import build_snapshot, read_access_logs
 
 
 class GrowthDiagnosticsSnapshotTests(unittest.TestCase):
+    def test_reads_date_rotated_logs_across_midnight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory) / 'growth.access.log'
+            previous = Path(str(base) + '-20261010')
+            older = Path(str(base) + '-20261009.gz')
+            older.write_bytes(gzip.compress(b'older\n'))
+            previous.write_text('previous\n')
+            base.write_text('current\n')
+            os.utime(str(older), (1, 1))
+            os.utime(str(previous), (2, 2))
+            self.assertEqual(read_access_logs(str(base)), 'older\n\nprevious\n\ncurrent\n')
+
     def test_correlates_failures_without_copying_private_fields(self):
         now = datetime(2026, 10, 9, 12, tzinfo=timezone.utc)
         request_id = 'a' * 32

@@ -4,7 +4,7 @@ import {setupChallengeOptimizer} from '../src/lib/challenge-optimizer-ui.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
 
 test('challenge controls remain functional after moving outside the result panel',t=>{
- const nodes=new Map(),node=key=>{if(!nodes.has(key))nodes.set(key,{value:'',listeners:{},hidden:false,textContent:'',children:[],addEventListener(type,fn){this.listeners[type]=fn;},setAttribute(){},replaceChildren(...children){this.children=children;}});return nodes.get(key);};
+ const nodes=new Map(),node=key=>{if(!nodes.has(key))nodes.set(key,{value:'',listeners:{},hidden:false,textContent:'',children:[],addEventListener(type,fn){this.listeners[type]=fn;},setAttribute(){},append(...children){this.children.push(...children);},prepend(...children){this.children.unshift(...children);},replaceChildren(...children){this.children=children;}});return nodes.get(key);};
  const tool={q:node,querySelector:node,classList:{contains:()=>true},dataset:{task:'challenge'},draft:{slots:[{memberCardId:'member-card-1',supportCardId:'support-card-1'}],selectedSongId:'music-1',selectedDifficulty:'expert',modifiers:{growth:{'member-card-1':{level:30}},tgwCardRank:20}},data:{tracks:[{id:'music-1',title:'挑战曲'}],charts:[{trackId:'music-1',difficulty:'expert',analysisDataUrl:'/chart.json'}]}};
  node('mode').value='challenge';node('event').value='7';node('[data-challenge-opt-scope]').value='selected';node('[data-challenge-opt-objective]').value='maximum_song_score';
  node('challenge-optimizer').querySelector=()=>{throw Error('Controls have moved into the conditions sidebar');};
@@ -17,7 +17,23 @@ test('challenge controls remain functional after moving outside the result panel
  const payload=workers[0].payload;assert.equal(payload.eventId,7);assert.equal(payload.scope,'selected');assert.equal(payload.analysisDataUrl,'/chart.json');assert.deepEqual(payload.draft,tool.draft);assert.notEqual(payload.draft,tool.draft);
  node('[data-challenge-opt-objective]').value='expected_song_score';ui.sync();assert.equal(workers[0].terminated,true);assert.deepEqual(node('[data-challenge-opt-results]').children,[]);
  assert.equal(progress.hidden,true);workers[0].listeners.message({data:{type:'progress',stage:'旧任务',completed:8,total:12}});assert.equal(progress.hidden,true,'late worker messages cannot restore stale progress');
- node('[data-challenge-opt-scope]').value='reference';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers[1].payload.objective,'expected_song_score');assert.equal(workers[1].payload.scope,'reference');assert.equal(workers[1].payload.inventory,undefined);ui.destroy();
+ node('[data-challenge-opt-scope]').value='reference';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers[1].payload.objective,'expected_song_score');assert.equal(workers[1].payload.scope,'reference');assert.equal(workers[1].payload.inventory,undefined);
+ workers[1].listeners.message({data:{type:'result',result:{objective:'expected_song_score',searchScope:'reference',results:[],status:'budget_exhausted',optimality:'incomplete',practical:{finalists:6},certifiedSearch:{evaluated:24,bestProven:false,topNComplete:false,upperBound:9715192,optimalityGap:853879}}}});
+ assert.match(node('[data-challenge-opt-status]').textContent,/24/);
+ assert.match(node('[data-challenge-opt-status]').textContent,/预算/);
+ assert.match(node('[data-challenge-opt-status]').textContent,/尚未证明/);
+ assert.match(node('[data-challenge-opt-status]').textContent,/853,879/);
+ assert.equal(progress.dataset.state,'stopped');
+ node('[data-challenge-opt-run]').listeners.click();
+ workers[2].listeners.message({data:{type:'result',result:{objective:'expected_song_score',results:[],status:'completed',practical:{finalists:6},certifiedSearch:{evaluated:2,bestProven:true,topNComplete:true}}}});
+ assert.match(node('[data-challenge-opt-status]').textContent,/已证明所选范围、当前模型内的前三名/);
+ assert.equal(progress.dataset.state,'complete');
+ node('[data-challenge-opt-run]').listeners.click();
+ workers[3].listeners.message({data:{type:'result',result:{objective:'expected_song_score',results:[],status:'completed',practical:{finalists:6}}}});
+ assert.match(node('[data-challenge-opt-status]').textContent,/尚未证明/);
+ assert.doesNotMatch(node('[data-challenge-opt-status]').textContent,/上界搜索阶段/);
+ assert.equal(progress.dataset.state,'stopped');
+ ui.destroy();
  tool.dataset.task='team';ui.sync();assert.equal(node('challenge-optimizer').hidden,true);assert.equal(node('[data-challenge-opt-run]').disabled,true);
  tool.dataset.task='challenge';ui.sync();assert.equal(node('challenge-optimizer').hidden,false);assert.equal(node('[data-challenge-opt-run]').disabled,false);
 });

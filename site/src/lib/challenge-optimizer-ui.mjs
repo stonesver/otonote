@@ -25,7 +25,7 @@ export function setupChallengeOptimizer(tool){
   }
   function render(){
     q('results').replaceChildren();
-    if(q('rewards')?.checked&&q('scope').value!=='reference')q('results').append(el('p',`已临时纳入本期兑换 / pt 奖励卡。新增卡按${q('reward-growth').value==='maximum'?'全满养成假设':'满等级、初始突破 / 觉醒、技能 1'}计算；已持有卡保留实际养成。`,'task-event-reward-result-note'));
+    if(q('rewards')?.checked&&q('scope').value!=='reference')q('results').append(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。新增卡按${q('reward-growth').value==='maximum'?'全满养成假设':'满等级、初始突破 / 觉醒、技能 1'}计算；已持有卡仍按卡库中的实际养成计算，不会自动升满。`,'task-event-reward-result-note'));
     const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');q('results').append(tabs);
     const maximum=results.objective==='maximum_song_score';
     const reference=results.searchScope==='reference';
@@ -68,7 +68,15 @@ export function setupChallengeOptimizer(tool){
         if(worker!==active)return;
         if(data.type==='progress'){feedback.update({label:data.stage,completed:data.completed,total:data.total,detail:'当前阶段进度 · 按所选范围比较出分'});q('status').textContent=`${data.stage} · ${data.completed} / ${data.total??'…'}`;return;}
         stop();if(data.type==='result'){
-          results=data.result;render();feedback.finish('冲榜配队比较完成',`完整复算 ${results.practical.finalists} 支候选，每支比较 120 种技能顺序`);q('status').textContent=`${results.searchScope==='reference'?'已从全卡库生成并比较配对，':''}已完整复算 ${results.practical.finalists} 支候选，每支比较 120 种技能顺序。展示搜索到的前三名，不保证全卡库最优。`;
+          results=data.result;render();
+          const certificate=results.certifiedSearch;
+          const counts=`候选阶段完整复算 ${results.practical?.finalists??0} 支队伍${certificate?`，上界搜索阶段另完成 ${certificate.evaluated} 次队伍复算`:''}；每次比较 120 种技能顺序。`;
+          const proof=certificate?.topNComplete?'已证明所选范围、当前模型内的前三名。':certificate?.bestProven?'已证明所选范围、当前模型内的最佳出分；前三名尚未全部证明。':'尚未证明所选范围、当前模型内的最优。';
+          const label=results.status==='budget_exhausted'?'已达本轮搜索预算':['cancelled','aborted'].includes(results.status)?'搜索已停止':'冲榜配队比较结束';
+          const bound=!certificate?.bestProven&&Number.isFinite(certificate?.upperBound)&&Number.isFinite(certificate?.optimalityGap)?`未排除的分数上界 ${fmt(certificate.upperBound)}，与当前最佳相差至多 ${fmt(certificate.optimalityGap)} 分。`:'';
+          const detail=`${counts}${proof}${bound}`;
+          feedback.finish(label,detail,certificate?.topNComplete?'complete':'stopped');
+          q('status').textContent=`${label}。${detail}`;
         }else {q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
       worker.addEventListener('error',()=>{if(worker!==active)return;stop();q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});

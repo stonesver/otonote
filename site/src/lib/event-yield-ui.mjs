@@ -30,7 +30,7 @@ export function setupEventYieldOptimizer(tool){
    const next=JSON.stringify([displaySort,displayGoal,page,result.rows.map(r=>[r.id,r.song.id,r.total,r.expectedScore,r.recommendationGoals]),result.failures]);
    if(next===renderKey)return;renderKey=next;
    q('results').replaceChildren();
-   if(q('rewards')?.checked)q('results').append(el('p',`已临时纳入本期兑换 / pt 奖励卡。新增卡按${q('reward-growth').value==='maximum'?'全满养成假设':'满等级、初始突破 / 觉醒、技能 1'}计算；按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(q('rewards')?.checked)q('results').append(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。新增卡按${q('reward-growth').value==='maximum'?'全满养成假设':'满等级、初始突破 / 觉醒、技能 1'}计算；已持有卡仍按卡库中的实际养成计算，不会自动升满。按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
    const ordered=orderEventYieldRows(eligible,displaySort,target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
    const toolbar=el('div',null,'task-event-plan-sort'),sort=el('div',null,'task-event-sort-options');sort.setAttribute('role','group');sort.setAttribute('aria-label','收益方案排序');

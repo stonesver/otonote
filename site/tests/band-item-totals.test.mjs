@@ -1,13 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {bandItemGroups,validateBandItemTotals} from '../../packages/scoring/scoring-rules/band-item-totals.mjs';
+import {bandItemGroups,validateBandItemTotals,bandItemEffects} from '../../packages/scoring/scoring-rules/band-item-totals.mjs';
 import {createFormationCalculator} from '../../packages/scoring/scoring-rules/formation-power.mjs';
 import {createPersonalGrowthStore,applyPersonalGrowth} from '../src/lib/personal-growth-store.mjs';
 import {createTeamDraft,parseTeamDraftSearch,serializeTeamDraftSearch} from '../src/lib/team-draft.mjs';
 const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
 const calculator=createFormationCalculator(rules),groups=bandItemGroups(rules);
 const draft=(modifiers,bandId=1)=>{const ids=rules.tables.Character.filter(c=>c._bandID===bandId).map(c=>c._id);const member=rules.tables.MemberCard.find(c=>ids.includes(c._characterID));return createTeamDraft({slots:[null,null,{memberCardId:`member-card-${member._id}`}],modifiers});};
+test('instrument effects follow mutable levels, preserve all rows, and validate warmed lookups',()=>{
+ const r=structuredClone(rules),id=groups[0].items[0].id;
+ const rows=level=>r.tables.BandItemSkillEffect.filter(row=>row._bandItemId===id&&row._level===level);
+ r.tables.BandItemSkillEffect.push({...rows(2)[0],_id:999999});
+ const settings={bandItems:{[id]:1}};
+ assert.deepEqual(bandItemEffects(r,settings),rows(1));
+ settings.bandItems[id]=2;assert.deepEqual(bandItemEffects(r,settings),rows(2));
+ settings.bandItems[id]=0;assert.deepEqual(bandItemEffects(r,settings),[]);
+ for(const value of [-1,1.5,NaN,'1',10000]){
+  settings.bandItems[id]=value;assert.throws(()=>bandItemEffects(r,settings),/Unknown instrument\/level/);
+ }
+ assert.throws(()=>bandItemEffects(r,{bandItems:{999999:0}}),/Unknown instrument/);
+ // An aggregate overrides that band's details before validating detail levels.
+ const aggregate={bandItemTotals:{[groups[0].bandId]:10}};
+ assert.deepEqual(bandItemEffects(rules,{...aggregate,bandItems:{[id]:'ignored'}}),bandItemEffects(rules,aggregate));
+});
 test('band totals reproduce every item distribution, including 0 and maximum, without double counting',()=>{
  for(const group of groups){
   assert.equal(group.supported,true);

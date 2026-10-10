@@ -1,5 +1,6 @@
 """Export bounded, credential-free growth diagnostics for the private dashboard."""
 import argparse
+import gzip
 import json
 import os
 import re
@@ -136,20 +137,45 @@ def build_snapshot(access_text, gateway_text, *, now=None):
             'errorCounts': dict(errors.most_common(12)), 'recentFailures': recent[:50]}
 
 
+def read_access_logs(filename):
+    """Read the active log and recent rotations, including dateext names."""
+    current = Path(filename)
+    rotated = list(current.parent.glob(current.name + '-*'))
+    legacy = current.parent / (current.name + '.1')
+    if legacy.is_file():
+        rotated.append(legacy)
+    rotated = sorted((path for path in rotated if path.is_file()),
+                     key=lambda path: path.stat().st_mtime, reverse=True)[:2]
+    paths = list(reversed(rotated)) + [current]
+    parts = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        if path.suffix == '.gz':
+            # Keep only the bounded tail even when an older rotation is compressed.
+            with gzip.open(str(path), 'rb') as stream:
+                tail = b''
+                while True:
+                    chunk = stream.read(65536)
+                    if not chunk:
+                        break
+                    tail = (tail + chunk)[-8 * 1024 * 1024:]
+                parts.append(tail.decode('utf-8', errors='replace'))
+        else:
+            with path.open('rb') as stream:
+                stream.seek(0, os.SEEK_END)
+                stream.seek(max(0, stream.tell() - 8 * 1024 * 1024))
+                parts.append(stream.read().decode('utf-8', errors='replace'))
+    return '\n'.join(parts)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--access-log', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--container', default='ournotes-growth')
     args = parser.parse_args()
-    access_parts = []
-    for path in (Path(args.access_log + '.1'), Path(args.access_log)):
-        if path.exists():
-            with path.open('rb') as stream:
-                stream.seek(0, os.SEEK_END)
-                stream.seek(max(0, stream.tell() - 8 * 1024 * 1024))
-                access_parts.append(stream.read().decode('utf-8', errors='replace'))
-    access = '\n'.join(access_parts)
+    access = read_access_logs(args.access_log)
     result = subprocess.run(['docker', 'logs', '--since', '24h', args.container],
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                             timeout=20, check=True)

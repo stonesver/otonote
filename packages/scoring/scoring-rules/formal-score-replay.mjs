@@ -137,6 +137,20 @@ export function liveSkillCommands(order, perfectSkills, times, frameRate, justSk
   }));
 }
 
+/** Compile immutable chart arrivals once for repeated ideal skill-order replays.
+ * Dynamic commands, rollback buckets, score state and trace notes remain per run. */
+export function createScoreTimelineReplay(events, frameRate = 60) {
+  const clock = createFrameClock({ frameRate }), arrivals = new Map();
+  for (const event of events) {
+    const frame = event.inputFrame ?? clock.indexAt(event.timeMs);
+    if (!Number.isSafeInteger(frame) || frame < 0) throw new Error('Invalid arrival frame');
+    if (!arrivals.has(frame)) arrivals.set(frame, []);
+    arrivals.get(frame).push(event);
+  }
+  const preparedNotes = { frames: [...arrivals].sort((a,b)=>a[0]-b[0]), musicLengthMs: Math.max(0,...events.map(e=>e.timeMs)) };
+  return options => replayScoreTimeline({ ...options, events, frameRate, clock, preparedNotes });
+}
+
 /** Native update order: before-update factors, input/score, skill factors/score,
  * then Gekisou state updates and historical queries. After-score factors and
  * pending awards are evaluated on the NEXT frame. Empty frames with no state
@@ -144,7 +158,7 @@ export function liveSkillCommands(order, perfectSkills, times, frameRate, justSk
  * frameActions run after scoring; callers can update count-history views,
  * query endpoints, or enqueue a fixed award without a second scoring engine.
  */
-export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNote, frameActions = [], clock: clockInput = null, beforeInputs = () => {}, retainNotes = true }) {
+export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNote, frameActions = [], clock: clockInput = null, beforeInputs = () => {}, retainNotes = true, preparedNotes = null }) {
   const clock = clockInput ?? createFrameClock({ frameRate });
   const arrivals = new Map();
   function enqueue(frame, kind, value) {
@@ -152,17 +166,23 @@ export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNot
     if (!arrivals.has(frame)) arrivals.set(frame, { notes: [], before: [], skill: [], after: [], actions: [] });
     arrivals.get(frame)[kind].push(value);
   }
-  for (const event of events) enqueue(event.inputFrame ?? clock.indexAt(event.timeMs), 'notes', event);
+  if (!preparedNotes) for (const event of events) enqueue(event.inputFrame ?? clock.indexAt(event.timeMs), 'notes', event);
   for (const command of commands) {
     const phase = command.phase ?? 'skill';
     if (!['before', 'skill', 'after'].includes(phase)) throw new Error('Invalid factor phase');
     enqueue(command.arrivalFrame ?? clock.indexAt(command.arrivalTimeMs ?? command.timeMs), phase, command);
   }
   for (const action of frameActions) enqueue(action.frame, 'actions', action.run);
-  const musicLengthMs = Math.max(0, ...events.map(e => e.timeMs), ...commands.map(c => c.timeMs));
+  const musicLengthMs = Math.max(preparedNotes?.musicLengthMs ?? Math.max(0, ...events.map(e => e.timeMs)), ...commands.map(c => c.timeMs));
   const replay = createScoreReplay({ musicLengthMs, scoreNote, retainNotes });
   let previousFrame = -1;
-  for (const [frame, entries] of [...arrivals].sort((a, b) => a[0] - b[0])) {
+  const dynamicFrames = [...arrivals].sort((a,b)=>a[0]-b[0]), noteFrames = preparedNotes?.frames ?? [];
+  const empty = { notes: [], before: [], skill: [], after: [], actions: [] };
+  let dynamicIndex = 0, noteIndex = 0;
+  while (dynamicIndex < dynamicFrames.length || noteIndex < noteFrames.length) {
+    const frame = Math.min(dynamicFrames[dynamicIndex]?.[0] ?? Infinity, noteFrames[noteIndex]?.[0] ?? Infinity);
+    const entries = dynamicFrames[dynamicIndex]?.[0] === frame ? dynamicFrames[dynamicIndex++][1] : empty;
+    const inputNotes = noteFrames[noteIndex]?.[0] === frame ? noteFrames[noteIndex++][1] : entries.notes;
     if (frame > previousFrame + 1) {
       // A query can leave the cursor in the past, and an after-score command
       // can invalidate a bucket. Flush on the actual next frame, not on the
@@ -171,8 +191,8 @@ export function replayScoreTimeline({ events, commands, frameRate = 60, scoreNot
       if (frame > previousFrame + 2) replay.calculate(clock.at(frame - 1).timeMs);
     }
     entries.before.forEach(replay.addFactor);
-    beforeInputs(entries.notes, frame);
-    entries.notes.forEach(replay.addNote);
+    beforeInputs(inputNotes, frame);
+    inputNotes.forEach(replay.addNote);
     replay.calculate(clock.at(frame).timeMs);
     if (entries.skill.length) {
       entries.skill.forEach(replay.addFactor);

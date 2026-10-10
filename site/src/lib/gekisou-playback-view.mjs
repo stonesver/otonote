@@ -4,6 +4,7 @@ import {gekisouSections,gekisouEffectTrack} from './gekisou-playback-model.mjs';
 export function renderGekisouPlayback(root,result,variant,data,ui,state={}) {
   const {el,say,fmt,seconds,cardFor,portrait,effectName}=ui,playback=result.skillPlayback;
   const sections=gekisouSections(playback,variant),mission={1:'COMBO',2:'LUCK',3:'JUST'};
+  const replayTracks=sections.flatMap(section=>(playback.effects??[]).filter(e=>e.missionType===section.missionType).map(e=>gekisouEffectTrack(e,section)));
   const button=(text,cls,fn)=>{const n=el('button',text,cls);n.type='button';n.addEventListener('click',fn);return n;};
   const metric=(label,value)=>{const n=el('div');n.append(el('dt',label),el('dd',value));return n;};
   const cardName=effect=>cardFor(data,effect.kind,effect.sourceCardId)?.displayName??say(`位置 ${effect.slotIndex+1}`,`Slot ${effect.slotIndex+1}`);
@@ -30,7 +31,9 @@ export function renderGekisouPlayback(root,result,variant,data,ui,state={}) {
     [...cards.children].forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.section)===section.index)));
     [...overview.children].forEach(b=>b.dataset.selected=String(Number(b.dataset.section)===section.index));
     const intro=el('div',null,'gk-section-heading');intro.append(el('h4',say(`第 ${section.index} 段 · ${mission[section.missionType]}`,`Section ${section.index} · ${mission[section.missionType]}`)),el('span',`${seconds(section.startMs)} — ${seconds(section.endMs)}`));panel.append(intro);
-    const stats=el('dl',null,'gk-section-stats');
+    const live=el('p',null,'gk-live-readout');panel.append(live);
+    panel.append(el('small',say('本段最终结算','Final section results'),'gk-final-caption'));
+    const stats=el('dl',null,'gk-section-stats');stats.setAttribute('aria-label',say('本段最终结算','Final section results'));
     const count=section.missionType===1?section.combo:section.missionType===2?section.luckPoints:section.just;
     stats.append(metric(say('任务计数','Mission count'),fmt(count)),metric(say('段内音符得分','Section note score'),fmt(section.finalNoteScore)),metric(say('名次奖励','Rank reward'),`+${fmt(section.rankingBonus)}`));panel.append(stats);
     const settlement=el('p',say(`奖励计算：${fmt(section.noteScore)} × ${fmt(section.rankingPercent)}% = ${fmt(section.rankingBonus)} 分（取整）`,`Reward: ${fmt(section.noteScore)} × ${fmt(section.rankingPercent)}% = ${fmt(section.rankingBonus)} points (rounded down)`),'gk-assumptions');panel.append(settlement);
@@ -70,12 +73,12 @@ export function renderGekisouPlayback(root,result,variant,data,ui,state={}) {
       paginate(log,track.events,event=>{const line=el('div',null,'gk-log-row');line.append(el('time',seconds(event.timeMs)),el('span',actionLabel(event)));return line;});
     }
     for(const track of recorded){
-      const e=track.effect,row=button(null,'gk-effect-row',()=>selectEffect(track));row.dataset.source=e.source;row.style.setProperty('--gk-owner',`var(--activation-${e.slotIndex})`);row.setAttribute('aria-label',`${cardName(e)} · ${effectName(e.type)}`);
+      const e=track.effect,row=button(null,'gk-effect-row',()=>{selectEffect(track);ui.onSeek?.(track.events[0].timeMs);});row.dataset.source=e.source;row._replayWindows=track.windows;row.style.setProperty('--gk-owner',`var(--activation-${e.slotIndex})`);row.setAttribute('aria-label',`${cardName(e)} · ${effectName(e.type)}`);
       const identity=el('span',null,'gk-track-identity');identity.append(el('b',String(e.slotIndex+1)),el('span',`${cardName(e)} · ${effectName(e.type)}`));
       const graph=el('span',null,'gk-track-graph');graph.setAttribute('aria-hidden','true');
       for(const w of track.windows){const band=el('i',null,'gk-effect-window');band.style.left=`${x(w.startMs)}%`;band.style.width=`${x(w.endMs)-x(w.startMs)}%`;band.style.height=`${w.value!=null?7+15*w.value/Math.max(track.peakFactor,.001):15}px`;graph.append(band);}
       for(const event of track.events.filter(e=>['start','bonus','gauge'].includes(e.action))){const dot=el('i',null,'gk-event-dot');dot.style.left=`${x(event.timeMs)}%`;graph.append(dot);}
-      row.append(identity,graph,el('span',say(`${track.events.length} 条`,`${track.events.length} events`),'gk-track-count'));trackList.append(row);
+      graph.append(el('i',null,'task-replay-cursor'));row.append(identity,graph,el('span',say(`${track.events.length} 条`,`${track.events.length} events`),'gk-track-count'));trackList.append(row);
     }
     if(recorded.length)selectEffect(recorded.find(t=>t.effect.source===state.effectSource)??recorded[0]);
     else tracks.append(el('p',say('本段没有记录到卡牌技能触发。任务与名次奖励仍按上方情景计算。','No card skill activation was recorded in this section. Mission and rank rewards still follow the scenario.'),'gk-empty'));
@@ -105,8 +108,19 @@ export function renderGekisouPlayback(root,result,variant,data,ui,state={}) {
     const log=el('details',null,'gk-event-log');log.append(el('summary',say('查看抽奖时刻与累计点数','Draw times and cumulative points')),el('p',say('累计点数是抽奖时刻的快照；最终追加技能点数以本段任务计数为准。','Totals are snapshots at draw time; the mission count includes the final skill point additions.'),'gk-assumptions'));luck.append(log);
     paginate(log,section.luckEvents,event=>{const row=el('div',null,'gk-log-row');row.append(el('time',seconds(event.timeMs)),el('span',`${event.result===3?'RUSH':say(`${event.result} 档`,`Tier ${event.result}`)} · ${say('累计','Total')} ${fmt(event.bonusPoints)} pt${event.rushCombo?` · RUSH ×${event.rushCombo}`:''}`));return row;});parent.append(luck);
   }
-  for(const section of sections){const card=button(null,'gk-section-card',()=>selectSection(section));card.dataset.section=section.index;card.dataset.mission=section.missionType;card.setAttribute('aria-label',say(`第 ${section.index} 段 ${mission[section.missionType]}`,`Section ${section.index} ${mission[section.missionType]}`));
+  for(const section of sections){const card=button(null,'gk-section-card',()=>{selectSection(section);ui.onSeek?.(section.startMs);});card.dataset.section=section.index;card.dataset.mission=section.missionType;card.setAttribute('aria-label',say(`第 ${section.index} 段 ${mission[section.missionType]}`,`Section ${section.index} ${mission[section.missionType]}`));
     const head=el('span',null,'gk-card-heading');head.append(el('b',String(section.index).padStart(2,'0')),el('strong',mission[section.missionType]),el('span',`#${section.rank}`));
     card.append(head,el('small',`${seconds(section.startMs)} — ${seconds(section.endMs)}`),el('strong',`+${fmt(section.rankingBonus)}`,'gk-card-reward'),el('span',say('名次奖励','Rank reward')));cards.append(card);}
-  selectSection(sections.find(s=>s.index===state.sectionIndex)??sections[0]);
+  if(sections.length)selectSection(sections.find(s=>s.index===state.sectionIndex)??sections[0]);
+  return {seek(time,{follow=true}={}){
+    const active=sections.find(s=>s.startMs<=time&&time<s.endMs);
+    if(follow&&active&&active.index!==state.sectionIndex)selectSection(active);
+    for(const card of cards.children){const s=sections.find(s=>s.index===Number(card.dataset.section));card.dataset.playing=String(s===active);card.dataset.settled=String(time>=s.endMs);card.querySelector('.gk-card-reward').textContent=time>=s.endMs?`+${fmt(s.rankingBonus)}`:say('待结算','Pending');}
+    const activeEffects=replayTracks.flatMap(track=>track.windows.filter(w=>w.startMs<=time&&time<w.endMs).map(window=>({effect:track.effect,window})));
+    const section=sections.find(s=>s.index===state.sectionIndex);if(!section)return {activeEffects};
+    const scored=(variant.notes??[]).filter(n=>n.scoreSectionIndex===section.index&&n.timeMs<=time),notes=(variant.notes??[]).filter(n=>n.scoreSectionIndex===section.index);
+    panel.querySelector('.gk-live-readout').textContent=say(`${time<section.startMs?'尚未开始':time<section.endMs?'正在进行':'已结算'} · 已判定 ${scored.length} / ${notes.length} 音符 · 段内累计 ${fmt(scored.reduce((sum,n)=>sum+n.score,0))} 分 · 奖励 ${time>=section.endMs?'+'+fmt(section.rankingBonus):'待结算'}`,`${time<section.startMs?'Upcoming':time<section.endMs?'Playing':'Settled'} · ${scored.length} / ${notes.length} notes · ${fmt(scored.reduce((sum,n)=>sum+n.score,0))} points · Reward ${time>=section.endMs?'+'+fmt(section.rankingBonus):'pending'}`);
+    for(const row of panel.querySelectorAll('.gk-effect-row')){row.dataset.playing=String(row._replayWindows.some(w=>w.startMs<=time&&time<w.endMs));const cursor=row.querySelector('.task-replay-cursor');cursor.hidden=time<section.displayStartMs||time>section.displayEndMs;cursor.style.left=`${Math.max(0,Math.min(100,(time-section.displayStartMs)/Math.max(1,section.displayEndMs-section.displayStartMs)*100))}%`;}
+    return {activeEffects};
+  }};
 }

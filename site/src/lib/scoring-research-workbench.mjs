@@ -1,3 +1,6 @@
+import {setupTaskWorkbench} from './task-workbench.mjs';
+import {materializeTeamAssumptions} from './workbench-team-input.mjs';
+import {createWorkbenchTeamView} from './workbench-team-view.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 import {refreshToolTeamGrowth,toolTeamInputState,toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
@@ -69,7 +72,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       this.querySelector('[data-calculator-difficulty]').value=selection.selectedDifficulty;
       this.refreshInput();
     }});
-    const recalculate=()=>{this.scenarioError=null;if(this.loadedSnapshot)this.renderSongScore(this.loadedChart,this.loadedSnapshot,this.inputIssues);};
+    const recalculate=()=>{this.scenarioError=null;if(this.loadedSnapshot)this.renderSongScore(this.loadedChart,this.loadedSnapshot,this.inputIssues);this.taskWorkbench?.refresh();};
     const profileSelect=this.querySelector('[data-score-performance-profile]');
     profileSelect.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
     this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);
@@ -96,18 +99,15 @@ class ScoringResearchWorkbench extends HTMLElement {
         this.songPicker?.sync();this.refreshInput();
       }
     });
+    setupTaskWorkbench(this,'score');
     await this.refreshInput();
   }
 
   async refreshInput() {
+    this.draft=materializeTeamAssumptions(this.draft,this.data,this.teamWorkspaceContext?.inventory);
     notifyToolTeamChanged(this.teamWorkspaceContext);
-    const team=this.querySelector('[data-score-team]');team.replaceChildren();
-    let selected=0;
-    for(const [i,slot] of this.draft.slots.entries()){
-      const item=document.createElement('div');
-      for(const kind of ['member','support']){const card=this[kind==='member'?'memberById':'supportById'].get(slot[`${kind}CardId`]);if(card){selected++;if(card.imageUrl){const img=document.createElement('img');img.src=card.imageUrl;img.alt=card.displayName;item.append(img);}}}
-      const caption=document.createElement('small');caption.textContent=i===2?this.labels.song.leader:`${this.labels.song.slot} ${i+1}`;item.append(caption);team.append(item);
-    }
+    const team=this.querySelector('[data-score-team]');team.replaceChildren(createWorkbenchTeamView(this,this.draft));
+    const selected=this.draft.slots.reduce((n,s)=>n+Boolean(s.memberCardId)+Boolean(s.supportCardId),0);
     this.querySelector('[data-score-team-note]').textContent=selected===10?this.labels.song.teamReady:this.labels.song.teamIncomplete.replace('{selected}',String(selected));
     if(this.growthIsReference)this.querySelector('[data-score-team-note]').textContent+=' '+this.labels.song.referenceGrowthAssumption;
     this.querySelector('[data-score-song-name]').textContent=this.draft.selectedSongId?`${this.trackById.get(this.draft.selectedSongId)?.title??''} · ${this.draft.selectedDifficulty?.toUpperCase()??''}`:this.labels.song.chooseDifficulty;
@@ -168,10 +168,11 @@ class ScoringResearchWorkbench extends HTMLElement {
     if(eventLink)eventLink.href=toolRoute('/tools/event-efficiency/',location.pathname)+serializeTeamDraftSearch(this.draft);
     this.loadedChart=chart;this.loadedSnapshot=snapshot;
     this.performanceInput?.sync(chart);
+    this.taskWorkbench?.refresh();
     this.renderSongScore(chart, snapshot, this.inputIssues);
   }
 
-  disconnectedCallback(){this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
+  disconnectedCallback(){this.taskWorkbench?.destroy();this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
 
   calculateInWorker(payload) {
     return new Promise((resolve,reject)=>{
@@ -186,6 +187,7 @@ class ScoringResearchWorkbench extends HTMLElement {
 
   async renderSongScore(chart, snapshot, issues) {
     this.querySelector('[data-skill-activation]')?.replaceChildren();
+    this.scoreView?.renderResult(null);
     const request=++this.scoreRequest;
     this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();
     const output = this.querySelector("[data-song-score]");
@@ -221,6 +223,7 @@ class ScoringResearchWorkbench extends HTMLElement {
         output.textContent = format(result.expectedScore);
         if(result.performanceScenario)this.querySelector('[data-score-result-assumption]').textContent=labels.savedPerformanceAssumption;
         this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
+      this.scoreView?.renderResult(result);
         details.textContent = interpolate(labels.gekisouEstimate, {power:format(result.power),samples:result.sampleCount,min:format(result.minimumScore),max:format(result.maximumScore),error:format(result.standardError),share:format(result.rankingBonusShare*100)});
         if (inputWarnings.length) details.textContent += ' ' + inputWarnings.join(' ');
         const distribution=result.scoreDistribution;
@@ -242,6 +245,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       output.textContent = format(result.expectedScore);
       if(result.performanceScenario)this.querySelector('[data-score-result-assumption]').textContent=labels.savedPerformanceAssumption;
       this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
+      this.scoreView?.renderResult(result);
       const comboSummary = this.querySelector("[data-scoring-event-count]");
       if (comboSummary) comboSummary.textContent = String(result.chart.eventCount);
       details.textContent = interpolate(performance?labels.replayBreakdown:labels.breakdown, { base: format(result.baseScore), gain: format(result.skillScoreGain), min: format(result.minimumScore), max: format(result.maximumScore) });
@@ -267,6 +271,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       }
       this.querySelector("[data-scoring-input-hash]").textContent = result.inputHash;
       this.querySelector("[data-scoring-snapshot-json]").textContent = JSON.stringify({ input: snapshot, ...(performance?{performance}:{}), result }, null, 2);
+      this.scoreView?.refresh();
     } catch (error) {
       if(request!==this.scoreRequest)return;
       output.textContent = labels.unavailable;

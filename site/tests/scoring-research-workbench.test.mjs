@@ -75,3 +75,10 @@ test('failed replacement clears the previous downloadable result instead of leav
   const snapshot=JSON.parse(f.page.querySelector('[data-scoring-snapshot-json]').textContent);
   assert.equal(snapshot.status,'unavailable');assert.equal(snapshot.result,undefined);
 });
+
+test('compact score presentation receives real bounds and clears them on a failed replacement',async()=>{
+ const f=fixture('ordinary'),seen=[];f.page.scoreView={renderResult:result=>seen.push(result),refresh(){}};
+ await f.page.renderSongScore({notes:[{}]}, {}, []);
+ assert.equal(seen[0],null);assert.equal(seen.at(-1).expectedScore,1000);assert.equal(seen.at(-1).minimumScore,900);assert.equal(seen.at(-1).maximumScore,1100);
+ await f.page.renderSongScore({notes:[{}]}, {}, [{severity:'error'}]);assert.equal(seen.at(-1),null);
+});

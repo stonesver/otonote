@@ -6,7 +6,13 @@ import CalculatorSongPicker from '../../../components/CalculatorSongPicker.astro
 import {catalog,getAsset,getCharacter,getCardAttribute} from '../../../lib/catalog';
 import {filterVisual} from '../../../lib/filter-visuals';
 import {gameModeDatabase} from '../../../lib/game-modes';
+import {collectEventCards} from '../../../lib/event-card-model.mjs';
 import {globalSystems} from '../../../lib/global-systems';
+import {sharedTeamPresentation} from "../../../lib/shared-team-data.mjs";
+import {memberCards,supportCards} from "../../../lib/inventory-catalog";
+import {bandItemDatabase} from "../../../lib/band-items";
+import "../../../styles/task-workbench.css";
+import "../../../styles/task-prototype-theme.css";
 import formalRules from '../../../data/formal-scoring-rules.json';
 import {scoringRulesAvailable} from '../../../lib/scoring-release-gate.mjs';
 import {activeReleaseContext} from '../../../lib/release-context';
@@ -18,9 +24,10 @@ const available=scoringRulesAvailable(formalRules,catalog.release.id);
 const tables=formalRules.tables as Record<string,Array<Record<string,any>>>;
 const events=available?(tables.Event??[]).filter(e=>e._eventType===1):[];
 const href=(path:string)=>siteHref(path,activeReleaseContext);
-const cards=(rows: any[],kind:string)=>rows.map(c=>({...c,imageUrl:getAsset(c.thumbnailAssetId)?.previewUrl??null,relationLabel:(kind==='member'?[c.characterId]:c.featuredCharacterIds).map((id:string)=>getCharacter(id)?.displayName).filter(Boolean).join('、'),attributeLabel:getCardAttribute(c.attributeCode)?.names[catalog.release.locale]??'',attributeIcon:filterVisual('attribute',String(c.attributeCode)).icon??null}));
+const cards=(rows: any[],kind:string)=>rows.map(c=>({...c,imageUrl:c.imageUrl??getAsset(c.thumbnailAssetId)?.previewUrl??null,relationLabel:(kind==='member'?[c.characterId]:c.featuredCharacterIds).map((id:string)=>getCharacter(id)?.displayName).filter(Boolean).join('、'),attributeLabel:getCardAttribute(c.attributeCode)?.names[catalog.release.locale]??'',attributeIcon:filterVisual('attribute',String(c.attributeCode)).icon??null}));
 const charts=catalog.musicCharts.map(({id,trackId,difficulty,level,duration,analysisDataUrl})=>({id,trackId,difficulty,level,duration,analysisDataUrl}));
-const data=JSON.stringify({rules:formalRules,vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[],memberCards:cards(catalog.memberCards,'member'),supportCards:cards(catalog.supportCards,'support'),tracks:catalog.musicTracks,charts}).replaceAll('<','\\u003c');
+const eventRewardCards=Object.fromEntries((gameModeDatabase.sourceReleaseId===formalRules.sourceReleaseId?gameModeDatabase.events.records??[]:[]).filter(e=>e.sourceReleaseId===formalRules.sourceReleaseId).map(event=>[event.id,collectEventCards(event,()=>null).filter(card=>card.sources.some(s=>s.kind==='points'||s.kind==='exchange')).map(card=>({...card,sources:card.sources.filter(s=>s.kind==='points'||s.kind==='exchange')}))]));
+const data=JSON.stringify({...sharedTeamPresentation(),eventRewardCards,locale:catalog.release.locale,characters:catalog.characters.map(c=>({id:c.masterId,name:c.displayName})),bands:catalog.bands.map(b=>({id:b.masterId,name:b.displayName})),instruments:bandItemDatabase.items.map(i=>({id:i.masterId,name:i.name})),rules:formalRules,vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[],memberCards:cards(memberCards,'member'),supportCards:cards(supportCards,'support'),tracks:catalog.musicTracks,charts}).replaceAll('<','\\u003c');
 const rankLabels=['D','C','B','A','S','SS'];
 const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1 && a.code <= 5).map(a => ({...a, visual: filterVisual('attribute', String(a.code))}));
 ---
@@ -28,11 +35,11 @@ const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1
 <div class="tool-studio" data-tool-kind="event-efficiency">
  <ToolPageHeader kind="event-efficiency" title="活动收益计算" description="填入游戏里的加成，立即算收益；也可用已保存卡库寻找队伍与歌曲方案。" meta="活动加成 · 每火收益" />
  <section class="catalog-section"><div class="content-shell">
- {events.length?<event-efficiency-tool class="team-workbench event-workbench" data-task="quick">
+ {events.length?<event-efficiency-tool class="team-workbench event-workbench" data-task="team">
   <script is:inline type="application/json" data-event-inputs set:html={data}></script>
-  <div class="tool-task-tabs" role="group" aria-label="选择活动计算方式"><button type="button" data-event-task="quick" aria-pressed="true"><strong>填加成，快速算收益</strong><small>知道游戏里的加成和评分即可，无需选卡</small></button><button type="button" data-event-task="team" aria-pressed="false"><strong>用卡库，推荐队伍与歌曲</strong><small>读取实际养成，比较配队、歌曲及总收益</small></button></div>
+  <div class="tool-task-tabs" role="group" aria-label="选择活动计算方式"><button type="button" data-event-task="team" aria-pressed="true"><strong>活动收益配队</strong><small>读取实际养成，比较配队、歌曲及总收益</small></button><button type="button" data-event-task="challenge" aria-pressed="false"><strong>活动曲冲榜</strong><small>活动能力加成下比较挑战曲出分</small></button><button type="button" data-event-task="quick" aria-pressed="false"><strong>已有加成速算</strong><small>知道游戏里的加成和评分即可，无需选卡</small></button></div>
 
-  <div class="event-context"><label>活动<select data-event data-quick-native>{events.map(e=><option value={e._id}>{gameModeDatabase.events.records?.find(r=>r.id===e._id)?.name??`活动 ${e._id}`}</option>)}</select></label><label>演出类型<select data-mode data-quick><option value="ordinary">普通演出</option><option value="challenge">挑战演出</option></select></label><label data-boost-wrap>每次耗火<select data-boost data-quick="0,1,3,5,10">{Array.from({length:11},(_,i)=><option value={i} selected={i===1}>{i} 火</option>)}</select></label><label data-cost-wrap hidden>每次挑战消耗<select data-cost>{(tables.ChallengeMusicBoostBonus??[]).map(r=><option value={r._consumedChallengePointCount}>{r._consumedChallengePointCount} pt</option>)}</select></label></div>
+  <div class="event-context"><label>活动<select data-event data-quick-native>{events.map(e=><option value={e._id}>{gameModeDatabase.events.records?.find(r=>r.id===e._id)?.name??`活动 ${e._id}`}</option>)}</select></label><label>演出类型<select data-mode data-quick><option value="ordinary">普通演出</option><option value="challenge">挑战演出</option></select></label><label data-boost-wrap>每次耗火<select data-boost data-quick>{[0,1,2,3,4,5,10].map(i=><option value={i} selected={i===1}>{i} 火</option>)}</select></label><label data-cost-wrap hidden>每次挑战消耗<select data-cost>{(tables.ChallengeMusicBoostBonus??[]).map(r=><option value={r._consumedChallengePointCount}>{r._consumedChallengePointCount} pt</option>)}</select></label></div>
   <p class="event-hint" data-mode-hint></p>
   <div class="event-layout"><div class="event-main">
    <section class="event-panel" id="event-team" aria-labelledby="event-team-title"><header class="event-panel-heading"><span class="event-step-number">1</span><div><h2 id="event-team-title">准备活动队伍</h2><p>从实际卡库比较能力、技能、活动加成与谱面，先估算档位，再计算奖励；也可手动搭配。</p></div></header>
@@ -66,18 +73,14 @@ const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1
     <details class="event-details event-quick-bonus"><summary>直接填写游戏加成</summary><h2>游戏编队页显示的加成</h2><label>加成来源<select data-bonus-source><option value="team">队伍加成</option><option value="manual">手动填写</option></select></label><div data-manual-wrap hidden class="event-controls"><label>游戏显示的道具加成（%）<input data-manual-bonus data-quick="0,50,100,200" placeholder="例如 100" type="number" min="0" max="100000" step="0.01" value="0" /></label><label>游戏显示的活动 pt 加成（%）<input data-manual-point-bonus data-quick="0,50,100,200" placeholder="例如 100" type="number" min="0" max="100000" step="0.01" value="0" /></label></div><p>道具加成与活动 pt 加成分别填写，不要相加；若自动加成与游戏编队页不一致，请以游戏显示值为准。保留完整队伍时，仍可估算歌曲评分。</p>    <div class="event-grade"><label>通常能打到的评分<select data-rank data-quick>{rankLabels.map((r,i)=><option value={i+2} selected={r==='A'}>{r}</option>)}</select></label><p data-rank-hint>先按游戏里稳定达到的评分比较，不必使用偶尔打出的最高分。</p></div></details>
     <p data-bonus class="event-feedback" role="status"></p><button type="button" data-open-team-workspace="inventory">导入或管理我的卡库</button>
    </section>
-   <section class="event-panel" id="event-song" aria-labelledby="event-song-title"><header class="event-panel-heading"><span class="event-step-number">2</span><div><h2 id="event-song-title">选择歌曲与稳定评分</h2><p>选你能稳定完成的谱面。排行榜帮助筛歌，实际奖励看结算评分档位。</p></div></header>
+   <section class="event-panel" id="event-song" aria-labelledby="event-song-title"><header class="event-panel-heading"><span class="event-step-number">2</span><div><h2 id="event-song-title">选择歌曲与稳定评分</h2><p>选你能稳定完成的谱面，实际奖励看结算评分档位。</p></div></header>
     <p class="event-links"><a href={href('/tools/ap-grade/')} data-ap-link>用当前队伍打开独立 AP 档位预测 →</a></p>
-    <details class="event-recommendations" data-song-recommendations><summary>短歌与活动收益排行</summary><p class="event-hint">固定上方队伍与耗火，分别比较三种点数。收益相同，优先推荐更短、等级更低的谱面。</p>
-     <div class="event-controls event-option-row"><label>优先考虑<select data-rec-sort><option value="short">短歌优先</option><option value="badges">徽章优先</option><option value="eventPoints">活动 pt 优先</option></select></label><label>档位依据<select data-rec-score-basis><option value="expectedScore">平均分</option><option value="minimumScore">最低分</option><option value="maximumScore">最高分</option><option value="manual">手填档位</option></select></label><label>推荐难度<select data-rec-difficulty data-quick><option data-difficulty="expert" value="expert">EXPERT</option><option data-difficulty="hard" value="hard">HARD</option><option data-difficulty="normal" value="normal">NORMAL</option><option data-difficulty="easy" value="easy">EASY</option><option value="all">全部</option></select></label><label>最高等级<select data-rec-level>{Array.from({length:33},(_,i)=>i+8).map(n=><option value={n} selected={n===40}>{n===40?'不限':n}</option>)}</select></label></div>
-     <p data-rec-basis class="event-hint"></p><div class="event-controls"><button type="button" class="event-primary" data-rec-run>计算当前队伍的歌曲收益</button><button type="button" data-rec-cancel hidden>停止计算</button></div><p data-rec-status role="status"></p><p data-rec-unit class="event-hint"></p><div data-rec-results class="event-rec-results"></div><p data-rec-empty hidden>没有符合条件的谱面，请放宽难度或等级限制。</p><div class="event-rec-pagination"><button type="button" data-rec-prev>上一页推荐</button><span data-rec-page></span><button type="button" data-rec-next>下一页推荐</button></div><p data-rec-selection role="status"></p><p class="event-hint">时长取音频和谱面中的较长值，不含加载、匹配与结算时间。每火排行仅比较本次演出的直接收益；自动比较完整循环请使用上方「队伍＋歌曲收益推荐」；也可在下方手填耗火预算。</p>
-    </details>
     <select data-song hidden aria-label="已选歌曲"><option value="">未选择</option>{catalog.musicTracks.map(t=><option value={t.id}>{t.title}</option>)}</select>
     <details class="event-song-disclosure" data-song-disclosure><summary><span data-selected-song>选择一首歌曲</span><span>搜索 / 更换</span></summary><CalculatorSongPicker /></details>
     <section class="event-recommendations challenge-optimizer" data-challenge-optimizer hidden aria-labelledby="challenge-optimizer-title">
      <h3 id="challenge-optimizer-title">挑战冲榜配队</h3><p data-challenge-opt-song class="event-feedback"></p>
      <p>针对这首挑战歌曲比较成员、留影配对与队长。挑战的卡片能力加成已计入；道具和活动 pt 加成不直接乘入歌曲分数。</p>
-     <div class="event-controls event-option-row"><label>搜索范围<select data-challenge-opt-scope><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><label>出分目标<select data-challenge-opt-objective><option value="maximum_song_score">最高分</option><option value="expected_song_score">平均分</option></select></label></div>
+     <div class="event-controls event-option-row"><label>搜索范围<select data-challenge-opt-scope><option value="reference">全卡库参考</option><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><label>出分目标<select data-challenge-opt-objective><option value="maximum_song_score">最高分</option><option value="expected_song_score">平均分</option></select></label></div>
      <p class="event-hint">理想 AP 估算，最高分对应最有利的随机技能顺序，不是每次都能达到。使用多个起点与一轮换卡筛选，再完整复算领先候选；不保证全局最优。当前十张卡未填写养成时沿用计算器默认值，突破不等于满练。</p>
      <div class="event-controls"><button type="button" class="event-primary" data-challenge-opt-run>推荐挑战出分队伍</button><button type="button" data-challenge-opt-cancel hidden>停止配队计算</button></div><p data-challenge-opt-status role="status"></p><div data-challenge-opt-results></div>
     </section>

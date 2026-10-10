@@ -16,12 +16,26 @@ class Element extends EventTarget {
 const document={createElement:tag=>new Element(tag)};
 const all=node=>[node,...node.children.flatMap(child=>typeof child==='string'?[]:all(child))];
 
+test('awakening uses its own game marker for progress instead of the breakthrough star or localized text art',()=>{
+ const icons={rank:'/breakthrough-star.png',awake:'/awakened-text.png',awakeBase:'/awakening-marker.png'};
+ const view=createTeamCardView(card,{growth:{rank:3,awake:2},data:{document,growthIcons:icons}});
+ const stats=all(view).filter(node=>node.className==='tw-card-stat');
+ const awake=stats.find(node=>node.dataset.field==='awake'),rank=stats.find(node=>node.dataset.field==='rank');
+ assert.equal(all(rank).find(node=>node.tagName==='img').src,icons.rank);
+ assert.deepEqual(all(awake).filter(node=>node.tagName==='img').map(node=>node.src),Array(5).fill(icons.awakeBase));
+ assert.deepEqual(all(awake).filter(node=>node.className==='tw-awake-bloom').map(node=>node.dataset.active),['true','true','false','false','false']);
+ const unknown=createTeamCardView(card,{data:{document,growthIcons:icons}});
+ const unknownAwake=all(unknown).find(node=>node.dataset.field==='awake');
+ assert.equal(all(unknownAwake).find(node=>node.tagName==='img').src,icons.awakeBase);
+ assert.equal(unknownAwake.children.at(-1).textContent,'—');
+});
+
 test('unknown fields stay visibly unknown and game icon URLs are reused without interactive descendants',()=>{
- const view=createTeamCardView(card,{growth:{level:2},data:{document,growthIcons:{memberLevel:'/level.png',rank:'/rank.png',awake:'/awake.png'},filterVisualOptions:{attribute:[{value:'1',label:'Red',icon:'/attribute.png'}],band:[{value:'1',label:'Test band',icon:'/band.png'}]}},source:'actual'});
+ const view=createTeamCardView(card,{growth:{level:2},data:{document,growthIcons:{memberLevel:'/level.png',rank:'/rank.png',awake:'/awakened-text.png',awakeBase:'/awake.png'},filterVisualOptions:{attribute:[{value:'1',label:'Red',icon:'/attribute.png'}],band:[{value:'1',label:'Test band',icon:'/band.png'}]}},source:'actual'});
  assert.equal(view.tagName,'span');assert.equal(view.className,'tw-card-view');
  const nodes=all(view),stats=nodes.filter(node=>node.className==='tw-card-stat');assert.equal(stats.length,5);
  assert.equal(stats[0].children.at(-1).textContent,'Lv.2');assert.equal(stats[1].children.at(-1).textContent,'—');
- assert.ok(nodes.some(node=>node.className==='tw-card-stat-label'&&node.textContent==='突破'));assert.ok(nodes.some(node=>node.src==='/attribute.png'));assert.ok(nodes.some(node=>node.src==='/band.png'));
+ assert.ok(stats.some(node=>node.title==='突破 —'));assert.ok(nodes.some(node=>node.src==='/awake.png'));assert.ok(nodes.some(node=>node.src==='/attribute.png'));assert.ok(nodes.some(node=>node.src==='/band.png'));
  assert.equal(nodes.some(node=>['button','input','select','a'].includes(node.tagName)),false);
  const support=createTeamCardView({...card,kind:'support'},{data:{document},compact:true});assert.equal(all(support).filter(node=>node.className==='tw-card-stat').length,2);
  assert.ok(all(support).some(node=>node.textContent==='养成未记录'));
@@ -39,6 +53,14 @@ test('reference and unowned trial cards materialize only explicit reference assu
  d.modifiers.planningScenario={scope:'trial',trialCardIds:{memberCardIds:[card.id]},referenceGrowth:'maximum'};
  assert.equal(resolveTeamCardGrowth({card,draft:d,inventory:{memberCardIds:[],growth:{}},rules}).source,'reference');
  assert.equal(d.modifiers.growth[card.id].level,1);
+});
+test('explicit missing-growth reference is displayed as an assumption without granting actual ownership',()=>{
+ const d=createTeamDraft({slots:[{memberCardId:card.id}],modifiers:{planningScenario:{scope:'selected',unknownGrowth:'reference',referenceGrowth:'maximum'}}}),before=structuredClone(d);
+ const resolved=resolveTeamCardGrowth({card,draft:d,inventory:{memberCardIds:[],growth:{}},rules});
+ assert.equal(resolved.source,'reference');assert.equal(resolved.growth.level,70);assert.equal(resolved.growth.rank,5);assert.deepEqual(d,before);
+ assert.equal(resolveTeamCardGrowth({card,draft:d,inventory:inventory(),rules}).source,'actual');
+ d.modifiers.growth={[card.id]:resolved.growth};d.modifiers.planningResult={referenceCardIds:[card.id],actualGrowth:{[card.id]:null}};
+ assert.equal(resolveTeamCardGrowth({card,draft:d,rules}).source,'reference');
 });
 test('only selected training is shown; dormant targets remain actual even when a target exists',()=>{
  const owned=inventory(),d=draft();d.modifiers.planningScenario={scope:'selected',plan:{enabled:true,mode:'target',targets:{[card.id]:{skillLevel:5}}}};

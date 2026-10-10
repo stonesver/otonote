@@ -1,8 +1,20 @@
 ---
 import '../styles/shared-team-workspace.css';
+import '../styles/task-workbench.css';
+import '../styles/task-prototype-theme.css';
+import '../styles/card-skill-popover.css';
+import '../styles/shared-inventory-imports.css';
+import AccountGrowthImport from './AccountGrowthImport.astro';
+import ScreenshotImport from './ScreenshotImport.astro';
 const en = Astro.props.locale === 'en';
 ---
 <div data-team-workspace-shell>
+  <template data-team-inventory-import-template>
+    <section class="tw-inventory-import-workbench">
+      <section class="tw-inventory-login-panel" hidden><header><h3>{en?'Account login':'账号登录'}</h3><button type="button" data-inventory-login-close aria-label={en?'Close account login':'关闭账号登录'}>×</button></header><AccountGrowthImport standalone loginOnly /></section>
+      <ScreenshotImport headingId="tw-screenshot-import-heading" />
+    </section>
+  </template>
   <button type="button" class="tw-launcher" data-team-workspace-open aria-haspopup="dialog" aria-expanded="false">{en ? 'Cards & teams' : '卡库与队伍'}</button>
   <dialog class="tw-panel" data-team-workspace-panel aria-labelledby="tw-title">
     <header class="tw-heading"><div><small>OTONOTE / MY TEAMS</small><h2 id="tw-title">{en ? 'Cards & teams' : '卡库与队伍'}</h2></div><button type="button" data-team-workspace-close aria-label={en?'Close':'关闭'}>×</button></header>
@@ -27,7 +39,7 @@ const en = Astro.props.locale === 'en';
       const detail = event instanceof CustomEvent ? event.detail : undefined;
       const currentRequest = ++request;
       if (!panel.open) {
-        if (matchMedia('(min-width: 1680px)').matches) panel.show(); else panel.showModal();
+        if (!document.querySelector('.task-studio') && matchMedia('(min-width: 1680px)').matches) panel.show(); else panel.showModal();
         document.body.classList.add('tw-is-open');
         launcher.setAttribute('aria-expanded', 'true');
       }

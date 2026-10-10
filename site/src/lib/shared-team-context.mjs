@@ -1,3 +1,4 @@
+import {createWorkbenchTeamView} from './workbench-team-view.mjs';
 import {createTeamWorkspaceStore} from './team-workspace-store.mjs';
 import {checkTeamCompatibility, mergeTeamForTool} from './team-workspace-compatibility.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
@@ -59,21 +60,13 @@ export function registerToolTeamContext(host, spec) {
   let applying = false, lastDraft = '', inventoryRaw;
   let savedDraft = teamFingerprint(spec.getDraft());
   const context = {...spec, host, store, getRestrictions:()=>({rules:spec.rules, requireComplete:false, ...(spec.getRestrictions?.()??{})})};
+  try{context.inventory=profileStore.read().inventory;}catch{}
   context.isDirty = () => teamFingerprint(context.getDraft()) !== savedDraft;
   context.markSaved = () => {savedDraft = teamFingerprint(context.getDraft()); emit('draft', {context});};
   context.renderSummary = () => {
     const container=host.querySelector('[data-team-workspace-summary]');
     if(!container)return;
-    container.replaceChildren();const english=spec.data.locale==='en'||document.documentElement.lang==='en';
-    for(const [index,slot] of context.getDraft().slots.entries()){
-      const pair=document.createElement('div');
-      for(const kind of ['member','support']){
-        const card=spec.data[`${kind}Cards`].find(card=>card.id===slot[`${kind}CardId`]);
-        if(card?.imageUrl){const image=document.createElement('img');image.src=card.imageUrl;image.alt=card.displayName;image.loading='lazy';pair.append(image);}
-        else {const empty=document.createElement('small');empty.textContent=card?.displayName??(english?'Not selected':'未选择');pair.append(empty);}
-      }
-      const caption=document.createElement('small');caption.textContent=index===2?(english?'Leader':'队长'):`${index+1}`;pair.append(caption);container.append(pair);
-    }
+    container.replaceChildren(createWorkbenchTeamView(host,context.getDraft()));
   };
   const feedback = error => {
     context.error = error.message;
@@ -117,6 +110,7 @@ export function registerToolTeamContext(host, spec) {
     context.invalidate?.();
     try {
       const profile = profileStore.read();
+      context.inventory=profile.inventory;
       let draft = structuredClone(context.getDraft());
       const scenario = draft.modifiers?.planningScenario;
       // Reference and trial values are intentional assumptions; actual records refresh separately.

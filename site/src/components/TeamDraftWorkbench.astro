@@ -24,6 +24,9 @@ import {
 } from "../lib/catalog";
 import { globalSystems } from "../lib/global-systems";
 import { TEAM_RULE_SET } from "../lib/team-draft.mjs";
+import {sharedTeamPresentation} from "../lib/shared-team-data.mjs";
+import "../styles/task-workbench.css";
+import "../styles/task-prototype-theme.css";
 import formalRules from "../data/formal-scoring-rules.json";
 import { scoringRulesAvailable } from "../lib/scoring-release-gate.mjs";
 import ScoringUnavailable from "./ScoringUnavailable.astro";
@@ -42,6 +45,7 @@ const vipRanks = globalSystems.sourceReleaseId === catalog.release.id
   : [];
 const runtimeUi = getRuntimeUiLabels(activeReleaseContext.locale);
 const clientData = JSON.stringify({
+  ...sharedTeamPresentation(),
   sourceReleaseId: catalog.release.id,
   formalRules,
   skillFilterFacets: skillFilters.facets,

@@ -7,7 +7,7 @@ import formalRules from '../data/formal-scoring-rules.json';
 
 /** Small maps shared by card views; asset IDs are resolved once at the catalog boundary. */
 export function sharedTeamPresentation() {
-  return {filterVisualOptions:{...filterVisualOptions,band:filterVisualOptions.band.map(option=>{const band=catalog.bands.find(row=>String(row.masterId)===option.value);return {...option,icon:getAsset(band?.logoAssetId)?.previewUrl??option.icon};})},growthIcons:Object.fromEntries(Object.entries(catalog.cardTaxonomy.growthIcons).map(([key,id])=>[key,getAsset(id)?.previewUrl??getAsset(id)?.thumbnailUrl??null]))};
+  return {filterVisualOptions,growthIcons:Object.fromEntries(Object.entries(catalog.cardTaxonomy.growthIcons).map(([key,id])=>[key,getAsset(id)?.previewUrl??getAsset(id)?.thumbnailUrl??null]))};
 }
 
 /** Loaded on first open on tools without a calculator, using the active content snapshot. */

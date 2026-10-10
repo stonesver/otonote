@@ -30,3 +30,17 @@ export function selectEventYieldRows(rows,goal='both',limit=10){
  }
  return result;
 }
+
+/** Display ordering never changes the reward objective or input results. */
+export function orderEventYieldRows(rows,sort='yield',goal='both'){
+ const duration=row=>Number.isFinite(row.song?.seconds)?row.song.seconds:Infinity;
+ const compare=(a,b)=>compareEventPlans(a,b,goal==='both'?'badges':goal)||a.song.id.localeCompare(b.song.id)||String(a.id).localeCompare(String(b.id));
+ return [...rows].sort(sort==='short'?(a,b)=>duration(a)-duration(b)||compare(a,b):compare);
+}
+
+/** Both currency differences refer to the same goal's leading plan. */
+export function eventYieldGaps(rows,goal='badges'){
+ const eligible=rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(goal));
+ const reference=[...eligible].sort((a,b)=>compareEventPlans(a,b,goal))[0];
+ return {reference,gap:row=>Object.fromEntries(['badges','eventPoints'].map(key=>[key,reference?reference.total[key]-row.total[key]:0]))};
+}

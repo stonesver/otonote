@@ -1,3 +1,4 @@
+@import './card-skill-popover.css';
 /* Selection is a workbench: quiet filters, paired cards, readable skill text. */
 .team-workbench .selection-filters {display:grid;gap:14px;padding:16px;background:#f6f7fa;border:1px solid #e1e4eb;border-radius:12px;}
 .team-workbench .selection-search {display:grid;gap:7px;font-size:12px;font-weight:600;}
@@ -120,18 +121,6 @@
 [data-shell=sidebar] .team-workbench .team-slot-card--support img {height:45px;}
 [data-shell=sidebar] .team-workbench .team-slot-card strong {font-size:11px;}
 .team-workbench .card-preview .card-skill-trigger {margin-top:8px;}
-.card-skill-popover {position:fixed;z-index:1000;width:min(370px,calc(100vw - 24px));max-height:min(520px,calc(100dvh - 28px));overflow:auto;box-sizing:border-box;padding:18px;border:1px solid #d4c4d5;border-radius:14px;background:#fff;box-shadow:0 12px 45px #31203e30;color:#26252c;font-family:var(--font-body,system-ui);overscroll-behavior:contain;}
-.card-skill-popover[hidden] {display:none!important;}
-.skill-popover-heading {display:flex;justify-content:space-between;align-items:start;gap:16px;position:sticky;top:-18px;background:#fff;padding:0 0 10px;z-index:1;}
-.skill-popover-heading>strong {font-size:15px;line-height:1.6;}
-.skill-popover-close {flex-shrink:0;width:30px;height:30px;border:0;background:#f2eef5;border-radius:50%;font-size:20px;cursor:pointer;color:#67465f;}
-.card-skill-popover .card-growth-note {font-size:11px;line-height:1.6;color:#797182;margin:0 0 12px;}
-.card-skill-popover .card-skill-list {display:grid;gap:12px;}
-.card-skill-popover .card-skill {border-top:1px solid #e7e0eb;padding-top:12px;display:grid;gap:5px;}
-.card-skill-popover .card-skill-label {font-size:11px;color:#6f5071;font-weight:600;}
-.card-skill-popover .card-skill>strong {font-size:13px;line-height:1.6;}
-.card-skill-popover .card-skill>p {margin:0;white-space:pre-line;font-size:13px;line-height:1.8;color:#4d4953;overflow-wrap:anywhere;}
-.card-skill-popover .card-skill[data-mission="2"] .card-skill-label {color:#906c24;}.card-skill-popover .card-skill[data-mission="3"] .card-skill-label {color:#974d81;}
 @media(max-width:850px) {
  .team-workbench .selection-filter-grid,.team-workbench .inventory-filters {grid-template-columns:repeat(2,minmax(0,1fr));}
  .team-workbench .card-picker-workspace {grid-template-columns:1fr;}.team-workbench .card-preview {position:static;order:-1;}

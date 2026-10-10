@@ -1,31 +1,10 @@
-import { skillPeek } from './calculator-card-ui.mjs';
-import { attributeBadge } from './calculator-attribute-ui.mjs';
+import {createWorkbenchTeamView} from './workbench-team-view.mjs';
 const el = (tag, text, cls) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (cls) n.className = cls; return n; };
 const number = n => Number.isFinite(n) ? Math.round(n).toLocaleString() : '—';
 const mission = n => ['', 'COMBO', 'LUCK', 'JUST'][n] ?? '任务';
 
 export function teamLineup(workbench, draft) {
-  const root = el('div', null, 'score-lineup');
-  root.setAttribute('aria-label', '五组成员与留影');
-  for (const [index, slot] of draft.slots.entries()) {
-    const pair = el('article', null, 'score-pair');
-    pair.dataset.leader = String(index === 2);
-    pair.append(el('div', index === 2 ? '队长' : `位置 ${index + 1}`, 'score-position'));
-    for (const [kind, id] of [['member', slot.memberCardId], ['support', slot.supportCardId]]) {
-      const card = workbench.cardFor(kind, id), face = el('div', null, `score-face score-face--${kind}`);
-      const character = card?.relationLabel?.split(' · ')[0] ?? (kind === 'member' ? '成员' : '留影');
-      if (card?.imageUrl) {
-        const img = el('img'); img.src = card.imageUrl; img.alt = ''; img.loading = 'lazy'; face.append(img);
-      } else if (kind === 'member') face.append(el('div', character, 'score-card-fallback'));
-      if (kind === 'support') face.append(el('small', '搭配留影'));
-      face.append(el('strong', card?.shortLabel ?? id));
-      face.append(attributeBadge(card?.attributeCode, workbench.data.attributeVisuals));
-      if(card)face.append(skillPeek(workbench,card,{growth:draft.modifiers.growth?.[id],leader:index===2},face));
-      pair.append(face);
-    }
-    root.append(pair);
-  }
-  return root;
+  return createWorkbenchTeamView(workbench,draft);
 }
 
 export function scoreComposition(sections, expectedScore) {

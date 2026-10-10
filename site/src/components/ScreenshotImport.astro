@@ -1,8 +1,9 @@
 ---
 import '../styles/screenshot-import.css';
+const {headingId='screenshot-import-heading'}=Astro.props;
 ---
-<dialog class="screenshot-import" data-screenshot-dialog aria-labelledby="screenshot-import-heading">
-  <header><div><p class="screenshot-eyebrow">我的卡库</p><h2 id="screenshot-import-heading" tabindex="-1">从游戏截图导入</h2></div><button type="button" data-shot-close aria-label="关闭截图导入">×</button></header>
+<dialog class="screenshot-import" data-screenshot-dialog aria-labelledby={headingId}>
+  <header><div><p class="screenshot-eyebrow">我的卡库</p><h2 id={headingId} tabindex="-1">从游戏截图导入</h2></div><button type="button" data-shot-close aria-label="关闭截图导入">×</button></header>
   <p data-shot-context></p>
   <p class="screenshot-help">图片只在此浏览器内处理。支持完整横屏列表：角色卡每行 6 张、留影每行 4 张；底部不完整的卡牌会跳过。请先核对结果，再保存到卡库。</p>
   <div class="screenshot-preparation" data-shot-preparation aria-live="polite">

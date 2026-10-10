@@ -11,6 +11,7 @@ const runtime = moduleUrl(`export * from ${JSON.stringify(import.meta.resolve("a
   export const createMetadata = (filename, metadata) => metadata;
   export const renderScript = () => "";`);
 const projection = moduleUrl(`
+  export const sharedTeamPresentation=()=>({filterVisualOptions:{},growthIcons:{}});
   export const catalog = { release: { id: "remote-hotfix", locale: "en" },
     memberCards: [], supportCards: [], musicTracks: [], musicCharts: [], bands: [], characters: [], cardTaxonomy: { attributes: [], rarities: [] } };
   export const cardDetailProjections = { memberCards: [], supportCards: [] };

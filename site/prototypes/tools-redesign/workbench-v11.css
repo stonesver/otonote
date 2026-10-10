@@ -1,0 +1,26 @@
+/* Native skill identity and separate effect cards. */
+.leader-effect{display:flex;align-items:center;gap:20px;min-height:0;padding:14px 0 5px;margin:0;border:0;background:none;}
+.leader-source{display:flex;align-items:center;gap:10px;flex:0 0 148px;}
+.leader-native-icon{width:38px;height:38px;object-fit:contain;flex:none;border-radius:7px;}
+.leader-source>span{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.leader-source small{font-size:9px;color:#ae97ba;letter-spacing:.06em;}
+.leader-source strong{font-size:12px;line-height:1.5;color:#79508e;font-weight:600;}
+.leader-reference{font-size:8px;color:#b6a4c0;white-space:nowrap;}
+.leader-bonuses{display:flex;gap:9px;align-items:stretch;flex:1;min-width:0;flex-wrap:wrap;}
+.leader-bonus{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:190px;max-width:420px;flex:1 1 220px;min-height:62px;border:1px solid #e9dfef;border-radius:9px;background:linear-gradient(115deg,#fcfaff,#f4eef9);padding:10px 14px;box-sizing:border-box;}
+.leader-bonus.is-additional{border-color:#eee3cd;background:linear-gradient(115deg,#fffdf7,#faf4e5);}
+.leader-bonus-target{font-size:11px;line-height:1.75;color:#8b709b;max-width:220px;}
+.leader-bonus.is-additional .leader-bonus-target{color:#9e875a;}
+.leader-bonus>strong{font-size:24px;line-height:1;letter-spacing:-.04em;font-weight:600;color:#826195;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.leader-bonus>strong small{font-size:15px;font-weight:400;vertical-align:2px;margin-right:2px;}
+.leader-bonus>strong>span{font-size:13px;font-weight:400;letter-spacing:0;margin-left:2px;}
+.leader-bonus.is-additional>strong{color:#b09050;}
+.leader-bonus-full{font-size:11px;line-height:1.8;color:#8b709b;margin:0;white-space:normal;}
+@media(max-width:700px){
+ .leader-effect{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:14px 0 4px;}
+ .leader-source{flex:none;gap:8px;}.leader-native-icon{width:30px;height:30px;}
+ .leader-source>span{display:grid;grid-template-columns:auto auto;gap:1px 9px;align-items:baseline;}
+ .leader-source small{grid-column:1;}.leader-source strong{grid-column:2;grid-row:1;}.leader-reference{grid-column:1/-1;}
+ .leader-bonuses{gap:7px;}.leader-bonus{flex:1 1 100%;min-width:0;max-width:none;padding:10px 12px;min-height:56px;}
+ .leader-bonus>strong{font-size:22px;}.leader-bonus-target{max-width:210px;}
+}

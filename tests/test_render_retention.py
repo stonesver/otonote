@@ -99,3 +99,16 @@ class RenderRetentionTests(unittest.TestCase):
         retention.verify_archive(self.archive, plan)
         retention.apply(self.root, plan, self.archive)
         self.assertFalse((self.old/'global').exists())
+
+    def test_default_batch_bounds_large_release_accumulation(self):
+        for number in range(10, 20):
+            self.release(number, 'global')
+        result = retention.plan(self.root, self.cutoff)
+        self.assertEqual(len(result['views']), 8)
+        self.assertEqual(result['maxViews'], 8)
+
+    def test_malformed_pending_record_has_a_fixed_error_and_preserves_html(self):
+        (self.root/'.pending.json').write_text('[]')
+        with self.assertRaisesRegex(AuditError, 'invalid_pending_view'):
+            retention.plan(self.root, self.cutoff)
+        self.assertTrue((self.old/'global/en/index.html').exists())

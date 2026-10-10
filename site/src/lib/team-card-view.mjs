@@ -8,6 +8,7 @@ export function resolveTeamCardGrowth({card,draft,inventory,rules}) {
   const id=card.id,kind=card.kind??(id.startsWith('member-')?'member':'support'),modifiers=draft?.modifiers??{},scenario=modifiers.planningScenario;
   const owned=inventory?.[`${kind}CardIds`]?.includes(id),actual=owned?inventory?.growth?.[id]:undefined;
   const supplied=modifiers.growth?.[id],previous=modifiers.planningResult;
+  if(previous?.rewardGrowthCardIds?.includes(id)&&supplied)return {growth:copy(supplied),source:actual?'selected':'reference'};
   const training=scenario?.plan&&scenario.plan.enabled!==false;
   const trial=scenario?.scope==='trial'&&scenario.trialCardIds?.[`${kind}CardIds`]?.includes(id)&&!owned;
   if(previous?.referenceCardIds?.includes(id)&&!actual)return {growth:copy(supplied),source:'reference'};

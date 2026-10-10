@@ -1,3 +1,4 @@
+import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {eventSongCandidates} from './event-song-ranking.mjs';
 import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
@@ -13,7 +14,7 @@ export function setupEventYieldOptimizer(tool){
  const stop=()=>{worker?.terminate();worker=null;q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
  function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
-   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:q('band').value,attribute:q('attribute').value,difficulty:q('difficulty').value,maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:q('challenge-difficulty').value,challengeMaxLevel:Number(q('challenge-level').value)};}
+   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('reward-override')?.checked??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:q('band').value,attribute:q('attribute').value,difficulty:q('difficulty').value,maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:q('challenge-difficulty').value,challengeMaxLevel:Number(q('challenge-level').value)};}
  function sync(){
    if(tool.q('mode').value==='challenge'&&q('goal').value==='grade')q('goal').value='badges';
    const c=context(),next=JSON.stringify(c);
@@ -30,7 +31,7 @@ export function setupEventYieldOptimizer(tool){
    const next=JSON.stringify([displaySort,displayGoal,page,result.rows.map(r=>[r.id,r.song.id,r.total,r.expectedScore,r.recommendationGoals]),result.failures]);
    if(next===renderKey)return;renderKey=next;
    q('results').replaceChildren();
-   if(q('rewards')?.checked)q('results').append(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。新增卡按${q('reward-growth').value==='maximum'?'全满养成假设':'满等级、初始突破 / 觉醒、技能 1'}计算；已持有卡仍按卡库中的实际养成计算，不会自动升满。按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(q('rewards')?.checked)q('results').append(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('reward-override')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
    const ordered=orderEventYieldRows(eligible,displaySort,target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
    const toolbar=el('div',null,'task-event-plan-sort'),sort=el('div',null,'task-event-sort-options');sort.setAttribute('role','group');sort.setAttribute('aria-label','收益方案排序');

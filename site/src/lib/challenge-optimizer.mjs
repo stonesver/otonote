@@ -5,11 +5,11 @@ import {searchEventFormations} from './event-formation-search.mjs';
 
 /** Challenge scoring and its certified bound share the event power/song context. */
 export async function optimizeChallenge({rules,eventId,draft,chart,scope='owned',inventory,
- objective='maximum_song_score',signal,onProgress,yieldControl,searchMethod='certified',maxEvaluations=24,rewardCards=[],rewardGrowth='level'}) {
+ objective='maximum_song_score',signal,onProgress,yieldControl,searchMethod='certified',maxEvaluations=24,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}) {
  if(!['practical','certified'].includes(searchMethod))throw Error('Invalid challenge search method');
   if(!['owned','selected','reference'].includes(scope))throw Error('请选择全卡库参考、已保存卡库或当前十张卡');
   if(!['maximum_song_score','expected_song_score'].includes(objective))throw Error('无效的挑战出分目标');
-  ({draft,scope,inventory}=withEventRewardCandidates({rules,draft,scope,inventory,rewardCards,rewardGrowth}));
+  ({draft,scope,inventory}=withEventRewardCandidates({rules,draft,scope,inventory,rewardCards,rewardGrowth,rewardGrowthOverride}));
   const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
   if(!rules.tables.ChallengeMusic.some(r=>r._eventId===eventId&&`music-${r._liveMusicId}`===draft.selectedSongId))throw Error('请先选择本期挑战歌曲');
   const next=structuredClone(draft);

@@ -38,3 +38,47 @@ test('current-team expansion uses saved actual growth for an unselected reward c
  assert.deepEqual(result.inventory.growth['member-card-6'],actual);
  assert.deepEqual(result.temporaryCardIds,['support-card-70']);
 });
+
+test('explicit reward growth overrides owned cards inside and outside the team without changing originals',()=>{
+ const manager=createInventoryManager(rules);
+ const rewards=[{resourceType:2,resourceId:1},{resourceType:3,resourceId:1},...rewardCards];
+ const inventory={memberCardIds:['member-card-1','member-card-6'],supportCardIds:['support-card-1','support-card-70'],growth:{}};
+ for(const kind of ['member','support'])for(const id of inventory[`${kind}CardIds`])inventory.growth[id]=manager.preset(id,kind);
+ for(const scope of ['owned','selected'])for(const rewardGrowth of ['level','maximum']){
+  const before=structuredClone({draft,inventory});
+  const result=withEventRewardCandidates({rules,draft,scope,inventory,rewardCards:rewards,rewardGrowth,rewardGrowthOverride:true});
+  for(const kind of ['member','support'])for(const id of inventory[`${kind}CardIds`]){
+   assert.deepEqual(result.inventory.growth[id],manager.preset(id,kind,rewardGrowth));
+   assert.deepEqual(result.draft.modifiers.growth[id],manager.preset(id,kind,rewardGrowth));
+   assert.deepEqual(result.draft.modifiers.planningResult.actualGrowth[id],inventory.growth[id]);
+   assert.ok(result.draft.modifiers.planningResult.rewardGrowthCardIds.includes(id));
+  }
+  if(scope==='selected')assert.equal(result.inventory.growth['member-card-2'].skillLevel,1);
+  assert.deepEqual({draft,inventory},before);assert.deepEqual(result.temporaryCardIds,[]);
+ }
+});
+
+test('override has a distinct cache partition and is ignored when rewards are absent or scope is reference',async()=>{
+ const input={draft,scope:'selected',rewardCards,rewardGrowth:'maximum'};
+ assert.equal(await eventSearchPartition(rules,1,input),await eventSearchPartition(rules,1,{...input,rewardGrowthOverride:false}));
+ assert.notEqual(await eventSearchPartition(rules,1,input),await eventSearchPartition(rules,1,{...input,rewardGrowthOverride:true}));
+ for(const options of [{scope:'selected',rewardCards:[]},{scope:'reference',rewardCards}]){
+  const result=withEventRewardCandidates({rules,draft,...options,rewardGrowthOverride:true});
+  assert.equal(result.draft,draft);assert.deepEqual(result.temporaryCardIds,[]);
+ }
+ assert.throws(()=>withEventRewardCandidates({rules,draft,scope:'selected',rewardCards,rewardGrowthOverride:'true'}),/覆盖选项/);
+});
+
+test('reward result cards display the explicit assumption even with an owned planning scenario',async()=>{
+ const {resolveTeamCardGrowth}=await import('../src/lib/team-card-view.mjs');
+ const {eventRewardGrowthNote}=await import('../src/lib/event-reward-options.mjs');
+ const manager=createInventoryManager(rules),inventory={memberCardIds:['member-card-6'],supportCardIds:['support-card-70'],growth:{'member-card-6':manager.preset('member-card-6','member'),'support-card-70':manager.preset('support-card-70','support')}};
+ const selected=structuredClone(draft);selected.modifiers={planningScenario:{scope:'owned'}};
+ const result=withEventRewardCandidates({rules,draft:selected,scope:'owned',inventory,rewardCards,rewardGrowth:'maximum',rewardGrowthOverride:true});
+ for(const kind of ['member','support'])for(const id of inventory[`${kind}CardIds`]){
+  const display=resolveTeamCardGrowth({card:{id,kind},draft:result.draft,inventory,rules});
+  assert.equal(display.source,'selected');assert.deepEqual(display.growth,manager.preset(id,kind,'maximum'));
+ }
+ assert.match(eventRewardGrowthNote('maximum',true),/包含已持有卡/);
+ assert.match(eventRewardGrowthNote('maximum',false),/实际养成/);
+});

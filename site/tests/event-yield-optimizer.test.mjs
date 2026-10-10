@@ -273,3 +273,18 @@ test('certified event search matches exhaustive full-order scoring with six supp
    assert.equal(rewardsOnly.certifiedSearch.objective,'reward_tuple');
  }
 });
+
+test('ordinary and challenge reward overrides match equivalent trained inventories',async()=>{
+ const input=fixture(),before=structuredClone(input.inventory);
+ const {createInventoryManager}=await import('../src/lib/inventory-manager.mjs');
+ const manager=createInventoryManager(input.rules),rewardCards=[{resourceType:2,resourceId:1},{resourceType:3,resourceId:1}];
+ const expectedInventory=structuredClone(input.inventory);
+ for(const kind of ['member','support'])expectedInventory.growth[`${kind}-card-1`]=manager.preset(`${kind}-card-1`,kind,'maximum');
+ for(const mode of ['ordinary','challenge']){
+  const actual=await optimizeEventYield({...input,mode,includeChallenge:false,rewardCards,rewardGrowth:'maximum',rewardGrowthOverride:true});
+  const expected=await optimizeEventYield({...input,mode,includeChallenge:false,inventory:expectedInventory});
+  const rows=r=>r.results.map(row=>[row.id,row.total,row.estimatedScore,row.power,row.draft.modifiers.growth]);
+  assert.deepEqual(rows(actual),rows(expected));
+ }
+ assert.deepEqual(input.inventory,before);
+});

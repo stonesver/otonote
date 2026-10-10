@@ -14,7 +14,7 @@ function rulesKey(rules){
 }
 export async function eventSearchPartition(rules,eventId,input){
   const {selectedSongId,selectedDifficulty,...draft}=input.draft;
-  return searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),eventId,scope:input.scope,inventory:input.inventory,rewardCards:input.rewardCards,rewardGrowth:input.rewardGrowth,draft});
+  return searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),eventId,scope:input.scope,inventory:input.inventory,rewardCards:input.rewardCards,rewardGrowth:input.rewardGrowth,rewardGrowthOverride:input.rewardGrowthOverride??false,draft});
 }
 export async function bindEventScoreCache(cache,{rules,chart,draft}){
   const context=await searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),chart,draft});

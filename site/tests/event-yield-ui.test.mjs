@@ -6,10 +6,10 @@ import {eventYieldStageInput} from '../src/lib/event-yield-stage.mjs';
 import {setupEventYieldOptimizer} from '../src/lib/event-yield-ui.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
 test('cycle stages choose independent collection and AP basis without inheriting a normal grade',()=>{
- const input={mode:'ordinary',includeChallenge:true,scope:'selected',basis:'minimumScore',challengeScope:'owned',challengeBasis:'expectedScore',draft:{slots:[]}};
+ const input={rewardGrowthOverride:true,mode:'ordinary',includeChallenge:true,scope:'selected',basis:'minimumScore',challengeScope:'owned',challengeBasis:'expectedScore',draft:{slots:[]}};
  assert.equal(eventYieldStageInput(input,'ordinary').scope,'selected');
  const challenge=eventYieldStageInput(input,'challenge');
- assert.equal(challenge.scope,'owned');assert.equal(challenge.basis,'expectedScore');assert.equal(challenge.mode,'challenge');
+ assert.equal(challenge.rewardGrowthOverride,true);assert.equal(challenge.scope,'owned');assert.equal(challenge.basis,'expectedScore');assert.equal(challenge.mode,'challenge');
  assert.equal(input.scope,'selected');
  assert.equal(eventYieldStageInput({...input,challengeScope:'same'},'challenge').scope,'selected');
  assert.equal(eventYieldStageInput({...input,mode:'challenge'},'challenge').scope,'selected');
@@ -120,5 +120,6 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);
  node('mode').value='challenge';q('songs').value='all';optimizer.sync();optimizer.run();
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-e']);
+ q('reward-override').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
  optimizer.destroy();
 });

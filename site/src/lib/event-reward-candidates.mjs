@@ -2,8 +2,9 @@ import {createInventoryManager} from './inventory-manager.mjs';
 import {createFormationCalculator} from './scoring-rules/formation-power.mjs';
 
 /** Expand a calculation copy only. Stored ownership and actual growth never change. */
-export function withEventRewardCandidates({rules,draft,scope,inventory,rewardCards=[],rewardGrowth='level'}) {
+export function withEventRewardCandidates({rules,draft,scope,inventory,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}) {
  if(!rewardCards.length||scope==='reference')return {draft,scope,inventory,temporaryCardIds:[]};
+ if(typeof rewardGrowthOverride!=='boolean')throw Error('无效的活动奖励卡养成覆盖选项');
  if(!['level','maximum'].includes(rewardGrowth))throw Error('无效的活动奖励卡养成基准');
  const next=structuredClone(draft),manager=createInventoryManager(rules),calculator=createFormationCalculator(rules);
  if(scope==='owned'&&!inventory)throw Error('请先导入实际卡库');
@@ -16,24 +17,29 @@ export function withEventRewardCandidates({rules,draft,scope,inventory,rewardCar
   const resolved=calculator.resolveGrowth(calculator.card(id,kind),kind==='member'?'Member':'Support',supplied);
   pool.growth[id]={level:resolved.level,rank:resolved.rank,...(kind==='member'?{awake:resolved.awake,skillLevel:supplied.skillLevel??1,gekisouSkillLevel:supplied.gekisouSkillLevel??1}:{})};
  }
- const temporaryCardIds=[];
+ const temporaryCardIds=[],assumedCardIds=[],rewardGrowthCardIds=[],actualGrowth={};
  for(const card of rewardCards){
   const kind=card.resourceType===2?'member':card.resourceType===3?'support':null;
   if(!kind)continue;
   const id=`${kind}-card-${card.resourceId}`;calculator.card(id,kind);
-  if(pool[`${kind}CardIds`].includes(id))continue;
-  pool[`${kind}CardIds`].push(id);
-  if(inventory?.[`${kind}CardIds`]?.includes(id)){
+  const included=pool[`${kind}CardIds`].includes(id),owned=inventory?.[`${kind}CardIds`]?.includes(id);
+  if(included&&!rewardGrowthOverride)continue;
+  if(!included)pool[`${kind}CardIds`].push(id);
+  if(owned&&!rewardGrowthOverride){
    const actual=manager.validate(inventory).growth[id];pool.growth[id]=structuredClone(actual);next.modifiers.growth[id]=structuredClone(actual);continue;
   }
-  temporaryCardIds.push(id);
+  if(!included&&!owned)temporaryCardIds.push(id);
+  assumedCardIds.push(id);
+  actualGrowth[id]=owned?structuredClone(inventory.growth[id]):null;
+  if(rewardGrowthOverride)rewardGrowthCardIds.push(id);
   pool.growth[id]=manager.preset(id,kind,rewardGrowth);
-  // Ignore stale trial overrides for a newly obtainable card.
+  // The explicit reward assumption wins over both saved and current-team growth.
   next.modifiers.growth[id]=structuredClone(pool.growth[id]);
  }
  Object.assign(next.modifiers.growth,pool.growth);
  const previous=next.modifiers.planningResult??={schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,actualGrowth:{}};
- previous.actualGrowth??={};for(const id of temporaryCardIds)previous.actualGrowth[id]=null;
- previous.referenceCardIds=[...new Set([...(previous.referenceCardIds??[]),...temporaryCardIds])];
+ previous.actualGrowth??={};Object.assign(previous.actualGrowth,actualGrowth);
+ if(rewardGrowthCardIds.length)previous.rewardGrowthCardIds=[...new Set([...(previous.rewardGrowthCardIds??[]),...rewardGrowthCardIds])];
+ previous.referenceCardIds=[...new Set([...(previous.referenceCardIds??[]),...assumedCardIds])];
  return {draft:next,scope:'owned',inventory:pool,temporaryCardIds};
 }

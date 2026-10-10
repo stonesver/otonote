@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {selectEventYieldRows,eventYieldGoals,orderEventYieldRows,eventYieldGaps} from '../src/lib/event-yield-goals.mjs';
 import {eventYieldStageInput} from '../src/lib/event-yield-stage.mjs';
 import {setupEventYieldOptimizer} from '../src/lib/event-yield-ui.mjs';
+import {installProgressDom} from './helpers/progress-dom.mjs';
 test('cycle stages choose independent collection and AP basis without inheriting a normal grade',()=>{
  const input={mode:'ordinary',includeChallenge:true,scope:'selected',basis:'minimumScore',challengeScope:'owned',challengeBasis:'expectedScore',draft:{slots:[]}};
  assert.equal(eventYieldStageInput(input,'ordinary').scope,'selected');
@@ -91,8 +92,8 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  for(const [key,value] of Object.entries({budget:'100',starting:'0',depth:'quick',goal:'both',basis:'expectedScore',stages:'cycle',songs:'all',band:'band-1',attribute:'1',difficulty:'expert',level:'40','challenge-scope':'selected','challenge-basis':'expectedScore','challenge-difficulty':'expert','challenge-level':'40'}))q(key).value=value;
  const workers=[];
  class WorkerStub {
-  constructor(){workers.push(this);}
-  addEventListener(){}
+  constructor(){workers.push(this);this.listeners={};}
+  addEventListener(type,fn){this.listeners[type]=fn;}
   postMessage(data){this.data=data;}
   terminate(){this.stopped=true;}
  }
@@ -101,12 +102,15 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  t.after(()=>{if(original)Object.defineProperty(globalThis,'Worker',original);else delete globalThis.Worker;});
  // The workbench moves conditions/results into sibling columns under the tool.
  node('yield-optimizer').querySelector=()=>{throw new Error('Do not assume filters remain in the legacy panel');};
+ installProgressDom(t,q('status'));
  const optimizer=setupEventYieldOptimizer(tool);
  optimizer.sync();optimizer.run();
  assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['1-e']);
+ const progress=q('status').progressNode;workers[0].listeners.message({data:{type:'progress',stage:'普通',title:'歌曲',done:1,total:9,detail:'完整复算 2 / 12'}});assert.equal(progress.children[1].value,1/9);
  assert.deepEqual(workers.at(-1).data.challengeCandidates.map(c=>c.id),['2-e']);
  q('results').children=['old recommendation'];q('continue').hidden=false;
  q('band').value='band-2';node('yield-optimizer').listeners.change({stopPropagation(){}});
+ assert.equal(progress.hidden,true);workers[0].listeners.message({data:{type:'progress',stage:'旧任务',done:8,total:9}});assert.equal(progress.hidden,true);
  assert.equal(workers[0].stopped,true);assert.deepEqual(q('results').children,[]);assert.equal(q('continue').hidden,true);
  optimizer.run();
  assert.equal(workers.length,1);assert.match(q('status').textContent,/乐队、歌曲属性或难度/);

@@ -1,3 +1,5 @@
+import {loadTeamWorkspaceData} from './shared-team-loader.mjs';
+export {loadTeamWorkspaceData};
 import {getActiveToolTeamContext} from './shared-team-context.mjs';
 import {createTeamWorkspaceStore} from './team-workspace-store.mjs';
 import {checkTeamCompatibility,mergeTeamForTool} from './team-workspace-compatibility.mjs';
@@ -68,14 +70,6 @@ function download(value,name) {
   const link=element('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-/** Reuse the current tool's data. Non-calculators fetch the collection only on open. */
-export async function loadTeamWorkspaceData(context) {
-  const {sharedTeamData,sharedTeamPresentation}=await import('./shared-team-data.mjs');
-  if(context?.data?.memberCards && (context.rules??context.data.formalRules??context.data.rules)) {
-    return {...context.data,...sharedTeamPresentation(),formalRules:context.rules??context.data.formalRules??context.data.rules};
-  }
-  return sharedTeamData();
-}
 
 export async function setupSharedTeamWorkspace(shell) {
   const panel=shell.querySelector('[data-team-workspace-panel]'),body=shell.querySelector('[data-team-workspace-body]'),launcher=shell.querySelector('[data-team-workspace-open]');

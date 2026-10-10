@@ -1,14 +1,10 @@
 import {memberCards,supportCards} from './inventory-catalog';
-import {catalog,getAsset} from './catalog';
-import {filterVisualOptions} from './filter-visuals';
+import {catalog} from './catalog';
+import {sharedTeamPresentation} from './shared-team-presentation.mjs';
+export {sharedTeamPresentation};
 import {globalSystems} from './global-systems';
 import {bandItemDatabase} from './band-items';
 import formalRules from '../data/formal-scoring-rules.json';
-
-/** Small maps shared by card views; asset IDs are resolved once at the catalog boundary. */
-export function sharedTeamPresentation() {
-  return {filterVisualOptions,growthIcons:Object.fromEntries(Object.entries(catalog.cardTaxonomy.growthIcons).map(([key,id])=>[key,getAsset(id)?.previewUrl??getAsset(id)?.thumbnailUrl??null]))};
-}
 
 /** Loaded on first open on tools without a calculator, using the active content snapshot. */
 export function sharedTeamData() {

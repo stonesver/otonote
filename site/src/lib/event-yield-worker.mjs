@@ -37,9 +37,15 @@ self.addEventListener('message',async({data})=>{
        const scoreCache=new Map(await store.get(scoreKey)??[]);
        const found=[];let newScores=0;
        for(const goal of eventYieldGoals(input.goal,mode)){
+         let reportedAt=0,reportedStage='';
          self.postMessage({type:'progress',done,total,title:c.title,stage:`${mode==='challenge'?'挑战':'普通'} · ${EVENT_YIELD_GOAL_LABELS[goal]}`});
          const result=await optimizeEventYield({rules,eventId,...stageInput,candidate:c,chart,challengeRows,candidateCache,scoreCache,yieldControl,
-           includeChallenge:mode==='ordinary'&&input.includeChallenge,goal});
+           includeChallenge:mode==='ordinary'&&input.includeChallenge,goal,onProgress:p=>{
+             if(!p.stage)return;
+             const now=Date.now();if(p.stage===reportedStage&&now-reportedAt<120&&p.completed!==p.total)return;
+             reportedAt=now;reportedStage=p.stage;
+             self.postMessage({type:'progress',done,total,title:c.title,stage:`${mode==='challenge'?'挑战':'普通'} · ${EVENT_YIELD_GOAL_LABELS[goal]}`,detail:`${p.stage} ${p.completed} / ${p.total??'…'}`});
+           }});
          cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;newScores+=result.practical.scoreCalculations;
          found.push(...result.results.map(row=>({...row,recommendationGoals:[goal]})));
        }

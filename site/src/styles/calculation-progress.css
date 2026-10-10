@@ -1,0 +1,26 @@
+.calculation-progress{margin:12px 0;padding:12px 15px;border:1px solid var(--border-color,#e5e3eb);border-radius:12px;background:var(--surface-color,#fff);color:var(--text-color,#273345)}
+.calculation-progress[hidden]{display:none!important}
+.calculation-progress>div{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:13px}
+.calculation-progress strong{font-size:13px;font-weight:600;color:inherit}
+.calculation-progress span{font-size:12px;font-variant-numeric:tabular-nums;color:#69758a;white-space:nowrap}
+.calculation-progress small{display:block;margin-top:7px;color:#69758a;line-height:1.5;font-size:12px}
+.calculation-progress progress{display:block;width:100%;height:5px;margin:9px 0 0;border:0;border-radius:8px;overflow:hidden;appearance:none;background:#ebeaf0;accent-color:#9870ac}
+.calculation-progress progress::-webkit-progress-bar{background:#ebeaf0;border-radius:8px}
+.calculation-progress progress::-webkit-progress-value{background:#9870ac;border-radius:8px}
+.calculation-progress progress::-moz-progress-bar{background:#9870ac;border-radius:8px}
+.calculation-progress progress:indeterminate{background:linear-gradient(90deg,#ebeaf0 0%,#a888b9 45%,#ebeaf0 85%);background-size:200% 100%;animation:calculation-loading 1.5s ease-in-out infinite}
+.calculation-progress progress:indeterminate::-webkit-progress-bar{background:transparent}
+.calculation-progress[data-state=complete]{border-color:#d1e6dc;background:#f6fbf8}
+.calculation-progress[data-state=complete] progress::-webkit-progress-value{background:#519979}
+.calculation-progress[data-state=error]{border-color:#ead1d5;background:#fff9fa}
+.calculation-progress[data-state=stopped]{background:#faf9f7}
+.calculation-progress[data-state=running]+[data-yield-status],.calculation-progress[data-state=running]+[data-challenge-opt-status],.calculation-progress[data-state=running]+[data-pairing-progress]{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%)}
+.task-workbench[data-task=quick] [data-calculation-progress=yield],.task-workbench[data-task=challenge] [data-calculation-progress=yield]{display:none}
+.tw-loading{padding:18px 8px;max-width:760px;margin:auto}
+.tw-loading>p{margin:0 0 8px;font-weight:600;color:#273345}
+.tw-loading>small{color:#69758a}
+.tw-loading-track{height:5px;margin:15px 0 24px;border-radius:6px;background:linear-gradient(90deg,#eeeaf2,#bba5c8,#eeeaf2);background-size:200% 100%;animation:calculation-loading 1.5s ease-in-out infinite}
+.tw-loading-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.tw-loading-cards>i{aspect-ratio:1;border-radius:12px;background:#eeedf2}
+@keyframes calculation-loading{from{background-position:100% 0}to{background-position:-100% 0}}
+@media(prefers-reduced-motion:reduce){.calculation-progress progress,.tw-loading-track{animation:none;transition:none}}

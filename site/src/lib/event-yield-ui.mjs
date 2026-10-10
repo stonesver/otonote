@@ -2,11 +2,13 @@ import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {eventSongCandidates} from './event-song-ranking.mjs';
 import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
 import {EVENT_YIELD_GOAL_LABELS,orderEventYieldRows,eventYieldGaps} from './event-yield-goals.mjs';
+import {createCalculationProgress} from './calculation-progress.mjs';
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:1}),grades=['D','C','B','A','S','SS'];
 const gapText=n=>n===0?'相同':`${n>0?'少':'多'} ${fmt(Math.abs(n))}`;
 
 export function setupEventYieldOptimizer(tool){
  const root=tool.q('yield-optimizer'),q=s=>tool.querySelector(`[data-yield-${s}]`);
+ const feedback=createCalculationProgress(q('status'),'yield');
  let worker=null,key='',result=null,renderKey='',displaySort='yield',displayGoal='badges',page=0;
  const stop=()=>{worker?.terminate();worker=null;q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
  function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
@@ -15,7 +17,7 @@ export function setupEventYieldOptimizer(tool){
  function sync(){
    if(tool.q('mode').value==='challenge'&&q('goal').value==='grade')q('goal').value='badges';
    const c=context(),next=JSON.stringify(c);
-   if(next!==key){stop();key=next;result=null;renderKey='';q('continue').hidden=true;q('results').replaceChildren();q('status').textContent='条件改变后需重新计算；原有卡组不会自动被替换。';}
+   if(next!==key){stop();feedback.reset();key=next;result=null;renderKey='';q('continue').hidden=true;q('results').replaceChildren();q('status').textContent='条件改变后需重新计算；原有卡组不会自动被替换。';}
    const unsupported=c.mode==='gekisou',needsSong=c.mode==='challenge'&&c.songs==='selected'&&!c.draft.selectedSongId;q('run').disabled=!!worker||unsupported||needsSong;tool.q('suggest').disabled=!!worker||unsupported||needsSong;q('run').title=needsSong?'先点选本期活动曲与难度':'';
    q('challenge-settings').hidden=c.mode!=='ordinary'||!c.includeChallenge;
    q('normal-settings').hidden=c.mode==='challenge';q('stages').disabled=c.mode==='challenge';
@@ -98,21 +100,22 @@ export function setupEventYieldOptimizer(tool){
      if(c.mode==='ordinary'&&c.includeChallenge&&!challengeCandidates.length)throw Error('后续挑战没有符合难度范围的谱面，请放宽条件或只比较普通阶段。');
      if(c.mode==='challenge'&&c.goal==='grade')c.goal='badges';
      result=null;renderKey='';page=0;q('continue').hidden=true;q('results').replaceChildren();worker=new Worker(new URL('./event-yield-worker.mjs',import.meta.url),{type:'module'});
+     feedback.update({label:'准备活动收益比较',detail:'正在读取卡库、实际养成与谱面'});
      const active=worker;q('cancel').hidden=false;q('run').disabled=true;tool.q('suggest').disabled=true;root.setAttribute('aria-busy','true');q('status').textContent='正在准备卡库、实际养成与谱面…';
      worker.addEventListener('message',({data})=>{
        if(worker!==active)return;
-       if(data.type==='progress'){q('status').textContent=`${data.stage}：${data.title}（${data.done} / ${data.total}）`;return;}
-       if(data.type==='partial'){result=data;render();q('status').textContent=`已比较 ${data.done} / ${data.total} 张谱面，展示目前领先方案；还在计算，排名可能改变。`;return;}
+       if(data.type==='progress'){feedback.update({label:data.stage,completed:data.done,total:data.total,detail:`${data.title} · ${data.detail??'谱面比较进度，单曲内部仍需比较编成'}`});q('status').textContent=`${data.stage}：${data.title}（${data.done} / ${data.total}）`;return;}
+       if(data.type==='partial'){feedback.update({label:'继续比较活动收益',completed:data.done,total:data.total,detail:'目前领先方案已显示，排名可能继续变化'});result=data;render();q('status').textContent=`已比较 ${data.done} / ${data.total} 张谱面，展示目前领先方案；还在计算，排名可能改变。`;return;}
        stop();if(data.type==='result'){
-         result=data;render();q('continue').hidden=data.complete;
+         result=data;render();feedback.finish(data.complete?'活动收益比较完成':'快速推荐完成',`已比较 ${data.done} / ${data.available} 张谱面${data.failures.length?' · 部分谱面失败，结果不完整':''}${data.complete?'':' · 可继续完整比较'}`);q('continue').hidden=data.complete;
          q('status').textContent=`${data.complete?'完整比较完成':'快速推荐完成'}：已比较 ${data.done} / ${data.available} 张谱面。${data.complete?'':'可继续比较其余谱面，已算结果会复用。'}展示 ${data.rows.length} 个队伍＋歌曲方案${data.cacheHits?`，复用 ${data.cacheHits} 次估分`:''}。有限候选搜索，不保证全卡库最优${data.failures.length?'；有计算失败，结果不完整':''}。`;
-       }else {q('continue').hidden=!result;q('status').textContent=`计算失败：${data.message}${result?'；保留已完成的方案，可继续比较。':''}`;}
+       }else {feedback.finish('计算失败',data.message,'error');q('continue').hidden=!result;q('status').textContent=`计算失败：${data.message}${result?'；保留已完成的方案，可继续比较。':''}`;}
      });
-     worker.addEventListener('error',()=>{if(worker!==active)return;stop();q('status').textContent='计算服务加载失败，请重试。';});
+     worker.addEventListener('error',()=>{if(worker!==active)return;stop();feedback.finish('计算服务加载失败','请重试','error');q('status').textContent='计算服务加载失败，请重试。';});
      worker.postMessage({rules:tool.data.rules,eventId:c.eventId,candidates,challengeCandidates,input:c});
-   }catch(error){stop();q('status').textContent=error.message;tool.q('team-status').textContent=error.message;}
+   }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;tool.q('team-status').textContent=error.message;}
  }
- q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop();q('continue').hidden=!result;q('status').textContent=result?'已停止。保留已完成的方案，仍有谱面未比较；继续时会复用计算缓存。':'已停止收益配队计算。';});
+ q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop();feedback.finish('已停止',result?'保留已完成的方案，可继续比较':'可调整条件后重新计算','stopped');q('continue').hidden=!result;q('status').textContent=result?'已停止。保留已完成的方案，仍有谱面未比较；继续时会复用计算缓存。':'已停止收益配队计算。';});
  root.addEventListener('change',event=>{event.stopPropagation();sync();});
  return {sync,run,invalidate:()=>{key='';stop();sync();},destroy:stop};
 }

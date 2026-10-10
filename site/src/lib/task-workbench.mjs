@@ -54,7 +54,7 @@ export function setupTaskWorkbench(host,kind) {
       if(child.matches('.event-panel-heading'))continue;
       if(child===yieldPanel) {
         const yieldConditions=el('section',null,'task-event-yield-conditions');conditionBody.append(yieldConditions);
-        for(const node of [...yieldPanel.children])move(node.matches('[data-yield-results],[data-yield-status]')?main:yieldConditions,node);
+        for(const node of [...yieldPanel.children])move(node.matches('[data-yield-results],[data-yield-status],[data-calculation-progress]')?main:yieldConditions,node);
       }else move(child.matches('[data-team-workspace-summary],[data-team-workspace-status]')||child.querySelector?.('[data-open-team-workspace="teams"]')?current:conditionBody,child);
     }
     move(main,q('.event-summary'),q('#event-results'),q('#event-song'),q('.event-footnote'));

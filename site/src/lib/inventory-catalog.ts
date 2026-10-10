@@ -1,5 +1,5 @@
 import {catalog, getAsset, getBand, getCharacter, getCardRarity} from './catalog';
-import {cardDetailProjections, publicSkills} from './game-database';
+import {cardDetailProjections, publicSkills} from './game-card-data';
 import {buildCardSkillFilters} from './card-skill-filtering.mjs';
 
 const projectionById = new Map(

@@ -2,11 +2,13 @@ import {currentEventDraft,eventTeamSaveButton} from './event-team-view.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {createWorkbenchTeamView} from './workbench-team-view.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
+import {createCalculationProgress} from './calculation-progress.mjs';
 const fmt=n=>Math.round(n).toLocaleString('zh-CN');
 const el=(tag,text,className)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(className)node.className=className;return node;};
 
 export function setupChallengeOptimizer(tool){
   const root=tool.q('challenge-optimizer'),q=s=>tool.querySelector(`[data-challenge-opt-${s}]`);
+  const feedback=createCalculationProgress(q('status'),'challenge');
   let worker=null,key='',results=null;
   const stop=()=>{worker?.terminate();worker=null;q('cancel').hidden=true;q('run').disabled=false;root.setAttribute('aria-busy','false');};
   const currentDraft=()=>currentEventDraft(tool);
@@ -14,7 +16,7 @@ export function setupChallengeOptimizer(tool){
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge'||Boolean(tool.classList?.contains('task-workbench')&&tool.dataset.task!=='challenge');
     if(key!==fingerprint()){
-      stop();key=fingerprint();results=null;q('results').replaceChildren();
+      stop();feedback.reset();key=fingerprint();results=null;q('results').replaceChildren();
       q('status').textContent=tool.draft.selectedSongId?'选择搜索范围，开始比较挑战出分。':'先在上方选择本期挑战歌曲和难度。';
     }
     const track=tool.data.tracks.find(t=>t.id===tool.draft.selectedSongId);
@@ -60,19 +62,20 @@ export function setupChallengeOptimizer(tool){
       draft.modifiers={...profile?.account,...draft.modifiers};
       results=null;q('results').replaceChildren();
       worker=new Worker(new URL('./challenge-optimizer-worker.mjs',import.meta.url),{type:'module'});
+      feedback.update({label:'准备冲榜配队',detail:'正在读取谱面与实际养成'});
       const active=worker;q('cancel').hidden=false;q('run').disabled=true;root.setAttribute('aria-busy','true');q('status').textContent='正在载入谱面与实际养成…';
       worker.addEventListener('message',({data})=>{
         if(worker!==active)return;
-        if(data.type==='progress'){q('status').textContent=`${data.stage} · ${data.completed} / ${data.total??'…'}`;return;}
+        if(data.type==='progress'){feedback.update({label:data.stage,completed:data.completed,total:data.total,detail:'当前阶段进度 · 按所选范围比较出分'});q('status').textContent=`${data.stage} · ${data.completed} / ${data.total??'…'}`;return;}
         stop();if(data.type==='result'){
-          results=data.result;render();q('status').textContent=`${results.searchScope==='reference'?'已从全卡库生成并比较配对，':''}已完整复算 ${results.practical.finalists} 支候选，每支比较 120 种技能顺序。展示搜索到的前三名，不保证全卡库最优。`;
-        }else q('status').textContent=`计算失败：${data.message}`;
+          results=data.result;render();feedback.finish('冲榜配队比较完成',`完整复算 ${results.practical.finalists} 支候选，每支比较 120 种技能顺序`);q('status').textContent=`${results.searchScope==='reference'?'已从全卡库生成并比较配对，':''}已完整复算 ${results.practical.finalists} 支候选，每支比较 120 种技能顺序。展示搜索到的前三名，不保证全卡库最优。`;
+        }else {q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
-      worker.addEventListener('error',()=>{if(worker!==active)return;stop();q('status').textContent='计算服务加载失败，请重试。';});
+      worker.addEventListener('error',()=>{if(worker!==active)return;stop();q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});
       worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level'});
-    }catch(error){stop();q('status').textContent=error.message;}
+    }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;}
   });
-  q('cancel').addEventListener('click',()=>{stop();q('status').textContent='已停止。可调整条件后重新计算。';});
+  q('cancel').addEventListener('click',()=>{stop();feedback.finish('已停止','可调整条件后重新计算','stopped');q('status').textContent='已停止。可调整条件后重新计算。';});
   root.addEventListener('change',event=>{event.stopPropagation();sync();});
   return {sync,invalidate:()=>{key='';stop();sync();},destroy:stop};
 }

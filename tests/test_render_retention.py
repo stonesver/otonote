@@ -106,3 +106,9 @@ class RenderRetentionTests(unittest.TestCase):
         result = retention.plan(self.root, self.cutoff)
         self.assertEqual(len(result['views']), 8)
         self.assertEqual(result['maxViews'], 8)
+
+    def test_malformed_pending_record_has_a_fixed_error_and_preserves_html(self):
+        (self.root/'.pending.json').write_text('[]')
+        with self.assertRaisesRegex(AuditError, 'invalid_pending_view'):
+            retention.plan(self.root, self.cutoff)
+        self.assertTrue((self.old/'global/en/index.html').exists())

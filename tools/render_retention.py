@@ -43,6 +43,8 @@ def protected_views(root):
             raise AuditError('linked_pending_view')
         if path.exists():
             value = json.loads(path.read_text())
+            if not isinstance(value, dict):
+                raise AuditError('invalid_pending_view')
             for key in ('serving', 'target'):
                 target = value.get(key)
                 if not isinstance(target, str) or not target.startswith('releases/') or not PAIR.fullmatch(target[9:]):

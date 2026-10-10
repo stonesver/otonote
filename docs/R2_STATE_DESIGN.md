@@ -39,3 +39,10 @@ Checkpoint still inventories and hashes every local file. It obtains a fresh bou
 JP previously retained every code-fingerprint run without connecting its prior raw-resource cache to the next input build. The new flow validates the previous successful run's plan and catalog, reuses matching raw resources into the new run together with a current receipt, and keeps the full current successful run and shared caches. After the production receipt is recorded and checked, a bounded local retention step removes only other run directories from the ephemeral runner. The R2 allowlist stays `output/r2-jp`; prior immutable R2 manifests and objects remain available. A failed production or failed validation does not prune or advance the checkpoint.
 
 The measured JP two-run state has 99,881 paths and 27.39 GB logical bytes, versus 49,944 paths and 13.81 GB for the current run and seeds. CAS object bytes differ by only about 37 MB. Retention principally reduces local materialization and repeated hashing; verified restore evidence addresses the duplicate network reads.
+## Global 热恢复工作集
+
+Global checkpoint 可通过 `--global-working-set-config` 和 `--production-result` 启用当前生产绑定的工作集筛选。仅在本次生产结果、私有收据、可信输入、输入计划和同步状态一致时，排除未被当前控制文档引用的托管 `sync-complete` 历史代。未知目录、软链接、缺失引用或预检失败均中止，不写新指针。
+
+此筛选不删除本地文件或任何 R2 对象，不改变恢复 allowlist，也不移除初始输入、客户端可信基线和缓存。历史完整 manifest 保持不可变，回退仍使用历史 manifest。当前输入引用旧代文件时保留对应整代；不按版本号或目录时间推断可删性。
+
+checkpoint 结果报告清单字节数、上限、80% 预算预警和排除代数。超限在写任何对象前失败，错误给出实际字节数。工作流结果汇总容忍失败步骤留下的空/截断 JSON，不再用二次解析错误遮盖实际失败；原有上传、checkpoint、公共晋级顺序不变。

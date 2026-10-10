@@ -1,6 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {prepareTool, stageClientTools} from '../src/runtime/tool-startup.mjs';
+import {prepareTool, stageClientTools,whenDocumentParsed} from '../src/runtime/tool-startup.mjs';
+
+test('tool preparation starts after parsing while deferred analytics can still be pending',()=>{
+ const document=new EventTarget();document.readyState='loading';let starts=0;
+ whenDocumentParsed(document,()=>starts++);
+ document.dispatchEvent(new Event('readystatechange'));assert.equal(starts,0);
+ document.readyState='interactive';document.dispatchEvent(new Event('readystatechange'));
+ assert.equal(starts,1,'do not wait for DOMContentLoaded and third-party deferred scripts');
+ document.dispatchEvent(new Event('DOMContentLoaded'));
+ document.readyState='complete';document.dispatchEvent(new Event('readystatechange'));
+ assert.equal(starts,1,'prepare a workbench only once');
+});
+
+test('already parsed documents prepare immediately',()=>{
+ const document=new EventTarget();document.readyState='interactive';let starts=0;
+ whenDocumentParsed(document,()=>starts++);assert.equal(starts,1);
+});
 
 test('cold-rendered tools are hidden before attachment and revealed together after initialization', () => {
   const styles = [], gates = [];

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily historical HTML maintenance
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

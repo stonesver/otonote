@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import platform
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -29,11 +30,50 @@ READ_METHODS |= {'app.player.PlayerService/GetPlayerData', 'app.masterdata.Maste
 
 
 class LoginError(ValueError):
-    """Only fixed stage names and numeric service codes; never remote error text."""
+    """SDK error with a bounded, privacy-checked diagnostic message."""
 
-    def __init__(self, code, *, reason=None):
+    def __init__(self, code, *, reason=None, diagnostic_message=None, message_state=None):
         super().__init__(code)
         self.reason = reason
+        self.diagnostic_message = diagnostic_message
+        self.message_state = message_state
+
+
+_PRIVATE_ASSIGNMENT = re.compile(
+    r'\b(?:password|pwd|token|secret|cookie|authorization|access[_-]?key|id[_-]?token)\b\s*[:=]\s*[^\s,;]+',
+    re.IGNORECASE)
+_PRIVATE_EMAIL = re.compile(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}')
+_PRIVATE_PHONE = re.compile(r'(?<!\d)(?:\+?\d[\d\s-]{7,}\d)(?!\d)')
+_PRIVATE_URL = re.compile(r'https?://[^\s]+', re.IGNORECASE)
+_PRIVATE_TOKEN = re.compile(r'(?<![A-Za-z0-9])[A-Za-z0-9+/_=-]{24,}(?![A-Za-z0-9])')
+
+
+def diagnostic_sdk_message(message, private_values=()):
+    """Keep SDK wording where possible, masking credentials before it can be logged."""
+    if not isinstance(message, str) or not message.strip():
+        return None, 'missing'
+    if len(message) > 200 or any(ord(char) < 32 or ord(char) == 127 for char in message):
+        return None, 'omitted'
+    if any(char in message for char in '<>{}'):
+        return None, 'omitted'
+    result = message
+    changed = False
+    candidates = set()
+    for value in private_values:
+        if isinstance(value, str) and value:
+            candidates.add(value)
+            candidates.add(urllib.parse.quote(value, safe=''))
+            candidates.add(base64.b64encode(value.encode()).decode())
+    for value in sorted(candidates, key=len, reverse=True):
+        result, count = re.subn(re.escape(value), '[已遮蔽]', result, flags=re.IGNORECASE)
+        changed = changed or bool(count)
+    for pattern in (_PRIVATE_ASSIGNMENT, _PRIVATE_EMAIL, _PRIVATE_PHONE,
+                    _PRIVATE_URL, _PRIVATE_TOKEN):
+        result, count = pattern.subn('[已遮蔽]', result)
+        changed = changed or bool(count)
+    if not result or len(result) > 200:
+        return None, 'omitted'
+    return result, 'redacted' if changed else 'original'
 
 
 def sdk_error_reason(message):
@@ -133,7 +173,7 @@ class SdkClient:
         params['sign'] = hashlib.md5((''.join(params[k] for k in sorted(params)) + p.app_key).encode()).hexdigest()
         return params
 
-    def request(self, operation, extra=None):
+    def request(self, operation, extra=None, *, private_values=()):
         if operation not in ('rsa', 'login'):
             raise LoginError('sdk_operation_refused')
         params = self.parameters(extra or {})
@@ -157,8 +197,13 @@ class SdkClient:
         if not isinstance(data, dict) or type(data.get('code')) is not int:
             raise LoginError('invalid_sdk_response')
         if data['code'] != 0:
+            remote_message = data.get('message') or data.get('msg')
+            protected = (tuple(private_values) + tuple((extra or {}).get(k) for k in ('user_id', 'pwd'))
+                         + (self.profile.app_key, self.device_id, params['sign']))
+            diagnostic_message, message_state = diagnostic_sdk_message(remote_message, protected)
             raise LoginError('sdk_service_' + str(data['code']),
-                             reason=sdk_error_reason(data.get('message') or data.get('msg')))
+                             reason=sdk_error_reason(remote_message),
+                             diagnostic_message=diagnostic_message, message_state=message_state)
         if not isinstance(data.get('data'), dict):
             raise LoginError('invalid_sdk_response')
         return data['data']
@@ -186,7 +231,8 @@ class SdkClient:
             ciphertext = key.encrypt((prefix + password).encode(), padding.PKCS1v15())
         except (ValueError, TypeError):
             raise LoginError('sdk_rsa_encryption_failed') from None
-        result = self.request('login', {'user_id': account.strip(), 'pwd': base64.b64encode(ciphertext).decode()})
+        result = self.request('login', {'user_id': account.strip(), 'pwd': base64.b64encode(ciphertext).decode()},
+                              private_values=(account, password))
         # User.accessKey is serialized as access_key. GSCallbackHelper renames
         # it to access_token only in the Android Bundle passed to OneSDK.
         uid = result.get('uid')

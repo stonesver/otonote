@@ -24,11 +24,19 @@ export function applyLifeCommand(state, command, maximumLife) {
 export function createLifeReplay(maximumLife, musicLengthMs) {
   const lastBucket = scoreFrame(musicLengthMs) + 49;
   const bucketOf = time => Math.min(lastBucket, scoreFrame(time));
-  const buckets = new Map();
+  const buckets = new Map(), occupied = [];
+  const lowerBucket = value => {
+    let lo = 0, hi = occupied.length;
+    while (lo < hi) { const mid = (lo + hi) >>> 1; if (occupied[mid] < value) lo = mid + 1; else hi = mid; }
+    return lo;
+  };
   let cacheBucket = -1, cache = { life: maximumLife, guard: 0, reduction: 0 };
   function add(command) {
     const bucket = bucketOf(command.timeMs);
-    if (!buckets.has(bucket)) buckets.set(bucket, []);
+    if (!buckets.has(bucket)) {
+      buckets.set(bucket, []);
+      occupied.splice(lowerBucket(bucket), 0, bucket);
+    }
     const commands = buckets.get(bucket);
     let index = commands.length;
     while (index && commands[index - 1].timeMs > command.timeMs) index--;
@@ -39,8 +47,10 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
     const target = bucketOf(timeMs), reuse = cacheBucket >= 0 && cacheBucket < target;
     let state = reuse ? { ...cache } : { life: maximumLife, guard: 0, reduction: 0 };
     const first = reuse ? cacheBucket + 1 : 0;
-    for (let bucket = first; bucket < target; bucket++) {
-      for (const command of buckets.get(bucket) ?? []) state = applyLifeCommand(state, command, maximumLife);
+    // Empty buckets are identity transitions. Skip them without changing the
+    // native cached prefix or its cursor-only invalidation after late input.
+    for (let i = lowerBucket(first); i < occupied.length && occupied[i] < target; i++) {
+      for (const command of buckets.get(occupied[i])) state = applyLifeCommand(state, command, maximumLife);
     }
     if (cacheBucket < target || cacheBucket < 0) { cacheBucket = target - 1; cache = { ...state }; }
     for (const command of buckets.get(target) ?? []) {

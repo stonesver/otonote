@@ -11,7 +11,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from tools.growth_login import (BOOTSTRAP, LOGIN_SERVICE, GameClient, LoginError,
-                                Profile, SdkClient, SdkIdentity, integer, message, single)
+                                Profile, SdkClient, SdkIdentity, diagnostic_sdk_message,
+                                integer, message, single)
 from tools.growth_login_local import LoginServer
 from tests.test_growth_export import account_response
 
@@ -22,7 +23,7 @@ class LoginTests(unittest.TestCase):
         public = key.public_key().public_bytes(serialization.Encoding.PEM,
                                               serialization.PublicFormat.SubjectPublicKeyInfo).decode()
         calls = []
-        def request(operation, extra=None):
+        def request(operation, extra=None, **kwargs):
             calls.append((operation, extra))
             if operation == 'rsa':
                 return {'hash': 'salt-', 'rsa_key': public}
@@ -30,6 +31,7 @@ class LoginTests(unittest.TestCase):
             plain = key.decrypt(base64.b64decode(extra['pwd']), padding.PKCS1v15())
             self.assertEqual(plain, b'salt-FAKE-PASSWORD')
             self.assertNotIn('FAKE-PASSWORD', json.dumps(extra))
+            self.assertIn('FAKE-PASSWORD', kwargs['private_values'])
             return {'uid': 42, 'access_key': 'FAKE-TOKEN'}
         client = SdkClient(Profile('test-key'))
         client.request = request
@@ -38,13 +40,28 @@ class LoginTests(unittest.TestCase):
         self.assertEqual([x[0] for x in calls], ['rsa', 'login'])
         self.assertNotIn('FAKE-TOKEN', repr(identity))
 
-    def test_remote_error_text_is_never_exposed(self):
+    def test_remote_error_text_stays_out_of_public_error(self):
         client = SdkClient(Profile('test-key'))
         with patch.object(client.opener, 'open') as opening:
             opening.return_value.__enter__.return_value.read.return_value = json.dumps({
-                'code': -400, 'message': 'FAKE-PRIVATE-ACCOUNT', 'data': None}).encode()
-            with self.assertRaisesRegex(LoginError, '^sdk_service_-400$'):
-                client.request('login', {'pwd': 'CIPHERTEXT'})
+                'code': -400, 'message': '帳號 FAKE-PRIVATE-ACCOUNT 無效', 'data': None}).encode()
+            with self.assertRaisesRegex(LoginError, '^sdk_service_-400$') as captured:
+                client.request('login', {'pwd': 'CIPHERTEXT'}, private_values=('FAKE-PRIVATE-ACCOUNT',))
+            self.assertEqual(captured.exception.diagnostic_message, '帳號 [已遮蔽] 無效')
+            self.assertEqual(captured.exception.message_state, 'redacted')
+
+    def test_diagnostic_sdk_message_keeps_wording_and_masks_submitted_values(self):
+        text='帳號或密碼錯誤'
+        self.assertEqual(diagnostic_sdk_message(text, ('user@example.invalid', 'fixture-passphrase')),
+                         (text, 'original'))
+        value='帳號 user@example.invalid 密碼 fixture-passphrase 無效'
+        safe, state=diagnostic_sdk_message(value, ('user@example.invalid', 'fixture-passphrase'))
+        self.assertEqual(state, 'redacted')
+        self.assertIn('帳號', safe)
+        self.assertNotIn('user@example.invalid', safe)
+        self.assertNotIn('fixture-passphrase', safe)
+        self.assertEqual(diagnostic_sdk_message('token=fixture-sensitive-canary')[1], 'redacted')
+        self.assertEqual(diagnostic_sdk_message('line\nsecond'), (None, 'omitted'))
 
     def test_500002_does_not_imply_password_failure_without_message_evidence(self):
         client = SdkClient(Profile('test-key'))
@@ -57,7 +74,7 @@ class LoginTests(unittest.TestCase):
                     client.request('login', {'pwd': 'CIPHERTEXT'})
                 self.assertEqual(str(captured.exception), 'sdk_service_500002')
                 self.assertEqual(captured.exception.reason, expected)
-                self.assertNotIn('PRIVATE', str(captured.exception.__dict__))
+                self.assertEqual(captured.exception.diagnostic_message, remote)
 
     def test_wire_error_reports_schema_only(self):
         with self.assertRaises(LoginError) as captured:

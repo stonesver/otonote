@@ -6,6 +6,7 @@ self.addEventListener('message',async({data})=>{
     if(!response.ok)throw Error(`谱面加载失败（${response.status}）`);
     const chart=await response.json();
     const result=await optimizeChallenge({...input,chart,onProgress:p=>{
+      if(p.phase==='event-exact')self.postMessage({type:'progress',stage:'验证配对与分数上界',completed:p.completed});
       if(p.phase==='practical')self.postMessage({type:'progress',stage:p.stage,completed:p.completed,total:p.total});
     }});
     self.postMessage({type:'result',result});

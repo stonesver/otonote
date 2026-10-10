@@ -1,0 +1,17 @@
+[Unit]
+Description=Archive and retire unreferenced historical rendered HTML
+After=network.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/PRIVATE_DIRECTORY/render-maintenance.env
+WorkingDirectory=/REVIEWED_IMMUTABLE_PROGRAM
+ExecStart=/bin/bash /REVIEWED_IMMUTABLE_PROGRAM/deploy/run-render-maintenance.sh
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=25%
+MemoryMax=256M
+TimeoutStartSec=30min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true

@@ -40,14 +40,19 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
       const request=fetch('/api/growth-export/read/',{method:'POST',credentials:'same-origin',cache:'no-store',
         headers:{'Content-Type':'application/json','X-Growth-Nonce':nonce},body,signal:controller.signal});body='';
       const response=await request;
+      if(response.status===403){
+        nonce=null;q('[data-growth-retry]').hidden=false;
+        q('[data-growth-service-status]').textContent='登录连接需要重新检查。';
+        throw new Error('本次登录请求未通过安全校验。请点“重新检查登录服务”，重新输入密码后再试；仍失败请刷新页面。');
+      }
       if(Number(response.headers.get('content-length'))>2_000_000)throw new Error('返回文件过大，未导入。');
       const text=await response.text();if(text.length>2_000_000)throw new Error('返回文件过大，未导入。');
       let result;try{result=JSON.parse(text);}catch{throw new Error('服务暂不可用，请稍后再试。');}
       if(!response.ok){const code=typeof result.error==='string'&&/^sdk_service_-?\d+$/.test(result.error)?`（${result.error}）`:'';
-        throw new Error(messages[result.reason]??(response.status===429?'服务繁忙，请稍后再试。':response.status===403?'页面已过期，请刷新后再试。':`读取未完成，请稍后再试。${code}`));}
+        throw new Error(messages[result.reason]??(response.status===429?'服务繁忙，请稍后再试。':`读取未完成，请稍后再试。${code}`));}
       prepare(result.snapshot);
     }catch(error){status.textContent=error.name==='AbortError'?'读取超时，未修改卡库。':error.message;}
-    finally{body='';clearTimeout(timer);busy=false;fields.disabled=false;q('[data-growth-file]').disabled=false;}
+    finally{body='';clearTimeout(timer);busy=false;fields.disabled=!nonce;q('[data-growth-file]').disabled=false;}
   });
   q('[data-growth-file]').addEventListener('change',async event=>{
     if(busy)return;clear();busy=true;fields.disabled=true;q('[data-growth-file]').disabled=true;

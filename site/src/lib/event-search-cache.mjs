@@ -1,7 +1,7 @@
 // Disposable, local-only acceleration. Failure or eviction never blocks a run.
 // Bump when candidate generation or scoring behaviour changes.
 import {SCORE_MODEL_VERSION} from './scoring-rules/model-version.mjs';
-export const EVENT_SEARCH_VERSION = 2;
+export const EVENT_SEARCH_VERSION = 3;
 const ruleKeys=new WeakMap();
 export async function searchDigest(value){
   const bytes=new TextEncoder().encode(JSON.stringify(value));

@@ -50,6 +50,20 @@ python3 tools/operations.py dedupe-apply --content-root /PRIVATE_CONTENT_STORE -
 
 ## 回收与恢复
 
+`tools.render_retention` 提供独立的历史 HTML 归档与回收。只选择超过保留年龄且不被两服 current/previous 或 pending 引用的地区 HTML 目录；所有 `payloads`、发布回执和内容/代码快照保持原位。默认保留七天，工具拒绝小于一天的窗口。维护同时取得 `.r2-prerender.lock` 与 `.render.lock`；正在发布时退出，不停止网站。
+
+```sh
+python3 -m tools.render_retention plan --root /PRIVATE_RENDER_STORE --plan /PRIVATE_DIRECTORY/html-plan.json
+python3 -m tools.render_retention archive --root /PRIVATE_RENDER_STORE --plan /PRIVATE_DIRECTORY/html-plan.json --archive /PRIVATE_ARCHIVES/html.tar.gz
+python3 -m tools.render_retention apply --root /PRIVATE_RENDER_STORE --plan /PRIVATE_DIRECTORY/html-plan.json --archive /PRIVATE_ARCHIVES/html.tar.gz
+```
+
+归档必须位于渲染目录之外。压缩文件限制在 512 MiB 内，并为所在文件系统预留至少 2 GiB；超限/失败只清除本次未完成归档，不回收 HTML。执行前重做库存并逐文件验证归档摘要，指针或文件变化要求重新生成方案。计划和归档权限为 `0600`。实际释放量按执行前后空闲空间核对，硬链接按 inode 计算，不重复累计。
+
+先安装支持历史 HTML 重新生成的 `deploy/promote_r2_prerender.py` 版本，再启用回收。旧代码/内容重新成为当前版本时，预渲染器可恢复 HTML，同时保留旧浏览器载荷。离线恢复也可由管理员先验证归档，再将计划内 HTML 还原到原路径；不要解压未知归档或覆盖当前视图。
+
+定时维护模板见 `deploy/ournotes-render-maintenance.*.example` 和 `deploy/run-render-maintenance.sh`，程序目录必须固定到已验证版本，三个目录环境变量保存在私有配置中。首次人工核对方案及归档后再启用。压缩归档仍占空间且不会自动删除，应监控归档目录容量并另行制定备份保留策略；归档预算失败不能被视为清理成功。
+
 内容生产模式的更新器和预渲染发布器不再在发布成功后自动删除历史版本、输入或 HTML。发布结果明确报告 `retention.status = deferred_to_operations`；保留成功记录和版本历史不代表已回收空间。失败产生且未发布的临时目录仍由对应任务清理。
 
 这样可以独立审查删除范围，避免旧的零等待期回收只检查内容指针却遗漏预渲染和已打开页面。空间不足时仍执行原有门槛检查并保留当前内容，不降低门槛、不通过删除未审查数据来完成更新。旧完整静态站维护路径不属于新版内容生产入口。

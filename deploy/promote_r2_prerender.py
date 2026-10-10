@@ -134,14 +134,37 @@ def promote(code_root: Path, content: Path, stage: Path, rendered: Path) -> dict
             raise ValueError("linked rendered release")
         if destination.exists():
             existing = json.loads((destination / "complete.json").read_text())
-            if existing != complete or not (destination / region).is_dir():
+            if existing != complete:
                 raise ValueError("conflicting rendered release")
+            if not (destination / region).is_dir():
+                # Audited maintenance may archive old HTML while keeping every
+                # open-tab payload. Validate regeneration before any pointer move.
+                if ((destination / region).exists() or any(p.is_symlink() for p in destination.rglob('*'))
+                        or any(p.is_symlink() for p in staged.rglob('*'))):
+                    raise ValueError('unsafe retired rendered release')
+                for payload in (staged / 'payloads').glob('*'):
+                    if (payload.is_symlink() or not payload.is_file() or not PAYLOAD.fullmatch(payload.name)
+                            or hashlib.sha256(payload.read_bytes()).hexdigest() != payload.stem):
+                        raise ValueError('invalid regenerated payload')
+                    previous = destination / 'payloads' / payload.name
+                    if previous.exists() and (not previous.is_file() or previous.read_bytes() != payload.read_bytes()):
+                        raise ValueError('immutable regenerated payload changed')
         ready[region] = (target, staged, destination)
     # Check both regions before changing any serving pointer. Releases are
     # immutable; an interrupted move leaves at most an unreferenced release.
-    for target, staged, destination in ready.values():
+    for region, (target, staged, destination) in ready.items():
         if not destination.exists():
             os.replace(staged, destination)
+        elif not (destination / region).is_dir():
+            (destination / 'payloads').mkdir(exist_ok=True)
+            for payload in (staged / 'payloads').glob('*'):
+                target_payload = destination / 'payloads' / payload.name
+                if not target_payload.exists():
+                    os.replace(payload, target_payload)
+            os.replace(staged / region, destination / region)
+            for name in ('pointer.json', f'report-{region}-zh-CN.json', f'report-{region}-en.json'):
+                if (staged / name).is_file():
+                    os.replace(staged / name, destination / name)
     old = {name: _link_target(rendered, name)
            for name in ("current", "current-jp", "previous", "previous-jp")}
     changed = []

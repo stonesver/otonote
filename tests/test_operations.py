@@ -15,6 +15,15 @@ from tools.operations import AuditError, apply_deduplication, plan_deduplication
 
 
 class MaintenanceTests(unittest.TestCase):
+    def test_r2_publication_lock_blocks_maintenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.payload(root, 1)
+            with (root/'.r2-prerender.lock').open('a+') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with self.assertRaisesRegex(AuditError, 'render_in_progress'):
+                    plan_deduplication(root)
+
     def payload(self, root, number, data=b'{"fixture":true}'):
         pair = ('%024x' % number) + '-' + ('a' * 24)
         release = root / 'releases' / pair

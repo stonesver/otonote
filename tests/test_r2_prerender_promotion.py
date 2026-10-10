@@ -86,6 +86,20 @@ class PromotionFixture:
 
 
 class R2PrerenderPromotionTests(unittest.TestCase):
+    def test_archived_html_is_regenerated_without_removing_open_tab_payloads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = PromotionFixture(Path(temporary))
+            destination = fixture.rendered/'releases'/PAIRS['global']
+            shutil.copytree(fixture.stage/'releases'/PAIRS['global'], destination)
+            shutil.rmtree(destination/'global')
+            payloads = destination/'payloads'; payloads.mkdir()
+            data = b'old tab'; name = hashlib.sha256(data).hexdigest()+'.json'
+            (payloads/name).write_bytes(data)
+            with patch.object(promotion, 'read_inputs', side_effect=fixture.read_inputs):
+                fixture.promote()
+            self.assertTrue((destination/'global').is_dir())
+            self.assertEqual((payloads/name).read_bytes(), data)
+
     def test_unchanged_current_views_skip_refresh(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = PromotionFixture(Path(temporary))

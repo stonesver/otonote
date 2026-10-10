@@ -116,7 +116,7 @@ def _inside(root: Path, relative: str) -> Path:
     return path
 
 
-def inventory(root: Path, selections: list[str]) -> tuple[list[str], list[dict]]:
+def inventory(root: Path, selections: list[str], *, excluded: tuple[str, ...] = ()) -> tuple[list[str], list[dict]]:
     if not selections:
         raise ValueError("at least one checkpoint path is required")
     directories: set[str] = set()
@@ -128,6 +128,8 @@ def inventory(root: Path, selections: list[str]) -> tuple[list[str], list[dict]]
             raise ValueError(f"checkpoint path missing: {name}")
         for candidate in [path, *path.rglob("*")] if path.is_dir() else [path]:
             relative = candidate.relative_to(root).as_posix()
+            if any(relative == name or relative.startswith(name + '/') for name in excluded):
+                continue
             _inside(root, relative)
             mode = candidate.lstat().st_mode
             if stat.S_ISDIR(mode):
@@ -332,7 +334,8 @@ def _manifest(bucket, root: Path, region: str, expected_paths: list[str], *, wit
 
 def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_current: str,
                recorded_root: Path | None = None, *, workers: int = 1,
-               verification_cache: Path | None = None) -> dict:
+               verification_cache: Path | None = None,
+               global_working_set: tuple[Path, dict] | None = None) -> dict:
     root = stable_root(root)
     worker_count(workers)
     if recorded_root is None:
@@ -346,12 +349,21 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
     if expected_current != "none" and not SHA256.fullmatch(expected_current):
         raise ValueError("expected current must be 'none' or SHA-256")
     paths = [safe_relative(name) for name in paths]
-    directories, files = inventory(root, paths)
+    excluded = ()
+    if global_working_set is not None:
+        if region != 'global' or recorded_root != root:
+            raise ValueError('Global working set requires the original Global ROOT')
+        from tools.global_state_retention import excluded_runs
+        excluded = tuple(excluded_runs(root, *global_working_set))
+    directories, files = inventory(root, paths, excluded=excluded)
     manifest = {"schemaVersion": 2, "region": region, "root": str(recorded_root),
                 "selections": sorted(set(paths)), "directories": directories, "files": files}
     manifest_bytes = canonical(manifest)
     if len(manifest_bytes) > MANIFEST_LIMIT:
-        raise ValueError("private state manifest is too large")
+        raise ValueError(f"private state manifest is too large: {len(manifest_bytes)} bytes; limit {MANIFEST_LIMIT}")
+    budget = {'manifestBytes': len(manifest_bytes), 'manifestLimitBytes': MANIFEST_LIMIT,
+              'manifestBudgetWarning': len(manifest_bytes) >= MANIFEST_LIMIT * 0.8,
+              'excludedGlobalRuns': len(excluded)}
     unique_objects: dict[tuple[str, int], dict] = {}
     for entry in files:
         identity = (entry["sha256"], entry["size"])
@@ -409,11 +421,11 @@ def checkpoint(bucket, root: Path, region: str, paths: list[str], expected_curre
         raise ValueError("private state pointer differs from expected baseline")
     if actual == digest(pointer):
         return {"status": "unchanged", "region": region, "manifestSha256": manifest_sha,
-                "files": len(files), "uploaded": uploaded, "reused": reused, "verifiedReuse": verified_reuse}
+                "files": len(files), "uploaded": uploaded, "reused": reused, "verifiedReuse": verified_reuse, **budget}
     bucket.replace_small(pointer_key(region), pointer, etag)
     return {"status": "checkpointed", "region": region, "manifestSha256": manifest_sha,
             "pointerSha256": digest(pointer), "files": len(files), "uploaded": uploaded, "reused": reused,
-            "verifiedReuse": verified_reuse}
+            "verifiedReuse": verified_reuse, **budget}
 
 
 def restore(bucket, root: Path, region: str, expected_paths: list[str], *, workers: int = 1,
@@ -699,9 +711,17 @@ def main(argv=None) -> int:
                         help=f"parallel object transfers for checkpoint/restore (1-{MAX_WORKERS}; default: 1)")
     parser.add_argument("--verification-cache", type=Path,
                         help="private same-run restore evidence file outside ROOT, reused by checkpoint")
+    parser.add_argument('--global-working-set-config', type=Path)
+    parser.add_argument('--production-result', type=Path)
     args = parser.parse_args(argv)
     try:
         worker_count(args.workers)
+        working_set = None
+        if args.global_working_set_config is not None or args.production_result is not None:
+            if (args.action != 'checkpoint' or args.region != 'global'
+                    or args.global_working_set_config is None or args.production_result is None):
+                parser.error('Global working set requires checkpoint, config and production result')
+            working_set = (args.global_working_set_config, json.loads(args.production_result.read_bytes()))
         if args.verification_cache is not None and args.action not in {"restore", "checkpoint"}:
             parser.error("--verification-cache is only valid for restore/checkpoint")
         bucket = PrivateS3Bucket.from_environment(args.workers)
@@ -713,7 +733,8 @@ def main(argv=None) -> int:
             if args.expected_current is None:
                 parser.error("checkpoint requires --expected-current")
             result = checkpoint(bucket, args.root, args.region, args.path, args.expected_current,
-                                args.recorded_root, workers=args.workers, verification_cache=args.verification_cache)
+                                args.recorded_root, workers=args.workers, verification_cache=args.verification_cache,
+                                global_working_set=working_set)
         elif args.action == "restore":
             if args.recorded_root is not None:
                 parser.error("--recorded-root is only valid for checkpoint")

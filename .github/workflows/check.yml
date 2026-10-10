@@ -40,12 +40,12 @@ jobs:
           node --test site/tests/tools-loading.test.mjs site/tests/web-client-dependencies.test.mjs site/tests/calculation-progress.test.mjs site/tests/challenge-optimizer-ui.test.mjs
           node --test site/tests/entity-identity.test.mjs site/tests/shared-directory-integration.test.mjs site/tests/edition-library.test.mjs site/tests/shared-song-rankings.test.mjs site/tests/card-skill-filtering.test.mjs
           node --test site/tests/loading-art-publication.test.mjs site/tests/prerender.test.mjs site/tests/navigation-feedback.test.mjs
-          python3 -m unittest tests.test_gallery_identity tests.test_library_metadata tests.test_item_acquisition tests.test_game_database tests.test_code_publication tests.test_operations tests.test_docs_status tests.test_global_update tests.test_prerender_publication tests.test_admin_upgrade.ManualStageTests tests.test_current_content_media tests.test_costumes tests.test_content_publication tests.test_bundle_decoder tests.test_global_remote_sync tests.test_current_client_upgrade tests.test_current_resources tests.test_deployment_preservation -q
+          python3 -m unittest tests.test_gallery_identity tests.test_library_metadata tests.test_item_acquisition tests.test_game_database tests.test_code_publication tests.test_operations tests.test_render_retention tests.test_docs_status tests.test_global_update tests.test_prerender_publication tests.test_admin_upgrade.ManualStageTests tests.test_current_content_media tests.test_costumes tests.test_content_publication tests.test_bundle_decoder tests.test_global_remote_sync tests.test_current_client_upgrade tests.test_current_resources tests.test_deployment_preservation -q
       - name: Install R2 adapter test dependencies
         run: python3 -m pip install -r tools/r2-requirements.txt
       - name: R2 publication and JP transport gates
         run: >-
-          python3 -m unittest tests.test_r2_state tests.test_r2_state_reuse tests.test_r2_content tests.test_r2_shared_media
+          python3 -m unittest tests.test_r2_state tests.test_global_state_retention tests.test_r2_run_summary tests.test_r2_state_reuse tests.test_r2_content tests.test_r2_shared_media
           tests.test_r2_verified_release tests.test_r2_delivery_probe
           tests.test_r2_upload_layout
           tests.test_r2_legacy_bootstrap tests.test_r2_prerender_promotion

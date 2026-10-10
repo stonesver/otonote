@@ -8,7 +8,7 @@ import { reconstructFormalChart, FORMAL_CHART_MODEL_VERSION } from "./formal-cha
 import { stableSnapshotHash } from "../scoring-engine.mjs";
 import { referenceScoringRules } from '../scoring-release-gate.mjs';
 import { summarizeScoreDistribution, SCORE_DISTRIBUTION_VERSION } from './score-distribution.mjs';
-import { liveSkillCommands, replayScoreTimeline, compareScoreFactors } from './formal-score-replay.mjs';
+import { liveSkillCommands, createScoreTimelineReplay, compareScoreFactors } from './formal-score-replay.mjs';
 import { SCORE_MODEL_VERSION } from './model-version.mjs';
 
 const f32 = Math.fround;
@@ -89,6 +89,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
   if (![30, 60, 120].includes(frameRate)) throw new Error('模拟帧率须为 30、60 或 120');
   const orders = skillOrdersFor(scorePrecision);
   const timeline = prepareFormalChart(rules, chart);
+  const replayTimeline = createScoreTimelineReplay(timeline.events, frameRate);
   const formation = createFormationCalculator(rules, { eventAdapters });
   const resolveSkills = createFormalSkillResolver(rules);
   const setting = (key) => Number(rules.tables.LiveSettings.find((r) => r._key === key)?._value);
@@ -145,7 +146,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
       const history = cacheKey === null ? null : factorHistories.get(cacheKey);
       const factors = !history && cacheKey !== null && timeline.events.length * 4 <= 4 * 1024 * 1024
         ? new Float32Array(timeline.events.length) : null;
-      const replay = history ? null : replayScoreTimeline({ events: timeline.events, commands, frameRate, retainNotes: trace || scoreAdapters,
+      const replay = history ? null : replayTimeline({ commands, retainNotes: trace || scoreAdapters,
         scoreNote(event, state) {
           const factor = f32(state.general + state.perfect), i = event.scoreIndex;
           if (factors) factors[i] = factor;

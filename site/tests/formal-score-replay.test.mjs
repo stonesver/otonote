@@ -1,10 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createScoreReplay, replayScoreTimeline, liveSkillCommands } from '../src/lib/scoring-rules/formal-score-replay.mjs';
+import { createScoreReplay, replayScoreTimeline, createScoreTimelineReplay, liveSkillCommands } from '../src/lib/scoring-rules/formal-score-replay.mjs';
 
 const scoreNote = (_note, state) => ({ score: Math.floor(state.general * 1000000), factor: state.general });
 const engine = () => createScoreReplay({ musicLengthMs: 1000, scoreNote });
+
+test('compiled note arrivals preserve rollback, phases, empty frames and independent repeated runs',()=>{
+ const events=Object.freeze([2,16,25,36,79,117,147,150,500].map((timeMs,sourceIndex)=>Object.freeze({timeMs,sourceIndex})));
+ for(const frameRate of [30,60,120]){
+  const run=createScoreTimelineReplay(events,frameRate);
+  for(let seed=1;seed<=20;seed++){
+   const commands=[0,1,2].flatMap(slot=>{
+    const timeMs=(seed*31+slot*13)%100,rate=Math.fround((seed+slot)*.13),phase=['before','skill','after'][slot];
+    return [{timeMs,arrivalTimeMs:timeMs+17,ownerId:slot*100+1,general:rate,phase},
+      {timeMs:timeMs+95,arrivalTimeMs:timeMs+121,ownerId:slot*100+1,general:-rate,phase}];
+   });
+   for(const retainNotes of [false,true]){
+    const expected=replayScoreTimeline({events,commands,frameRate,scoreNote,retainNotes});
+    const actual=run({commands,scoreNote,retainNotes});
+    assert.equal(actual.score,expected.score);
+    assert.deepEqual(actual.notes,expected.notes);assert.deepEqual(actual.state,expected.state);
+    for(const time of [0,80,300,500])assert.equal(actual.calculate(time),expected.calculate(time));
+   }
+  }
+ }
+});
 
 test('bucket rollback matches vectors executed with the client ARM64 UndoDiff leaf', () => {
   const fixture = JSON.parse(readFileSync(new URL('./fixtures/formal-score-undo-native.json', import.meta.url)));

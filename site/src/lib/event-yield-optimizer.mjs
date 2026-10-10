@@ -1,4 +1,5 @@
 import {bindEventScoreCache} from './event-search-cache.mjs';
+import {withEventRewardCandidates} from './event-reward-candidates.mjs';
 import {optimizePractical} from './practical-optimizer.mjs';
 import {createEventEfficiency,planChallengeSpending} from './scoring-rules/event-efficiency.mjs';
 
@@ -36,10 +37,11 @@ function modelChallengeCosts(model,rows){return model.challengeCosts??[...new Se
 
 export async function optimizeEventYield({rules,eventId,draft,chart,candidate,scope='owned',inventory,mode='ordinary',
  liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='expectedScore',challengeRows=[],includeChallenge=true,
- onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache}){
+ onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,rewardCards=[],rewardGrowth='level'}){
  if(!['ordinary','challenge'].includes(mode))throw Error('收益配队仅支持普通与挑战；激奏需要团队结算档位');
  if(!['owned','selected'].includes(scope)||!['badges','eventPoints','grade'].includes(goal))throw Error('Invalid event search options');
  if(!Number.isInteger(budget)||budget<1||budget>10000||!Number.isInteger(startingCP)||startingCP<0||startingCP>1000000)throw Error('Invalid farming budget');
+ ({draft,scope,inventory}=withEventRewardCandidates({rules,draft,scope,inventory,rewardCards,rewardGrowth}));
  if(mode==='ordinary'&&(!Number.isInteger(liveBoost)||liveBoost<1||liveBoost>10||budget<liveBoost))throw Error('普通收益配队需消耗至少 1 火，预算不少于单次耗火');
  const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
  model.challengeCosts=rules.tables.ChallengeMusicBoostBonus.map(r=>r._consumedChallengePointCount);

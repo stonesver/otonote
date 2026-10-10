@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setupInventoryOptimizer } from '../src/lib/inventory-optimizer-ui.mjs';
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
+import {installProgressDom} from './helpers/progress-dom.mjs';
 
 const rules = JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json', import.meta.url)));
 function fixture(t, locale = 'zh-CN') {
@@ -30,6 +31,7 @@ function fixture(t, locale = 'zh-CN') {
     dispatchEvent() {}, data: { formalRules: rules, locale, charts: [{ trackId: 'music-100001', difficulty: 'expert', analysisDataUrl: '/chart.json' }] },
     draft: createTeamDraft({ selectedSongId: 'music-100001', selectedDifficulty: 'expert',
       slots: [1, 2, 3, 4, 5].map(id => ({ memberCardId: `member-card-${id}`, supportCardId: `support-card-${id}` })) }) };
+  installProgressDom(t,q('[data-pairing-progress]'));
   setupInventoryOptimizer(workbench);
   return { q, workbench, run: () => q('[data-optimize-pairing]').handlers.click(), get worker() { return worker; } };
 }
@@ -43,6 +45,7 @@ function assertStopped({ q, workbench, worker }, message) {
   assert.equal(q('[data-cancel-pairing]').disabled, true);
   assert.equal(q('[data-export-pairing]').disabled, true);
   assert.deepEqual(q('[data-pairing-results]').children, []);
+  assert.equal(q('[data-pairing-progress]').progressNode.dataset.state,'error');
   if (worker) assert.equal(worker.terminated, true);
 }
 test('unsupported worker rules end the running state and discard incomplete results', async t => {
@@ -75,6 +78,22 @@ test('chart fetch failures clear the running status before any worker starts', a
   await context.run();
   assertStopped(context, '比较失败');
   assert.equal(context.q('[data-pairing-progress]').textContent, '谱面加载失败');
+});
+
+test('stopping during chart loading aborts the request and ignores its late response',async t=>{
+  const context=fixture(t);
+  context.q('[data-pairing-objective]').value='expected_song_score';
+  let respond,signal;
+  t.mock.method(globalThis,'fetch',(_url,options)=>{signal=options.signal;return new Promise(resolve=>{respond=resolve;});});
+  const pending=context.run();
+  assert.equal(context.q('[data-cancel-pairing]').disabled,false);
+  context.q('[data-cancel-pairing]').handlers.click();
+  assert.equal(signal.aborted,true);
+  assert.equal(context.q('[data-pairing-progress]').progressNode.dataset.state,'stopped');
+  respond({ok:true,json:async()=>({})});await pending;
+  assert.equal(context.worker,undefined);
+  assert.equal(context.q('[data-search-state]').dataset.running,'false');
+  assert.equal(context.q('[data-pairing-progress]').progressNode.dataset.state,'stopped');
 });
 
 test('partial coverage finishes with a visible limitation and concrete diagnostics', async t => {

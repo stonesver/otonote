@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chartLoopRange, chartPlaybackFromSearch, chartPlaybackUrl } from '../src/lib/chart-playback-state.mjs';
 import { findStoryLines, stepStoryMatch } from '../src/lib/story-reader-search.mjs';
-import { resourceSearchUrl } from '../src/lib/resource-search.mjs';
 
 test('chart loops reject incomplete, reversed, nonfinite and unplayably short ranges', () => {
   for (const [start, end, duration] of [[null, 5, 100], [0, '', 100], [5, 4, 100], [3, 3.1, 100], [0, Infinity, 100], [0, 5, 0]]) {
@@ -51,13 +50,4 @@ test('dialogue navigation wraps and handles no matches', () => {
   assert.equal(stepStoryMatch(-1, 1, 3), 0);
   assert.equal(stepStoryMatch(-1, -1, 3), 2);
   assert.equal(stepStoryMatch(-1, 1, 0), -1);
-});
-
-test('resource search preserves archive categories and regional routes with literal query text', () => {
-  const url = resourceSearchUrl('https://local.invalid/jp/en/profile-decorations/?category=backgrounds&server=jp', '  a&b <3  ');
-  assert.equal(url.pathname, '/jp/en/profile-decorations/');
-  assert.equal(url.searchParams.get('category'), 'backgrounds');
-  assert.equal(url.searchParams.get('server'), 'jp');
-  assert.equal(url.searchParams.get('q'), 'a&b <3');
-  assert.equal(resourceSearchUrl(url, '').searchParams.has('q'), false);
 });

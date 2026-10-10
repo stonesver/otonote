@@ -4,13 +4,16 @@ import {createToolCardPicker} from '../src/lib/tool-card-picker.mjs';
 
 class Element extends EventTarget {
  constructor(tag,document){super();this.tagName=tag;this.ownerDocument=document;this.children=[];this.dataset={};this.attributes={};this.value='';this.scrollTop=0;this.disabled=false;this.open=false;}
- append(...children){this.children.push(...children);if(this.tagName==='select'&&this.children.length===children.length)this.value=children[0]?.value??'';}
- replaceChildren(...children){this.children=[...children];}
+ append(...children){for(const child of children){if(typeof child==='object'){if(child.parentNode)child.parentNode.children=child.parentNode.children.filter(c=>c!==child);child.parentNode=this;}this.children.push(child);}if(this.tagName==='select'&&this.children.length===children.length)this.value=children[0]?.value??'';}
+ replaceChildren(...children){for(const child of this.children)if(typeof child==='object')child.parentNode=null;this.children=[];this.append(...children);}
+ closest(tag){return this.tagName===tag?this:this.parentNode?.closest(tag);}
+ insertBefore(child,before){if(child.parentNode)child.parentNode.children=child.parentNode.children.filter(c=>c!==child);child.parentNode=this;this.children.splice(this.children.indexOf(before),0,child);}
  setAttribute(name,value){this.attributes[name]=String(value);}
  focus(){this.ownerDocument.activeElement=this;}
  showModal(){this.open=true;}
  close(){this.open=false;this.dispatchEvent(new Event('close'));}
  querySelector(){return null;}
+ querySelectorAll(){return [];}
  getBoundingClientRect(){return {left:10,right:110,top:10,bottom:110};}
 }
 function setup(t){
@@ -25,10 +28,12 @@ function setup(t){
  const nodes=()=>{const walk=node=>[node,...node.children.flatMap(c=>typeof c==='string'?[]:walk(c))];return walk(root);};
  return {root,document,picker,draft,nodes};
 }
-test('continuous selection retains filters and focuses a card without returning to search',t=>{
+test('preview does not replace; explicit replacement retains filters and continues to the next empty slot',t=>{
  const {picker,nodes,draft,document}=setup(t);picker.open('member',0);
  const search=nodes().find(n=>n.type==='search'),band=nodes().find(n=>n.dataset.cardFilter==='band');search.value='Stage';search.dispatchEvent(new Event('input'));band.value='1';band.dispatchEvent(new Event('change'));
  nodes().find(n=>n.dataset.cardId==='member-card-1').dispatchEvent(new Event('click'));
+ assert.equal(draft.slots[0].memberCardId,null);
+ nodes().find(n=>n.className==='ux-card-replace').dispatchEvent(new Event('click'));
  assert.equal(draft.slots[0].memberCardId,'member-card-1');assert.equal(search.value,'Stage');assert.equal(band.value,'1');assert.equal(document.activeElement.dataset.cardId,'member-card-2');
  const dialog=nodes().find(n=>n.className==='ux-card-picker');assert.equal(dialog.open,true);dialog.close();picker.open('member',3);assert.equal(search.value,'Stage');assert.equal(band.value,'1');
 });

@@ -227,12 +227,12 @@ test("database entrances describe visitor-visible content", async () => {
 test("tools directory exposes score estimates and pairing without an obsolete pending entry", async () => {
   const page = await readSource("../src/pages/tools/index.astro");
   const toolPaths = [...page.matchAll(/\{path:'([^/][^']*)',mark:/g)].map((match) => match[1]);
-  const renderedToolIndexes = [...(page.match(/\{\[items\[0\][^\n]+\.map\(item/)?.[0] ?? "").matchAll(/items\[(\d+)\]/g)]
+  const renderedToolIndexes = [...(page.match(/\{\[items\[\d+\][^\n]+\.map\(item/)?.[0] ?? "").matchAll(/items\[(\d+)\]/g)]
     .map((match) => Number(match[1]));
-  assert.deepEqual(toolPaths.toSorted(), ["live2d", "deck-builder", "song-ranking", "song-calculator", "ap-grade", "event-efficiency"].toSorted());
-  assert.deepEqual(renderedToolIndexes.toSorted((a, b) => a - b), [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(toolPaths.toSorted(), ["gacha-history", "live2d", "deck-builder", "song-ranking", "song-calculator", "ap-grade", "event-efficiency"].toSorted());
+  assert.deepEqual(renderedToolIndexes.toSorted((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6]);
   assert.match(page, /href=\{href\(`\/tools\/\$\{item.path\}\/`\)\}/);
-  assert.deepEqual([...page.matchAll(/\{path:'(\/[^']*)',kind:/g)].map((match) => match[1]), ["/music/", "/stories/", "/tools/resources/"]);
+  assert.deepEqual([...page.matchAll(/\{path:'(\/[^']*)',kind:/g)].map((match) => match[1]), ["/music/", "/stories/"]);
 
   assert.deepEqual(
     {

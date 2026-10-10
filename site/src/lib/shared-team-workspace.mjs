@@ -1,3 +1,5 @@
+import {loadTeamWorkspaceData} from './shared-team-loader.mjs';
+export {loadTeamWorkspaceData};
 import {getActiveToolTeamContext} from './shared-team-context.mjs';
 import {createTeamWorkspaceStore} from './team-workspace-store.mjs';
 import {checkTeamCompatibility,mergeTeamForTool} from './team-workspace-compatibility.mjs';
@@ -68,14 +70,6 @@ function download(value,name) {
   const link=element('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-/** Reuse the current tool's data. Non-calculators fetch the collection only on open. */
-export async function loadTeamWorkspaceData(context) {
-  const {sharedTeamData,sharedTeamPresentation}=await import('./shared-team-data.mjs');
-  if(context?.data?.memberCards && (context.rules??context.data.formalRules??context.data.rules)) {
-    return {...context.data,...sharedTeamPresentation(),formalRules:context.rules??context.data.formalRules??context.data.rules};
-  }
-  return sharedTeamData();
-}
 
 export async function setupSharedTeamWorkspace(shell) {
   const panel=shell.querySelector('[data-team-workspace-panel]'),body=shell.querySelector('[data-team-workspace-body]'),launcher=shell.querySelector('[data-team-workspace-open]');
@@ -85,7 +79,7 @@ export async function setupSharedTeamWorkspace(shell) {
   data.memberCards=data.memberCards.map(card=>({...card,kind:'member'}));data.supportCards=data.supportCards.map(card=>({...card,kind:'support'}));
   let store,profileStore,state,inventoryPanel,editing=null,editBaseline='',editingId=null,editingRevision,undo=null,pendingSave=null,origin=null;
   const tabScroll={teams:0,inventory:0};
-  let activeTab='teams',applying=false,loadedProfile,includePerformance=false,dismissedOutside=false,lastSavedId=null;
+  let activeTab='teams',applying=false,loadedProfile,includePerformance=false,dismissedOutside=false,lastSavedId=null,previewedTeam=null;
   const status=element('div','','tw-status tw-feedback');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   const serverRow=element('div',null,'tw-server'),tabs=element('div',null,'tw-tabs'),teams=element('section'),inventory=element('section');
   teams.id='tw-teams';inventory.id='tw-inventory';tabs.setAttribute('role','tablist');
@@ -147,22 +141,30 @@ export async function setupSharedTeamWorkspace(shell) {
   }
   function scenarioLabel(draft){const s=draft.modifiers?.planningScenario;return s?.plan?say('培养计划','Training plan'):s?.scope==='reference'?say('满养成参考','Max growth reference'):s?.scope==='trial'?say('试用队伍','Trial team'):s?.scope==='owned'?say('当前养成','Current growth'):say('手选 / 参考队伍','Selected / reference team');}
   function renderCurrent(){
+    if(previewedTeam){
+      const team=previewedTeam,check=compatibility(team.draft),controls=element('div',null,'tw-actions tw-preview-actions');currentBox.replaceChildren(element('small',say('编成预览','Lineup preview')),element('h3',team.name),lineup(team.draft),element('p',scenarioLabel(team.draft)));
+      controls.append(button(say('编辑这支队伍','Edit this team'),()=>guardEditor(()=>edit(team.draft,team.id,team.name))));
+      if(context){const apply=button(say('使用这支队伍','Use this team'),()=>guardEditor(()=>applyTeam(team.draft)),'primary');apply.disabled=!check.compatible;controls.append(apply);}
+      if(!check.compatible)currentBox.append(element('p',check.issues.map(i=>i.message).join(' · '),'tw-warning'));
+      currentBox.append(controls);return;
+    }
     currentBox.replaceChildren(element('h3',context?say('当前工具使用','Current tool team'):say('跨工具共用','Shared across tools')));
     if(context){const draft=context.getDraft(),hasCards=draft.slots.some(slot=>slot.memberCardId||slot.supportCardId);
-      if(hasCards){const controls=element('div',null,'tw-actions');controls.append(button(say('编辑当前队伍','Edit current team'),()=>guardEditor(()=>edit(draft)),'primary'),button(say('存为队伍','Save as team'),()=>guardEditor(()=>edit(draft,null,say('我的队伍','My team'),true))));currentBox.append(lineup(draft,true),element('p',scenarioLabel(draft)),controls);}
+      if(hasCards){const controls=element('div',null,'tw-actions tw-preview-actions');controls.append(button(say('编辑当前队伍','Edit current team'),()=>guardEditor(()=>edit(draft)),'primary'),button(say('存为队伍','Save as team'),()=>guardEditor(()=>edit(draft,null,say('我的队伍','My team'),true))));currentBox.append(lineup(draft),element('p',scenarioLabel(draft)),controls);}
       else currentBox.append(element('p',say('还没选队伍。选用下方已存队伍，或新建一套。','No team selected. Use a saved team below or create one.')));
     }
     else {const isRanking=location.pathname.includes('/song-ranking/');currentBox.append(element('p',isRanking?say('此榜使用固定基准。选好队伍后，可带入歌曲计算查看个人分数。','This ranking uses a fixed benchmark. Open the song calculator to calculate your own team.'):say('这里可以管理卡库和队伍。到配队、歌曲计算或活动工具后，再选择用于该页的队伍。','Manage your collection and teams here, then choose a team in a calculator.')));}
   }
   function renderList(){
     if(!store)return;const next=run(()=>store.read());if(next)state=next;list.replaceChildren();
+    if(previewedTeam){previewedTeam=state.teams.find(team=>team.id===previewedTeam.id)??null;renderCurrent();}
     const rows=(state?.teams??[]).filter(team=>team.name.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase()));
+    if(context){const current=button(say('当前工具使用的队伍','Current tool team'),()=>{previewedTeam=null;renderCurrent();renderList();});current.className='tw-current-option';current.setAttribute('aria-pressed',String(!previewedTeam));list.append(current);}
     for(const team of rows){
       const card=element('article',null,'tw-saved-team'),check=compatibility(team.draft),controls=element('div',null,'tw-actions');card.dataset.teamId=team.id;card.dataset.justSaved=String(team.id===lastSavedId);
-      const heading=element('h3',team.name);heading.tabIndex=-1;card.append(heading,lineup(team.draft,true),element('p',scenarioLabel(team.draft)));
+      const heading=button(team.name,()=>{previewedTeam=team;renderCurrent();renderList();});heading.className='tw-team-option';heading.setAttribute('aria-pressed',String(previewedTeam?.id===team.id));card.append(heading,lineup(team.draft,true),element('p',scenarioLabel(team.draft)));
       if(!check.compatible)card.append(element('p',check.issues.map(i=>i.message).join(' · '),'tw-warning'));
-      if(context){const apply=button(say('用于当前工具','Use in this tool'),()=>guardEditor(()=>applyTeam(team.draft)),'primary');apply.disabled=!check.compatible;controls.append(apply);}
-      else if(location.pathname.includes('/song-ranking/'))controls.append(button(say('带到歌曲计算','Open song calculator'),()=>run(()=>{store.setRecentDraft(team.draft);location.assign(toolRoute('/tools/song-calculator/',location.pathname));}),'primary'));
+      if(!context&&location.pathname.includes('/song-ranking/'))controls.append(button(say('带到歌曲计算','Open song calculator'),()=>run(()=>{store.setRecentDraft(team.draft);location.assign(toolRoute('/tools/song-calculator/',location.pathname));}),'primary'));
       controls.append(button(check.compatible?say('编辑','Edit'):say('复制并调整','Copy and adjust'),()=>guardEditor(()=>edit(team.draft,check.compatible?team.id:null,team.name+(check.compatible?'':say(' 副本',' copy'))))));
       const more=element('details',null,'tw-more'),menu=element('div',null,'tw-more-menu');more.append(element('summary',say('更多','More')),menu);
       menu.append(button(say('复制','Copy'),()=>guardEditor(()=>edit(team.draft,null,team.name+say(' 副本',' copy')))),button(say('重命名','Rename'),()=>guardEditor(()=>edit(team.draft,team.id,team.name,true))),button(say('删除','Delete'),()=>run(()=>{
@@ -194,7 +196,7 @@ export async function setupSharedTeamWorkspace(shell) {
   // Put the chooser in the panel so stacked modal focus remains inside the workspace.
   panel.append(shell.querySelector('.ux-card-picker'));
   const syncPlanningCards=changedTrainingId=>syncEditedTeamPlanning(editing,data.formalRules.sourceReleaseId,changedTrainingId);
-  function edit(draft,id=null,name='',focusName=false){pendingSave=null;editing=copy(draft);editingId=id;editingRevision=state?.revision;editing._name=name;editBaseline=JSON.stringify(editing);includePerformance=false;renderEditor();switchTab('teams');editor.scrollIntoView({block:'start',behavior:'auto'});if(focusName)editor.querySelector('[data-tw-name]')?.focus({preventScroll:true});}
+  function edit(draft,id=null,name='',focusName=false){panel.dataset.taskEntry='editor';panel.querySelector('#tw-title').textContent=say('编辑队伍配对','Edit team pairs');pendingSave=null;editing=copy(draft);editingId=id;editingRevision=state?.revision;editing._name=name;editBaseline=JSON.stringify(editing);includePerformance=false;renderEditor();switchTab('teams');editor.scrollIntoView({block:'start',behavior:'auto'});if(focusName)editor.querySelector('[data-tw-name]')?.focus({preventScroll:true});}
   function renderEditor(){
     const openGrowth=new Set([...editor.querySelectorAll('details[open]')].map(node=>node.dataset.growthCard));const focused=document.activeElement?.dataset.growthField;const scroll=body.scrollTop;
     editor.replaceChildren();if(!editing){updateSaveState();return;}const manager=createInventoryManager(data.formalRules),name=element('input');name.type='text';name.maxLength=80;name.value=editing._name??'';name.placeholder=say('例如：日常稳分队','For example: steady daily team');name.dataset.twName='';name.addEventListener('input',()=>editing._name=name.value);
@@ -223,7 +225,7 @@ export async function setupSharedTeamWorkspace(shell) {
     const controls=element('div',null,'tw-actions tw-editor-actions');const save=button(editingId?say('保存修改','Save changes'):say('保存队伍','Save team'),()=>saveEditor(Boolean(editingId)),'primary');save.dataset.saveTeam='';controls.append(save);
     if(editingId)controls.append(button(say('另存为新队伍','Save as new team'),()=>saveEditor(false)));
     if(context)controls.append(button(say('用于当前工具','Use in this tool'),()=>{syncPlanningCards();const d=copy(editing);delete d._name;applyTeam(d);}));
-    controls.append(button(say('收起编辑','Close editor'),()=>guardEditor(()=>{pendingSave=null;editing=null;editor.replaceChildren();updateSaveState();}),'quiet'));editor.append(controls);updateSaveState();
+    controls.append(button(say('收起编辑','Close editor'),()=>guardEditor(()=>{pendingSave=null;editing=null;editor.replaceChildren();panel.dataset.taskEntry='teams';panel.querySelector('#tw-title').textContent=say('卡库与队伍','Cards & teams');updateSaveState();}),'quiet'));editor.append(controls);updateSaveState();
     body.scrollTop=scroll;if(focused)editor.querySelector(`[data-growth-field="${focused}"]`)?.focus({preventScroll:true});
   }
 
@@ -242,5 +244,5 @@ export async function setupSharedTeamWorkspace(shell) {
   panel.addEventListener('cancel',event=>{if(panel.querySelector('dialog[open]'))event.preventDefault();});
   installWorkspaceDismiss(panel,launcher,()=>{dismissedOutside=true;panel.close();});
   initializeStores();switchTab('teams');
-  return {async open(tab=activeTab,saveRequest=null){origin=panel.contains(document.activeElement)?launcher:document.activeElement;context=getActiveToolTeamContext();if(!panel.open){if(matchMedia('(min-width: 1680px)').matches)panel.show();else panel.showModal();document.body.classList.add('tw-is-open');launcher.setAttribute('aria-expanded','true');}switchTab(tab);renderCurrent();renderList();if(saveRequest){await guardEditor(()=>{edit(saveRequest.draft,null,saveRequest.name||say('我的队伍','My team'),true);pendingSave=saveRequest;});}else panel.querySelector('[data-team-workspace-close]')?.focus();}};
+  return {async open(tab=activeTab,saveRequest=null){origin=panel.contains(document.activeElement)?launcher:document.activeElement;context=getActiveToolTeamContext();if(!panel.open){if(matchMedia('(min-width: 1680px)').matches)panel.show();else panel.showModal();document.body.classList.add('tw-is-open');launcher.setAttribute('aria-expanded','true');}panel.dataset.taskEntry=tab;panel.querySelector('#tw-title').textContent=tab==='editor'?say('编辑队伍配对','Edit team pairs'):say('卡库与队伍','Cards & teams');switchTab(tab);renderCurrent();renderList();if(tab==='editor'&&context&&!saveRequest){await guardEditor(()=>edit(context.getDraft()));}else if(saveRequest){await guardEditor(()=>{edit(saveRequest.draft,null,saveRequest.name||say('我的队伍','My team'),true);pendingSave=saveRequest;});}else panel.querySelector('[data-team-workspace-close]')?.focus();}};
 }

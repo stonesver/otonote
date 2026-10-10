@@ -9,7 +9,9 @@ export function resolveTeamCardGrowth({card,draft,inventory,rules}) {
   const supplied=modifiers.growth?.[id],previous=modifiers.planningResult;
   const training=scenario?.plan&&scenario.plan.enabled!==false;
   const trial=scenario?.scope==='trial'&&scenario.trialCardIds?.[`${kind}CardIds`]?.includes(id)&&!owned;
-  const reference=scenario?.scope==='reference'||trial;
+  if(previous?.referenceCardIds?.includes(id)&&!actual)return {growth:copy(supplied),source:'reference'};
+  const missingReference=!training&&scenario?.unknownGrowth==='reference'&&!actual&&(!supplied||!Object.keys(supplied).length);
+  const reference=scenario?.scope==='reference'||trial||missingReference;
   if(reference&&rules){
     const selected={memberCardIds:[],supportCardIds:[]};selected[`${kind}CardIds`]=[id];
     const ref=resolveGrowthScenario(rules,{slots:draft?.slots??Array.from({length:5},()=>({})),modifiers:{}},
@@ -45,7 +47,7 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
   const doc=data.document??globalThis.document,en=locale==='en',say=(zh,english)=>en?english:zh;
   const node=(tag,text,cls)=>{const value=doc.createElement(tag);if(text!=null)value.textContent=text;if(cls)value.className=cls;return value;};
   const appendImage=(container,url,alt,fallback)=>{const image=node('img');image.alt=alt;image.loading='lazy';image.addEventListener('error',()=>image.replaceWith(fallback),{once:true});image.src=url;container.append(image);};
-  const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.source=source;root.title=card.displayName??card.shortLabel??card.id;
+  const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.source=source;root.dataset.kind=kind;root.title=card.displayName??card.shortLabel??card.id;
   const art=node('span',null,'tw-card-art');
   if(card.imageUrl)appendImage(art,card.imageUrl,'',node('span','—','tw-card-no-art'));
   else art.append(node('span','—','tw-card-no-art'));
@@ -61,17 +63,25 @@ export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN'
     else chip.textContent=fallback;
     meta.append(chip);
   }
-  body.append(meta);
+  art.append(meta);
   const stats=node('span',null,'tw-card-growth');
   const fields=kind==='support'?[['level','等级','Level','supportLevel'],['rank','突破','Rank','rank']]:[
     ['level','等级','Level','memberLevel'],['rank','突破','Rank','rank'],['awake','觉醒','Awakening','awake'],
     ['skillLevel','演出技能','Live skill'],['gekisouSkillLevel','激奏技能','Gekisou skill']];
   for(const [field,zh,english,icon] of fields){
     const value=Number.isInteger(growth?.[field])?growth[field]:'—',label=say(zh,english),stat=node('span',null,'tw-card-stat');stat.dataset.field=field;stat.title=`${label} ${value}`;
-    if(icon&&data.growthIcons?.[icon]&&!['rank','awake'].includes(field))appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',label,'tw-card-stat-label'));
+    if(field==='awake'){
+      stat.append(node('span',say('觉','AW'),'tw-card-stat-label'));
+      const awakeIcon=data.growthIcons?.awakeBase;
+      if(Number.isInteger(growth?.awake))for(let i=0;i<5;i++){const bloom=node('span',null,'tw-awake-bloom');bloom.dataset.active=String(i<growth.awake);if(awakeIcon)appendImage(bloom,awakeIcon,'',node('span','✿'));else bloom.append(node('span','✿'));stat.append(bloom);}
+      else if(awakeIcon)appendImage(stat,awakeIcon,label,node('span','✿'));
+      else stat.append(node('span','✿'));
+    }else if(icon&&data.growthIcons?.[icon])appendImage(stat,data.growthIcons[icon],label,node('span',label,'tw-card-stat-label'));else stat.append(node('span',field==='skillLevel'?'演':field==='gekisouSkillLevel'?(card.skillFacets?.['gekisou-type']?.map(t=>t.toUpperCase()).join('/')||'激'):field==='rank'?'突':label,'tw-card-stat-label'));
     stat.append(node('span',field==='level'?`Lv.${value}`:String(value),'tw-card-stat-value'));stats.append(stat);
   }
-  body.append(stats);
+  art.append(stats);
+  const types=[...new Set((card.skillFacets?.['gekisou-type']??[]).map(t=>String(t).toLowerCase()))];root.dataset.missionTypes=types.join(' ');
+  if(types.length)art.append(node('span',types.map(t=>t.toUpperCase()).join(' / '),'tw-card-mission'));
   const sources={actual:say('当前养成','Current growth'),training:say('培养目标','Training target'),reference:say('参考养成','Reference growth'),selected:say('手选养成','Selected growth'),unknown:say('养成未记录','Growth unknown')};
   body.append(node('span',sources[source]??sources.unknown,'tw-card-source'));root.append(body);return root;
 }

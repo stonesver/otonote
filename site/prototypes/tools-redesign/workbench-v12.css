@@ -1,0 +1,8 @@
+/* A compact plain-text leader note; no icon, card, or decorative panel. */
+.leader-effect{display:block;min-height:0;margin:5px 0 0;padding:0;border:0;border-radius:0;background:none;font-size:11px;line-height:1.8;color:#9d89a9;text-align:left;}
+.leader-simple-name{font-weight:500;color:#8b6c9b;margin-right:10px;white-space:nowrap;}
+.leader-simple-effect{font-size:11px;font-weight:400;color:#9d89a9;overflow-wrap:anywhere;}
+.leader-simple-effect strong{font-size:11px;font-weight:600;color:#856395;white-space:nowrap;}
+.leader-simple-reference{font-size:9px;font-weight:400;color:#b6a5c0;margin-left:8px;white-space:nowrap;}
+.selected-team-panel>.leader-effect{margin-left:14px;margin-right:14px;}
+@media(max-width:700px){.leader-effect{display:block;padding:0;margin-top:5px;line-height:1.85;}.leader-simple-name{margin-right:7px;}}

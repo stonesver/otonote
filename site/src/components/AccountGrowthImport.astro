@@ -1,15 +1,15 @@
 ---
 import {activeReleaseContext} from '../lib/release-context';
 import {siteHref} from '../lib/site-context';
-interface Props { standalone?: boolean; }
-const {standalone=false}=Astro.props;
+interface Props { standalone?: boolean; loginOnly?: boolean; }
+const {standalone=false,loginOnly=false}=Astro.props;
 const fallback=import.meta.env.BASE_URL==='/'?'/tools/account-export/':siteHref('/tools/account-export/',activeReleaseContext);
 const configured=import.meta.env.PUBLIC_GROWTH_TOOL_URL;
 const toolHref=typeof configured==='string'&&/^https:\/\//.test(configured)?configured:fallback;
 ---
 <details class:list={['inventory-import-panel account-growth',{'account-growth--standalone':standalone}]} data-account-growth open={standalone}>
   <summary>登录与导入 <span>读取后预览，确认再保存</span></summary>
-  <p class="inventory-help">导入本站养成备份、旧卡库 JSON，或从游戏读取成员卡、留影、乐器、角色评级和 TGW。预览确认后保存，各工具共用。</p>
+  <p class="inventory-help">{loginOnly?'从游戏读取成员卡、留影、乐器、角色评级和 TGW，预览确认后保存，各工具共用。':'导入本站养成备份、旧卡库 JSON，或从游戏读取成员卡、留影、乐器、角色评级和 TGW。预览确认后保存，各工具共用。'}</p>
   <div class="growth-import-methods">
   <section class="growth-import-method">
   <h3>游戏账号登录</h3>
@@ -28,7 +28,7 @@ const toolHref=typeof configured==='string'&&/^https:\/\//.test(configured)?conf
   <p role="status" aria-live="polite" data-growth-service-status>正在检查网页登录服务…</p>
   <button type="button" data-growth-retry hidden>重新检查登录服务</button>
   </section>
-  <section class="growth-import-method">
+  <section class="growth-import-method" hidden={loginOnly}>
   <h3>导入 JSON 备份</h3>
   <p class="inventory-help">使用已保存的养成文件恢复档案。文件仅在当前浏览器解析，不上传服务器。</p>
   <div class="inventory-toolbar">
@@ -38,7 +38,7 @@ const toolHref=typeof configured==='string'&&/^https:\/\//.test(configured)?conf
   <p class="inventory-help">也可使用本地工具读取游戏养成，再导入这里。</p>
   </section>
   </div>
-  <p role="status" aria-live="polite" data-growth-status>请选择个人养成备份、旧卡库 JSON 或本地工具导出的养成 JSON。</p>
+  <p role="status" aria-live="polite" data-growth-status>{loginOnly?'读取后先核对卡库与养成，再确认保存。':'请选择个人养成备份、旧卡库 JSON 或本地工具导出的养成 JSON。'}</p>
   <div data-growth-preview class="inventory-preview" hidden></div>
   <div class="inventory-toolbar" data-growth-actions hidden>
     <button type="button" class="growth-primary" data-growth-apply disabled>保存为当前养成</button>

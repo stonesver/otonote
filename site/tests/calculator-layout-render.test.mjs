@@ -9,6 +9,7 @@ const moduleUrl = code => `data:text/javascript;base64,${Buffer.from(code).toStr
 const runtime = moduleUrl(`export * from ${JSON.stringify(import.meta.resolve('astro/compiler-runtime'))};
   export const createMetadata = () => ({}); export const renderScript = () => '';`);
 const projection = moduleUrl(`
+  export const sharedTeamPresentation=()=>({filterVisualOptions:{},growthIcons:{}});
   export const catalog = {release:{id:'fixture',locale:'zh-CN'},musicTracks:[],musicCharts:[],bands:[],characters:[],cardTaxonomy:{attributes:[],rarities:[]}};
   export const memberCards=[],supportCards=[],projections=[],skillFilters={facets:[]};
   export const globalSystems={sourceReleaseId:'fixture',vipRanks:[]},bandItemDatabase={items:[]};

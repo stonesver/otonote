@@ -32,16 +32,17 @@ function trainingDescription(change,workbench) {
 export function renderOptimizerResults(workbench,results,{mode,objective,live=false}={}) {
   const root=workbench.querySelector('[data-pairing-results]');root.replaceChildren();
   workbench.querySelector('[data-results-empty]').hidden=Boolean(results.length);
-  for(const [i,result] of visibleRecommendations(results).entries()) {
+  const candidates=visibleRecommendations(results),tabs=el('div',null,'task-candidate-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','推荐候选');if(candidates.length>1)root.append(tabs);const rows=[],buttons=[];
+  for(const [i,result] of candidates.entries()) {
     const row=el('li',null,'recommendation'),direction=result.direction;
     const header=el('div',null,'recommendation-heading');
     header.append(el('span',direction?.label??(live?'已找到的方案 · 计算中':i?`方案 ${i+1}`:'推荐编成'),'recommendation-label'),
       el('span',mode==='gekisou'?'激奏演出':'普通自由演出','recommendation-mode'));
-    row.append(header,el('span',recommendationScenarioLabel(result),'recommendation-scenario'));
+    const resultHeading=el('header',null,'task-result-heading'),identity=el('div');identity.append(header,el('span',recommendationScenarioLabel(result),'recommendation-scenario'));resultHeading.append(identity);row.append(resultHeading);
     const score=el('div',null,'recommendation-score');
     score.append(el('strong',number(result.value)),el('span',objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
     if(result.delta!=null&&!result.planning?.missingActual)score.append(el('em',`${result.delta>=0?'+':''}${number(result.delta)} 较当前养成方案`,result.delta>=0?'is-positive':'is-negative'));
-    row.append(score,teamLineup(workbench,result.draft));
+    resultHeading.append(score);row.append(teamLineup(workbench,result.draft));
     if(direction?.reason)row.append(el('p',direction.reason,'recommendation-reason'));
     if(direction?.tradeoff)row.append(el('p',direction.tradeoff,'recommendation-tradeoff'));
     const planning=result.planning;
@@ -77,9 +78,9 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
         const table=el('table'),head=el('tr');for(const label of ['激奏段','任务累计','音符分','平均名次','奖励','占整曲']){const th=el('th',label);th.scope='col';head.append(th);}table.append(head);
         for(const s of result.sections){const tr=el('tr');for(const value of [`${s.index} ${['','COMBO','LUCK','JUST'][s.missionType]}`,number(s.missionType===1?s.combo:s.missionType===2?s.luckPoints:s.just),number(s.noteScore),number(s.rank),number(s.rankingBonus),`${number(s.share*100)}%`])tr.append(el('td',value));table.append(tr);}const wrap=el('div',null,'calculator-table-scroll');wrap.tabIndex=0;wrap.setAttribute('aria-label','激奏分段得分，可横向滚动');wrap.append(table);detail.append(wrap);
       }
-      const names={member:'成员',support:'留影',typeLink:'属性连携',musicType:'歌曲属性',musicTag:'擅长歌曲',leader:'队长',bandItem:'乐器',characterRank:'角色评级',characterTotalRank:'总评级',tgw:'TGW',memory:'回忆'},dl=el('dl',null,'recommendation-power');
+      const names={member:'成员',support:'留影',typeLink:'属性连携',musicType:'歌曲属性',musicTag:'擅长歌曲',leader:'队长',bandItem:'乐器',bandItems:'乐器',characterRank:'角色评级',characterTotalRank:'总评级',tgw:'TGW',memory:'回忆'},dl=el('dl',null,'recommendation-power');
       for(const [key,value] of Object.entries(result.breakdown??{})){const item=el('div');item.append(el('dt',names[key]??key),el('dd',number(value.total)));dl.append(item);}detail.append(dl);
     });
-    row.append(detail);root.append(row);
+    row.append(detail);root.append(row);rows.push(row);row.hidden=i!==0;const tab=el('button',direction?.label??(i?'另一种配对':'推荐方案'));tab.type='button';tab.setAttribute('aria-pressed',String(i===0));tab.addEventListener('click',()=>{rows.forEach((r,j)=>r.hidden=j!==i);buttons.forEach((b,j)=>b.setAttribute('aria-pressed',String(j===i)));});buttons.push(tab);tabs.append(tab);
   }
 }

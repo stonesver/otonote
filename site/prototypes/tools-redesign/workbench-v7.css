@@ -1,0 +1,36 @@
+/* V7: filter/list boundaries, full support artwork, band and pairing badges. */
+.card-editor-body .card-browser-pane{display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:0;}
+.card-browser-pane>.card-filter-sticky{position:relative;top:auto;flex:0 0 auto;z-index:1;margin:0;padding:10px 18px 6px;background:#fff;border-bottom:1px solid #e8deee;box-shadow:none;}
+.card-grid-holder{flex:1 1 0;min-height:0;overflow:auto;padding:12px 18px 18px;scrollbar-gutter:stable;overscroll-behavior:contain;background:#fff;}
+.card-choice[aria-pressed=true]{box-shadow:none;border-color:#b18bc8;outline:2px solid #f0e2fa;outline-offset:0;}
+.rich-pair .pair-head{min-height:29px;justify-content:flex-start;gap:5px;padding:5px 7px;}
+.rich-pair .pair-head>small{font-size:8px;color:#a38cb1;white-space:nowrap;}
+.pair-matches{display:flex;gap:3px;align-items:center;flex:1;min-width:0;justify-content:flex-end;}
+.pair-match{display:inline-flex;align-items:center;justify-content:center;font-size:8px;line-height:1.5;padding:2px 4px;border-radius:3px;white-space:nowrap;}
+.match-attribute{color:#55837a;background:#edf8f3;border:1px solid #d9eee5;}.match-band{color:#8b71a6;background:#f4eef9;border:1px solid #e5daf1;}
+.rich-pair .leader-badge{font-size:7px;padding:2px 3px;}
+.rich-pair .pair-card-name{font-size:10px;line-height:1.7;min-height:35px;padding:6px 8px;color:#755784;}
+.pair-character{font-size:9px;color:#ac94bc;}
+.band-emblem{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border:1px solid color-mix(in srgb,var(--band-color) 32%,white);border-radius:50%;background:color-mix(in srgb,var(--band-color) 9%,white);overflow:hidden;box-shadow:0 1px 3px #0002;}
+.band-emblem img{width:19px;height:19px;object-fit:contain;}
+.art-band{position:absolute;top:5px;right:33px;line-height:0;}
+.rich-pair .support-block{display:block;padding:0;min-height:0;gap:0;background:#fcf9fe;}
+.rich-pair .support-art{display:block;flex:none;width:100%;height:108px;border:0;border-radius:0;overflow:hidden;background:#f8f3fc;}
+.support-art>img{object-fit:contain;width:100%;height:100%;}
+.rich-pair .support-caption{display:block;padding:6px 8px;min-height:28px;}
+.rich-pair .support-caption strong{margin:0;font-size:10px;line-height:1.6;color:#9271a3;font-weight:500;}
+.rich-pair .support-art .art-facets{top:6px;left:6px;gap:3px;padding:2px 4px;}
+.rich-pair .support-art .art-facets img{height:13px;max-width:30px;}
+.support-art .art-level{left:6px;bottom:6px;font-size:9px;padding:2px 4px;}
+.support-art .art-training{right:6px;top:6px;font-size:9px;padding:2px 4px;}
+.support-art .support-skills{bottom:6px;right:6px;}
+.support-art .support-skills>span{font-size:9px;padding:2px 5px;}
+@media(max-width:700px){
+.card-browser-pane>.card-filter-sticky{padding:8px 13px 5px;}.card-grid-holder{padding:10px 13px 13px;}
+.rich-pair .support-art{flex:none;width:100%;height:105px;}.rich-pair .pair-head{gap:3px;padding:5px 6px;}.pair-matches{gap:3px;}.pair-match{font-size:7px;padding:2px 3px;}
+.rich-pair .pair-card-name{font-size:10px;min-height:37px;}.pair-character{font-size:9px;}
+.band-emblem{width:22px;height:22px;}.band-emblem img{width:18px;height:18px;}
+.rich-pair .support-caption{min-height:27px;}.rich-pair .support-caption strong{font-size:9px;}
+}
+
+.real-card-art .art-band{top:auto;bottom:6px;right:6px;}

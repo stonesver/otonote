@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>工具改造原型 · OtoNote</title>
+  <link rel="stylesheet" href="/prototype.css">
+  <link rel="stylesheet" href="/workbench-v2.css">
+  <script type="module" src="/prototype.mjs?v=14.0"></script>
+  <link rel="stylesheet" href="/workbench-v3.css?v=3.4">
+  <link rel="stylesheet" href="/workbench-v4-controls.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v5.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v6.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v7.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v8.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v9.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v10.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v11.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v12.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v13.css?v=14.0">
+  <link rel="stylesheet" href="/workbench-v14.css?v=14.0">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <aside class="site-sidebar" aria-label="站点导航">
+    <a class="brand" href="/tools/?variant=D"><span class="brand-mark">♫</span><span><strong>OtoNote</strong><small>活动 · 资料 · 配队工具</small></span></a>
+    <div class="sidebar-content">
+      <span class="sidebar-label">浏览目录</span>
+      <span class="site-nav-item">⌂ <span>首页概览</span></span>
+      <span class="site-nav-item">▣ <span>活动</span><span class="nav-collapse">＋</span></span>
+      <span class="site-nav-item">▧ <span>角色·养成资料</span><span class="nav-collapse">＋</span></span>
+      <span class="site-nav-item">♪ <span>音乐资料</span><span class="nav-collapse">＋</span></span>
+      <span class="site-nav-item">◉ <span>沉浸式主页</span></span>
+      <span class="site-nav-item">▤ <span>剧情故事</span><span class="nav-collapse">＋</span></span>
+      <button class="site-nav-item" data-action="open-library">▦ <span>我的卡库与养成</span></button>
+      <div class="nav-active-group"><button class="site-nav-item active" data-task="home">▥ <span>游戏工具</span><span class="nav-collapse">−</span></button><nav id="tool-navigation" aria-label="游戏工具"></nav></div>
+      <div class="sidebar-secondary"><span>抽卡记录</span><span>Live2D 预览</span><span>谱面播放 · 剧情阅读</span></div>
+    </div>
+    <div class="sidebar-footer">OTONOTE / TOOL STUDY <span>2026.10</span></div>
+  </aside>
+  <div class="site-content">
+    <header class="site-header"><div id="breadcrumb">首页概览 <span>/</span> 游戏工具</div><div class="site-header-actions"><span class="search-decoration">⌕ <span>全局搜索</span><kbd>⌘ K</kbd></span><button class="server-control" data-action="open-server">港澳台 <small>简体中文⌄</small></button></div></header>
+    <div class="prototype-notice"><span class="notice-tag">交互原型</span><span>工作台 V14 · 样例数据</span><button data-action="open-study">验证任务与状态 ↗</button></div>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <div id="live-status" class="sr-only" role="status" aria-live="polite"></div>
+  <div id="toast" class="toast" role="status" popover="manual"></div>
+  <dialog id="team-picker" class="team-picker-dialog" aria-labelledby="team-picker-title"></dialog>
+  <div id="skill-help" class="skill-help" role="tooltip" popover="manual"></div>
+  <div id="condition-help" class="condition-help" role="tooltip" popover="manual"></div>
+  <div id="select-menu" popover="manual" role="listbox" class="select-menu"></div>
+  <dialog id="picker" class="picker-dialog" aria-labelledby="picker-title"></dialog>
+  <dialog id="library" class="library-dialog" aria-labelledby="library-title"></dialog>
+  <dialog id="study" class="study-dialog" aria-labelledby="study-title"></dialog>
+  <dialog id="conditions" class="conditions-dialog" aria-labelledby="conditions-title"></dialog>
+  <dialog id="settings" class="settings-dialog" aria-labelledby="settings-title"></dialog>
+  <dialog id="insight" class="insight-dialog" aria-labelledby="insight-title"></dialog>
+  <dialog id="server" class="server-dialog" aria-labelledby="server-title"></dialog>
+  <nav class="prototype-switcher" aria-label="原型状态"><span class="prototype-dot"></span><div><span>技能模拟 · V14</span><strong id="variant-label">A＋B · 条件与结果</strong></div><button data-action="open-study" aria-label="验证任务与状态">↗</button></nav>
+</body>
+</html>

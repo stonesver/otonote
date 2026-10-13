@@ -16,7 +16,7 @@ FILES = (
     ('promotion.json', 'Public promotion'),
     ('jp-retention.json', 'JP working set'),
 )
-STATUSES = {'ready', 'needs_full', 'needs_production', 'probed', 'blocked', 'unchanged', 'checkpointed', 'promoted', 'pruned',
+STATUSES = {'ready', 'needs_full', 'needs_production', 'probed', 'blocked', 'unchanged', 'checkpointed', 'promoted', 'published', 'pruned',
             'failed', 'skipped', 'uploaded', 'verified', 'complete', 'restored'}
 # Never copy arbitrary upstream reason strings into a public Actions summary.
 REASONS = frozenset({

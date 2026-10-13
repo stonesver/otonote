@@ -91,7 +91,7 @@ async function refreshLoads(gen=generation){
 }
 function renderUpdateHealth(health){
   const box=el('section',null,'content-delivery');
-  const labels={schedule_stale:'原生定时探测未及时到达',receipt_missing:'运行回执缺失',poll_stale:'超过一小时未取得探测结果',run_stuck:'运行超过六小时',run_failed:'生产阶段失败',delivery_unknown:'本机交付状态不可核对',delivery_lag:'网页落后于远端内容',remote_unavailable:'远端版本读取失败',ranking_stale:'榜单采集不新鲜',ranking_paused:'榜单采集已暂停',disk_budget:'剩余空间不足以覆盖发布预算'};
+  const labels={worker_errors:'Worker 错误率升高',worker_budget:'Worker 请求接近运维预算',worker_metrics_stale:'Worker 指标不可用',schedule_stale:'原生定时探测未及时到达',receipt_missing:'运行回执缺失',poll_stale:'超过一小时未取得探测结果',run_stuck:'运行超过六小时',run_failed:'生产阶段失败',delivery_unknown:'本机交付状态不可核对',delivery_lag:'网页落后于远端内容',remote_unavailable:'远端版本读取失败',ranking_stale:'榜单采集不新鲜',ranking_paused:'榜单采集已暂停',disk_budget:'剩余空间不足以覆盖发布预算'};
   const states={healthy:'状态正常',waiting:'观察中',attention:'需要处理',unavailable:'采样不可用'};
   box.append(el('h4','更新运行与告警'),el('p',states[health?.status]||states.unavailable));
   if(!health||health.status==='unavailable'){
@@ -105,6 +105,8 @@ function renderUpdateHealth(health){
     link.href=`https://github.com/stonesver/otonote/actions/runs/${run.runId}`;link.target='_blank';link.rel='noopener noreferrer';
     const line=el('p');line.append(link);box.append(line);
   }
+  const worker=health.worker;
+  box.append(el('p',worker?.status==='ready'?`Worker 最近 10 分钟：${worker.recentRequests} 次执行 / ${worker.recentErrors} 次错误；CPU P99 ${(worker.cpuTimeP99Us/1000).toFixed(2)} ms。UTC 今日 ${worker.utcDayRequests} 次执行${worker.dailyRequestBudget?' / 运维预算 '+worker.dailyRequestBudget:'（未设运维预算）'}。`:'Worker 指标：'+(worker?.status==='unavailable'?'采样不可用':'尚未配置 Analytics 只读凭据'),'caption'));
   const list=el('ul');
   for(const row of health.alerts||[]){
     list.append(el('li',`${row.region.toUpperCase()} · ${labels[row.code]} · ${row.state==='firing'?'告警':'观察中'} · 起于 ${new Date(row.firstSeen*1000).toLocaleString('zh-CN',{hour12:false})}`));

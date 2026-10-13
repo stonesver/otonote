@@ -9,6 +9,7 @@ set -euo pipefail
 exec 9>/var/lib/ournotes-resource-state/.update-health.lock
 flock -n 9 || exit 0
 python3 /usr/local/libexec/ournotes/export_ranking_health.py
+python3 /usr/local/libexec/ournotes/worker_health.py
 exec docker run --rm --read-only --network bridge --cap-drop ALL --security-opt no-new-privileges \
   --pids-limit 64 --memory 256m --memory-swap 256m --tmpfs /tmp:rw,nosuid,nodev,size=16m \
   --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/health \
@@ -17,4 +18,4 @@ exec docker run --rm --read-only --network bridge --cap-drop ALL --security-opt 
   --mount type=bind,source=/var/lib/ournotes-resource-state,target=/state \
   "$R2_PRERENDER_IMAGE" python3 -m tools.update_health \
   --delivery /state/latest-run.json --ranking /state/ranking-health.json --disk /state \
-  --budget "$R2_HEALTH_BUDGET_BYTES" --output /state/update-health.json
+  --worker /state/worker-health.json --budget "$R2_HEALTH_BUDGET_BYTES" --output /state/update-health.json

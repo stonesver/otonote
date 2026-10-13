@@ -98,3 +98,64 @@ class HealthTests(unittest.TestCase):
         codes = {item['id'] for item in result['conditions']}
         self.assertIn('jp:schedule_stale', codes)
         self.assertNotIn('jp:poll_stale', codes)
+
+
+class WorkerHealthTests(unittest.TestCase):
+    def setUp(self):
+        from deploy.admin import worker_health
+        self.collect = worker_health.collect
+        self.now = 1791876000
+        self.rows = {'recent': [{'sum': {'requests': 500, 'errors': 8}, 'quantiles': {'cpuTimeP99': 1234}}],
+                     'daily': [{'sum': {'requests': 8500, 'errors': 8}}]}
+
+    def query(self, *_):
+        return {'data': {'viewer': {'accounts': [self.rows]}}}
+
+    def test_valid_empty_unconfigured_and_failed_queries_are_distinct(self):
+        result = self.collect('account', 'inert', self.now, 10000, self.query)
+        self.assertEqual(result['status'], 'ready')
+        self.assertEqual(result['recentErrors'], 8)
+        self.assertEqual(result['cpuTimeP99Us'], 1234)
+        self.rows = {'recent': [], 'daily': []}
+        self.assertEqual(self.collect('account', 'inert', self.now, query=self.query)['recentRequests'], 0)
+        self.assertEqual(self.collect('account', None, self.now)['status'], 'not_configured')
+        def failed(*_): raise OSError('private transport detail')
+        result = self.collect('account', 'inert', self.now, query=failed)
+        self.assertEqual(result, {'schemaVersion': 1, 'observedAt': self.now, 'status': 'unavailable'})
+        result = self.collect('account', 'inert', self.now, query=lambda *_: {'errors': [{'message': 'private'}]})
+        self.assertNotIn('private', json.dumps(result))
+
+    def test_malformed_or_contradictory_metrics_are_unavailable(self):
+        for bad in (-1, True, float('nan'), float('inf'), '8', 501):
+            self.rows['recent'][0]['sum']['errors'] = bad
+            self.assertEqual(self.collect('account', 'inert', self.now, query=self.query)['status'], 'unavailable')
+
+    def test_alert_dedup_recovery_and_staleness(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp);target = root/'worker.json'
+            def sample(report):
+                target.write_text(json.dumps(report))
+                import os
+                os.utime(target, (self.now, self.now))
+                return health.sample(MemoryBucket(), root/'absent', root/'absent', root, 1, self.now, target)
+            observed = sample(self.collect('account', 'inert', self.now, 10000, self.query))
+            relevant = lambda value: [c for c in value['conditions'] if c['code'].startswith('worker_')]
+            self.assertEqual({c['code'] for c in relevant(observed)}, {'worker_errors', 'worker_budget'})
+            observed['conditions'] = relevant(observed)
+            fired, log = health.advance(observed, {}, self.now)
+            self.assertEqual(len(log), 2)
+            repeated, log = health.advance(observed, fired, self.now+120)
+            self.assertEqual(log, [])
+            self.rows['recent'][0]['sum']['errors'] = 0
+            recovered = sample(self.collect('account', 'inert', self.now, 0, self.query))
+            recovered['conditions'] = relevant(recovered)
+            report, log = health.advance(recovered, repeated, self.now+240)
+            self.assertEqual([r['transition'] for r in log], ['recovered', 'recovered'])
+            health.write_atomic(root/'update-health.json', report)
+            with patch('backend.admin.update_health.time.time', return_value=self.now+240):
+                self.assertEqual(read_health(root)['worker']['recentErrors'], 0)
+            stale = sample(self.collect('account', 'inert', self.now-361, query=self.query))
+            self.assertEqual([c['code'] for c in relevant(stale)], ['worker_metrics_stale'])
+            unconfigured = sample(self.collect('account', None, self.now))
+            self.assertEqual(relevant(unconfigured), [])
+            self.assertEqual(unconfigured['worker']['status'], 'not_configured')

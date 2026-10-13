@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import time
 
-CODES = {'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
+CODES = {'worker_errors', 'worker_budget', 'worker_metrics_stale', 'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
          'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget'}
 
 STAGES = ('configuration', 'prepare', 'baseline', 'image', 'proxy', 'light_prepare',
@@ -62,6 +62,18 @@ def read_health(workspace):
                 return unavailable
             result['runs'][region] = {key: row[key] for key in ('runId', 'status', 'sourceSha')}
             result['runs'][region].update(event=row.get('event', 'unknown'), failedStage=row.get('failedStage'))
+        worker = value.get('worker', {'status': 'not_configured'})
+        if not isinstance(worker, dict) or worker.get('status') not in ('ready', 'not_configured', 'unavailable'):
+            return unavailable
+        result['worker'] = {'status': worker['status']}
+        if worker['status'] == 'ready':
+            for key in ('recentRequests', 'recentErrors', 'cpuTimeP99Us', 'utcDayRequests', 'dailyRequestBudget'):
+                number = worker.get(key)
+                if type(number) not in (int, float) or not math.isfinite(number) or not 0 <= number <= 10**15:
+                    return unavailable
+                result['worker'][key] = number
+            if worker['recentErrors'] > worker['recentRequests']:
+                return unavailable
         expected = 'attention' if any(row['state'] == 'firing' for row in result['alerts']) else ('waiting' if result['alerts'] else 'healthy')
         if result['status'] != expected:
             return unavailable

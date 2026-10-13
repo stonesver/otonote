@@ -13,7 +13,7 @@ from tools.r2_content import S3Bucket, baseline
 from tools.r2_run_record import key, validate
 
 REGIONS = ('global', 'jp')
-CODES = {'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
+CODES = {'worker_errors', 'worker_budget', 'worker_metrics_stale', 'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
          'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget'}
 
 
@@ -41,7 +41,7 @@ def read_json(path, now, max_age=None):
     return value
 
 
-def sample(bucket, delivery_path, ranking_path, disk_path, budget, now):
+def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_path=None):
     conditions, runs, versions = [], {}, {}
 
     def condition(code, region='all', grace=600):
@@ -102,11 +102,33 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now):
             condition('ranking_stale', grace=600)
     except (OSError, ValueError, TypeError, KeyError):
         condition('ranking_stale', grace=600)
+    worker = {'status': 'not_configured'}
+    if worker_path is not None:
+        try:
+            data = read_json(worker_path, now, 360)
+            if data.get('schemaVersion') != 1 or data.get('status') not in ('ready', 'not_configured'):
+                raise ValueError('worker metrics unavailable')
+            if not -60 <= now - data['observedAt'] <= 360:
+                raise ValueError('worker metrics stale')
+            if data['status'] == 'ready':
+                fields = ('recentRequests', 'recentErrors', 'cpuTimeP99Us', 'utcDayRequests', 'dailyRequestBudget')
+                if any(type(data.get(k)) not in (int, float) or not math.isfinite(data[k]) or not 0 <= data[k] <= 10**15 for k in fields):
+                    raise ValueError('invalid worker metrics')
+                worker = {k: data[k] for k in fields};worker['status'] = 'ready'
+                if worker['recentErrors'] > worker['recentRequests']:
+                    raise ValueError('contradictory worker metrics')
+                if worker['recentErrors'] >= 5 and worker['recentErrors'] / max(worker['recentRequests'], 1) >= 0.01:
+                    condition('worker_errors', grace=0)
+                if worker['dailyRequestBudget'] > 0 and worker['utcDayRequests'] >= worker['dailyRequestBudget'] * 0.8:
+                    condition('worker_budget', grace=0)
+        except (OSError, ValueError, TypeError, KeyError):
+            worker = {'status': 'unavailable'}
+            condition('worker_metrics_stale')
     free = shutil.disk_usage(disk_path).free
     if free < budget:
         condition('disk_budget', grace=0)
     return {'conditions': conditions, 'runs': runs, 'versions': versions,
-            'diskFreeBytes': free, 'diskRequiredBytes': budget}
+            'diskFreeBytes': free, 'diskRequiredBytes': budget, 'worker': worker}
 
 
 def advance(observed, previous, now):
@@ -130,6 +152,7 @@ def advance(observed, previous, now):
     history = [h for h in previous.get('history', []) if isinstance(h, dict)
                and h.get('code') in CODES and h.get('transition') in ('opened', 'recovered')][-40:]
     report = {name: observed[name] for name in ('runs', 'versions', 'diskFreeBytes', 'diskRequiredBytes')}
+    report['worker'] = observed.get('worker', {'status': 'not_configured'})
     report.update(schemaVersion=1, observedAt=now, status='attention' if any(a['state'] == 'firing' for a in alerts)
                   else ('waiting' if alerts else 'healthy'), alerts=alerts, history=(history + transitions)[-40:])
     return report, transitions
@@ -158,6 +181,7 @@ def main():
     parser.add_argument('--ranking', type=Path, required=True)
     parser.add_argument('--disk', type=Path, required=True)
     parser.add_argument('--budget', type=int, required=True)
+    parser.add_argument('--worker', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if args.budget <= 0:
@@ -167,7 +191,7 @@ def main():
         previous = read_json(args.output, now)
     except (OSError, ValueError):
         previous = {}
-    observed = sample(S3Bucket.from_environment(), args.delivery, args.ranking, args.disk, args.budget, now)
+    observed = sample(S3Bucket.from_environment(), args.delivery, args.ranking, args.disk, args.budget, now, args.worker)
     report, transitions = advance(observed, previous, now)
     write_atomic(args.output, report)
     for transition in transitions:

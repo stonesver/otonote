@@ -7,6 +7,7 @@ After=network-online.target
 Type=oneshot
 EnvironmentFile=/etc/ournotes/r2-prerender.env
 EnvironmentFile=/etc/ournotes/r2-content-readonly.env
+EnvironmentFile=-/etc/ournotes/cloudflare-analytics.env
 ExecStart=/usr/local/libexec/ournotes/run-update-health.sh
 TimeoutStartSec=150
 NoNewPrivileges=true

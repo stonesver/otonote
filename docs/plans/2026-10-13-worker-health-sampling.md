@@ -7,7 +7,7 @@
 - 查询失败或数据超过六分钟失效，持续十分钟后告警。未配置凭据明确显示“未配置”，不显示零请求作为健康证据。
 - 状态打开、恢复只记录一次；私有 API 和页面只显示固定字段。
 
-本地行为测试覆盖失败、非法数值、矛盾计数、告警去重、恢复和失效；现有本机认证的真实只读查询已验证。服务器尚未配置 Analytics 凭据，因此持续指标采样尚未启用。
+本地行为测试覆盖失败、非法数值、矛盾计数、告警去重、恢复和失效；现有本机认证的真实只读查询已验证。用户已明确暂缓 Analytics 专用凭据，服务器保持未配置状态，因此持续指标采样尚未启用。
 
 需单独批准后配置：现有 Cloudflare 账号范围的 `Account Analytics: Read` 专用凭据，保存于服务器 root-only 的 `/etc/ournotes/cloudflare-analytics.env`，键为 `CF_ANALYTICS_READ_TOKEN`。不复制本机 OAuth，不授权 Worker 修改或 R2 写入。可选 `CF_WORKER_DAILY_REQUEST_BUDGET` 是人工设定的运维预算，默认 0 表示未设置。此凭据与已暂缓的 GitHub Token、外部生产触发器无关。
 

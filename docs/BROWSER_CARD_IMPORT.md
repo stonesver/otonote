@@ -34,7 +34,7 @@ python -m tools.content_publication \
   --recognition-index output/card-recognition-NEW_RELEASE
 ```
 
-正式云端流程对 Global、JP 都显式传入 `--card-recognition`，并在上传前用 `tools.r2_functional_check --require-recognition` 要求当前版本索引。Global 私有 `contentPublication.cardRecognition: true` 仍可使用。生产镜像安装上述锁定依赖，拉取后先做离线 import 预检；启用前须先更新镜像 digest。索引按封存候选、算法和生成器源码缓存，生成或校验失败时停止发布。此接线已在本地实现，部署状态见下方验收记录。
+正式云端流程对 Global、JP 都显式传入 `--card-recognition`，并在上传前用 `tools.r2_functional_check --require-recognition` 要求当前版本索引。Global 私有 `contentPublication.cardRecognition: true` 仍可使用。生产镜像安装上述锁定依赖，拉取后先做离线 import 预检；启用前须先更新镜像 digest。索引按封存候选、算法和生成器源码缓存，生成或校验失败时停止发布。此接线已于 2026-10-14 随生产镜像更新正式上线，双服公开索引验收通过；见 [上线验收](plans/2026-10-14-g-rollout-acceptance.md)。
 
 也可在候选封存前将两文件纳入 `supplemental-data/card-recognition/`，发布器默认识别该目录。不要修改已封存的候选或快照。索引必须随对应内容版本重建，发布器检查版本、哈希、解压大小、特征范围及卡牌归属，并将索引纳入新内容快照身份。手动使用发布器时仍允许不附索引，界面明确显示未提供；正式云端的必需索引门禁会拒绝缺索引内容。所有预期卡面必须已索引或列明缺失，部分覆盖明确显示 partial，不回退其他版本。
 

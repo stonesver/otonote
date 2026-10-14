@@ -12,6 +12,8 @@ FROM ${WORKER_BASE}
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends curl openssl openjdk-17-jdk-headless && rm -rf /var/lib/apt/lists/*
 COPY --from=audio-builder /tmp/vgm-build/cli/vgmstream-cli /usr/local/bin/vgmstream-cli
+COPY card-recognition-requirements.txt /tmp/card-recognition-requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/card-recognition-requirements.txt
 COPY package.json package-lock.json /opt/ournotes-node/
 RUN cd /opt/ournotes-node && npm ci --ignore-scripts --no-audit --no-fund && npm cache clean --force
 ENV NODE_OPTIONS=--max-old-space-size=512 OURNOTES_PYTHON=/opt/ournotes-venv/bin/python

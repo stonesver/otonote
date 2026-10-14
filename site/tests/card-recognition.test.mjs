@@ -52,3 +52,10 @@ test('wrong region, release, unknown ID, fractional skill and level beyond train
   draft[0].patch.skillLevel=1;draft[0].patch.level=100;assert.equal(run(draft).inventory,null);
   draft[0].id='member-card-99999';assert.equal(run(draft).inventory,null);
 });
+
+test('unaccepted matches remain excluded until explicit review confirms a card',()=>{
+  const unaccepted=row('uncertain',{level:10,training:1,awakeningStars:1},{selected:false});
+  assert.deepEqual(recognitionDraft([unaccepted],manifest),[]);
+  const confirmed=recognitionDraft([{...unaccepted,selected:true}],manifest);
+  assert.equal(confirmed.length,1);assert.deepEqual(run(confirmed).errors,[]);
+});

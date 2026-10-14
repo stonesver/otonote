@@ -19,7 +19,7 @@ def read(path, limit=16 * 1024 * 1024):
     return raw
 
 
-def check(store, region):
+def check(store, region, *, require_recognition=False):
     store = Path(store).resolve()
     pointer = json.loads(read(store / ('current.json' if region == 'global' else 'jp/current.json'), 4096))
     match = re.fullmatch(r'/content/releases/([a-f0-9]{24})/manifest.json', pointer.get('manifest', ''))
@@ -41,7 +41,11 @@ def check(store, region):
     locales = {}
     for locale in ('en', 'zh-CN'):
         documents = {}
-        for name in DOCUMENTS:
+        recognition_name = 'supplemental/card-recognition.json'
+        has_recognition = recognition_name in manifest['locales'][locale]['files']
+        if require_recognition and not has_recognition:
+            raise ValueError('required screenshot recognition index absent')
+        for name in (*DOCUMENTS, *((recognition_name,) if has_recognition else ())):
             entry = manifest['locales'][locale]['files'][name]
             relative = entry['path']
             if (not isinstance(relative, str) or not relative.startswith(locale + '/')
@@ -67,6 +71,14 @@ def check(store, region):
         context = {'contentReleaseId': source_id, 'region': region, 'channel': 'production', 'locale': locale}
         if catalog.get('projectionContext') != context:
             raise ValueError('functional catalog context mismatch')
+        record = manifest.get('releaseRecord')
+        if record is not None:
+            expected_record = {'region':region, 'sourceReleaseId':source_id,
+                'clientVersion':catalog.get('release',{}).get('versionName'),
+                'clientVersionCode':catalog.get('release',{}).get('versionCode')}
+            if (any(record.get(k) != v for k,v in expected_record.items())
+                    or record.get('generatedAtByLocale',{}).get(locale) != catalog.get('generatedAt')):
+                raise ValueError('functional release record mismatch')
         for name in ('memberCards', 'supportCards', 'musicTracks'):
             if not isinstance(catalog.get(name), list) or not catalog[name]:
                 raise ValueError('required catalog capability absent')
@@ -78,14 +90,26 @@ def check(store, region):
             raise ValueError('empty or contradictory scoring success')
         if rules.get('verificationStatus') not in ('code_audited', 'reference_compatible', 'unavailable'):
             raise ValueError('unknown scoring verification status')
+        recognition = {'status': 'unavailable', 'reason': 'index_not_published'}
+        if has_recognition:
+            from tools.card_recognition import validate_index, catalog_coverage, MAX_BYTES
+            features = release/'recognition/features.bin.gz'
+            if any(p.is_symlink() for p in (features, *features.parents)):
+                raise ValueError('linked recognition features')
+            index, _ = validate_index(documents[recognition_name], read(features, MAX_BYTES), region, source_id)
+            recognition = catalog_coverage(index, catalog)
         # Optional rules do not block catalog/event publication. No gameplay
         # correctness is inferred from successful reference compatibility.
         locales[locale] = {'memberCards': len(catalog['memberCards']), 'supportCards': len(catalog['supportCards']),
                            'events': len(modes['events']['records']), 'skills': len(database['skills']),
                            'scoring': scoring['status'], 'scoringIssues': len(scoring['issues']),
-                           'verificationStatus': rules['verificationStatus'], 'gameplayVerified': False}
+                           'verificationStatus': rules['verificationStatus'], 'gameplayVerified': False,
+                           'screenshotImport': recognition,
+                           'clientVersion': catalog.get('release', {}).get('versionName'),
+                           'clientVersionCode': catalog.get('release', {}).get('versionCode'),
+                           'generatedAt': catalog.get('generatedAt')}
     return {'schemaVersion': 1, 'region': region, 'releaseId': match[1], 'contentReleaseId': source_id,
-            'status': 'passed', 'locales': locales,
+            'status': 'passed', 'locales': locales, 'releaseRecord': manifest.get('releaseRecord'),
             'limitations': ['formal_gameplay_not_verified']}
 
 
@@ -93,8 +117,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--store', type=Path, required=True)
     parser.add_argument('--region', choices=('global', 'jp'), required=True)
+    parser.add_argument('--require-recognition', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(check(args.store, args.region), separators=(',', ':')))
+    print(json.dumps(check(args.store, args.region, require_recognition=args.require_recognition), separators=(',', ':')))
 
 
 if __name__ == '__main__':

@@ -39,6 +39,7 @@ FINGERPRINT_FILES = (
     'catalog/evidence/arena-client.json',
     'Dockerfile.worker',
     'requirements-worker.txt',
+    'tools/card-recognition-requirements.txt',
     'analysis/requirements.txt',
     'analysis/crypto/requirements.txt',
     'site/package.json',
@@ -94,7 +95,7 @@ def fingerprint(*, exclude_paths=()):
 
 
 def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
-        workspace: Path, content_store: Path, minimum_free_bytes=0):
+        workspace: Path, content_store: Path, minimum_free_bytes=0, card_recognition=False):
     metadata, apk_root, unity_version_file, workspace, content_store = (
         Path(path).resolve() for path in (metadata, apk_root, unity_version_file, workspace, content_store))
     if (ROOT/'output').resolve() not in workspace.parents or workspace == content_store or workspace in content_store.parents or content_store in workspace.parents:
@@ -111,7 +112,8 @@ def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
     state_path = workspace/'state.json'
     previous = read_json(state_path) if state_path.exists() else None
     if (previous and previous.get('status') == 'built' and (content_store/'jp/current.json').is_file() and
-            tuple(previous.get('versionIdentity', ())) == source_id and previous.get('codeFingerprint') == code_id):
+            tuple(previous.get('versionIdentity', ())) == source_id and previous.get('codeFingerprint') == code_id
+            and previous.get('cardRecognition', False) == card_recognition):
         return {'status':'unchanged','region':'jp','observation':{k:observation[k] for k in ('clientVersion','masterVersion','resourceVersion','catalogHash')},
                 'publication':previous['publication']}
     run_id = hashlib.sha256(json.dumps({'source':source_id,'code':code_id},sort_keys=True).encode()).hexdigest()[:24]
@@ -153,13 +155,17 @@ def run(*, metadata: Path, apk_root: Path, unity_version_file: Path,
     rules = bind_scoring_rules(ROOT/source_binding['masterRoot'], source_binding['contentReleaseId'])
     rules_path = folder/'formal-scoring-rules.json'
     write_json(rules_path, rules)
+    options = {}
+    if card_recognition:
+        from tools.card_recognition import prepare_candidate_index
+        options['recognition_index'] = prepare_candidate_index(candidate, workspace/'cache/card-recognition')
     if version_identity(client.discover()) != source_id:
         raise ValueError('JP source changed before content publication')
     publication = publish_content(candidate, content_store, scoring_rules=rules_path,
-                                  ranking_cache=workspace/'cache/song-rankings')
+                                  ranking_cache=workspace/'cache/song-rankings', source_observation=observation, **options)
     result = {'schemaVersion':1,'status':'built','region':'jp',
               'versionIdentity':list(source_id),'codeFingerprint':code_id,
-              'runId':run_id,'inputPlanSha256':file_hash(plan),
+              'cardRecognition':card_recognition,'runId':run_id,'inputPlanSha256':file_hash(plan),
               'publication':publication,
               'observation':{k:observation[k] for k in ('clientVersion','masterVersion','resourceVersion','catalogHash')}}
     write_json(state_path, result)
@@ -174,12 +180,13 @@ def main(argv=None):
     parser.add_argument('--workspace', type=Path, required=True)
     parser.add_argument('--content-store', type=Path, required=True)
     parser.add_argument('--minimum-free-bytes', type=int, default=0)
+    parser.add_argument('--card-recognition', action='store_true', help='require a current screenshot index')
     args = parser.parse_args(argv)
     try:
         with redirect_stdout(sys.stderr):
             result = run(metadata=args.metadata, apk_root=args.apk_root,
                          unity_version_file=args.unity_version_file, workspace=args.workspace,
-                         content_store=args.content_store, minimum_free_bytes=args.minimum_free_bytes)
+                         content_store=args.content_store, minimum_free_bytes=args.minimum_free_bytes, card_recognition=args.card_recognition)
         print(json.dumps(result, ensure_ascii=False))
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(json.dumps({'status':'blocked','region':'jp','error':str(error)}, ensure_ascii=False), file=sys.stderr)

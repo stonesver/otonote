@@ -192,6 +192,9 @@ jobs:
           set -euo pipefail
           printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker pull "$OURNOTES_UPDATE_IMAGE"
+          # Fail before restoring private state when the pinned image predates screenshot indexing.
+          docker run --rm --network none --entrypoint python3 "$OURNOTES_UPDATE_IMAGE" \
+            -c "import cv2, numpy, PIL; print('Screenshot index runtime ready')"
       - name: Prepare pinned regional proxy client when configured
         id: proxy
         shell: bash
@@ -445,10 +448,10 @@ jobs:
               python -m tools.jp_version_egress --global-apk \
                 --binary "$RUNNER_TEMP/global-apk-egress-client/mihomo" -- \
                 docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
-                python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
+                python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" --card-recognition > "$RUNNER_TEMP/production.json"
             else
               docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
-                python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" > "$RUNNER_TEMP/production.json"
+                python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" --card-recognition > "$RUNNER_TEMP/production.json"
             fi
           else
             common+=(--env OURNOTES_JP_VERSION_PROXY)
@@ -457,7 +460,7 @@ jobs:
               --apk-root "$STABLE_ROOT/output/r2-jp/apks"
               --unity-version-file "$STABLE_ROOT/output/r2-jp/unity-version.txt"
               --workspace "$STABLE_ROOT/output/r2-jp/workspace"
-              --content-store "$store")
+              --content-store "$store" --card-recognition)
             if [[ -n "$OURNOTES_JP_PROXY_NODE" ]]; then
               # The ephemeral Linux runner and this container share loopback;
               # the local proxy only allows the fixed Version API hostname.
@@ -478,7 +481,7 @@ jobs:
           set -euo pipefail
           cd "$STABLE_ROOT"
           store="$(cat "$RUNNER_TEMP/content-store")"
-          python -m tools.r2_functional_check --store "$store" --region "$REGION" > "$RUNNER_TEMP/functional.json"
+          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition > "$RUNNER_TEMP/functional.json"
           printf '\nFunctional release checks (reference estimates are not gameplay verification):\n\n' >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/functional.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload and read back produced immutable content

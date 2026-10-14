@@ -325,7 +325,7 @@ def run_update(config, journal, client, *, rebuild=False):
                 from tools.card_recognition import prepare_candidate_index
                 options['recognition_index'] = prepare_candidate_index(candidate, build/'card-recognition')
             return publish_content(candidate, config['contentPublication']['root'], scoring_rules=rules_path,
-                                   ranking_cache=workspace/'cache/song-rankings', **options)
+                                   ranking_cache=workspace/'cache/song-rankings', source_observation=synced['observation'], **options)
         published = journal.step('publish-content', publish_data)
         result = {'schemaVersion': 1, 'status': published['status'], 'publication': published,
                   'observation': synced['observation'], 'inputPlan': str(plan), 'inputPlanSha256': plan_sha,
@@ -377,6 +377,7 @@ def main(argv=None):
     parser.add_argument('command', choices=('doctor', 'check', 'run', 'status', 'bundle', 'fetch', 'build', 'publish'), nargs='?', default='run')
     parser.add_argument('--config', type=Path, default=ROOT / 'config/global-update.json')
     parser.add_argument('--candidate-id', help='exact verified candidate digest (publish only)')
+    parser.add_argument('--card-recognition', action='store_true', help='require a current screenshot index')
     parser.add_argument('--rebuild', action='store_true', help='new site build even when game resources are unchanged')
     parser.add_argument('--site', type=Path, help='existing verified site to package (bundle only)')
     parser.add_argument('--output', type=Path, help='package directory under output/ (bundle only)')
@@ -390,6 +391,10 @@ def main(argv=None):
         if args.command != 'bundle' and (args.site or args.output):
             raise ValueError('--site and --output require bundle')
         config = load_config(args.config)
+        if args.card_recognition:
+            if not config.get('contentPublication'):
+                raise ValueError('screenshot indexing requires content publication')
+            config['contentPublication']['cardRecognition'] = True
         workspace = config['workspace']
         if args.command == 'status':
             result = {name: read_json(workspace / name) if (workspace / name).exists() else None

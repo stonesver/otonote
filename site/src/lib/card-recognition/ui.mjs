@@ -1,3 +1,4 @@
+import {validateRecognitionIndex} from './index-contract.mjs';
 import {artifact,snapshot} from '../../runtime/content.mjs';
 import {currentServerContext,gameServer} from '../game-servers.mjs';
 import {MODES} from './observations.mjs';
@@ -15,6 +16,7 @@ export function setupScreenshotImport(workbench,{manager,getInventory,commit}){
     const current=currentServerContext();
     if(current.region!==context.region||current.serverId!==context.serverId)throw Error('当前区服已变化，请关闭后重新导入');
     assertRecognitionContext(manifest,current,sourceReleaseId);
+    validateRecognitionIndex(manifest,{region:current.region,sourceReleaseId});
   }
   function controls(){
     q('run').disabled=working||detecting||!prepared||!queue.length||queue.some(i=>!i.mode);q('files').disabled=working;
@@ -73,8 +75,11 @@ export function setupScreenshotImport(workbench,{manager,getInventory,commit}){
     const token=generation;prepared=false;q('retry').hidden=true;q('progress').hidden=false;
     q('preparation-title').textContent='正在准备识别工具';
     for(const step of dialog.querySelectorAll('[data-shot-stage]')){step.dataset.ready='false';step.querySelector('small').textContent='等待准备';}
-    engine=createRecognitionEngine({manifest,featuresUrl,onProgress:text=>{if(token===generation&&working)status(text);},onPreparation:update=>{if(token===generation&&!prepared)preparation(update);}});
-    preparing=engine.initialize().then(()=>{
+    preparing=Promise.resolve().then(()=>{
+      if(token!==generation)throw Error('已取消');
+      engine=createRecognitionEngine({manifest,featuresUrl,onProgress:text=>{if(token===generation&&working)status(text);},onPreparation:update=>{if(token===generation&&!prepared)preparation(update);}});
+      return engine.initialize();
+    }).then(()=>{
       if(token!==generation)return;
       prepared=true;q('preparation-title').textContent='识别工具已就绪';q('progress').hidden=true;
       q('preparation-label').textContent='图片在本机处理；可以开始识别。';controls();
@@ -109,7 +114,10 @@ export function setupScreenshotImport(workbench,{manager,getInventory,commit}){
       if(token!==generation)return;
       if(!index)throw Error('当前内容版本尚未提供截图识别索引');
       assertRecognitionContext(index,context,sourceReleaseId);
-      if(index.featuresPath!=='recognition/features.bin.gz'||!Number.isInteger(index.decodedBytes)||index.decodedBytes>128*1024*1024)throw Error('识别索引格式无效');
+      validateRecognitionIndex(index,{region:context.region,sourceReleaseId});
+      const covered=new Set(index.cards.map(c=>c.id)).size;
+      q('context').textContent+=` · 内容 ${sourceReleaseId} · 已索引 ${covered} 张卡 · ${(index.missing??[]).length} 个卡面缺失`;
+      q('context').title=`算法 ${index.algorithm}；仅使用本页版本索引，缺失卡面不会自动识别`;
       manifest=index;featuresUrl=new URL(content.root+index.featuresPath,location.origin).href;
       status('选择截图后自动判断类型；判断不确定时，可在每张图下方更正。');controls();prepare().then(detectQueue).catch(()=>{});
     }catch(error){if(token===generation){status(error.message);q('preparation-title').textContent='识别资源暂不可用';q('progress').hidden=true;q('preparation-label').textContent='请刷新页面后重试';controls();}}

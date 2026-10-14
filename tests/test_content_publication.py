@@ -33,6 +33,24 @@ class ContentPublicationTests(unittest.TestCase):
                         'projections':[{'locale':'zh-CN'},{'locale':'en'}]}], 'files':inventory(candidate)})
         return candidate
 
+    def test_public_release_record_whitelists_version_identity(self):
+        candidate=self.candidate()
+        for locale in ('en','zh-CN'):
+            path=candidate/'global/test-1/generated/releases/test-1'/locale/'catalog.json'
+            write(path,{**read_json(path),'generatedAt':'generated-'+locale})
+        receipt=candidate/'candidate.json'
+        write(receipt,{**read_json(receipt),'files':inventory(candidate,exclude=('candidate.json',))})
+        result=publish_content(candidate,self.store,source_observation={
+            'resourceVersion':'resource-2','masterVersion':'master-3','apiRoot':'private-endpoint','token':'secret'})
+        manifest=read_json(Path(result['snapshot'])/'manifest.json')
+        record=manifest['releaseRecord']
+        self.assertEqual(record['resourceVersion'],'resource-2')
+        self.assertEqual(record['generatedAtByLocale'],{'en':'generated-en','zh-CN':'generated-zh-CN'})
+        self.assertEqual(record['sourceReleaseId'],'test-1')
+        self.assertNotIn('apiRoot',record);self.assertNotIn('token',record)
+        changed=publish_content(self.root/'test-1',self.store,source_observation={'resourceVersion':'resource-3'})
+        self.assertNotEqual(changed['pointer'],result['pointer'])
+
     def test_jp_publication_and_rollback_leave_global_pointer_unchanged(self):
         global_result=publish_content(self.candidate(),self.store)
         first=publish_content(self.candidate(region='jp'),self.store)

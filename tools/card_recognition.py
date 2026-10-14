@@ -5,6 +5,7 @@ OpenCV is only needed by the offline build command, never by publication or HTTP
 from __future__ import annotations
 import argparse
 import gzip
+import io
 import hashlib
 import json
 import shutil
@@ -18,19 +19,24 @@ MAX_BYTES = 128 * 1024 * 1024
 def read_index(directory, region, release):
     directory = Path(directory)
     manifest = json.loads((directory/'card-recognition.json').read_text())
+    source = directory/'features.bin.gz'
+    if source.is_symlink() or source.stat().st_size > MAX_BYTES:
+        raise ValueError('unsafe recognition features')
+    return validate_index(manifest, source.read_bytes(), region, release)
+
+
+def validate_index(manifest, packed, region, release):
     if (manifest.get('schemaVersion') != 1 or manifest.get('algorithm') != ALGORITHM
             or manifest.get('region') != region or manifest.get('sourceReleaseId') != release):
         raise ValueError('recognition index content release mismatch')
     if manifest.get('featuresPath') != 'recognition/features.bin.gz':
         raise ValueError('unsafe recognition feature path')
-    source = directory/'features.bin.gz'
-    size = source.stat().st_size
+    size = len(packed)
     if not 0 < size <= MAX_BYTES or size != manifest.get('compressedBytes'):
         raise ValueError('recognition compressed size mismatch')
-    packed = source.read_bytes()
     if hashlib.sha256(packed).hexdigest() != manifest.get('featuresSha256'):
         raise ValueError('recognition feature digest mismatch')
-    with gzip.open(source, 'rb') as stream:
+    with gzip.GzipFile(fileobj=io.BytesIO(packed), mode='rb') as stream:
         decoded = stream.read(MAX_BYTES+1)
     if len(decoded) > MAX_BYTES or len(decoded) != manifest.get('decodedBytes'):
         raise ValueError('recognition decoded size mismatch')
@@ -52,6 +58,37 @@ def read_index(directory, region, release):
             if type(offset) is not int or offset < 0 or offset % 4 or offset+count*width > len(decoded):
                 raise ValueError('invalid recognition feature range')
     return manifest, packed
+
+
+
+def catalog_coverage(index, catalog):
+    """Reject foreign/unaccounted artwork; report deliberate partial coverage."""
+    known = {c['id']: (kind, c) for kind in ('member', 'support') for c in catalog.get(kind+'Cards', [])}
+    indexed = set()
+    for item in index['cards']:
+        identity = known.get(item['id'])
+        if not identity or identity[0] != item['kind']:
+            raise ValueError('recognition card is absent from catalog or has wrong kind')
+        variants = identity[1].get('variantAssetIds')
+        if variants is not None and item['assetId'] not in variants:
+            raise ValueError('recognition artwork is absent from catalog')
+        indexed.add((item['id'], item['assetId']))
+    missing = set()
+    for item in index.get('missing', []):
+        card = known.get(item.get('id'))
+        key = (item.get('id'), item.get('assetId'))
+        if (not card or item.get('assetId') not in card[1].get('variantAssetIds', [])
+                or key in indexed or key in missing):
+            raise ValueError('invalid recognition missing artwork')
+        missing.add(key)
+    expected = {(c['id'], a) for _, c in known.values() for a in c.get('variantAssetIds', [])}
+    if expected - indexed - missing:
+        raise ValueError('recognition artwork coverage is incomplete')
+    covered = {item['id'] for item in index['cards']}
+    return {'status': 'partial' if missing or set(known)-covered else 'available',
+            'cards': len(covered), 'totalCards': len(known), 'assets': len(indexed),
+            'missingAssets': len(missing), 'missingCardIds': sorted(set(known)-covered),
+            'algorithm': index['algorithm'], 'sourceReleaseId': index['sourceReleaseId']}
 
 
 def build_index(catalog_path, media_root, output):
@@ -79,12 +116,12 @@ def build_index(catalog_path, media_root, output):
                 path = (media_root/relative).resolve()
                 if media_root not in path.parents: raise ValueError('unsafe card asset path')
                 if not path.is_file():
-                    missing.append({'id':card['id'],'assetId':asset_id});continue
+                    missing.append({'id':card['id'],'assetId':asset_id,'reason':'image_missing'});continue
                 image = Image.open(path).convert('RGB');size = 450 if kind=='member' else 300
                 image.thumbnail((size,size))
                 points,descriptors = detector.detectAndCompute(cv2.cvtColor(np.array(image),cv2.COLOR_RGB2GRAY),None)
                 if descriptors is None or len(points)<4:
-                    missing.append({'id':card['id'],'assetId':asset_id});continue
+                    missing.append({'id':card['id'],'assetId':asset_id,'reason':'insufficient_features'});continue
                 descriptor_offset = len(blob);blob.extend(descriptors.tobytes())
                 point_offset = len(blob);blob.extend(np.asarray([p.pt for p in points],dtype='<f4').tobytes())
                 cards.append({'id':card['id'],'name':card['displayName'],'kind':kind,'assetId':asset_id,
@@ -114,7 +151,7 @@ def prepare_candidate_index(candidate, directory):
     root = (candidate/region['path']).resolve()
     if candidate.resolve() not in root.parents:
         raise ValueError('unsafe recognition candidate path')
-    identity = hashlib.sha256(raw+ALGORITHM.encode()).hexdigest()[:24]
+    identity = hashlib.sha256(raw+ALGORITHM.encode()+Path(__file__).read_bytes()).hexdigest()[:24]
     final = directory/identity
     if final.exists():
         read_index(final, edition, release)

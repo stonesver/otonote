@@ -172,6 +172,12 @@ class JpUpdateSafetyTests(unittest.TestCase):
             client.get.assert_not_called()
 
     def test_source_change_before_publication_preserves_current_pointer(self):
+        self.exercise_publication(source_changes=True)
+
+    def test_required_recognition_is_generated_before_jp_publication(self):
+        self.exercise_publication(source_changes=False)
+
+    def exercise_publication(self, source_changes):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             workspace = root / 'output' / 'jp-work'
@@ -182,7 +188,7 @@ class JpUpdateSafetyTests(unittest.TestCase):
             first = observation()
             changed = observation(resource='1.0.0.300/' + 'd' * 32)
             client = Mock(client_version='1.0.4')
-            client.discover.side_effect = [first, changed]
+            client.discover.side_effect = [first, changed if source_changes else first]
 
             def create_snapshot(_client, path):
                 path.mkdir(parents=True)
@@ -220,14 +226,20 @@ class JpUpdateSafetyTests(unittest.TestCase):
                   patch('tools.release_preflight.inspect_plan', return_value={'status': 'passed'}),
                   patch('tools.jp_update.subprocess.run', side_effect=create_candidate),
                   patch('tools.scoring_content.bind_scoring_rules', return_value={}),
-                  patch('tools.content_publication.publish_content') as publish):
-                with self.assertRaisesRegex(ValueError, 'JP source changed'):
-                    run(metadata=root / 'metadata', apk_root=root / 'apks',
-                        unity_version_file=root / 'unity.ver', workspace=workspace,
-                        content_store=content_store)
-                publish.assert_not_called()
+                  patch('tools.card_recognition.prepare_candidate_index', return_value=workspace/'index') as index,
+                  patch('tools.content_publication.publish_content', return_value={'status':'content_published'}) as publish):
+                options=dict(metadata=root/'metadata',apk_root=root/'apks',unity_version_file=root/'unity.ver',
+                             workspace=workspace,content_store=content_store,card_recognition=True)
+                if source_changes:
+                    with self.assertRaisesRegex(ValueError, 'JP source changed'):run(**options)
+                    publish.assert_not_called();index.assert_called_once()
+                else:
+                    result=run(**options)
+                    index.assert_called_once()
+                    self.assertEqual(publish.call_args.kwargs['recognition_index'],workspace/'index')
+                    self.assertTrue(result['cardRecognition'])
             self.assertEqual(current.read_text(), '{"release":"previous"}')
-            self.assertFalse((workspace / 'state.json').exists())
+            self.assertEqual((workspace / 'state.json').exists(), not source_changes)
 
 
 if __name__ == '__main__':

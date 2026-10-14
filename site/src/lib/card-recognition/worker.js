@@ -20,13 +20,21 @@ async function init(){
   if(!response.ok)throw Error('卡库特征加载失败');
   const reader=response.body.getReader(),chunks=[];let received=0;
   while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.length;
+    if(received>manifest.compressedBytes){await reader.cancel();throw Error('卡库特征大小超出索引范围');}
     notify('preparation',{stage:'index',label:'下载卡库特征…',progress:Math.min(received/manifest.compressedBytes,1)});}
+  if(received!==manifest.compressedBytes)throw Error('卡库特征文件不完整');
   const packed=new Uint8Array(received);let offset=0;for(const chunk of chunks){packed.set(chunk,offset);offset+=chunk.length;}
 
   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',packed)),b=>b.toString(16).padStart(2,'0')).join('');
   if(digest!==manifest.featuresSha256)throw Error('卡库与特征版本不一致，请重新加载');
-  const bytes=await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-  if(bytes.byteLength!==manifest.decodedBytes)throw Error('特征文件不完整');
+  const decodedReader=new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')).getReader();
+  const decoded=new Uint8Array(manifest.decodedBytes);let decodedSize=0;
+  while(true){const {done,value}=await decodedReader.read();if(done)break;
+    if(decodedSize+value.length>decoded.length){await decodedReader.cancel();throw Error('解压特征超出索引范围');}
+    decoded.set(value,decodedSize);decodedSize+=value.length;
+  }
+  if(decodedSize!==manifest.decodedBytes)throw Error('特征文件不完整');
+  const bytes=decoded.buffer;
   db=manifest.cards.map(card=>({...card,
     descriptors:cv.matFromArray(card.count,32,cv.CV_8UC1,new Uint8Array(bytes,card.descriptorOffset,card.count*32)),
     points:new Float32Array(bytes,card.pointOffset,card.count*2),

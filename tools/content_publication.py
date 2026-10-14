@@ -75,7 +75,7 @@ def rewrite(value, root, locale, release):
 
 
 def publish_content(candidate, store, *, scoring_rules=None, recognition_index=None, expected_current=None,
-                    ranking_cache=None):
+                    ranking_cache=None, source_observation=None):
     candidate, store = Path(candidate).resolve(), Path(store).resolve()
     if candidate == store or candidate in store.parents or store in candidate.parents: raise ValueError('content store overlaps candidate')
     if ranking_cache is None:
@@ -117,6 +117,10 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
         from tools.card_recognition import read_index
         recognition = read_index(index_path, edition, release)
     recognition_identity = json.dumps(recognition[0],sort_keys=True) if recognition else ''
+    # Public release identity only: never publish endpoints, credentials or private paths.
+    observation = {key: (source_observation or {}).get(key) for key in ('clientVersion','masterVersion','resourceVersion','catalogHash')}
+    if any(value is not None and (not isinstance(value, str) or len(value) > 512) for value in observation.values()):
+        raise ValueError('invalid public source version')
     derivative_sources = [ROOT/'tools/card_recognition.py', ROOT/'tools/library_metadata.py', ROOT/'tools/live2d_transport.py', ROOT/'tools/content_derivatives.mjs',
         ROOT/'packages/scoring/song-ranking.mjs', ROOT/'packages/scoring/song-ranking-meta.mjs',
         ROOT/'packages/scoring/song-ranking-view.mjs', ROOT/'packages/scoring/song-skill-windows.mjs',
@@ -124,7 +128,7 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
     derivative_sources += sorted((ROOT/'packages/scoring/scoring-rules').glob('*.mjs'))
     derivative_sources += sorted((ROOT/'packages/scoring/server').glob('*.mjs'))
     derivative_hash = ''.join(file_hash(p) for p in derivative_sources)
-    identity = hashlib.sha256((file_hash(candidate / 'candidate.json') + file_hash(Path(__file__)) + derivative_hash + json.dumps(rules,sort_keys=True) + recognition_identity + str(SCHEMA)).encode()).hexdigest()[:24]
+    identity = hashlib.sha256((file_hash(candidate / 'candidate.json') + file_hash(Path(__file__)) + derivative_hash + json.dumps(rules,sort_keys=True) + recognition_identity + json.dumps(observation,sort_keys=True) + str(SCHEMA)).encode()).hexdigest()[:24]
     public_root = '/content/releases/' + identity + '/'
     (store / 'releases').mkdir(parents=True, exist_ok=True)
     with (store / '.publication.lock').open('a+') as lock:
@@ -158,13 +162,21 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
                     shutil.copytree(source_root / 'public' / group, stage / 'public' / group, copy_function=link_or_copy, ignore=shutil.ignore_patterns('.DS_Store'))
                 bundle_live2d_tree(stage / 'public' / 'live2d')
                 manifest = {'schemaVersion':SCHEMA,'contentReleaseId':release,'region':edition,'channel':'production','root':public_root,'locales':{},
-                            'limitations':['formal_gameplay_not_verified']}
+                            'limitations':['formal_gameplay_not_verified'],
+                            'releaseRecord':{'region':edition,'sourceReleaseId':release,**observation}}
                 if recognition:
                     (stage/'recognition').mkdir()
                     (stage/'recognition/features.bin.gz').write_bytes(recognition[1])
                 for context in contexts:
                     locale = context['locale']; records = {'files':{},'groups':{}}
                     data = source_root / 'generated/releases' / release / locale
+                    catalog_record = read_json(data/'catalog.json')
+                    client_version = catalog_record.get('release',{}).get('versionName')
+                    if observation['clientVersion'] and client_version != observation['clientVersion']:
+                        raise ValueError('public client version does not match catalog')
+                    manifest['releaseRecord'].update(clientVersion=client_version,
+                        clientVersionCode=catalog_record.get('release',{}).get('versionCode'))
+                    manifest['releaseRecord'].setdefault('generatedAtByLocale',{})[locale] = catalog_record.get('generatedAt')
                     def record(path): return {'path':str(path.relative_to(stage)),'sha256':file_hash(path),'bytes':path.stat().st_size}
                     def project(name, path, value):
                         target = stage / path; write(target, rewrite(value, public_root, locale, release))
@@ -199,9 +211,8 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
                     project('supplemental/music-previews.json',locale+'/_supplemental/music-previews.json',{'contentReleaseId':release,'tracks':{}})
                     if recognition:
                         catalog = read_json(data/'catalog.json')
-                        ids = {c['id'] for kind in ('memberCards','supportCards') for c in catalog.get(kind,[])}
-                        if any(c['id'] not in ids for c in recognition[0]['cards']):
-                            raise ValueError('recognition card is absent from catalog')
+                        from tools.card_recognition import catalog_coverage
+                        catalog_coverage(recognition[0], catalog)
                         project('supplemental/card-recognition.json',locale+'/_supplemental/card-recognition.json',recognition[0])
                     project('supplemental/formal-scoring-rules.json',locale+'/_supplemental/formal-scoring-rules.json',rules)
                     if 'musicCharts' in read_json(data/'catalog.json'):

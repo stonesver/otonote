@@ -19,7 +19,7 @@ const isEnglish = activeReleaseContext.locale === "en";
     <div class="content-shell page-hero-grid">
       <div>
         <div class="eyebrow">RELEASE LEDGER</div>
-        <h1>更新记录</h1>
+        <h1>{isEnglish ? "Updates" : "更新记录"}</h1>
         <p>{isEnglish
           ? "Tracks which game release generated the site data and the identification status of the current public set."
           : "记录站点数据从哪个游戏版本生成，以及当前公开集的识别和待整理状态。"}</p>
@@ -38,7 +38,7 @@ const isEnglish = activeReleaseContext.locale === "en";
           <time datetime={catalog.generatedAt}>{catalog.generatedAt.slice(0, 10)}</time>
           <div>
             <small>{catalog.release.channel.toUpperCase()} / {catalog.release.versionCode}</small>
-            <h2>{catalog.release.label} {isEnglish ? "initial site ingest" : "首次站点入库"}</h2>
+            <h2>{catalog.release.label} {isEnglish ? "current site snapshot" : "当前站点快照"}</h2>
             <p>
               {isEnglish
                 ? `Generated ${catalog.characters.length} character records, ${catalog.memberCards.length} member cards, ${catalog.supportCards.length} snaps, and ${catalog.assets.length} public resources. Music contains ${catalog.musicTracks.length} tracks and ${catalog.musicCharts.length} parsed charts; the game database publishes ${publicSkills.length} card-referenced skills and ${gameDatabase.items.length} items into ${cardDetailProjections.memberCards.length + cardDetailProjections.supportCards.length} detail views. ${pendingAssets} assets remain pending.`
@@ -56,12 +56,34 @@ const isEnglish = activeReleaseContext.locale === "en";
         <div><dt>Updated</dt><dd>{catalog.generatedAt}</dd></div>
       </dl>
 
-      <div class="archive-note">
-        <strong>VERSION RULE</strong>
-        <p>{isEnglish
-          ? "Resources with identical content but changed paths are deduplicated by SHA-256. Future releases will list additions, changes, removals, and pending relations here."
-          : "内容相同但路径变化的资源通过 SHA-256 去重。以后版本会在这里显示新增、修改、移除和待确认关系。"}</p>
-      </div>
+      <section class="archive-note feature-status" data-feature-status data-locale={activeReleaseContext.locale} aria-labelledby="feature-heading">
+        <h2 id="feature-heading">{isEnglish ? "Feature availability" : "功能更新与可用状态"}</h2>
+        <p data-feature-freshness role="status">{isEnglish ? "Checking this release…" : "正在核验本页版本…"}</p>
+        <p data-feature-version></p><p data-feature-content style="overflow-wrap:anywhere"></p>
+        <dl class="release-context-ledger">
+          <div><dt>{isEnglish ? "Member cards / Snaps" : "角色卡／留影"}</dt><dd data-feature-catalog>—</dd></div>
+          <div><dt>{isEnglish ? "Events" : "活动"}</dt><dd data-feature-events>—</dd></div>
+          <div><dt>{isEnglish ? "Calculator" : "计算器"}</dt><dd data-feature-calculator>—</dd></div>
+          <div><dt>{isEnglish ? "Screenshot import" : "截图导入"}</dt><dd data-feature-screenshot>—</dd></div>
+        </dl>
+        <p>{isEnglish ? "Screenshot indexes follow the content release; engine readiness is checked when opening the tool. Layout and new skill mechanics need separate verification. Screenshots stay on your device; review before saving." : "截图索引随内容版本更新，打开工具时检查引擎是否就绪；截图布局、新技能机制仍需单独核验。图片在本机处理，校对确认后才保存。"}</p>
+        <p><a href={activeReleaseContext.locale === 'en' ? `/${activeReleaseContext.region}/en/rankings/` : `/${activeReleaseContext.region}/zh-CN/rankings/`}>{isEnglish ? "Rankings: last successful capture and freshness" : "榜单：查看最近成功采集时间与陈旧状态"}</a> · <a href={`/${activeReleaseContext.region}/${activeReleaseContext.locale}/my-growth/`}>{isEnglish ? "Account query: check service availability" : "账号查询：独立检查服务可用性"}</a></p>
+        <p>{isEnglish ? "Static publication does not verify account login, risk controls, or live collection. Unsupported rules remain unavailable or partial." : "静态发布成功不代表账号登录、风控或实时采集成功。未知规则保留不可用或部分支持状态。"}</p>
+      </section>
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import {installFeatureStatus} from '../../lib/feature-status-ui.mjs';
+  document.querySelectorAll('[data-feature-status]').forEach(root => installFeatureStatus(root));
+</script>
+
+<style>
+  .feature-status { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .feature-status h2 { margin: 0; }
+  .feature-status .release-context-ledger { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 4px 0; }
+  @media (max-width: 760px) {
+    .feature-status .release-context-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>

@@ -34,11 +34,13 @@ python -m tools.content_publication \
   --recognition-index output/card-recognition-NEW_RELEASE
 ```
 
-线上定时更新器可在私有 `contentPublication` 设置中启用 `cardRecognition: true`；运行环境须安装上述 Python 依赖。更新器按封存候选身份缓存索引，生成或校验失败时停止发布，不把缺索引的新版本覆盖到线上。
+正式云端流程对 Global、JP 都显式传入 `--card-recognition`，并在上传前用 `tools.r2_functional_check --require-recognition` 要求当前版本索引。Global 私有 `contentPublication.cardRecognition: true` 仍可使用。生产镜像安装上述锁定依赖，拉取后先做离线 import 预检；启用前须先更新镜像 digest。索引按封存候选、算法和生成器源码缓存，生成或校验失败时停止发布。此接线已在本地实现，部署状态见下方验收记录。
 
-也可在候选封存前将两文件纳入 `supplemental-data/card-recognition/`，发布器默认识别该目录。不要修改已封存的候选或快照。索引必须随对应内容版本重建，发布器检查版本、哈希、解压大小、特征范围及卡牌归属，并将索引纳入新内容快照身份。没有索引的内容仍可发布，界面明确显示截图识别未提供，不回退其他版本。
+也可在候选封存前将两文件纳入 `supplemental-data/card-recognition/`，发布器默认识别该目录。不要修改已封存的候选或快照。索引必须随对应内容版本重建，发布器检查版本、哈希、解压大小、特征范围及卡牌归属，并将索引纳入新内容快照身份。手动使用发布器时仍允许不附索引，界面明确显示未提供；正式云端的必需索引门禁会拒绝缺索引内容。所有预期卡面必须已索引或列明缺失，部分覆盖明确显示 partial，不回退其他版本。
 
 原型和本地预览不等于线上发布；上线还需要对应区服的索引、正式候选门禁及部署验收。静态文件是否由 Cloudflare 缓存取决于线上域名代理和缓存策略，本功能不修改真实配置。
+
+“更新记录”页展示内容版本、目录/活动/评分及截图索引状态，检查与最新公开快照是否一致。索引可用不等于设备引擎已经就绪，打开导入面板时另行检查。详见 [G 与截图导入验收](plans/2026-10-13-feature-status-and-screenshot-import.md)。
 
 ## 本地验证
 

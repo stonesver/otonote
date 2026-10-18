@@ -82,6 +82,8 @@ class GlobalAccountReadsTests(unittest.TestCase):
                         status,result=value.read_growth('FAKE-ACCOUNT','FAKE-PASSWORD',history=history,server_id=server_id)
                         self.assertEqual(status,200,result)
                         snapshot=result['snapshot'];self.assertEqual(snapshot['source']['serverId'],server_id)
+                        self.assertEqual(snapshot['source']['region'],
+                                         'TW/HK/MO' if server_id == 'global-hmt' else 'global')
                         self.assertEqual(snapshot['source']['clientVersion'],'1.0.6')
                         calls=transport.calls[start:]
                         self.assertEqual([c[3]['x-client-version'] for c in calls[:2]],['1.0.3','1.0.6'])

@@ -28,5 +28,7 @@ def recommended_version(metadata):
 def export_source(server_id, version):
     if server_id not in GLOBAL_SERVERS or not valid_version(version):
         raise ValueError('invalid_export_source')
-    return {'kind': 'direct_game_read', 'region': 'global', 'edition': 'global',
+    # Existing browser tabs still require the historical HMT region marker.
+    region = 'TW/HK/MO' if server_id == 'global-hmt' else 'global'
+    return {'kind': 'direct_game_read', 'region': region, 'edition': 'global',
             'serverId': server_id, 'clientVersion': version}

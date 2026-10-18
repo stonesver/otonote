@@ -83,7 +83,7 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
     if(stored.notice)migrationNotice=stored.notice;
     if(stored.value!==null)return stored.value;
     const oldInventory = legacy('inventory'), oldGrowth = legacy('account-growth');
-    const converted = oldGrowth ? convertGrowthSnapshot(oldGrowth, rules, vipRanks) : null;
+    const converted = oldGrowth ? convertGrowthSnapshot(oldGrowth, rules, vipRanks, context.serverId) : null;
     if(converted)assertAccountServer(converted.safeSnapshot.source.serverId,context);
     if(oldInventory?.serverId)assertAccountServer(oldInventory.serverId,context);
     if (!oldInventory && !converted) return null;
@@ -99,7 +99,7 @@ export function createPersonalGrowthStore({rules, vipRanks = [], context = curre
     checkServer();
     if (value?.format === PERSONAL_GROWTH_FORMAT) return validate(value);
     if (value?.format === 'ournotes-growth-snapshot') {
-      const converted = convertGrowthSnapshot(value, rules, vipRanks);
+      const converted = convertGrowthSnapshot(value, rules, vipRanks, context.serverId);
       assertAccountServer(converted.safeSnapshot.source.serverId, context);
       const previous={...(read()?.account??{})};
       if(Object.hasOwn(converted.modifiers,'bandItems'))delete previous.bandItemTotals;

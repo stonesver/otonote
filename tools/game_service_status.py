@@ -6,19 +6,17 @@ not evidence that account login works; snapshots never contain player data.
 from __future__ import annotations
 
 import copy
-import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-SERVERS = {
-    'global-hmt': 'l12-prod-hk-all-gs-sirius.gamerfusiontech.com',
-    'global-en': 'l14-prod-va-all-gs-sirius.bilibiligame.net',
-    'global-kr': 'l14-prod-kr-all-gs-sirius.bilibiligame.net',
-}
+from tools.global_game_config import DISCOVERY_VERSION, GLOBAL_SERVERS, recommended_version
+
+SERVERS = {sid: server['hosts'][-1] for sid, server in GLOBAL_SERVERS.items()}
 METHOD = '/app.masterdata.MasterdataService/Version'
 TTL_SECONDS = 60
+
 
 
 def iso_time(value):
@@ -69,10 +67,9 @@ def probe(server_id, version):
                 return {'status': 'maintenance', 'source': 'official_game_response',
                         'maintenance': maintenance}
             if attempt == 0 and exc.details() == 'client update required':
-                versions = [v for k, v in metadata if k == 'x-client-recommended-version']
-                if (len(versions) == 1 and isinstance(versions[0], str) and len(versions[0]) <= 32
-                        and re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,4}', versions[0])):
-                    version = versions[0]
+                candidate = recommended_version(metadata)
+                if candidate and candidate != version:
+                    version = candidate
                     continue
             return {'status': 'unknown', 'source': 'public_probe_unavailable'}
     return {'status': 'unknown', 'source': 'public_probe_unavailable'}
@@ -83,8 +80,7 @@ class GameServiceStatus:
     def __init__(self, probe_fn=probe, *, version=None, monotonic=time.monotonic,
                  wall_time=time.time):
         if version is None:
-            from tools.growth_login import CLIENT_VERSION
-            version = CLIENT_VERSION
+            version = DISCOVERY_VERSION
         self.probe = probe_fn
         self.version = version
         self.monotonic, self.wall_time = monotonic, wall_time

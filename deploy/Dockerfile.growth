@@ -1,4 +1,4 @@
-# Build context contains growth_export, growth_login, growth_web, game_service_status, gacha_history
+# Build context contains growth_export, growth_login, growth_web, game_service_status, global_game_config, gacha_history
 # runtime modules and pinned requirements.
 ARG BASE_IMAGE=python:3.11-slim
 FROM ${BASE_IMAGE}

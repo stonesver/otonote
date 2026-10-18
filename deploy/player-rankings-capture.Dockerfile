@@ -7,7 +7,7 @@ WORKDIR /app
 COPY tools/growth-export-requirements.txt /app/requirements.txt
 RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 COPY backend/__init__.py backend/player_rankings.py /app/backend/
-COPY tools/collect_player_rankings.py tools/growth_login.py tools/game_service_status.py tools/growth_export.py tools/import_player_rankings.py /app/tools/
+COPY tools/collect_player_rankings.py tools/growth_login.py tools/game_service_status.py tools/global_game_config.py tools/growth_export.py tools/import_player_rankings.py /app/tools/
 COPY tools/resource_pipeline/__init__.py tools/resource_pipeline/localization.py tools/resource_pipeline/models.py /app/tools/resource_pipeline/
 # SDK resources and account credentials are supplied only as runtime read-only mounts.
 RUN mkdir -p /data/observations/global-hmt /state /run/ranking-credentials /run/ranking-sdk

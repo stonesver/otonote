@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / 'packaging/growth-tool'
-MODULES = ('growth_export.py', 'growth_login.py', 'growth_login_local.py', 'game_service_status.py',
+MODULES = ('growth_export.py', 'growth_login.py', 'growth_login_local.py', 'game_service_status.py', 'global_game_config.py',
            'growth_levels.py', 'growth_package_check.py', 'build_growth_distribution.py',
            'build_growth_macos.py')
 DOCUMENTS = ('README.md', 'LICENSE', 'requirements.txt', 'sdk.example.xml', 'sdk.bhk.xml', 'launcher.py', 'Start.cmd', 'Start.command')

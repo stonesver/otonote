@@ -35,6 +35,7 @@ class GrowthClientVersionTests(unittest.TestCase):
         credential = message(1, 'FAKE-PLAYER') + message(2, 'FAKE-CREDENTIAL')
         responses = {
             '/' + LOGIN_SERVICE + 'GetServerList': message(1, server),
+            '/app.masterdata.MasterdataService/Version': b'',
             '/' + LOGIN_SERVICE + 'PlayerPreLogin': integer(1, 1),
             '/' + LOGIN_SERVICE + 'PlayerLogin': message(1, credential),
             '/app.player.PlayerService/GetPlayerData': account_response(),
@@ -53,7 +54,7 @@ class GrowthClientVersionTests(unittest.TestCase):
             with patch('tools.growth_login.CLIENT_VERSION', '1.0.2'):
                 old_status, old_result = gateway.read_growth('FAKE-ACCOUNT', 'FAKE-PASSWORD')
             self.assertEqual((old_status, old_result['error'], old_result['stage']),
-                             (422, 'game_rpc_unknown', 'discovering'))
+                             (422, 'game_client_update_required', 'discovering'))
             self.assertEqual([row[0] for row in calls], ['/' + LOGIN_SERVICE + 'GetServerList'])
             sdk.login.assert_not_called()
             calls.clear()
@@ -62,8 +63,8 @@ class GrowthClientVersionTests(unittest.TestCase):
         self.assertEqual(status, 200, result)
         self.assertEqual([row[0] for row in calls], list(responses))
         self.assertTrue(all(row[2]['x-client-version'] == '1.0.3' for row in calls))
-        self.assertEqual(string(calls[1][1], 6), '1.0.3')
         self.assertEqual(string(calls[2][1], 6), '1.0.3')
+        self.assertEqual(string(calls[3][1], 6), '1.0.3')
         self.assertEqual(SdkClient(gateway.profile).parameters({})['app_ver'], '1.0.3')
         self.assertEqual(result['snapshot']['source']['clientVersion'], '1.0.3')
         self.assertEqual(result['snapshot']['growth']['tgw']['point'], 4000)

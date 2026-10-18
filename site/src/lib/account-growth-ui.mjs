@@ -1,3 +1,4 @@
+import {accountServer,accountCapabilitiesUrl} from './account-servers.mjs';
 import {currentServerContext} from './game-servers.mjs';
 import {growthModifiersForDraft} from './account-growth-import.mjs';
 import {maintenanceNotice} from './game-service-status.mjs';
@@ -37,11 +38,11 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
   workbench.addEventListener('personal-growth-preview',event=>{if(busy){status.textContent='正在读取养成，请完成后再导入。';root.open=true;return;}try{prepare(event.detail);root.open=true;root.scrollIntoView({block:'start'});}catch(error){status.textContent=`未导入：${error.message}`;}});
   async function checkService() {
    const retry=q('[data-growth-retry]');retry.hidden=true;nonce=null;fields.disabled=true;
-   if(context.serverId !== 'global-hmt') {
+   if(!accountServer(context.serverId)) {
     fields.disabled=true;
-    q('[data-growth-service-status]').textContent='当前网页登录仅支持港澳台；请先选择匹配区服。';
-   } else await fetch('/api/growth-export/capabilities/',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(10000)})
-    .then(async r=>{if(!r.ok)throw Error();const result=await r.json();if(result.enabled!==true||typeof result.nonce!=='string')throw Error();
+    q('[data-growth-service-status]').textContent='请先选择账号所属的港澳台、EN 或韩服。';
+   } else await fetch(accountCapabilitiesUrl(context.serverId),{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(10000)})
+    .then(async r=>{if(!r.ok)throw Error();const result=await r.json();if(result.enabled!==true||typeof result.nonce!=='string'||(result.serverId&&result.serverId!==context.serverId))throw Error();
       nonce=result.nonce;applyStatus(result.gameStatus);})
     .catch(()=>{q('[data-growth-service-status]').textContent='暂时无法连接登录服务，可重新检查或导入 JSON。';retry.hidden=false;});
   }
@@ -49,7 +50,7 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
   checkService();
   q('[data-growth-login]').addEventListener('submit',async event=>{
     event.preventDefault();if(busy||!nonce||maintenance)return;busy=true;clear();fields.disabled=true;q('[data-growth-file]').disabled=true;
-    let body=JSON.stringify({account:q('[data-growth-account]').value,password:q('[data-growth-password]').value});
+    let body=JSON.stringify({serverId:context.serverId,account:q('[data-growth-account]').value,password:q('[data-growth-password]').value});
     q('[data-growth-password]').value='';status.textContent='正在登录并读取养成，请稍候。不会自动重试。';
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),150000);
     try {
@@ -68,6 +69,7 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
         applyStatus(result.gameStatus??{status:'maintenance'});
         throw new Error(maintenanceNotice(result.gameStatus??{status:'maintenance'}));
       }
+      if(result.error==='game_client_update_required')throw new Error('游戏要求新的客户端版本，本次读取已停止；请稍后手动重新查询。');
       if(!response.ok){const code=typeof result.error==='string'&&/^sdk_service_-?\d+$/.test(result.error)?`（${result.error}）`:'';
         throw new Error(messages[result.reason]??(response.status===429?'服务繁忙，请稍后再试。':`读取未完成，请稍后再试。${code}`));}
       prepare(result.snapshot);

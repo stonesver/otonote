@@ -250,7 +250,8 @@ class RankingCollectionTests(unittest.TestCase):
             status = json.loads((root/'state/status.json').read_text())
             self.assertEqual(result, 2)
             self.assertEqual(status['stage'], 'discovering')
-            self.assertEqual(status['clientVersion'], CLIENT_VERSION)
+            self.assertIsNone(status['clientVersion'])
+            self.assertEqual(status['discoverySeedVersion'], CLIENT_VERSION)
             self.assertNotIn('PRIVATE', json.dumps(status))
             self.assertFalse((root/'observations/global-hmt/current.json').exists())
 

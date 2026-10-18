@@ -59,7 +59,7 @@ export async function createGachaShareImage(data, {signal} = {}) {
     text('OTONOTE / GACHA COLLECTION',pad,36,10,colors.muted,'600',mono);
     text('抽卡记录',pad,70,32,colors.ink,'700');
     text(fit(data.poolName,inner,14),pad,120,14,colors.muted);
-    text(data.from?`${data.from} — ${data.to} · UTC+8`:'记录时间未提供',pad,149,11,colors.muted);
+    text(data.from?`${data.from} — ${data.to} · ${data.timeZoneLabel??'UTC+8'}`:'记录时间未提供',pad,149,11,colors.muted);
     rule(180);
     const metrics=[['本次抽数',data.total,colors.ink],['SSR 角色卡',data.kinds[0].ssr,colors.member],['SSR 留影',data.kinds[1].ssr,colors.support],['当期 UP',data.pickup,'#a57d38']];
     metrics.forEach(([label,value,color],i)=>{const x=pad+i*inner/4;text(label,x,203,11,colors.muted);text(value,x,230,34,color,'500',mono);});

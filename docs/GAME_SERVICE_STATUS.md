@@ -40,7 +40,7 @@
 | `no_maintenance_signal` | 公开 Version 请求成功；不证明账号登录成功 |
 | `unknown` | 网络失败、超时、版本协商失败或无法识别的响应 |
 
-`capabilities` 额外携带当前港澳台 `gameStatus`，`enabled` 继续只描述本站网关入口。账号读取尚仅支持港澳台。维护时养成和抽卡返回 `503`、`error: game_maintenance` 与 `Retry-After: 60`，在发现和 SDK 登录前停止。若维护开始于预检查之后，原有只读 RPC 也会识别相同信号并返回维护错误。
+`capabilities` 额外携带所选区服 `gameStatus`（缺省港澳台），`enabled` 继续只描述本站网关入口。账号读取已扩展到三服，详见 [三服读取说明](GLOBAL_ACCOUNT_READS.md)。维护时养成和抽卡返回 `503`、`error: game_maintenance` 与 `Retry-After: 60`，在发现和 SDK 登录前停止。若维护开始于预检查之后，原有只读 RPC 也会识别相同信号并返回维护错误。
 
 ## 开销与页面行为
 

@@ -11,6 +11,7 @@ from tests.test_growth_export import account_response
 from tests.test_gacha_history import execution
 from tools.gacha_history import extract_history
 from tools.game_service_status import GameServiceStatus
+from tools.global_game_config import export_source, GLOBAL_SERVERS
 
 
 class FakeSdk:
@@ -25,17 +26,22 @@ class FakeSdk:
 
 
 class FakeGame:
+    def __init__(self, server_id='global-hmt'):
+        self.server_id = server_id
+        self.client_version = '1.0.3'
     def discover(self):
         return 'fake-host'
     def export(self, identity, device, host, progress):
         progress('reading_growth')
-        return extract_growth(account_response())
+        result=extract_growth(account_response())
+        result['source']=export_source(self.server_id,self.client_version)
+        return result
 
 
 class FakeHistory(FakeGame):
     def export(self, identity, device, host, progress):
         progress('reading_gacha_history')
-        return extract_history(execution(51, 51))
+        return extract_history(execution(51, 51),server_id=self.server_id,client_version=self.client_version)
 
 
 class GrowthWebTests(unittest.TestCase):
@@ -177,3 +183,21 @@ class GrowthWebTests(unittest.TestCase):
 
 if __name__=='__main__':
     unittest.main()
+
+    def test_selected_server_controls_capabilities_reads_and_maintenance(self):
+        self.server.game_status=GameServiceStatus(lambda sid,version:{'status':'maintenance' if sid=='global-hmt' else 'no_maintenance_signal'},version='1.0.6')
+        for server_id in ('global-en','global-kr'):
+            status,_,raw=self.request('capabilities?serverId='+server_id,'GET')
+            data=json.loads(raw);self.assertEqual(status,200)
+            self.assertEqual(data['serverId'],server_id);self.assertEqual(data['authMethods'],['email_password'])
+            self.assertEqual(data['gameStatus']['status'],'no_maintenance_signal')
+            for path in ('read','gacha-history'):
+                status,_,raw=self.request(path,body=json.dumps({'serverId':server_id,'account':'FAKE-ACCOUNT','password':'FAKE-PASSWORD'}))
+                self.assertEqual(status,200)
+                self.assertEqual(json.loads(raw)['snapshot']['source']['serverId'],server_id)
+        self.assertEqual(self.request('read')[0],503)
+        for server_id in (None,[],{},'jp','global-other'):
+            status,_,_=self.request(body=json.dumps({'serverId':server_id,'account':'FAKE-ACCOUNT','password':'FAKE-PASSWORD'}))
+            self.assertEqual(status,400)
+        for query in ('serverId=jp','serverId=','serverId=global-en&serverId=global-kr','serverId=global-en&target=bad'):
+            self.assertEqual(self.request('capabilities?'+query,'GET')[0],400)

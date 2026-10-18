@@ -1,3 +1,4 @@
+import {snapshotServer} from './account-servers.mjs';
 import {createInventoryManager} from './inventory-manager.mjs';
 import {validateBandItemLevel} from '../../../packages/scoring/scoring-rules/band-item-levels.mjs';
 
@@ -30,12 +31,11 @@ function threshold(rows,value,valueKey,rankKey) {
   return integer(result,'换算等级',1,1000);
 }
 
-export function convertGrowthSnapshot(snapshot,rules,vipRanks=[]) {
+export function convertGrowthSnapshot(snapshot,rules,vipRanks=[],expectedServerId=null) {
   if(!object(snapshot)||snapshot.format!=='ournotes-growth-snapshot'||snapshot.schemaVersion!==1)
     throw new Error('请选择 Our Notes 养成导出 JSON（版本 1）');
-  if(snapshot.source?.serverId && snapshot.source.serverId!=='global-hmt')throw new Error('养成文件区服身份不一致');
-  if(snapshot.source?.edition && snapshot.source.edition!=='global')throw new Error('养成文件版本身份不一致');
-  if(snapshot.source?.region!=='TW/HK/MO')throw new Error('当前只支持台港澳服养成');
+  const serverId=snapshotServer(snapshot.source,{legacyHmt:true});
+  if(expectedServerId&&serverId!==expectedServerId)throw new Error('资料区服与当前区服不匹配');
   if(!object(snapshot.growth)||!object(snapshot.coverage))throw new Error('养成文件缺少覆盖信息');
   const normalized={},summary={},modifiers={},inventory={schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,
     memberCardIds:[],supportCardIds:[],growth:{}};
@@ -90,7 +90,7 @@ export function convertGrowthSnapshot(snapshot,rules,vipRanks=[]) {
   }
   const validated=createInventoryManager(rules).validate(inventory);
   modifiers.growth=structuredClone(validated.growth);
-  const safeSnapshot={format:'ournotes-growth-snapshot',schemaVersion:1,source:{region:'TW/HK/MO',edition:'global',serverId:'global-hmt'},
+  const safeSnapshot={format:'ournotes-growth-snapshot',schemaVersion:1,source:{region:'global',edition:'global',serverId},
     coverage:Object.fromEntries(groups.map(g=>[g,normalized[g]===null?'not_observed':'observed'])),growth:normalized};
   return {inventory:validated,modifiers,summary,safeSnapshot};
 }

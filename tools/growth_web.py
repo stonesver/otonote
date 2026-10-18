@@ -13,14 +13,16 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from tools.growth_export import ExportError
 from tools.growth_login import GameClient, LoginError, Profile, SdkClient
 from tools.gacha_history import GachaHistoryClient
 from tools.game_service_status import GameServiceStatus
+from tools.global_game_config import GLOBAL_SERVERS
 
 ROOT = '/api/growth-export/'
 DIAGNOSTIC_STAGES = frozenset({
@@ -30,7 +32,8 @@ DIAGNOSTIC_STAGES = frozenset({
 DIAGNOSTIC_ERRORS = frozenset({
     'origin_refused', 'not_found', 'invalid_request', 'request_too_large',
     'busy', 'rate_limited', 'upstream_unavailable', 'invalid_sdk_profile',
-    'game_maintenance',
+    'game_maintenance', 'game_client_update_required', 'invalid_client_version',
+    'unsupported_game_server', 'selected_server_not_unique',
     'unsupported_sdk_profile', 'invalid_auth_response',
     'sdk_parameter_override_refused', 'sdk_operation_refused',
     'sdk_response_too_large', 'sdk_network_or_tls_error',
@@ -163,7 +166,7 @@ class GrowthGateway(ThreadingHTTPServer):
             return True
 
     def read_growth(self, account, password, *, history=False, progress_callback=None,
-                    failure_callback=None):
+                    failure_callback=None, server_id='global-hmt'):
         stage = 'discovering'
         def progress(value):
             nonlocal stage
@@ -171,16 +174,19 @@ class GrowthGateway(ThreadingHTTPServer):
             if progress_callback:
                 progress_callback(value)
         try:
+            if server_id not in GLOBAL_SERVERS:
+                raise LoginError('unsupported_game_server')
             if getattr(self, 'game_status', None) is not None:
-                observation = self.game_status.server('global-hmt')
+                observation = self.game_status.server(server_id)
                 if observation.get('status') == 'maintenance':
                     return 503, {'error': 'game_maintenance', 'gameStatus': observation,
                                  'stage': stage}
             progress(stage)
-            game = (self.history_factory if history else self.game_factory)()
+            game = (self.history_factory if history else self.game_factory)(server_id=server_id)
             host = game.discover()
             progress('sdk_login')
-            sdk = self.sdk_factory(self.profile)
+            sdk = self.sdk_factory(replace(self.profile, version=game.client_version,
+                                           language=GLOBAL_SERVERS[server_id]['language']))
             identity = sdk.login(account, password)
             account = password = ''
             snapshot = game.export(identity, sdk.device_id, host, progress)
@@ -228,17 +234,24 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.valid_source():
             return self.reply(403, {'error': 'origin_refused'})
-        path = self.path.rstrip('/')
+        parsed = urlsplit(self.path)
+        path = parsed.path.rstrip('/')
         if path == ROOT + 'status':
             if self.server.game_status is None:
                 return self.reply(503, {'error': 'status_not_configured'})
             return self.reply(200, self.server.game_status.snapshot())
         if path != ROOT + 'capabilities':
             return self.reply(404, {'error': 'not_found'})
-        result = {'enabled': True, 'region': 'TW/HK/MO', 'nonce': self.server.nonce,
-                  'gachaHistory': True}
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        server_id = query.get('serverId', ['global-hmt'])[0]
+        if (set(query) - {'serverId'} or len(query.get('serverId', ['global-hmt'])) != 1
+                or server_id not in GLOBAL_SERVERS):
+            return self.reply(400, {'error': 'unsupported_game_server'})
+        result = {'enabled': True, 'region': 'global', 'serverId': server_id,
+                  'servers': list(GLOBAL_SERVERS), 'nonce': self.server.nonce,
+                  'gachaHistory': True, 'authMethods': ['email_password']}
         if self.server.game_status is not None:
-            result['gameStatus'] = self.server.game_status.server('global-hmt')
+            result['gameStatus'] = self.server.game_status.server(server_id)
         return self.reply(200, result)
 
     def do_POST(self):
@@ -279,7 +292,9 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 8192:
                 return self.reply(413, {'error': 'request_too_large'})
             body = json.loads(self.rfile.read(size))
-            if (not isinstance(body, dict) or set(body) != {'account', 'password'}
+            if (not isinstance(body, dict) or set(body) not in ({'account', 'password'}, {'account', 'password', 'serverId'})
+                    or not isinstance(body.get('serverId', 'global-hmt'), str)
+                    or body.get('serverId', 'global-hmt') not in GLOBAL_SERVERS
                     or not isinstance(body['account'], str) or not 1 <= len(body['account'].strip()) <= 320
                     or not isinstance(body['password'], str) or not 1 <= len(body['password'].encode()) <= 4096):
                 return self.reply(400, {'error': 'invalid_request'})
@@ -291,10 +306,11 @@ class Handler(BaseHTTPRequestHandler):
             if not self.server.admit():
                 return self.reply(429, {'error': 'rate_limited'})
             account, password = body.pop('account'), body.pop('password')
+            server_id = body.pop('serverId', 'global-hmt')
             body.clear()
             status, result = self.server.read_growth(
                 account, password, history=path == ROOT + 'gacha-history',
-                progress_callback=progress, failure_callback=failure)
+                progress_callback=progress, failure_callback=failure, server_id=server_id)
             account = password = ''
             self.reply(status, result)
         finally:

@@ -82,7 +82,7 @@ def handler(code, content, rendered=None, growth_upstream=None):
             self.wfile.write(payload)
 
         def proxy_growth(self):
-            path = self.path.rstrip('/')
+            path = urlsplit(self.path).path.rstrip('/')
             allowed = {'GET': {'/api/growth-export/capabilities', '/api/growth-export/status'},
                        'POST': {'/api/growth-export/read', '/api/growth-export/gacha-history'}}
             if path not in allowed.get(self.command, set()):
@@ -108,7 +108,7 @@ def handler(code, content, rendered=None, growth_upstream=None):
                        if key in self.headers}
             connection = http.client.HTTPConnection(upstream.hostname, upstream.port, timeout=145)
             try:
-                connection.request(self.command, path, body=body, headers=headers)
+                connection.request(self.command, path + ('?' + urlsplit(self.path).query if urlsplit(self.path).query else ''), body=body, headers=headers)
                 response = connection.getresponse()
                 payload = response.read(2_000_001)
                 if len(payload) > 2_000_000:

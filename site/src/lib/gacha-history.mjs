@@ -1,3 +1,4 @@
+import {snapshotServer,historyZone} from './account-servers.mjs';
 /** Query-local records and descriptive statistics. No storage or network access. */
 export const RARITIES = {2:'R', 3:'SR', 4:'SSR', 10:'EX', 20:'BD'};
 export const HIGH_RARITIES = new Set([4, 10, 20]);
@@ -7,23 +8,25 @@ export const STATISTICS_NOTE = '角色卡与留影分别统计，占比以各自
 const integer = (n, min = 0, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(n) && n >= min && n <= max;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-export function historyDay(seconds) {
+export function historyDay(seconds,serverId='global-hmt') {
   if (!seconds) return '';
-  // TW/HK/MO game history is displayed in UTC+8 regardless of the browser zone.
-  return new Date(seconds * 1000 + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  // Use the selected region display zone regardless of the browser zone.
+  return new Date(seconds * 1000 + historyZone(serverId).offset * 3600 * 1000).toISOString().slice(0, 10);
 }
-export function historyTime(seconds) {
-  return seconds ? new Date(seconds * 1000 + 8 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ') : '时间未记录';
+export function historyTime(seconds,serverId='global-hmt') {
+  return seconds ? new Date(seconds * 1000 + historyZone(serverId).offset * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ') : '时间未记录';
 }
 
-export function createHistoryModel(snapshot, catalog = {}) {
+export function createHistoryModel(snapshot, catalog = {}, expectedServerId = null) {
   if (!object(snapshot) || snapshot.format !== 'otonote-gacha-history' || snapshot.schemaVersion !== 1
-      || snapshot.source?.serverId !== 'global-hmt' || snapshot.coverage?.scope !== 'server_returned'
+      || snapshot.coverage?.scope !== 'server_returned'
       || !['execution','legacy','empty'].includes(snapshot.coverage?.historyKind)
       || !Array.isArray(snapshot.batches) || snapshot.batches.length > 10000
       || typeof snapshot.queriedAt !== 'string' || !Number.isFinite(Date.parse(snapshot.queriedAt))) {
     throw Error('抽卡记录格式不受支持，请重新查询。');
   }
+  const serverId=snapshotServer(snapshot.source);
+  if(expectedServerId&&serverId!==expectedServerId)throw Error('抽卡记录区服与当前区服不匹配');
   const pools = new Map((catalog.pools ?? []).map(p => [p.id, p]));
   const prizes = new Map((catalog.prizes ?? []).map(p => [p.id, p]));
   const cards = new Map((catalog.cards ?? []).map(c => [`${c.resourceType}:${c.masterId}`, c]));
@@ -51,7 +54,7 @@ export function createHistoryModel(snapshot, catalog = {}) {
       records.push({
         key:`${batchIndex}:${index}`, batchIndex, poolId:batch.poolId,
         poolName:pool?.name ?? (batch.poolId ? `未收录卡池 #${batch.poolId}` : '未归属卡池'),
-        productId:batch.productId, executedAt:batch.executedAt, day:historyDay(batch.executedAt),
+        productId:batch.productId, executedAt:batch.executedAt, day:historyDay(batch.executedAt,serverId),
         prizeId:item.prizeId, converted:item.converted, known, pickup,
         kind:prize?.resourceType === 2 ? 'member' : prize?.resourceType === 3 ? 'support' : prize ? 'item' : 'unknown',
         rarity:card?.rarity ?? null, cardId:isCard ? prize.resourceId : null,
@@ -61,7 +64,7 @@ export function createHistoryModel(snapshot, catalog = {}) {
       });
     }
   });
-  return {records, queriedAt:new Date(snapshot.queriedAt).toISOString(),
+  return {records, serverId, timeZoneLabel:historyZone(serverId).label, queriedAt:new Date(snapshot.queriedAt).toISOString(),
     historyKind:snapshot.coverage.historyKind, legacyOmittedCount:snapshot.coverage.legacyOmittedCount ?? 0};
 }
 
@@ -144,11 +147,11 @@ export function summarizeHistory(records) {
 }
 
 /** Strict allowlist: share rendering never receives a response, identity or credential. */
-export function shareSummary(summary, poolName, queriedAt) {
+export function shareSummary(summary, poolName, queriedAt, serverId='global-hmt') {
   const highlights = Object.keys(CARD_KINDS).flatMap(kind => summary.highlights
     .filter(card => card.kind === kind).slice(0, SHARE_CARDS_PER_KIND));
   return {title:summary.title, caption:summary.caption, poolName:String(poolName).slice(0,160),
-    queriedDay:historyDay(Math.floor(Date.parse(queriedAt) / 1000)),
+    queriedDay:historyDay(Math.floor(Date.parse(queriedAt) / 1000),serverId), timeZoneLabel:historyZone(serverId).label,
     total:summary.total, high:summary.high, ssr:summary.ssr, special:summary.special,
     pickup:summary.pickup, pickupUnknown:summary.pickupUnknown, unknown:summary.unknown,
     rate:summary.rate, from:summary.from, to:summary.to, undated:summary.undated,

@@ -1,3 +1,4 @@
+import {accountServer,accountCapabilitiesUrl} from './account-servers.mjs';
 import {currentServerContext} from './game-servers.mjs';
 import {maintenanceNotice} from './game-service-status.mjs';
 import {createHistoryModel, selectHistory, summarizeHistory, shareSummary, historyTime, RARITIES, HIGH_RARITIES, CARD_KINDS, STATISTICS_NOTE} from './gacha-history.mjs';
@@ -60,15 +61,15 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
     const controller=this.serviceRequest=new AbortController();
     const timer=setTimeout(()=>controller.abort(),10000);
     this.nonce=null;this.q('fields').disabled=true;this.q('retry').hidden=true;
-    if (currentServerContext().serverId !== 'global-hmt') {
-      clearTimeout(timer);this.q('service').textContent='BHK 查询仅支持港澳台服。请在网站区服选择中切换到港澳台。';return;
+    if (!accountServer(currentServerContext().serverId)) {
+      clearTimeout(timer);this.q('service').textContent='请先选择账号所属的港澳台、EN 或韩服。';return;
     }
     this.q('service').textContent='正在检查登录服务…';
     try {
-      const response=await fetch('/api/growth-export/capabilities/',{cache:'no-store',credentials:'same-origin',signal:controller.signal});
+      const response=await fetch(accountCapabilitiesUrl(currentServerContext().serverId),{cache:'no-store',credentials:'same-origin',signal:controller.signal});
       if (!response.ok) throw Error('登录服务暂不可用，请稍后重新检查。');
       const result=await response.json();
-      if (result.enabled !== true || result.gachaHistory !== true || typeof result.nonce !== 'string') {
+      if (result.enabled !== true || result.gachaHistory !== true || typeof result.nonce !== 'string' || (result.serverId && result.serverId !== currentServerContext().serverId)) {
         throw Error('登录服务尚未开放抽卡记录查询，请稍后重新检查。');
       }
       if(controller.signal.aborted)return;
@@ -114,7 +115,7 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
 
   async queryHistory() {
     if(this.busy||!this.nonce||this.maintenance)return;
-    let body=JSON.stringify({account:this.q('account').value,password:this.q('password').value});
+    let body=JSON.stringify({serverId:currentServerContext().serverId,account:this.q('account').value,password:this.q('password').value});
     this.reset();const sequence=this.sequence;
     this.busy=true;this.q('fields').disabled=true;this.q('clear').hidden=false;
     this.q('status').textContent='正在登录并读取抽卡记录…';
@@ -130,12 +131,13 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
         this.applyGameStatus(result.gameStatus??{status:'maintenance'});
         throw Error(maintenanceNotice(result.gameStatus??{status:'maintenance'}));
       }
+      if(result.error==='game_client_update_required')throw Error('游戏要求新的客户端版本，本次读取已停止；请稍后手动重新查询。');
       if(!response.ok){
         if(response.status===403){this.nonce=null;this.q('retry').hidden=false;}
         throw Error(messages[result.reason]??(response.status===429?'服务繁忙，请稍后重新查询。':response.status===403?'页面已过期，请重新检查登录服务。':'抽卡记录读取未完成，请稍后重新查询。'));
       }
       if(sequence!==this.sequence||!this.isConnected)return;
-      this.model=createHistoryModel(result.snapshot,this.catalog);
+      this.model=createHistoryModel(result.snapshot,this.catalog,currentServerContext().serverId);
       const all=summarizeHistory(this.model.records);
       this.q('pool').replaceChildren(new Option(`全部卡池 · ${all.total} 抽`,'all'),
         ...all.pools.map(p=>new Option(`${p.name} · ${p.total} 抽`,String(p.id))));
@@ -166,7 +168,7 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
       this.q(`${k.kind}-detail`).textContent=`共 ${k.total} 张${k.special?` · EX / BD ${k.special}`:''}`;
     }
     this.q('pickup-detail').textContent=s.pickupUnknown?`另有 ${s.pickupUnknown} 条未判定`:'按抽取时所属卡池判定';
-    this.q('range').textContent=(s.from?`${s.from} — ${s.to} · UTC+8`:s.total?'记录时间未提供':'当前范围内没有记录')+(s.undated?` · ${s.undated} 条时间未知`:'');
+    this.q('range').textContent=(s.from?`${s.from} — ${s.to} · ${this.model.timeZoneLabel}`:s.total?'记录时间未提供':'当前范围内没有记录')+(s.undated?` · ${s.undated} 条时间未知`:'');
     this.q('coverage').textContent='仅含本次官方返回的记录。'
       +(this.model.historyKind==='legacy'?'旧版记录未提供卡池归属，UP 无法判定。':'')
       +(s.unknown?` ${s.unknown} 条奖品未识别，未计入 SSR / EX / BD 数量。`:'')
@@ -274,7 +276,7 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
       const detail=node('p',`${CARD_KINDS[r.kind]??(r.kind==='item'?'道具':'未识别')} · ${r.known?RARITIES[r.rarity]??'—':'稀有度未识别'}${r.converted?' · 已转化':''}`);
       if(r.kind!=='item')detail.append(node('span',r.pickup===true?'当期 UP':r.pickup===false?'非 UP':'UP 未判定',r.pickup?'gacha-inline-up':'gacha-inline-muted'));
       copy.append(title,detail,node('small',r.poolName));
-      const time=node('div','','gacha-record-time');time.append(node('time',historyTime(r.executedAt)),node('small',`批次 ${r.batchIndex+1}`));
+      const time=node('div','','gacha-record-time');time.append(node('time',historyTime(r.executedAt,this.model.serverId)),node('small',`批次 ${r.batchIndex+1}`));
       row.append(thumb,copy,time);list.append(row);
     }
     if(!rows.length)list.append(node('li','没有符合筛选条件的记录。','gacha-muted'));
@@ -289,7 +291,7 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
     const name=this.q('pool').value==='all'?'全部卡池':summary.pools[0]?.name??'抽卡记录';
     this.q('share').disabled=true;this.q('share-status').textContent='正在生成分享图片…';
     try{
-      const {blob,missingArtwork}=await createGachaShareImage(shareSummary(summary,name,this.model.queriedAt),{signal:controller.signal});
+      const {blob,missingArtwork}=await createGachaShareImage(shareSummary(summary,name,this.model.queriedAt,this.model.serverId),{signal:controller.signal});
       if(controller.signal.aborted||summary!==this.summary||!this.isConnected)return;
       this.shareUrl=URL.createObjectURL(blob);
       this.q('share-image').src=this.shareUrl;this.q('download').href=this.shareUrl;

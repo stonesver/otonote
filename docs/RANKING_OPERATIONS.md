@@ -2,7 +2,7 @@
 
 ## 程序、配置和数据
 
-- 程序镜像由经过验证的源码构建，部署记录固定镜像 ID 或 digest。`growth_login.CLIENT_VERSION` 同时用于 SDK、游戏请求和榜单来源记录；榜单 protobuf 解码规则的历史来源版本单独说明。
+- 程序镜像由经过验证的源码构建，部署记录固定镜像 ID 或 digest。每次公开发现得到的 `game.client_version` 同时用于 SDK、游戏请求和榜单来源记录；榜单 protobuf 解码规则的历史来源版本单独说明。
 - 真实 `capture.env`、SDK XML、账号和密码只存在于受保护的运行目录。仓库仅保存 `deploy/player-rankings-capture.env.example` 字段模板。
 - 定时采集读取网站 `/content/current.json`，逐层校验 manifest 与 `projection/game-modes.json` 的 SHA-256，按 `Asia/Taipei` 的开始、结束时间选择唯一正在进行的 Global 活动，并从同一份公开投影取得歌曲和榜单开关。网站发布新活动内容后，下一次采集自动使用新活动。维护时仍可用 `--master-dir` 与 `--event <ID>` 从私有同版 Master 显式指定活动；正式 service 使用 `--event auto`。
 - `RANKING_SDK_RESOURCES` 指向宿主机私有 SDK XML，运行时只读挂载为 `/run/ranking-sdk/resources.xml`。容器 UID 10001 必须有读取权限；宿主目录保持受限。不要把真实 XML 加入构建上下文。
@@ -11,7 +11,7 @@
 
 ## 故障定位
 
-运行状态只记录固定错误码、阶段、`clientVersion` 和公开活动 ID。阶段依次为选活动、配置、发现服务、SDK 登录、检查已有角色、游戏登录、读取榜单、原子发布。没有进行中的活动时状态为 `waiting/no_active_event`，不登录或覆盖旧快照；公开内容不可访问、哈希不符、活动时间异常或重叠时为 `ranking_event_selection_failed`，不永久暂停，下次调度重试。不要打印请求头、远端错误文本、账号或 SDK XML。
+运行状态只记录固定错误码、阶段、`clientVersion`、`discoverySeedVersion` 和公开活动 ID；未能确认实际版本时 clientVersion 为 null。阶段依次为选活动、配置、发现服务、SDK 登录、检查已有角色、游戏登录、读取榜单、原子发布。没有进行中的活动时状态为 `waiting/no_active_event`，不登录或覆盖旧快照；公开内容不可访问、哈希不符、活动时间异常或重叠时为 `ranking_event_selection_failed`，不永久暂停，下次调度重试。不要打印请求头、远端错误文本、账号或 SDK XML。
 
 2026-10-02 的受限对照验证：在旧镜像代码中，只修改请求客户端版本，发起两次不带账号的 `GetServerList` 请求。1.0.1 返回 `game_rpc_unknown`，1.0.2 成功且发现主机在现有允许列表内。此证据确认了发现阶段的版本阻塞；账号登录和实际榜单读取需在部署后的正常任务中另行验收。
 

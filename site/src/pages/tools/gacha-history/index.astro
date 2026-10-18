@@ -21,7 +21,7 @@ const data=JSON.stringify({
 ---
 <BaseLayout title="抽卡记录">
  <div class="gacha-page">
-  <ToolPageHeader title="抽卡记录" description="查看角色卡、留影和当期 UP，保存抽到的卡牌。" meta="港澳台服 · BHK 账号" kind="gacha-history" />
+  <ToolPageHeader title="抽卡记录" description="查看角色卡、留影和当期 UP，保存抽到的卡牌。" meta="港澳台 / EN / 韩服 · BHK 邮箱" kind="gacha-history" />
   <gacha-history-tool class="gacha-tool">
     <script is:inline type="application/json" data-gacha-catalog set:html={data}></script>
     <details class="gacha-query gacha-panel" data-gacha-login-panel open>
@@ -35,7 +35,7 @@ const data=JSON.stringify({
         </fieldset>
       </form>
       <div class="gacha-service-row"><p class="gacha-service" data-gacha-service role="status">正在检查登录服务…</p><button type="button" data-gacha-retry hidden>重新检查</button></div>
-      <p class="gacha-login-note">仅支持港澳台服 BHK 邮箱账号。登录可能使游戏会话失效；账号密码仅用于向官方查询，不保存密码、令牌或记录。</p>
+      <p class="gacha-login-note">支持港澳台、EN、韩服 BHK 邮箱账号，请先选择账号所属区服。Google 直接授权暂未接入。登录可能使游戏会话失效；账号密码仅用于向官方查询，不保存密码、令牌或记录。</p>
     </details>
     <div class="gacha-query-status"><p data-gacha-status class="gacha-status" role="status" aria-live="polite">登录后查看抽卡记录。</p><button type="button" data-gacha-clear class="gacha-clear" hidden>清空记录</button></div>
     <section class="gacha-welcome" data-gacha-empty>

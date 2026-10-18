@@ -40,7 +40,8 @@ class PreviewGrowthTests(unittest.TestCase):
             body = json.dumps({'account': 'PRIVATE-EMAIL', 'password': 'PRIVATE-PASSWORD'})
         connection = http.client.HTTPConnection('127.0.0.1', self.preview.server_port, timeout=3)
         try:
-            connection.request(method, '/api/growth-export/' + path + '/', body, headers)
+            route,separator,query=path.partition('?')
+            connection.request(method, '/api/growth-export/' + route + '/' + ('?' + query if separator else ''), body, headers)
             response = connection.getresponse()
             return response.status, dict(response.getheaders()), response.read()
         finally:
@@ -87,3 +88,9 @@ class PreviewGrowthTests(unittest.TestCase):
         self.assertEqual(headers['Cache-Control'], 'no-store')
         self.assertEqual(json.loads(body)['servers']['global-en']['status'], 'maintenance')
         self.assertNotIn(b'nonce', body)
+
+    def test_region_query_and_body_survive_proxy(self):
+        status,_,body=self.request('capabilities?serverId=global-kr','GET')
+        self.assertEqual(status,200);self.assertEqual(json.loads(body)['serverId'],'global-kr')
+        status,_,body=self.request('read',body=json.dumps({'serverId':'global-en','account':'FAKE-ACCOUNT','password':'FAKE-PASSWORD'}))
+        self.assertEqual(status,200);self.assertEqual(json.loads(body)['snapshot']['source']['serverId'],'global-en')

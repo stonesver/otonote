@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from tools.growth_export import ExportError, MAX_SAFE_INTEGER, fields
 from tools.growth_login import CLIENT_VERSION, GameClient
+from tools.global_game_config import export_source
 
 HISTORY_METHOD = 'app.gacha.GachaService/History'
 MAX_BATCHES = 2000
@@ -37,7 +38,7 @@ def prize(data, *, legacy=False):
     return row
 
 
-def extract_history(data):
+def extract_history(data, *, server_id='global-hmt', client_version=None):
     executions, legacy = [], []
     for number, wire, value in fields(data):
         if number not in (1, 2):
@@ -81,8 +82,7 @@ def extract_history(data):
     return {
         'format': 'otonote-gacha-history', 'schemaVersion': 1,
         'queriedAt': datetime.now(timezone.utc).isoformat(),
-        'source': {'kind': 'direct_game_read', 'region': 'global',
-                   'serverId': 'global-hmt', 'clientVersion': CLIENT_VERSION},
+        'source': export_source(server_id, client_version or CLIENT_VERSION),
         'coverage': {'scope': 'server_returned', 'retentionDays': None,
                      'historyKind': 'execution' if executions else 'legacy' if legacy else 'empty',
                      'legacyOmittedCount': len(legacy) if executions else 0},
@@ -97,4 +97,5 @@ class GachaHistoryClient(GameClient):
     def export(self, identity, device_id, host, progress=lambda s: None):
         auth = self.authenticate(identity, device_id, host, progress)
         progress('reading_gacha_history')
-        return extract_history(self.rpc(host, HISTORY_METHOD, b'', auth))
+        return extract_history(self.rpc(host, HISTORY_METHOD, b'', auth),
+                               server_id=self.server_id, client_version=self.client_version)

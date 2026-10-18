@@ -6,7 +6,7 @@ const links=[{label:'查看 GitHub 源码',url:import.meta.env.PUBLIC_GROWTH_SOU
   .filter(link=>typeof link.url==='string'&&/^https:\/\//.test(link.url));
 ---
 <BaseLayout title="养成导入与本地工具">
-  <ToolPageHeader title="养成导入与本地工具" description="导出角色卡、留影、乐器、角色评级与 TGW，用于配卡计算。" meta="台港澳服 · BHK 邮箱密码" />
+  <ToolPageHeader title="养成导入与本地工具" description="导出角色卡、留影、乐器、角色评级与 TGW，用于配卡计算。" meta="港澳台 / EN / 韩服 · BHK 邮箱密码" />
   <section class="content-shell growth-tool-guide">
     <div class="growth-tool-links">{links.map(link=><a href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>)}</div>
     <ol>

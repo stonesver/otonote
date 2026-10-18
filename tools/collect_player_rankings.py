@@ -1,11 +1,12 @@
 """Bounded HMT event ranking reads using an existing, in-memory game login.
 
 Wire schema: Global Android 1.0.1 (25), EventService and PlayerSimpleProfile.
-Transport version follows growth_login.CLIENT_VERSION, independently of this schema.
+Transport version follows per-request public negotiation, independently of this schema.
 Only public profile id/name, ranking score and its high-score deck are retained.
 Account growth, personal rank and all credentials are discarded. No automatic retry.
 """
 from __future__ import annotations
+from dataclasses import replace
 
 import argparse
 import fcntl
@@ -266,6 +267,7 @@ class RankingClient(GameClient):
     read_methods = GameClient.read_methods | {MUSIC_RPC, POINTS_RPC}
 
     def __init__(self, plan: dict):
+        super().__init__()
         self.plan = plan
 
     def export(self, identity, device_id, host, progress=lambda s: None):
@@ -285,7 +287,7 @@ class RankingClient(GameClient):
                                'entries': ranking_entries(response, music=music)})
         finally:
             auth.clear()
-        source = {'kind': 'direct_game_read', 'clientVersion': CLIENT_VERSION}
+        source = {'kind': 'direct_game_read', 'clientVersion': self.client_version}
         for key in ('masterHashes', 'contentReleaseId', 'eventProjectionSha256'):
             if key in self.plan:
                 source[key] = self.plan[key]
@@ -309,7 +311,7 @@ def run_capture(plan, profile, account, password, root, *, sdk_factory=SdkClient
     progress('discovering')
     host = game.discover()
     progress('sdk_login')
-    sdk = sdk_factory(profile)
+    sdk = sdk_factory(replace(profile, version=game.client_version))
     identity = sdk.login(account, password)
     try:
         snapshot = game.export(identity, sdk.device_id, host, progress)
@@ -391,6 +393,7 @@ def main(argv=None):
                                    **publication)
                 value = json.loads(path.read_text())
                 result = {'status':'complete', 'paused':False, 'observedAt':value['observedAt'],
+                          'clientVersion':value.get('source',{}).get('clientVersion'),
                           'boards':len(value['boards']), 'entries':sum(len(b['entries']) for b in value['boards'])}
                 code = 0
         except LoginError as exc:
@@ -403,7 +406,8 @@ def main(argv=None):
             code = 2
         finally:
             account = password = ''
-        result.update(stage=stage, clientVersion=CLIENT_VERSION, eventId=event_id, mode=args.mode)
+        result.update(stage=stage, discoverySeedVersion=CLIENT_VERSION, eventId=event_id, mode=args.mode)
+        result.setdefault('clientVersion',None)
         temporary = status_path.with_suffix('.tmp')
         temporary.write_text(json.dumps(result) + '\n')
         os.chmod(temporary, 0o600)

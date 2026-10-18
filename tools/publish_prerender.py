@@ -110,8 +110,10 @@ def publish(code_root, content, output, runner=subprocess.run, region="global"):
             stage = Path(tempfile.mkdtemp(prefix='.render-', dir=releases))
             try:
                 (stage / 'pointer.json').write_bytes(pointer_bytes)
+                # Measured English rendering needs more than 384 MiB; keep
+                # native/Python headroom within the 1 GiB R2 container limit.
                 for locale in ('zh-CN','en'):
-                    runner(['node', '--max-old-space-size=384', str(renderer), str(code), str(content), str(stage), locale, str(stage/'pointer.json'), region], check=True, timeout=1200)
+                    runner(['node', '--max-old-space-size=512', str(renderer), str(code), str(content), str(stage), locale, str(stage/'pointer.json'), region], check=True, timeout=1200)
                     report = json.loads((stage / ('report-' + region + '-' + locale + '.json')).read_text())
                     if report['codeId'] != metadata['codeId'] or report['pointer'] != json.loads(pointer_bytes) or report.get('region') != region or report.get('locale') != locale: raise ValueError('Mismatched render result')
                     for route in ('', 'characters', 'cards/members', 'cards/supports', 'music', 'database/items', 'database/skills', 'tools/live2d'):

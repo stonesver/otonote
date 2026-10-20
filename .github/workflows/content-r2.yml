@@ -538,3 +538,58 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           RUN_STEPS: ${{ toJSON(steps) }}
         run: python -m tools.r2_run_record --status "$JOB_STATUS"
+  archive:
+    # Independent opt-in consumer. Missing variables keep BOTH editions disabled.
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (
+        (github.event_name == 'schedule' &&
+          (vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' || vars.CONTENT_ARCHIVE_ENABLED_JP == 'true')) ||
+        (github.event_name == 'workflow_dispatch' &&
+          ((inputs.region == 'global' && vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true') ||
+           (inputs.region == 'jp' && vars.CONTENT_ARCHIVE_ENABLED_JP == 'true')))
+      )
+    strategy:
+      fail-fast: false
+      matrix:
+        region: ${{ fromJSON((github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.region)) || ((vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' && vars.CONTENT_ARCHIVE_ENABLED_JP == 'true') && '["global","jp"]') || (vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' && '["global"]') || '["jp"]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: content-archive-production
+    concurrency:
+      group: content-archive-${{ matrix.region }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated archive dependencies
+        run: python -m pip install -r backend/update_archive/requirements.txt
+      - name: Run one bounded archive check
+        timeout-minutes: 21
+        shell: bash
+        env:
+          ARCHIVE_REGION: ${{ matrix.region }}
+          ARCHIVE_CONFIG: ${{ secrets.CONTENT_ARCHIVE_CONFIG }}
+          OURNOTES_ARCHIVE_ENDPOINT: ${{ secrets.OURNOTES_ARCHIVE_ENDPOINT }}
+          OURNOTES_ARCHIVE_ACCESS_KEY_ID: ${{ secrets.OURNOTES_ARCHIVE_ACCESS_KEY_ID }}
+          OURNOTES_ARCHIVE_SECRET_ACCESS_KEY: ${{ secrets.OURNOTES_ARCHIVE_SECRET_ACCESS_KEY }}
+          OURNOTES_ARCHIVE_SOURCE_ENDPOINT: ${{ secrets.OURNOTES_ARCHIVE_SOURCE_ENDPOINT }}
+          OURNOTES_ARCHIVE_SOURCE_ACCESS_KEY_ID: ${{ secrets.OURNOTES_ARCHIVE_SOURCE_ACCESS_KEY_ID }}
+          OURNOTES_ARCHIVE_SOURCE_SECRET_ACCESS_KEY: ${{ secrets.OURNOTES_ARCHIVE_SOURCE_SECRET_ACCESS_KEY }}
+          OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
+          OURNOTES_CRI_KEY: ${{ secrets.OURNOTES_CRI_KEY }}
+          OURNOTES_MASTER_SALT_HEX: ${{ secrets.OURNOTES_MASTER_SALT_HEX }}
+          OURNOTES_MASTER_KEY_HEX: ${{ secrets.OURNOTES_MASTER_KEY_HEX }}
+          OURNOTES_MASTER_IV_HEX: ${{ secrets.OURNOTES_MASTER_IV_HEX }}
+        run: |
+          set -euo pipefail
+          umask 077
+          config="$RUNNER_TEMP/archive-$ARCHIVE_REGION.json"
+          trap 'rm -f "$config"' EXIT
+          python -c 'import os,pathlib; pathlib.Path(os.environ["RUNNER_TEMP"], "archive-"+os.environ["ARCHIVE_REGION"]+".json").write_text(os.environ["ARCHIVE_CONFIG"])'
+          unset ARCHIVE_CONFIG
+          timeout --signal=TERM --kill-after=10s 1200s python -m backend.update_archive --config "$config" --region "$ARCHIVE_REGION"

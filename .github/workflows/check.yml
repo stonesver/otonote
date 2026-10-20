@@ -71,6 +71,11 @@ jobs:
           python3 -m unittest tests.test_player_ranking_collection tests.test_player_rankings tests.test_ranking_regions tests.test_ranking_finalizations -q
           python3 -m unittest tests.test_admin_r2_delivery -q
           node --check backend/admin/static/admin.mjs
+      - name: Isolated official update archive gates
+        run: |
+          python3 -m pip install -r backend/update_archive/requirements.txt PyYAML==6.0.2
+          python3 -m unittest discover -s tests -p '*archive*.py' -q
+          node --check backend/admin/static/archive.mjs
       - name: Changed media compilation gates
         run: |
           python3 -m pip install Pillow==11.3.0

@@ -254,26 +254,27 @@ async function refreshGrowth(gen=generation){
   $('updated').textContent=`快照 ${new Date(d.generatedAt).toLocaleString('zh-CN',{hour12:false})} · 首条 ${d.firstRequest?new Date(d.firstRequest).toLocaleString('zh-CN',{hour12:false}):'无'} · 末条 ${d.lastRequest?new Date(d.lastRequest).toLocaleString('zh-CN',{hour12:false}):'无'}`;
 }
 async function refresh(){
-  if(!config||!siteId()||inFlight)return;inFlight=true;$('refresh').disabled=true;const gen=generation;
+  if(!config||(!siteId()&&!['archive','settings'].includes(currentView))||inFlight)return;inFlight=true;$('refresh').disabled=true;const gen=generation;
   try{
     if(currentView==='overview'){const result=await api(`/api/summary/${encodeURIComponent(siteId())}?window=${encodeURIComponent($('window').value==='date'?'date:'+$('summary-date').value:$('window').value)}`);if(gen===generation)renderSummary(result);}
     else if(currentView==='load')await refreshLoads(gen);
     else if(currentView==='growth')await refreshGrowth(gen);
     else if(currentView==='tasks')await refreshNodes(gen);
+    else if(currentView==='archive'){const {mount}=await import('./archive.mjs');await mount($('archive-root'),api);status('归档只读取已保存结果 · 官方检测仍按每日三个既有时点运行');}
     else{settings();status('配置仅在后端维护 · 页面不显示密钥');}
   }catch(error){status(error.message,true);}finally{inFlight=false;$('refresh').disabled=false;if(gen!==generation)queueMicrotask(refresh);}
 }
 function navigate(){
-  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings'].includes(key)?key:'overview';generation++;
-  const titles={overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
+  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings','archive'].includes(key)?key:'overview';generation++;
+  const titles={archive:['官方更新档案','自动保存新资源，按活动分组；大版本和超大单元可手动补存。'],overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==`view-${currentView}`;
   for(const a of document.querySelectorAll('[data-view]')){if(a.dataset.view===currentView)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
   status('正在读取对应数据…');$('updated').textContent='等待更新';
   $('title').textContent=titles[currentView][0];$('subtitle').textContent=titles[currentView][1];$('breadcrumb').textContent='网站运行 / '+titles[currentView][0];refresh();
 }
-$('refresh').addEventListener('click',refresh);for(const id of ['site','window','load-window','summary-date','load-date'])$(id).addEventListener('change',()=>{$('summary-date').hidden=$('window').value!=='date';$('load-date').hidden=$('load-window').value!=='date';generation++;refresh();});
+$('refresh').addEventListener('click',async()=>{if(currentView==='archive'){const {mount}=await import('./archive.mjs');await mount($('archive-root'),api,{force:true});}else await refresh();});for(const id of ['site','window','load-window','summary-date','load-date'])$(id).addEventListener('change',()=>{$('summary-date').hidden=$('window').value!=='date';$('load-date').hidden=$('load-window').value!=='date';generation++;refresh();});
 $('load-source').addEventListener('change',renderLoads);addEventListener('hashchange',navigate);
 const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});for(const id of ['summary-date','load-date']){$(id).value=today;$(id).max=today;$(id).min=new Date(Date.now()-29*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});}
-try{config=await api('/api/config');$('preview').hidden=!config.preview;$('site').replaceChildren(...config.sites.map(s=>new Option(s.name||s.id,s.id)));navigate();if(!config.sites.length)status('尚未配置站点');}
+try{config=await api('/api/config');$('preview').hidden=!config.preview;$('site').replaceChildren(...config.sites.map(s=>new Option(s.name||s.id,s.id)));navigate();if(!config.sites.length&&currentView!=='archive')status('尚未配置站点');}
 catch(error){status(error.message,true);}
 let tick=0;setInterval(()=>{tick++;if(!document.hidden&&(currentView!=='overview'||tick%12===0))refresh();},5000);

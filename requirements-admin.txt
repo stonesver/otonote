@@ -1,2 +1,4 @@
 # Share the already pinned FastAPI/Uvicorn runtime; no additional framework.
 -r requirements-query.txt
+# Private official archive views; initialized only when configured.
+boto3==1.43.105

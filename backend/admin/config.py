@@ -58,6 +58,10 @@ def load_config(path, role=None):
                 profile[key] = resolve(profile[key])
         if profile.get("stateWorkspace"):
             profile["stateWorkspace"] = resolve(profile["stateWorkspace"])
+    archive = config.get('archive')
+    if isinstance(archive, dict) and isinstance(archive.get('storage'), dict) and archive['storage'].get('type') == 'local':
+        if isinstance(archive['storage'].get('root'), str):
+            archive['storage']['root'] = resolve(archive['storage']['root'])
     if "repository" in config:
         config["repository"] = resolve(config["repository"])
     return config

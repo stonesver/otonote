@@ -1,0 +1,6 @@
+# Archive-only runtime. Do not install this into the website producer image.
+boto3==1.43.105
+pyelftools==0.32
+Pillow==11.3.0
+UnityPy==1.25.2
+py3rijndael==0.3.3

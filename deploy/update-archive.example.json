@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "storage": {
+    "type": "s3",
+    "bucket": "private-update-archive-example",
+    "envPrefix": "OURNOTES_ARCHIVE"
+  },
+  "sources": {
+    "global": {
+      "clientVersion": "1.0.1",
+      "checkpoint": {
+        "bucket": "private-producer-state-example",
+        "envPrefix": "OURNOTES_ARCHIVE_SOURCE",
+        "selection": {
+          "global/observation.json": "replace-with-reviewed-global-observation-path",
+          "global/metadata.dat": "replace-with-reviewed-global-metadata-path",
+          "global/profile.json": "replace-with-reviewed-global-decoder-profile-path"
+        }
+      },
+      "versionFile": "global/observation.json",
+      "metadata": "global/metadata.dat",
+      "profile": "global/profile.json"
+    },
+    "jp": {
+      "checkpoint": {
+        "bucket": "private-producer-state-example",
+        "envPrefix": "OURNOTES_ARCHIVE_SOURCE",
+        "selection": {
+          "jp/metadata.dat": "replace-with-reviewed-jp-metadata-path",
+          "jp/seed-manifest.json": "replace-with-reviewed-jp-seed-receipt-path",
+          "jp/trusted-metadata.v39.dat": "replace-with-reviewed-jp-trusted-anchor-path"
+        }
+      },
+      "metadata": "jp/metadata.dat"
+    }
+  }
+}

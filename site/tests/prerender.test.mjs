@@ -86,6 +86,17 @@ test('unavailable calculator preserves explanation without loading calculation m
   assert.match(result.html,/data-deferred-module/);
   assert.doesNotMatch(result.html,/data-tool-start/);
 });
+test('site notifications start with the shell while tools prepare or remain unavailable', () => {
+  const notification = '/app/releases/abc/scripts/notifications.js';
+  const app = {...args.app, scripts:{...args.app.scripts,
+    '/src/components/SiteNotifications.astro?astro&type=script&index=0&lang.ts':'scripts/notifications.js'}};
+  for (const [route, tag] of [['tools/deck-builder','team-draft-workbench'], ['tools/song-calculator','scoring-research-workbench'], ['my-growth','personal-growth-workbench']]) for (const main of [`<${tag}></${tag}>`, '<p data-scoring-unavailable>Unavailable</p>']) {
+    const result = prepareHtml(`<html><head></head><body><main>${main}</main><script type="module" src="${notification}"></script><script type="module" src="/app/releases/abc/scripts/tool.js"></script></body></html>`, {...args, app, route});
+    assert.match(result.html, new RegExp(`<script type="module" src="${notification}"`));
+    assert.ok(!result.html.includes(`data-deferred-module="${notification}"`));
+    assert.match(result.html, /data-deferred-module="\/app\/releases\/abc\/scripts\/tool.js"/);
+  }
+});
 test('styles arrive in HTML without a second request and keep code asset URLs', () => {
   const result = prepareHtml('<html><head></head><body><main>Ready</main></body></html>',{...args,route:'characters',css:'pages/characters.css',stylesheet:'.a{background:url(../assets/a.webp)}.b{background:url("data:image/svg+xml,%3Csvg%3E")}'});
   assert.match(result.html,/<style data-prerender-styles="">/);

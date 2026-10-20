@@ -8,6 +8,7 @@ import UnifiedSearch from "../components/UnifiedSearch.astro";
 import TransitionPreview from "../components/TransitionPreview.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import GameServiceNotice from "../components/GameServiceNotice.astro";
+import SiteNotifications from "../components/SiteNotifications.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
 import pageFirstRenderScript from "../lib/page-first-render.mjs?raw";
 import { activeReleaseContext } from "../lib/release-context";
@@ -260,6 +261,7 @@ const htmlLanguage = activeReleaseContext.locale;
       {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
       <slot />
     </main>
+    <SiteNotifications locale={activeReleaseContext.locale} />
     <span id="page-content-ready" hidden aria-hidden="true"></span>
 
     <TransitionPreview nextHref={href(pathname.startsWith("/music/") ? "/catalog/" : "/music/")} nextLabel={pathname.startsWith("/music/") ? "切换到资料" : "切换到音乐"} />

@@ -60,6 +60,8 @@ def load_config(path, role=None):
             profile["stateWorkspace"] = resolve(profile["stateWorkspace"])
     if "repository" in config:
         config["repository"] = resolve(config["repository"])
+    if config.get('notices'):
+        config['notices']['directory'] = resolve(config['notices']['directory'])
     return config
 
 
@@ -135,4 +137,16 @@ def validate_config(source, role=None):
         for site in c.get("sites", []):
             if site.get("source") not in available or any(x not in nodes for x in site.get("nodes", [])):
                 raise ValueError("unknown site source or node")
+            if site.get('noticeNode') and site['noticeNode'] not in site.get('nodes', []):
+                raise ValueError('notice node must belong to site')
+    if c.get('notices') is not None:
+        notices = c['notices']
+        if (c['role'] != 'node' or not isinstance(notices, dict)
+                or set(notices) != {'directory', 'sites', 'publishUsers'}
+                or not isinstance(notices['directory'], str) or not notices['directory']
+                or not isinstance(notices['sites'], list) or not 1 <= len(notices['sites']) <= 32
+                or any(not isinstance(x, str) or not ID.fullmatch(x) for x in notices['sites'])
+                or not isinstance(notices['publishUsers'], list) or not notices['publishUsers']
+                or any(not isinstance(x, str) or not 1 <= len(x) <= 120 for x in notices['publishUsers'])):
+            raise ValueError('invalid notice configuration')
     return c

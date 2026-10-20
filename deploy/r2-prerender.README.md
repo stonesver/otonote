@@ -1,94 +1,27 @@
-# R2 prerender service example
+# R2 预渲染部署与回滚
 
-This is a prepared example, **not an enabled deployment**. It materializes
-only the public R2 files used by the renderer into
-`/srv/ournotes-r2-prerender-content`. The existing
-`/srv/ournotes-updater/content` remains the complete Nginx fallback store.
+预渲染只物化渲染所需的公开内容子集，媒体由 R2 网关提供。物化缓存、代码版本和 HTML 目录分别管理；旧本机完整内容生产管线已退役，不作为本流程回退目标。整体链路见[内容管线](../docs/runbooks/content-pipeline.md)。服务模板不代表实际启用状态。
 
-Run the manual `Publish R2 prerender image` workflow on a clean, reviewed
-`main` commit. It passes that commit as `SOURCE_REVISION`, runs offline
-runtime checks, publishes the image, and reports its immutable digest and
-transfer sizes. Pin that digest in `/etc/ournotes/r2-prerender.env`. The image includes
-Node, Python, pinned `boto3` and the small repository tools needed at
-runtime. The sealed `code/compiled/prerender/render.mjs` was built with
-esbuild `bundle: true`; it imports only Node built-ins and modules from the
-same sealed code release. No Astro build or `site/node_modules` is needed on
-the server. Its runtime needs no package installation and the prerender and
-promotion containers run without network access. The wrapper checks the
-image's source revision label before reading R2.
+## 准备
 
-The publication workflow also saves a compressed Docker image artifact and
-its SHA-256. When transferring this artifact to a server without GHCR pull
-access, verify the archive SHA-256 locally, stream it into `docker load` over
-SSH without storing the archive on that server, and set
-`R2_PRERENDER_IMAGE=sha256:<image ID from the workflow summary>`. Docker
-archives preserve image IDs but may omit registry digest associations. The
-wrapper accepts this immutable local ID and never pulls GHCR in that mode;
-it still verifies the source revision label before use. Keep the registry
-digest in the deployment record as provenance.
+1. 在已审阅的干净默认分支运行 **Publish R2 prerender image**，核对源码 revision、离线运行检查和不可变镜像摘要。使用配套 wrapper 与镜像，不能用新 wrapper 搭配不支持其参数的旧镜像。
+2. 将固定镜像身份写入外置配置。无 registry 拉取条件时，可验证工作流提供的 Docker 归档 SHA-256 后流式导入，使用 summary 的 `sha256:<image ID>`；保留 registry digest 作为来源，不在服务器现场重新构建。
+3. 外置环境使用 `deploy/r2-prerender.env.example` 核对字段，保留实际路径与权限。服务器仅授予公开内容桶 read/list 权限，不能挂载私有生产状态桶或复用 Actions 写入密钥。
+4. 检查镜像下载／展开、双服物化、暂存 HTML 和临时输出的同盘叠加预算，留出余量。按实际环境设置空间门槛，不引用旧报告里的剩余容量。
+5. 等待当前任务退出，备份 wrapper、service、私有配置和镜像身份；确认旧触发器不会并发写入，保留当前服务与所有持久数据。
 
-For example, from the clean `main` checkout, build with
-`docker build --pull -f deploy/Dockerfile.r2-prerender --build-arg SOURCE_REVISION="$(git rev-parse HEAD)" -t ghcr.io/OWNER/otonote-r2-prerender:sha-"$(git rev-parse HEAD)" .`.
-Push that tag using the registry's approved workflow and use the resulting
-`@sha256:...` reference. Do not run `docker build` on the nearly full server.
+封存代码包已包含预渲染脚本，无需在服务器安装 Astro 或网站 node_modules。wrapper 验证镜像源码标签；渲染和晋级容器无网络。代码／HTML 的暂存和目标目录需满足原子重命名的文件系统条件。
 
-Before installing the units:
+## 执行与验收
 
-1. Create the separate materialized content directory and ensure the selected
-   UID/GID can write it and `/srv/ournotes-rendered`. Keep the latter on one
-   filesystem so staged release renames remain atomic. Preserve the existing
-   code and rendered directories. Do not bind the private R2 state bucket.
-2. Issue a bucket-scoped **read/list only** R2 credential for
-   `otonote-public-content`. Put it in
-   `/etc/ournotes/r2-content-readonly.env` with mode `0600`; use a different
-   token from the Actions writer for the private state bucket. Never pass
-   credential values on the command line or commit them.
-3. Measure the incremental disk need on the actual server: image download
-   plus unpack if absent, both R2 selected release subsets (records, groups,
-   gallery manifest, loading images), both staged HTML releases and transient
-   renderer output. Add a stated margin to each, fill the three
-   `R2_PRERENDER_*_FREE_BYTES` values, and check the wrapper's summed
-   filesystem gate. A server with only about 197 MB free must gain space
-   before image pull or first materialization; do not guess a fixed 24 GiB
-   requirement for this small selected subset.
-4. Stop and disable the old `ournotes-prerender.path` and
-   `ournotes-prerender.timer`, wait for their service
-   to finish, then run the new oneshot manually. The old timer ignores the
-   new lock. Only after both R2 pointers and the staged Global/JP HTML are
-   verified should the new timer be enabled. The wrapper refuses to run while
-   any old trigger or service remains active and serializes its own runs with `flock`.
+先手动运行新 oneshot，再核对两服内容指针、物化回执及 staged HTML。物化回执绑定 manifest 和完整本地文件；无变化仍核验回执与字节。缺回执完整复验，损坏或软链接拒绝。
 
-Materialization records the fully verified local object set in a private
-`.r2-materialization-receipt.json` within the independent local release.
-An unchanged release rechecks its pointer and manifest plus every local file
-hash using that receipt, with ten control GETs total for both regions (including storage descriptors) and
-no per-object HEAD/download calls. Missing receipts require a full recheck;
-linked or damaged receipts and damaged local data fail closed. This avoids
-thousands of R2 HEAD requests on every timer tick. The receipt is never
-uploaded to the public bucket.
+只有代码／内容组合变化或现有视图损坏时才进入新的暂存渲染。双服 complete.json、报告、必需页面与 payload 摘要通过后，移动不可变版本并切换两服链接。两条链接不是单次文件系统事务，切换失败恢复旧目标；暂存失败保留当前网页。
 
-The run sequence is: preflight image and content space, pinned image
-pull/check, materialize R2, require both regional pointers, then validate
-both existing live HTML pairs. If their complete records, reports, required
-pages and payload hashes still match the current code/content, the run ends
-without creating a new stage. Only a changed or damaged view passes the
-staging-space gate and renders both regions into a temporary directory;
-promotion then checks both complete records, moves immutable releases, and
-atomically replaces the two live symlinks. Staging failure leaves live HTML
-untouched. Two separate symlinks cannot be switched
-in one filesystem operation; promotion keeps the interval short and restores
-the prior targets if a switch fails while the old timer is stopped.
+确认主要页面、媒体、版本身份和浏览器交互后启用对应 timer。服务 active 不代表内容新鲜；管理采样另见[交付状态](admin/R2_DELIVERY.md)。
 
-Rollback order matters because new HTML may pin a release that exists only in
-R2. Stop and disable `ournotes-r2-prerender.timer`, then wait for its service
-to exit. With the old timer still disabled, use the old complete content store
-to run `ournotes-prerender.service` once manually (or restore its validated old
-HTML pointers). Verify both `current` and `current-jp` HTML links, their old
-Global/JP content pointers, and the media under those pinned release paths in
-the original Nginx store. Confirm the old pinned paths also remain available
-through the still-active Worker Route during this short transition; without
-that overlap, an instant rollback cannot guarantee uninterrupted media.
-Only after old HTML is serving and both regions' media are verified should
-the `/content/*` Worker Route be removed, followed by re-enabling the old
-path trigger and timer. Enabling that timer first and waiting for its next minute tick leaves
-a window where R2-only HTML can request paths the old Nginx store lacks.
+## 回滚
+
+停止对应新触发器并等待运行结束，恢复匹配的上一版 wrapper、镜像与必要配置。验证保留的旧代码／内容组合及其 R2 对象可用，然后通过受审发布入口恢复或重新生成旧 HTML。检查两服链接、complete.json、公开媒体和旧页面载荷后恢复该流程的 timer。
+
+不要重新启用已退役的旧本机更新器，不因回滚撤销仍被页面依赖的 Worker Route。回滚不删除已发布内容、私有输入或历史 payload；缓存和 HTML 回收另按[运维手册](../docs/runbooks/operations.md)执行。

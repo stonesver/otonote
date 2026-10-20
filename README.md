@@ -23,11 +23,11 @@ BanG Dream! Our Notes 的非官方资料站源码，包含角色与卡牌资料�
 
 ## 开发与发布规范
 
-开发、离线 CI、正式候选、不可变程序包及部署入口见 [开发流程](docs/DEVELOPMENT_WORKFLOW.md)。真实配置以线上生效行为为初始基线，保存在仓库之外；提交和交付先通过 [配置与脱敏边界](docs/CONFIGURATION_POLICY.md)。容量维护与数据新鲜度见 [运行维护](docs/OPERATIONS.md)。
+开发、离线 CI、正式候选、不可变程序包及部署入口见 [开发流程](docs/runbooks/development.md)。真实配置以线上生效行为为初始基线，保存在仓库之外；提交和交付先通过 [配置与脱敏边界](docs/governance/configuration.md)。容量维护与数据新鲜度见 [运行维护](docs/runbooks/operations.md)。
 
 正式候选从指定提交的干净检出构建：`bash scripts/build-web-client.sh --candidate HEAD output/code-candidate`。发布复用通过验证的同一产物，固定独立取得的验证回执摘要，并检查旧版本和发布健康；CI 不保存生产凭据，也不自动部署。
 
-本轮落地结果、线上验收与已知限制见 [规范化验收记录](docs/DEVELOPMENT_ACCEPTANCE.md)。
+文档分层与操作入口见[文档索引](docs/README.md)，新增与更新规则见[文档维护](docs/governance/documentation.md)，尚未关闭的问题见[未结事项](docs/BACKLOG.md)。
 
 ## 编译代码
 
@@ -60,7 +60,7 @@ node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tes
 python3 -m unittest tests.test_item_acquisition tests.test_game_database tests.test_code_publication -q
 ```
 
-完整测试中部分用例依赖私有资源、额外 Python 依赖或服务环境，这些数据和服务不随仓库分发。公开源码的验证范围见 [公开版本说明](docs/PUBLIC_SOURCE.md)。
+完整测试中部分用例依赖私有资源、额外 Python 依赖或服务环境，这些数据和服务不随仓库分发。公开源码的验证范围见 [公开版本说明](docs/governance/public-source.md)。
 
 ## 私有配置
 

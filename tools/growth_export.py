@@ -3,7 +3,7 @@
 This module has no networking or login capability. Input is a protobuf
 GetPlayerDataResponse, optionally in one uncompressed gRPC frame. The wire
 profile comes from client metadata constants and native serializers; see
-docs/research/2026-09-29-local-growth-export-feasibility.md.
+packaging/growth-tool/README.md for the supported extraction workflow.
 """
 from __future__ import annotations
 

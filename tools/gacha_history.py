@@ -1,4 +1,4 @@
-"""Bounded, stateless gacha history read. See docs/GACHA_HISTORY.md for wire evidence."""
+"""Bounded, stateless gacha history read. See docs/reference/gacha-history.md for wire evidence."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

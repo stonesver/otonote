@@ -26,6 +26,7 @@ python -m venv /tmp/ournotes-archive-venv
 - `OURNOTES_ARCHIVE_ENDPOINT / ACCESS_KEY_ID / SECRET_ACCESS_KEY` 指归档存储。`OURNOTES_ARCHIVE_SOURCE_*` 是另一套**只读**生产 checkpoint 凭据，不能复制生产写入凭据给归档。
 - `sources.<region>.checkpoint.selection` 是“归档临时相对路径 → 已审核的 checkpoint 清单路径”。只读一个已固定摘要的 manifest，再 GET 选中对象并逐个验证 SHA-256/大小；最多 64 个材料，总接收最多 512 MiB。无需、也不会恢复生产工作树。
 - Global 可从同一 checkpoint 的 `versionFile` 读取 `clientVersion`；JP 的 `metadata` 与相邻 `seed-manifest.json / trusted-metadata.v39.dat` 使用现有绑定校验。Global 的解码 `profile` 也必须来自同一份可信清单。
+- Global 正式配置使用 `checkpoint.preset: global-production-v1`：只读取固定 `output/global-update-workflow/state.json`，从其中的生产绑定回执选择同一 manifest 内当前客户端的 metadata 与 decoder；不复制某一轮临时快照路径，不扫描目录猜测最新版本。默认三个本地材料名与示例一致。生产材料尚未更新时仍等待后续轮次。
 - 离线开发可用 `materials: {"临时相对路径": "/本地只读文件"}` 替代 checkpoint。程序先复制至自己的临时目录，不能指向共享可写生产缓存。
 - 可选 `packages` 为 `[{"file":"临时 APK 路径", "name":"显示名", "sha256":"已审核摘要"}]`，并配置 `apksig` 指向选入的已固定验证工具。版本、包名、签名和分包一致性通过后才生成包内清单；比较身份使用稳定的 split 名与包内路径。获取并展开有上限；不因补存请求自动下载完整历史 APK。
 
@@ -35,7 +36,7 @@ python -m venv /tmp/ournotes-archive-venv
 
 ## 容量、请求与恢复
 
-- 固定双服合计 2 GiB，其中 64 MiB 控制预留；数据对象、上下文、预览和未完成上传共同记账。单份控制账本最多 24 MiB，换代双份仍在预留内。
+- 固定双服合计 2 GiB，其中 64 MiB 控制预留；数据对象、上下文、预览和未完成上传共同记账。单份控制账本实际存储最多 24 MiB，换代双份仍在预留内。超过 1 MiB 的账本使用 gzip 压缩，解压上限 128 MiB，兼容旧明文账本；真实双服初始目录约 20 MiB，压缩避免大版本待选条目挤满原限制。
 - 逻辑到期为首次发现后 10 × 24 小时。读取立即拒绝过期项；物理删除仅在下一次既有归档任务执行，没有新增 timer。
 - 原件在独立 runner 下载校验后再申请空间。先处理已确认清理与过期项，空间不足按跨服首次入库时间 FIFO。删除未确认不释放额度；预览不会踢掉原件。
 - 任务每轮最多 20 分钟，接收预算最多 2 GiB，包含 checkpoint、目录、有限重试和上传读回；预算记账采用保守上界。新批次与旧待办分别分配预算/时间，最后处理预览。暂错最多本轮重试一次，失败条目自动跨轮最多三次；协议/认证拒绝不重试。
@@ -52,10 +53,14 @@ python -m venv /tmp/ournotes-archive-venv
 
 1. 核对账户并发/网络/存储请求余量，确保两服原生产容量优先；没有余量就保持关闭。
 2. 审核真实清单路径和两服材料，实际验证归档桶条件写入、只读源权限、共享账本与保留策略；本地替身通过不能代替真实 R2 验收。
-3. 准备独立 `content-archive-production` 环境；只使用一个 `CONTENT_ARCHIVE_CONFIG` Secret 供双服任务读取。还需各存储 Secret、必要的解码引用，以及 JP 如需的 `OURNOTES_JP_VERSION_PROXY`。
+3. 准备独立 `content-archive-production` 环境；只使用一个 `CONTENT_ARCHIVE_CONFIG` Secret 供双服任务读取。还需各存储 Secret、必要的解码引用，以及 JP 如需的 `OURNOTES_JP_PROXY_NODE`（沿用已验证的节点包装器，仅版本端点经过代理）或 `OURNOTES_JP_VERSION_PROXY`。
 4. 确认依赖交付，包括管理服务新静态模块和 boto3；Python 运行时包不包含静态资源，不能替代工作台页面交付验证。
 5. 默认保持 `CONTENT_ARCHIVE_ENABLED_GLOBAL / JP` 未设置或 `false`。获授权后才逐服配置外置 `enabled: true` 并开启对应变量。
 6. 原生产指纹覆盖整个工作流文件，首次接入可能触发一次原机制要求的完整生产；不得绕过门禁。核对后续三个自然时点的生产回执、公开指针和归档回执。
 7. 回退只关闭两服归档变量；不要取消整个工作流或回退生产数据。验证原生产仍运行、归档停止新工作，并如实提示此时不会自动物理清理。
 
 本地实际证据见 [验收记录](../docs/designs/2026-10-20-official-update-archive-local-validation.md)。
+
+管理服务原有按 UID 限制的出站防火墙不能直接开放互联网。正式接入通过 `ournotes-archive-egress.service.example` 的无凭据回环 CONNECT relay：仅允许一个配置的 R2 账户域名的 TLS 443。管理服务只增加到回环 18085 的权限，并配置 `HTTPS_PROXY` 与回环 `NO_PROXY`；relay 不接收存储密钥，S3 签名和 TLS 仍由管理服务 SDK 完成。SDK 闭包见 `admin/archive-requirements.txt`，单独只读挂载，不更换原生产更新镜像。
+
+归档 HTTP 请求在独立入口内串行准入，防止工作台并行刷新多份大账本；其他工作台 API 不等待该准入锁。上线时应以真实双服基线和大版本待选清单测量管理容器峰值，再调整该容器内存上限；不能沿用仅展示统计时的 96 MiB 上限。

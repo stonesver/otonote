@@ -12,11 +12,7 @@
       "checkpoint": {
         "bucket": "private-producer-state-example",
         "envPrefix": "OURNOTES_ARCHIVE_SOURCE",
-        "selection": {
-          "global/observation.json": "replace-with-reviewed-global-observation-path",
-          "global/metadata.dat": "replace-with-reviewed-global-metadata-path",
-          "global/profile.json": "replace-with-reviewed-global-decoder-profile-path"
-        }
+        "preset": "global-production-v1"
       },
       "versionFile": "global/observation.json",
       "metadata": "global/metadata.dat",

@@ -56,7 +56,8 @@ def s3_client(env_prefix='OURNOTES_ARCHIVE'):
         aws_access_key_id=os.environ[env_prefix + '_ACCESS_KEY_ID'],
         aws_secret_access_key=os.environ[env_prefix + '_SECRET_ACCESS_KEY'],
         config=Config(signature_version='s3v4', connect_timeout=10, read_timeout=30,
-                      retries={'mode': 'standard', 'max_attempts': 2}, max_pool_connections=4))
+                      retries={'mode': 'standard', 'max_attempts': 2}, max_pool_connections=4,
+                      s3={'addressing_style': 'path'}))
 
 
 def repository(config, *, clock=None):

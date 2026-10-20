@@ -7,6 +7,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import fcntl
+import gzip
 import hashlib
 import io
 import json
@@ -16,8 +17,9 @@ import re
 import tempfile
 import time
 import uuid
+import zlib
 
-from .models import (ArchiveError, Conflict, CAPACITY, CONTROL_RESERVE, MAX_CONTROL,
+from .models import (ArchiveError, Conflict, CAPACITY, CONTROL_RESERVE, MAX_CONTROL, MAX_EXPANDED_CONTROL,
                      WINDOW, canonical, digest, identity, region, safe_name, timestamp)
 
 PREFIX = 'update-archive/v1/'
@@ -201,7 +203,16 @@ class ArchiveRepository:
 
     def state(self):
         item = self.bucket.get(LEDGER)
-        state = json.loads(item[0]) if item else self.empty()
+        raw = item[0] if item else None
+        if raw and raw.startswith(b'\x1f\x8b'):
+            try:
+                with gzip.GzipFile(fileobj=io.BytesIO(raw)) as stream:
+                    raw = stream.read(MAX_EXPANDED_CONTROL + 1)
+            except (OSError, EOFError, zlib.error):
+                raise ArchiveError('invalid_compressed_control') from None
+        if raw is not None and len(raw) > MAX_EXPANDED_CONTROL:
+            raise ArchiveError('control_too_large')
+        state = json.loads(raw) if raw is not None else self.empty()
         if state.get('schemaVersion') != 1 or state.get('capacity') != self.capacity:
             raise ArchiveError('archive_state_mismatch')
         return state, item[1] if item else None
@@ -214,6 +225,12 @@ class ArchiveRepository:
             result = fn(state)
             state['revision'] += 1
             raw = canonical(state)
+            if len(raw) > MAX_EXPANDED_CONTROL:
+                raise ArchiveError('control_too_large')
+            # Full baselines repeat long asset paths; a real two-region initial
+            # inventory is already ~20 MiB. Bound both decoded and stored bytes.
+            if len(raw) >= 1024 * 1024:
+                raw = gzip.compress(raw, compresslevel=1, mtime=0)
             if len(raw) > MAX_CONTROL:
                 raise ArchiveError('control_too_large')
             if self.used(state) > self.capacity - CONTROL_RESERVE:

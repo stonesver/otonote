@@ -1,7 +1,9 @@
 """Authenticated archive views and queued mutations; never unpack in HTTP."""
 import contextlib
+import asyncio
 import copy
 import difflib
+import hashlib
 import io
 from pathlib import Path
 import re
@@ -12,12 +14,27 @@ import zipfile
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from .collector import small_json
 from backend.update_archive.models import ArchiveError, Conflict, REGIONS
 from backend.update_archive import requests as commands
 
 
+class ArchiveAdmission:
+    """Bound ledger memory across concurrent views and file responses."""
+    def __init__(self, app):
+        self.app = app
+        self.slot = asyncio.Semaphore(1)
+
+    async def __call__(self, scope, receive, send):
+        if scope.get('type') == 'http' and scope.get('path', '').startswith('/api/archive/'):
+            async with self.slot:
+                return await self.app(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
 def install(app, config, *, repo=None, preview=False):
+    app.add_middleware(ArchiveAdmission)
     router = APIRouter(prefix='/api/archive')
     config = config if isinstance(config, dict) else {'schemaVersion': 1, 'enabled': False}
     cached = [repo]
@@ -101,8 +118,8 @@ def install(app, config, *, repo=None, preview=False):
     @router.post('/requests')
     async def submit(request: Request):
         data = await small_json(request, maximum=65536)
-        return protected(lambda: commands.queue_save(repository(), data.get('entries'), actor=request.state.actor,
-            key=data.get('key'), now=time.time(), max_bytes=data.get('maxBytes')))()
+        return await run_in_threadpool(protected(lambda: commands.queue_save(repository(), data.get('entries'), actor=request.state.actor,
+            key=data.get('key'), now=time.time(), max_bytes=data.get('maxBytes'))))
 
     @router.post('/requests/{rid}/cancel')
     def cancel(rid: str, request: Request):
@@ -111,25 +128,28 @@ def install(app, config, *, repo=None, preview=False):
     @router.post('/cleanup/plans')
     async def plan(request: Request):
         data = await small_json(request, maximum=65536)
-        ids = data.get('entries')
-        if data.get('scope') in ('region', 'all', 'batch', 'group'):
-            s = protected(lambda: repository().state()[0])()
-            chosen_region = data.get('region')
-            if chosen_region not in REGIONS and data.get('scope') != 'all':
-                raise HTTPException(400, 'invalid_region')
-            batch_ids = {k for k, b in s['batches'].items() if b.get('group') == data.get('group')}
-            ids = [e['id'] for e in s['entries'].values() if e['expiresAt'] > time.time()
-                   and e['status'] not in ('expired', 'cleaned_manual', 'evicted_fifo')
-                   and (data['scope'] == 'all' or e['region'] == chosen_region)
-                   and (data['scope'] != 'batch' or e.get('batch') == data.get('batch'))
-                   and (data['scope'] != 'group' or e.get('batch') in batch_ids)]
-        return protected(lambda: commands.cleanup_plan(repository(), ids, actor=request.state.actor, now=time.time(), limit=100000))()
+        def prepare():
+            ids = data.get('entries')
+            if data.get('scope') in ('region', 'all', 'batch', 'group'):
+                s = repository().state()[0]
+                chosen_region = data.get('region')
+                if chosen_region not in REGIONS and data.get('scope') != 'all':
+                    raise HTTPException(400, 'invalid_region')
+                batch_ids = {k for k, b in s['batches'].items() if b.get('group') == data.get('group')}
+                ids = [e['id'] for e in s['entries'].values() if e['expiresAt'] > time.time()
+                       and e['status'] not in ('expired', 'cleaned_manual', 'evicted_fifo')
+                       and (data['scope'] == 'all' or e['region'] == chosen_region)
+                       and (data['scope'] != 'batch' or e.get('batch') == data.get('batch'))
+                       and (data['scope'] != 'group' or e.get('batch') in batch_ids)]
+                del s
+            return commands.cleanup_plan(repository(), ids, actor=request.state.actor, now=time.time(), limit=100000)
+        return await run_in_threadpool(protected(prepare))
 
     @router.post('/cleanup/{pid}/confirm')
     async def confirm(pid: str, request: Request):
         data = await small_json(request, maximum=65536)
-        return protected(lambda: commands.confirm_cleanup(repository(), pid, data.get('digest'),
-                         actor=request.state.actor, now=time.time()))()
+        return await run_in_threadpool(protected(lambda: commands.confirm_cleanup(repository(), pid, data.get('digest'),
+                         actor=request.state.actor, now=time.time())))
 
     @router.post('/mode')
     async def mode(request: Request):
@@ -138,8 +158,8 @@ def install(app, config, *, repo=None, preview=False):
             raise HTTPException(400, 'invalid_mode')
         if type(data.get('revision')) is not int:
             raise HTTPException(400, 'revision_required')
-        protected(lambda: repository().mutate(lambda s: s['modes'].update({data['region']: data['mode']}),
-                                             revision=data['revision']))()
+        await run_in_threadpool(protected(lambda: repository().mutate(lambda s: s['modes'].update({data['region']: data['mode']}),
+                                             revision=data['revision'])))
         return {'status': 'updated'}
 
     @router.post('/groups')
@@ -159,7 +179,7 @@ def install(app, config, *, repo=None, preview=False):
                     if g['region'] == data['region']:
                         g['active'] = False
             s['groups'][gid] = {'id': gid, 'region': data['region'], 'name': data['name'], 'active': bool(data.get('active', True))}
-        protected(lambda: repository().mutate(update, revision=data.get('revision')))()
+        await run_in_threadpool(protected(lambda: repository().mutate(update, revision=data.get('revision'))))
         return {'id': gid}
 
     @router.post('/batches/{bid}/group')
@@ -175,7 +195,7 @@ def install(app, config, *, repo=None, preview=False):
             if data.get('group') is not None and not g:
                 raise ArchiveError('group_not_found')
             b['group'] = data.get('group')
-        protected(lambda: repository().mutate(move, revision=data.get('revision')))()
+        await run_in_threadpool(protected(lambda: repository().mutate(move, revision=data.get('revision'))))
         return {'status': 'updated'}
 
     def serve(eid, request, preview_id=None):
@@ -287,26 +307,7 @@ def install(app, config, *, repo=None, preview=False):
     @router.post('/export')
     async def export(request: Request):
         data = await small_json(request, maximum=65536)
-        r = repository(); state, _ = r.state()
-        ids = protected(lambda: commands.selected_entries(state, data.get('entries'), time.time()))()
-        if sum(state['entries'][i]['size'] for i in ids) > 128 * 1024 ** 2:
-            raise HTTPException(400, 'export_split_required')
-        # Private temporary spool is removed after delivery; no permanent ZIP cache.
-        spool = tempfile.SpooledTemporaryFile(max_size=1024 * 1024)
-        try:
-            manifest = []
-            with zipfile.ZipFile(spool, 'w', compression=zipfile.ZIP_STORED) as out:
-                for eid in ids:
-                    e = r.entry(eid)
-                    path = eid + '/' + Path(e['key']).name
-                    out.writestr(path, r.content(eid))
-                    manifest.append({'id': eid, 'path': path, 'sourceName': e['key'], 'sha256': e['sha256']})
-                from backend.update_archive.models import canonical
-                out.writestr('manifest.json', canonical(manifest))
-            spool.seek(0)
-        except Exception:
-            spool.close()
-            raise HTTPException(410, 'export_content_unavailable') from None
+        spool = await run_in_threadpool(prepare_export, data)
         def export_bytes():
             try:
                 yield from iter(lambda: spool.read(1024 * 1024), b'')
@@ -314,5 +315,38 @@ def install(app, config, *, repo=None, preview=False):
                 spool.close()
         return StreamingResponse(export_bytes(), media_type='application/zip',
                                  headers={'Content-Disposition': 'attachment; filename="archive.zip"'})
+
+    def prepare_export(data):
+        r = repository(); state, _ = r.state()
+        ids = protected(lambda: commands.selected_entries(state, data.get('entries'), time.time()))()
+        if sum(state['entries'][i]['size'] for i in ids) > 128 * 1024 ** 2:
+            raise HTTPException(400, 'export_split_required')
+        del state
+        # Private temporary spool is removed after delivery; no permanent ZIP cache.
+        spool = tempfile.SpooledTemporaryFile(max_size=1024 * 1024)
+        try:
+            manifest = []
+            deadline = time.monotonic() + 290
+            with zipfile.ZipFile(spool, 'w', compression=zipfile.ZIP_STORED) as out:
+                for eid in ids:
+                    with r.reading(eid) as e:
+                        path = eid + '/' + Path(e['key']).name
+                        h, count = hashlib.sha256(), 0
+                        with contextlib.closing(r.bucket.open(e['objectKey'])) as stream, out.open(path, 'w') as target:
+                            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                                count += len(chunk)
+                                if count > e['size'] or time.monotonic() >= deadline:
+                                    raise ArchiveError('export_budget_exceeded')
+                                h.update(chunk); target.write(chunk)
+                        if count != e['size'] or h.hexdigest() != e['sha256']:
+                            raise ArchiveError('object_digest_mismatch')
+                        manifest.append({'id': eid, 'path': path, 'sourceName': e['key'], 'sha256': e['sha256']})
+                from backend.update_archive.models import canonical
+                out.writestr('manifest.json', canonical(manifest))
+            spool.seek(0)
+        except Exception:
+            spool.close()
+            raise HTTPException(410, 'export_content_unavailable') from None
+        return spool
 
     app.include_router(router)

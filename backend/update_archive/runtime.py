@@ -22,7 +22,7 @@ def source(config, selected_region):
         if settings.get('checkpoint'):
             spec = settings['checkpoint']
             restored = restore_materials(s3_client(spec.get('envPrefix', 'OURNOTES_ARCHIVE_SOURCE')),
-                spec['bucket'], selected_region, spec['selection'], root)
+                spec['bucket'], selected_region, spec.get('selection'), root, preset=spec.get('preset'))
             received = restored['receivedBytes']
         else:
             # Local inputs must be explicit, immutable copies, never shared mutable state.
@@ -68,7 +68,10 @@ def source(config, selected_region):
         adapter.received_bytes = received
         adapter.context = {'metadata': material('metadata'), 'clientVersion': adapter.client.client_version}
         if material('profile'):
-            adapter.context['profile'] = json.loads(Path(material('profile')).read_bytes())
+            profile = json.loads(Path(material('profile')).read_bytes())
+            # Current production decoder receipts carry the selected profile.
+            # Preview decoding still verifies its exact version/metadata digest.
+            adapter.context['profile'] = profile.get('bundleDecoderProfile', profile)
         yield adapter
 
 

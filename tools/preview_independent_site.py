@@ -9,7 +9,7 @@ import os
 import re
 
 
-def handler(code, content, rendered=None, growth_upstream=None):
+def handler(code, content, rendered=None, growth_upstream=None, notices=None):
     upstream = urlsplit(growth_upstream) if growth_upstream else None
     if upstream and (upstream.scheme != 'http' or upstream.hostname != '127.0.0.1'
                      or not upstream.port or upstream.path or upstream.query
@@ -18,6 +18,7 @@ def handler(code, content, rendered=None, growth_upstream=None):
     code, content = Path(code).resolve(), Path(content).resolve()
     identity = json.loads((code/'code-release.json').read_text())['codeId']
     rendered = Path(rendered).absolute() if rendered else None
+    notices = Path(notices).resolve() if notices else None
     class Preview(SimpleHTTPRequestHandler):
         def send_head(self):
             # Browsers need byte ranges to seek local audio before the entire
@@ -128,7 +129,24 @@ def handler(code, content, rendered=None, growth_upstream=None):
                 connection.close()
 
         def do_GET(self):
-            if self.path.startswith('/api/growth-export/'):
+            path = urlsplit(self.path).path
+            if path == '/site-notices.json':
+                try:
+                    self.growth_response(200, json.loads(notices.read_text()) if notices else {'schemaVersion': 1, 'notices': []})
+                except (OSError, ValueError):
+                    self.growth_response(503, {'error': 'notices_unavailable'})
+            elif path in {'/site-status/global.json', '/site-status/jp.json'}:
+                region = path.rsplit('/', 1)[1].split('.')[0]
+                try:
+                    current_render = rendered.resolve() if rendered else None
+                    completion = json.loads((current_render / 'complete.json').read_text()) if current_render else None
+                    # Only advertise a complete view if this preview serves it.
+                    if not completion or completion.get('region') != region or completion.get('codeId') != identity:
+                        raise ValueError('no_matching_render')
+                    self.growth_response(200, completion)
+                except (OSError, ValueError):
+                    self.growth_response(503, {'error': 'delivery_unavailable'})
+            elif self.path.startswith('/api/growth-export/'):
                 self.proxy_growth()
             else:
                 super().do_GET()
@@ -175,6 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--code',type=Path,required=True);parser.add_argument('--content',type=Path,required=True)
     parser.add_argument('--port',type=int,default=4321)
     parser.add_argument('--rendered',type=Path)
+    parser.add_argument('--notices',type=Path,help='Optional exported public.json; never a drafts file')
     parser.add_argument('--growth-upstream', help='Optional loopback gateway, e.g. http://127.0.0.1:18765')
     args=parser.parse_args()
-    ThreadingHTTPServer(('127.0.0.1',args.port),handler(args.code,args.content,args.rendered,args.growth_upstream)).serve_forever()
+    ThreadingHTTPServer(('127.0.0.1',args.port),handler(args.code,args.content,args.rendered,args.growth_upstream,args.notices)).serve_forever()

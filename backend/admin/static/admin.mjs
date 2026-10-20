@@ -1,4 +1,5 @@
 import {chart} from './charts.mjs';
+import {noticeManager} from './notices.mjs';
 const $ = id => document.getElementById(id);
 const number = value => value == null ? '—' : new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1}).format(value);
 const bytes = value => value == null ? '—' : value < 1e6 ? `${number(value / 1e3)} KB` : value < 1e9 ? `${number(value / 1e6)} MB` : `${number(value / 1e9)} GB`;
@@ -30,11 +31,12 @@ function rows(container, items, title='尚无记录', detail='开始采集后会
 }
 async function api(path,options={}) {
   const response=await fetch(path,{...options,cache:'no-store',signal:AbortSignal.timeout(12000)});
-  if(!response.ok) throw new Error(response.status===401?'认证已失效，请重新登录管理入口。':response.status===403?'当前入口不允许执行此操作。':response.status===409?'已有任务执行中或请求冲突，请查看任务列表。':response.status===400?'日期或任务参数无效，请重新选择。':'请求未完成，请检查节点状态。');
+  if(!response.ok) throw new Error(response.status===401?'认证已失效，请重新登录管理入口。':response.status===403?'当前入口不允许执行此操作。':response.status===409?'数据已变更或存在请求冲突，请刷新后核对。':response.status===400?'请求参数无效，请检查输入。':'请求未完成，请检查节点状态。');
   return response.json();
 }
 function status(message,error=false){$('health').textContent=message;$('health').parentElement.classList.toggle('error',error);}
 function siteId(){return $('site').value;}
+const notices = noticeManager({api,status,siteId});
 function summaryWindow(){return $('window').value==='date'?'date:'+$('summary-date').value:$('window').value;}
 function loadQuery(){const value=$('load-window').value;return /^\d+$/.test(value)?`seconds=${value}`:`window=${encodeURIComponent(value==='date'?'date:'+$('load-date').value:value)}`;}
 function renderSummary(result) {
@@ -261,12 +263,14 @@ async function refresh(){
     else if(currentView==='growth')await refreshGrowth(gen);
     else if(currentView==='tasks')await refreshNodes(gen);
     else if(currentView==='archive'){const {mount}=await import('./archive.mjs');await mount($('archive-root'),api);status('归档只读取已保存结果 · 官方检测仍按每日三个既有时点运行');}
+    else if(currentView==='notices')await notices.load();
     else{settings();status('配置仅在后端维护 · 页面不显示密钥');}
   }catch(error){status(error.message,true);}finally{inFlight=false;$('refresh').disabled=false;if(gen!==generation)queueMicrotask(refresh);}
 }
 function navigate(){
-  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings','archive'].includes(key)?key:'overview';generation++;
+  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings','archive','notices'].includes(key)?key:'overview';generation++;
   const titles={archive:['官方更新档案','自动保存新资源，按活动分组；大版本和超大单元可手动补存。'],overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
+  titles.notices=['公告管理','编辑网站提示、维护与故障通知，独立于游戏资料发布。'];
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==`view-${currentView}`;
   for(const a of document.querySelectorAll('[data-view]')){if(a.dataset.view===currentView)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
   status('正在读取对应数据…');$('updated').textContent='等待更新';
@@ -277,4 +281,4 @@ $('load-source').addEventListener('change',renderLoads);addEventListener('hashch
 const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});for(const id of ['summary-date','load-date']){$(id).value=today;$(id).max=today;$(id).min=new Date(Date.now()-29*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});}
 try{config=await api('/api/config');$('preview').hidden=!config.preview;$('site').replaceChildren(...config.sites.map(s=>new Option(s.name||s.id,s.id)));navigate();if(!config.sites.length&&currentView!=='archive')status('尚未配置站点');}
 catch(error){status(error.message,true);}
-let tick=0;setInterval(()=>{tick++;if(!document.hidden&&(currentView!=='overview'||tick%12===0))refresh();},5000);
+let tick=0;setInterval(()=>{tick++;if(!document.hidden&&currentView!=='notices'&&(currentView!=='overview'||tick%12===0))refresh();},5000);

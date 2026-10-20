@@ -59,7 +59,7 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
 
     @app.get('/assets/{name}')
     def asset(name: str):
-        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'archive.mjs'}:
+        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'archive.mjs', 'notices.mjs', 'notice-controls.mjs'}:
             raise HTTPException(404)
         return FileResponse(STATIC / name, media_type='text/javascript' if name.endswith('mjs') else 'text/css')
 
@@ -83,6 +83,41 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
             return {'status': 'ok', 'data': result, 'fetchedAt': time.time()}
         except (OSError, ValueError):
             return {'status': 'unavailable', 'data': None, 'fetchedAt': time.time()}
+
+    def notice_node(site_id):
+        node_id = sites.get(site_id, {}).get('noticeNode')
+        if not node_id:
+            raise HTTPException(404, 'notices are not configured for this site')
+        return nodes[node_id]
+
+    @app.get('/api/notices/{site_id}')
+    def notices(site_id: str, request: Request):
+        node = notice_node(site_id)
+        try:
+            result = transport(node, '/notices/' + quote(site_id))
+            return {**result, 'canWrite': not preview and bool(node.get('writeTokenEnv'))
+                    and request.state.actor in node.get('noticeUsers', [])}
+        except (OSError, ValueError):
+            raise HTTPException(503, 'notices unavailable')
+
+    @app.post('/api/notices/{site_id}')
+    async def change_notice(site_id: str, request: Request):
+        node = notice_node(site_id)
+        if not node.get('writeTokenEnv') or request.state.actor not in node.get('noticeUsers', []):
+            raise HTTPException(403, 'notice publication not allowed')
+        data = await small_json(request, 65536)
+        if 'actor' in data:
+            raise HTTPException(400, 'unexpected notice actor')
+        from starlette.concurrency import run_in_threadpool
+        try:
+            return await run_in_threadpool(transport, node, '/notices/' + quote(site_id),
+                                         {**data, 'actor': request.state.actor}, True)
+        except urllib.error.HTTPError as exc:
+            if exc.code in {400, 403, 404, 409, 413}:
+                raise HTTPException(exc.code, 'notice rejected')
+            raise HTTPException(503, 'notice outcome unknown; reload before retrying')
+        except (OSError, ValueError):
+            raise HTTPException(503, 'notice outcome unknown; reload before retrying')
 
     @app.get('/api/loads/{site_id}')
     def loads(site_id: str, seconds: int = 3600, window: str = ""):

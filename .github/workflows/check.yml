@@ -36,7 +36,7 @@ jobs:
           node --test site/tests/global-account-reads.test.mjs site/tests/game-service-status.test.mjs site/tests/gacha-history.test.mjs site/tests/gacha-card-art.test.mjs site/tests/navigation.test.mjs site/tests/account-growth-403.test.mjs
           python3 -m unittest tests.test_global_account_reads tests.test_growth_client_version tests.test_game_service_status tests.test_gacha_history tests.test_growth_web tests.test_preview_growth tests.test_growth_login tests.test_system_details -q
           node --test site/tests/calculator-layout-render.test.mjs
-          node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs site/tests/costumes.test.mjs
+          node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs site/tests/costumes.test.mjs site/tests/site-notifications.test.mjs site/tests/notice-admin-controls.test.mjs
           node --test site/tests/event-song-ranking.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs site/tests/calculator-multiselect.test.mjs
           node --test site/tests/tools-loading.test.mjs site/tests/web-client-dependencies.test.mjs site/tests/calculation-progress.test.mjs site/tests/challenge-optimizer-ui.test.mjs
           node --test site/tests/entity-identity.test.mjs site/tests/shared-directory-integration.test.mjs site/tests/edition-library.test.mjs site/tests/shared-song-rankings.test.mjs site/tests/card-skill-filtering.test.mjs
@@ -70,7 +70,10 @@ jobs:
           python3 -m pip install -r requirements-admin.txt
           python3 -m unittest tests.test_player_ranking_collection tests.test_player_rankings tests.test_ranking_regions tests.test_ranking_finalizations -q
           python3 -m unittest tests.test_admin_r2_delivery -q
+          python3 -m unittest tests.test_site_notices tests.test_notice_delivery tests.test_preview_notices -q
           node --check backend/admin/static/admin.mjs
+          node --check backend/admin/static/notices.mjs
+          node --check backend/admin/static/notice-controls.mjs
       - name: Isolated official update archive gates
         run: |
           python3 -m pip install -r backend/update_archive/requirements.txt PyYAML==6.0.2

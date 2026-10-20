@@ -87,7 +87,7 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
   // Unavailable scoring tools have no workbench; do not download their dormant
   // calculation modules either. Preserve the visible availability explanation.
   if (tool || ['my-growth','tools/deck-builder','tools/optimizer','tools/song-calculator'].includes(route)) {
-    const shared = new Set(Object.entries(app.scripts).filter(([key]) => /\/(BaseLayout|ArchiveImage|SiteAnalytics|TransitionPreview|UnifiedSearch|FilterDrawer)\.astro\?/.test(key)).map(([,value]) => codeRoot + value));
+    const shared = new Set(Object.entries(app.scripts).filter(([key]) => /\/(BaseLayout|ArchiveImage|SiteAnalytics|SiteNotifications|TransitionPreview|UnifiedSearch|FilterDrawer)\.astro\?/.test(key)).map(([,value]) => codeRoot + value));
     for (const node of all) {
       if (node.tagName !== 'script' || attr(node, 'type') !== 'module' || !attr(node, 'src') || shared.has(attr(node, 'src'))) continue;
       set(node, 'data-deferred-module', attr(node, 'src')); remove(node, 'src'); set(node, 'type', 'application/x-ournotes-deferred');

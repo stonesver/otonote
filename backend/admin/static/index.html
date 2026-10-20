@@ -14,6 +14,8 @@
       <a href="#load" data-view="load"><span aria-hidden="true">⌁</span>并发与带宽</a>
       <a href="#growth" data-view="growth"><span aria-hidden="true">◎</span>登录诊断</a>
       <a href="#tasks" data-view="tasks"><span aria-hidden="true">⇅</span>内容发布</a>
+      <a href="#archive" data-view="archive"><span aria-hidden="true">▤</span>官方更新档案</a>
+      <a href="#notices" data-view="notices"><span aria-hidden="true">◇</span>公告管理</a>
       <a href="#settings" data-view="settings"><span aria-hidden="true">⊞</span>节点与配置</a>
     </nav>
     <div class="sidebar-foot"><span class="dot"></span> SSH 私有入口<small>公开网站与管理权限分离</small></div>
@@ -43,6 +45,30 @@
       <div class="panel"><div class="panel-heading"><h2>最近失败</h2><span>最多 50 条</span></div><div id="growth-failures"></div><p class="caption">显示请求 ID、阶段、错误码、原因分类和可安全保留的 SDK 原始提示。账号、密码、令牌等敏感片段会遮蔽；无法安全保留的提示会明确标记为省略。没有网关结束事件时只显示 HTTP 结果。</p></div>
     </section>
     <section id="view-tasks" class="view" hidden><div class="section-bar"><h2>生产与交付</h2><span>关闭面板不影响后台更新</span></div><div id="nodes"></div></section>
+    <section id="view-archive" class="view" hidden><div id="archive-root"></div></section>
+    <section id="view-notices" class="view" hidden>
+      <div class="section-bar"><h2>网站公告</h2><button type="button" id="notice-new" disabled>新建公告</button></div>
+      <div id="notice-list" class="panel">正在读取公告…</div>
+      <form id="notice-form" class="panel notice-editor">
+        <h2>编辑公告</h2><p class="caption">保存草稿后再发布。时间按北京时间填写，留空表示立即生效或不自动结束。</p>
+        <div class="notice-form-grid">
+          <label>类型<select name="kind"><option value="info">普通提示（可关闭）</option><option value="maintenance">维护</option><option value="incident">故障</option></select></label>
+          <label>区服<select name="region"><option value="all">全部区服</option><option value="global">国际服</option><option value="jp">日服</option></select></label>
+          <div class="notice-time-field"><span id="notice-scopes-label">在哪些页面展示（可多选）</span><button type="button" class="notice-time-trigger" data-notice-scopes aria-labelledby="notice-scopes-label notice-scopes-value" aria-haspopup="dialog"><span id="notice-scopes-value">全站（所有页面）</span><span aria-hidden="true">⌄</span></button><small data-notice-scopes-hint>任意一个所选范围匹配即可显示，包含子页面。</small></div>
+          <label>查看详情前往（选填）<select data-notice-page="href" aria-label="查看详情前往（选填）"></select><input name="href" maxlength="300" pattern="/(?:[A-Za-z0-9_\-]+/)*" placeholder="例如 /updates/" aria-label="自定义详情页面" hidden /><small data-notice-page-hint="href">保留访问者当前区服和语言</small></label>
+          <div class="notice-time-field"><span id="notice-start-label">生效时间（北京时间）</span><input name="startsAt" type="hidden" /><button type="button" class="notice-time-trigger" data-notice-time="startsAt" aria-labelledby="notice-start-label notice-start-value" aria-haspopup="dialog"><span id="notice-start-value" data-notice-time-value="startsAt">立即生效</span><span aria-hidden="true">▦</span></button><small>留空时，发布后立即生效</small></div>
+          <div class="notice-time-field"><span id="notice-end-label">结束时间（北京时间）</span><input name="endsAt" type="hidden" /><button type="button" class="notice-time-trigger" data-notice-time="endsAt" aria-labelledby="notice-end-label notice-end-value" aria-haspopup="dialog"><span id="notice-end-value" data-notice-time-value="endsAt">不自动结束</span><span aria-hidden="true">▦</span></button><small>留空时，需手动撤回公告</small></div>
+        </div>
+        <p class="notice-placement" data-notice-placement role="status"></p>
+        <p class="notice-schedule-error" data-notice-schedule-error role="status" hidden></p>
+        <label>标题<input name="title" required maxlength="120" /></label>
+        <label>正文<textarea name="body" required maxlength="2000" rows="4"></textarea></label>
+        <details><summary>英文内容（选填，留空显示中文）</summary><label>英文标题<input name="titleEn" maxlength="120" /></label><label>英文正文<textarea name="bodyEn" maxlength="2000" rows="3"></textarea></label></details>
+        <div class="notice-preview" id="notice-preview" aria-label="公告预览"></div>
+        <p id="notice-editor-status" role="status">选择公告或新建公告。</p>
+        <div class="toolbar"><button id="notice-save" type="submit" disabled>保存草稿</button><button id="notice-publish" type="button" disabled>发布</button><button id="notice-withdraw" type="button" disabled>撤回</button><button id="notice-delete" type="button" disabled>删除未发布草稿</button></div>
+      </form>
+    </section>
     <section id="view-settings" class="view" hidden><div class="panel"><div class="panel-heading"><h2>站点与连接</h2><span>只读配置</span></div><div id="settings"></div><p class="caption">配置文件由部署管理员维护。浏览器不接收节点地址、密钥和服务器文件路径。</p></div></section>
     <footer>Our Notes <span>采集状态、指标口径与数据来源始终分开显示</span></footer>
   </main>

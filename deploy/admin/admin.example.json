@@ -7,5 +7,6 @@
   "auth": {"mode": "proxy", "proxyTokenEnv": "OURNOTES_ADMIN_PROXY_TOKEN", "users": ["owner@example.com"]},
   "sites": [{"id": "ournotes", "name": "Our Notes", "timezone": "Asia/Shanghai", "source": "website", "nodes": ["resources"]}],
   "sources": [{"id": "website", "url": "http://127.0.0.1:18081", "readTokenEnv": "OURNOTES_STATS_READ_TOKEN"}],
+  "archive": {"schemaVersion": 1, "enabled": false},
   "nodes": [{"id": "resources", "name": "资源节点", "url": "http://127.0.0.1:18082", "readTokenEnv": "OURNOTES_NODE_READ_TOKEN", "writeTokenEnv": "OURNOTES_NODE_WRITE_TOKEN", "profiles": ["global"]}]
 }

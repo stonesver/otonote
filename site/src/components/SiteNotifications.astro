@@ -1,0 +1,111 @@
+---
+const {locale='zh-CN'} = Astro.props;
+const en = locale === 'en';
+---
+<aside class="site-notifications" data-site-notifications aria-label={en ? 'Website notices' : '网站通知'} hidden>
+  <div class="site-notice-dock" data-site-notice-dock hidden>
+    <div class="site-notifications-collapsed" data-site-notifications-collapsed hidden>
+    <button type="button" class="site-notifications-launcher" data-site-notifications-open aria-controls="site-notifications-panel" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4" /></svg>
+      <span data-site-notifications-summary>{en ? 'Notices' : '网站公告'}</span><span class="site-notifications-count" data-site-notifications-count></span>
+    </button>
+    <button type="button" class="site-notifications-dismiss-collapsed" data-site-notifications-dismiss-collapsed aria-label={en ? 'Dismiss ordinary notices' : '关闭普通公告'} title={en ? 'Dismiss ordinary notices' : '关闭普通公告'} hidden>×</button>
+    </div>
+    <section class="site-notifications-panel" id="site-notifications-panel" data-site-notifications-panel aria-label={en ? 'Notices' : '网站公告'}>
+      <button type="button" class="site-notifications-minimize" data-site-notifications-minimize aria-label={en ? 'Minimize notices' : '收起公告'} title={en ? 'Minimize notices' : '收起公告'}>−</button>
+      <div class="site-notifications-content" data-site-notice-list aria-live="polite"></div>
+    </section>
+  </div>
+  <div class="site-update" data-site-update role="status" hidden>
+    <span class="site-update-label">{en ? 'Update' : '更新'}</span>
+    <button type="button" class="site-update-copy notification-ticker" data-site-update-details data-notification-ticker aria-haspopup="dialog" title={en ? 'View full update message' : '查看完整更新提示'}><span class="notification-track" data-notification-track><span data-site-update-message></span></span></button>
+    <div class="site-update-actions">
+      <button type="button" data-site-refresh aria-label={en ? 'Refresh page' : '刷新页面'} title={en ? 'Refresh page' : '刷新页面'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 8a8 8 0 1 0 .5 6M20 3v5h-5" /></svg></button>
+      <button type="button" data-site-update-later aria-label={en ? 'Remind me later' : '稍后提醒'} title={en ? 'Remind me later' : '稍后提醒'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg></button>
+    </div>
+  </div>
+  <dialog class="site-notification-dialog" data-site-notification-dialog aria-labelledby="site-notification-title">
+    <div class="site-notification-dialog-heading"><span data-site-notification-kind></span><button type="button" data-site-notification-close aria-label={en ? 'Close details' : '关闭详情'}>×</button></div>
+    <h2 id="site-notification-title" data-site-notification-title></h2>
+    <p data-site-notification-body></p>
+    <a data-site-notification-link hidden>{en ? 'View details' : '查看详情'} →</a>
+  </dialog>
+</aside>
+<script>
+  import {installSiteNotifications} from '../lib/site-notifications.mjs';
+  document.querySelectorAll('[data-site-notifications]').forEach(node => installSiteNotifications(node));
+</script>
+<style is:global>
+  .site-notifications { --notice-accent:var(--gel-blue-dark); --notification-offset:0px; --notification-bottom:24px; color:var(--ink); font-family:var(--font-body); }
+  [data-shell="sidebar"] .site-notifications { --notification-offset:var(--sidebar-width,236px); }
+  .site-notifications[hidden], .site-notifications [hidden] { display:none !important; }
+  body:has(dialog[open]:not([data-site-notification-dialog])) .site-notifications, body[data-nav-open] .site-notifications { visibility:hidden; pointer-events:none; }
+  .site-notifications:has([data-site-notification-dialog][open]) :is(.site-notice-dock,.site-update) { visibility:hidden; }
+  .site-notice-dock, .site-update { position:fixed; z-index:65; left:calc(50% + var(--notification-offset)/2); transform:translateX(-50%); width:min(560px,calc(100vw - var(--notification-offset) - 48px)); box-sizing:border-box; }
+  .site-notice-dock { top:calc(var(--header-height,68px) + 10px + env(safe-area-inset-top)); display:flex; justify-content:center; }
+  .site-notifications-panel { position:relative; width:100%; border:1px solid var(--line); border-radius:22px; background:var(--paper-light); box-shadow:0 6px 24px rgb(17 19 27 / 8%); }
+  .site-notifications-content { max-height:min(280px,32dvh); padding:0 5px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; border-radius:inherit; }
+  .site-notifications button { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-height:44px; padding:7px 12px; border:1px solid transparent; border-radius:999px; background:transparent; color:var(--ink); font:600 12px/1.5 var(--font-body); cursor:pointer; transition:background-color 140ms ease,color 140ms ease; }
+  .site-notifications .site-notifications-minimize { position:absolute; top:4px; right:3px; z-index:1; width:44px; padding:0; color:var(--silver-dark); font-size:23px; font-weight:400; }
+  .site-notifications :is(.site-notifications-minimize,.site-notice-dismiss,.site-notifications-dismiss-collapsed):hover { background:var(--paper); color:var(--lacquer); }
+  .site-notifications :is(button,a,summary):focus-visible { outline:2px solid var(--lacquer); outline-offset:-2px; }
+  .site-notifications-collapsed { display:flex; align-items:center; padding:0 3px; border:1px solid var(--line); border-radius:999px; background:var(--paper-light); box-shadow:0 5px 18px rgb(17 19 27 / 8%); }
+  .site-notifications .site-notifications-launcher { gap:7px; padding:6px 10px; color:var(--lacquer); }
+  .site-notifications .site-notifications-launcher:hover { background:var(--paper); }
+  .site-notifications .site-notifications-dismiss-collapsed { width:44px; padding:0; color:var(--silver-dark); font-size:20px; font-weight:400; }
+  .site-notifications-launcher svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .site-notifications-count { min-width:21px; padding:1px 5px; border-radius:999px; background:color-mix(in srgb,var(--lacquer) 9%,var(--paper-light)); color:var(--lacquer); font-size:11px; font-variant-numeric:tabular-nums; }
+  .site-notifications-launcher[data-kind="maintenance"] { color:var(--warning); }
+  .site-notice { display:flex; align-items:flex-start; gap:8px; padding:4px 42px 4px 5px; }
+  .site-notice + .site-notice { border-top:1px solid var(--line); }
+  .site-notice[data-kind="maintenance"] { --notice-accent:var(--warning); }
+  .site-notice[data-kind="incident"] { --notice-accent:var(--lacquer); }
+  .site-notice small, .site-update-label { flex-shrink:0; margin-top:11px; padding:2px 8px; border-radius:999px; background:color-mix(in srgb,var(--notice-accent) 9%,var(--paper-light)); color:color-mix(in srgb,var(--notice-accent) 85%,var(--ink)); font:600 11px/1.6 var(--font-body); white-space:nowrap; }
+  .site-notice-copy { flex:1; min-width:0; }
+  .site-notice strong { font-size:12px; font-weight:650; color:var(--ink); }
+  .site-notice-body { color:color-mix(in srgb,var(--ink) 73%,var(--paper-light)); }
+  .site-notice-separator { margin:0 9px; color:var(--silver-dark); }
+  .site-notifications .notification-ticker { display:flex; flex-shrink:1; align-items:center; justify-content:flex-start; min-width:0; min-height:44px; padding:0; overflow:hidden; cursor:pointer; font:400 12px/1.7 var(--font-body); text-align:left; border:0; border-radius:4px; background:transparent; }
+  .notification-track { display:block; flex-shrink:0; width:max-content; white-space:nowrap; }
+  .notification-ticker[data-overflow="true"] .notification-track { animation:notification-scroll var(--ticker-duration,15s) linear infinite alternate; }
+  .notification-ticker:hover .notification-track, .notification-ticker:focus-within .notification-track { animation-play-state:paused; }
+  .site-notifications .site-notice-dismiss { width:44px; padding:0; color:var(--silver-dark); font-size:22px; font-weight:400; }
+  .site-update { --notice-accent:var(--lacquer); bottom:calc(var(--notification-bottom) + env(safe-area-inset-bottom)); display:flex; align-items:flex-start; gap:10px; padding:5px 12px; border:1px solid color-mix(in srgb,var(--lacquer) 13%,var(--paper-light)); border-radius:22px; background:var(--paper-light); box-shadow:0 6px 24px rgb(17 19 27 / 8%); }
+  .site-update .site-update-label { margin-top:5px; }
+  .site-notifications .site-update .notification-ticker { min-height:32px; }
+  .site-update-copy { flex:1; min-width:0; color:color-mix(in srgb,var(--ink) 73%,var(--paper-light)); }
+  .site-update-actions { display:flex; align-items:center; gap:4px; }
+  .site-notifications .site-update-actions button { min-width:32px; width:32px; min-height:32px; padding:0; }
+  .site-update-actions svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .site-notifications [data-site-refresh] { background:var(--lacquer); color:var(--paper-light); border-color:var(--lacquer); }
+  .site-notifications [data-site-refresh]:hover { background:var(--lacquer-bright); border-color:var(--lacquer-bright); }
+  .site-notifications .site-update-actions [data-site-refresh] { position:relative; background:transparent; border:0; }
+  .site-update-actions [data-site-refresh]::before { content:''; position:absolute; inset:2px; border-radius:50%; background:var(--lacquer); }
+  .site-update-actions [data-site-refresh]:hover::before { background:var(--lacquer-bright); }
+  .site-update-actions [data-site-refresh] svg { position:relative; }
+  .site-notifications [data-site-update-later] { color:var(--silver-dark); }
+  .site-notifications [data-site-update-later]:hover { color:var(--lacquer); background:var(--paper); }
+  .site-notification-dialog { box-sizing:border-box; width:min(520px,calc(100vw - 32px)); max-height:80dvh; margin:auto; padding:18px 24px 24px; overflow-y:auto; border:1px solid var(--line); border-radius:22px; background:var(--paper-light); color:var(--ink); box-shadow:0 20px 70px rgb(17 19 27 / 18%); }
+  .site-notification-dialog::backdrop { background:rgb(17 19 27 / 28%); }
+  .site-notification-dialog-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--lacquer); font-size:12px; font-weight:600; }
+  .site-notifications .site-notification-dialog-heading button { width:44px; padding:0; color:var(--silver-dark); font-size:24px; font-weight:400; }
+  .site-notification-dialog h2 { margin:6px 0 14px; font:650 18px/1.6 var(--font-body); overflow-wrap:anywhere; }
+  .site-notification-dialog p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.9; }
+  .site-notification-dialog a { display:inline-block; margin-top:16px; color:var(--lacquer); font-size:13px; text-underline-offset:3px; }
+  @keyframes notification-scroll { 0%,12% { transform:translateX(0); } 88%,100% { transform:translateX(var(--ticker-travel,0px)); } }
+  @media(max-width:1100px) { [data-shell="sidebar"] .site-notifications { --notification-offset:0px; } }
+  @media(max-width:600px) {
+    .site-notifications { --notification-bottom:12px; }
+    body:has([data-team-workspace-open]:not([hidden])) .site-notifications { --notification-bottom:76px; }
+    .site-notice-dock, .site-update { width:calc(100vw - 32px); }
+    .site-notice-dock { top:calc(var(--header-height,64px) + 10px + env(safe-area-inset-top)); }
+    .site-notifications-panel, .site-update { border-radius:20px; }
+    .site-notice { gap:6px; }
+    .site-update { gap:6px; }
+    .site-notification-dialog { inset:auto 0 12px; width:calc(100vw - 24px); max-height:75dvh; margin:auto auto env(safe-area-inset-bottom); padding:14px 20px 24px; }
+  }
+  @media(prefers-reduced-motion:reduce) {
+    .site-notifications button { transition:none; }
+    .notification-ticker[data-overflow="true"] .notification-track { animation:none; transform:none; }
+  }
+</style>

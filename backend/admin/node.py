@@ -144,6 +144,8 @@ def create_node(config):
         jobs.close()
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.jobs = jobs
+    from .notices import register_notices
+    register_notices(app, c)
 
     @app.middleware('http')
     async def authenticate(request, call_next):

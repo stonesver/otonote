@@ -1,0 +1,22 @@
+[Unit]
+Description=OurNotes archive single-host TLS relay
+After=network-online.target
+Before=ournotes-admin.service
+
+[Service]
+DynamicUser=yes
+ExecStart=/usr/bin/python3 /srv/ournotes-admin/archive-egress/egress.py --host REPLACE_WITH_R2_ACCOUNT.r2.cloudflarestorage.com --port 18085
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=32M
+TasksMax=16
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

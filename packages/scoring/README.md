@@ -17,7 +17,7 @@
 
 `performance-scenarios.mjs` 规范化有版本的原始操作条件；`performance-scenario-calculator.mjs` 将同一批样本用于普通或激奏。玩家样本、技能顺序、LUCK 随机和对手条件分别记录。明确判定不能反推出原始时机；参考输入不等于实机回放。
 
-`formal-performance-state.mjs` 是普通技能生命条件、消耗与转换的共用状态。激奏任务、普通连击和结算保持各自语义，COMBO 排名使用最大任务连击。活动适配器在同一演出流程中作用于其确认环节，奖励换算仍独立。证据及边界见[机制审计](../../docs/plans/2026-10-04-performance-mechanism-evidence.md)。
+`formal-performance-state.mjs` 是普通技能生命条件、消耗与转换的共用状态。激奏任务、普通连击和结算保持各自语义，COMBO 排名使用最大任务连击。活动适配器在同一演出流程中作用于其确认环节，奖励换算仍独立。证据及边界见[机制审计](../../docs/reference/performance-scenarios.md)。
 
 `gekisou-skill-runtime.mjs` 先按歌曲任务范围解析技能，再把条件程序、效果算子和生命周期组合起来。`skill-condition-program.mjs` 保留条件集合的 OR/AND 与事件参数；`gekisou-effect-operators.mjs` 只负责底层效果，不决定发动时机。卡片 ID、技能 ID 和等级都来自规则数据。真正缺失的机制抛出 `UnsupportedSkillMechanismError`，供推荐器隔离相关配对并报告覆盖范围；数据损坏仍是错误。内容发布另以 `scoring-compatibility.mjs` 生成诊断报告，不以技能覆盖率阻断资料更新。
 

@@ -45,6 +45,7 @@
 | 项目 | 声明版本 | 用途 | 许可与来源 |
 | --- | --- | --- | --- |
 | UnityPy | 1.25.2 | Unity 资源解析 | MIT；[版本与许可](https://pypi.org/project/UnityPy/1.25.2/) |
+| imageio-ffmpeg | 0.6.0 | 归档音频转换的备用 FFmpeg 二进制 | 包装层 BSD-2-Clause；二进制许可另计并保留随包声明，见[版本与许可](https://pypi.org/project/imageio-ffmpeg/0.6.0/) |
 | tomli | 2.4.1；仅 Python < 3.11 | TOML 配置兼容读取 | MIT；[版本与许可](https://pypi.org/project/tomli/2.4.1/) |
 | py3rijndael | 0.3.3 | 数据处理中的 Rijndael 运算 | MIT；[版本与许可](https://pypi.org/project/py3rijndael/0.3.3/) |
 | pyelftools | 0.32 | ELF / DWARF 二进制解析 | public domain / Unlicense；内含 construct 另有许可，见 [LICENSE](https://github.com/eliben/pyelftools/blob/v0.32/LICENSE) |

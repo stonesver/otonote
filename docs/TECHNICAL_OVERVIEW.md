@@ -2,7 +2,7 @@
 
 OtoNote 将网页代码、游戏内容和动态服务分开组织。网页负责展示与交互，Python 工具将资源整理成可校验的内容快照，独立服务提供查询、管理与机器人能力。更新一份游戏资料不必重新编译全部网页代码。
 
-本文帮助首次阅读源码的人找到入口。构建、正式候选和部署细节以[开发流程](DEVELOPMENT_WORKFLOW.md)为准，依赖来源见[第三方项目说明](../THIRD_PARTY_NOTICES.md)。
+本文帮助首次阅读源码的人找到入口。构建、正式候选和部署细节以[开发流程](runbooks/development.md)为准，依赖来源见[第三方项目说明](../THIRD_PARTY_NOTICES.md)。
 
 ## 从输入到页面
 
@@ -55,7 +55,7 @@ flowchart LR
 
 纯计算来自共享包的 `growth-scenarios`、`performance-scenarios` 和 `performance-scenario-calculator`。普通、激奏及挑战适配共享输入；收益模块从分数估计档位再换算活动收益。个人搜索没有新增后端接口。详情回放与推荐沿用相同发挥条件；预设保留计划语义，更新实际卡库后重新计算差额。
 
-用户说明见[使用指南](USER_GUIDE.md)，设计范围和验收条件见[演出与配队设计](plans/2026-10-04-performance-and-team-planning-design.md)。
+用户说明见[使用指南](USER_GUIDE.md)，搜索行为和证明边界见[计算搜索说明](reference/calculation-search.md)。
 
 ## 网页与内容如何配合
 
@@ -79,9 +79,9 @@ Live2D 预览使用 PixiJS、`pixi-live2d-display` 和另行提供的 Cubism Cor
 
 Python 服务使用 FastAPI / Uvicorn；SQLite 用于查询数据库及服务状态，机器人回复图片使用 Pillow 与适用字体。查询、管理、机器人及资源更新器有不同的依赖和运行材料，不应把所有 `requirements` 文件当作一个环境一次性安装。
 
-真实账号、SDK 参数、资源密钥、内容目录和生产部署配置由仓库外提供。仓库内保留示例与契约，具体边界见[配置与脱敏政策](CONFIGURATION_POLICY.md)。技术介绍不会公开真实主机、路径、凭据或私有数据。
+真实账号、SDK 参数、资源密钥、内容目录和生产部署配置由仓库外提供。仓库内保留示例与契约，具体边界见[配置与脱敏政策](governance/configuration.md)。技术介绍不会公开真实主机、路径、凭据或私有数据。
 
-网站公告由私有控制台经资源节点独立发布为公共 JSON，不依赖游戏资料生产。全局通知组件按区服、页面与时间展示公告，并读取已交付 HTML 的完成回执提示用户刷新；保持当前页面的资料快照与编辑不变。配置与验收见[公告与更新提示](SITE_NOTICES.md)。
+网站公告由私有控制台经资源节点独立发布为公共 JSON，不依赖游戏资料生产。全局通知组件按区服、页面与时间展示公告，并读取已交付 HTML 的完成回执提示用户刷新；保持当前页面的资料快照与编辑不变。配置与验收见[公告与更新提示](reference/site-notices.md)。
 
 ## 本地开始
 
@@ -105,7 +105,7 @@ python3 tools/preview_independent_site.py \
 
 随后访问 `http://127.0.0.1:4340/global/zh-CN/`。上面的内容目录不是克隆后自动生成的示例数据，不能用空目录获得完整站点。`npm run dev` 仍需要本地数据投影与版本配置，不能代替缺少快照时的独立构建。
 
-基础离线检查、贡献流程见[参与贡献](../CONTRIBUTING.md)。正式候选的固定验证、不可变产物与发布流程见[开发流程](DEVELOPMENT_WORKFLOW.md)，运行期维护见[运行维护](OPERATIONS.md)。
+基础离线检查、贡献流程见[参与贡献](../CONTRIBUTING.md)。正式候选的固定验证、不可变产物与发布流程见[开发流程](runbooks/development.md)，运行期维护见[运行维护](runbooks/operations.md)。
 
 ## 共用卡库与队伍浮窗
 

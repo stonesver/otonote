@@ -10,7 +10,7 @@
 - 只有网站功能代码变更时使用代码发布流程，无需重新触发游戏资源生产。
 - 旧本机任务折叠在历史记录中，不代表当前 Actions 运行。旧检查、拉取、构建、发布按钮不在 R2 profile 中显示；API 能力汇总也不再暴露这些操作，残留排队任务即使被旧 worker 拾取也会取消。
 
-管理页不查询 GitHub API，不持有 GitHub 凭据，也不代用户提交工作流。本机交付回执只证明内容与 HTML 的本地身份。新增运行与告警区由服务器使用既有 R2 只读权限采样 Actions 运维回执和远端指针，独立显示运行状态、交付滞后、采集新鲜度和发布空间预算。详见 [健康采样和回退方案](../../docs/plans/2026-10-13-update-health-and-hot-paths.md)。本机采样缺失、过期或版本不一致时显示“状态待核对”，不能复用旧成功状态。原有未迁移 profile 继续使用原任务合同。
+管理页不查询 GitHub API，不持有 GitHub 凭据，也不代用户提交工作流。本机交付回执只证明内容与 HTML 的本地身份。新增运行与告警区由服务器使用既有 R2 只读权限采样 Actions 运维回执和远端指针，独立显示运行状态、交付滞后、采集新鲜度和发布空间预算。详见 [健康采样和回退](../../docs/runbooks/content-pipeline.md)。本机采样缺失、过期或版本不一致时显示“状态待核对”，不能复用旧成功状态。原有未迁移 profile 继续使用原任务合同。
 
 ## 配置与安装
 
@@ -22,7 +22,7 @@
 4. 新导出器位于 `/srv/ournotes-admin/export_r2_delivery_state.py`，配套 `ournotes-r2-delivery-state.service/.timer` 放到 `/etc/systemd/system/`。停用旧 `ournotes-resource-state.path`，避免覆盖新状态；运行一次新导出器，确认 schemaVersion=2、productionOwner=github-actions-r2 和两服 delivery.regions。
 5. 重启 node/admin 服务，等待实际 HTTP API 可用（容器启动不代表 API 已就绪）。检查两服卡片、新 Actions 入口及指南、历史折叠和无旧按钮，再启用新导出 timer。
 
-停用旧 node-worker 和旧状态导出 unit 后，可以在独立清理审计中删除其脚本、配置与旧更新器路径。**保留现有 tasks.sqlite 和审计数据库**；保留管理服务、节点只读 API、新导出器、新 R2 预渲染服务及其挂载。
+旧单元、脚本和配置仅在独立清理审计明确其引用与恢复用途后处置；文档整理不删除它们。**保留现有 tasks.sqlite 和审计数据库**；保留管理服务、节点只读 API、新导出器、新 R2 预渲染服务及其挂载。
 
 导出器每两分钟读取本地 pointer、manifest/物化回执、HTML complete.json 和 symlink，比较两服和跨服库身份，不重复扫描媒体文件。完整文件校验由物化任务负责。异常原子写入 unavailable；节点将超过六分钟或明显来自未来的采样判为不可用。界面显示代码 ID 属于生成该 HTML 的代码身份，不应误作 Git 提交号。
 

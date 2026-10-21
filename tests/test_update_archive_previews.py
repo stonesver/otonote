@@ -72,13 +72,15 @@ class PreviewTests(unittest.TestCase):
             with wave.open(str(out/'audio.wav')) as audio:self.assertEqual(audio.getnframes(),8000)
 
     def test_external_audio_conversion_produces_valid_ogg_when_available(self):
-        import shutil,wave
-        if not shutil.which('ffmpeg'):self.skipTest('ffmpeg unavailable; WAV fallback is covered separately')
+        import wave
+        from unittest.mock import patch
         with tempfile.TemporaryDirectory() as root:
             root=Path(root);raw=root/'a.wav';out=root/'out';out.mkdir()
             with wave.open(str(raw),'wb') as audio:
                 audio.setparams((1,2,8000,0,'NONE','not compressed'));audio.writeframes(b'\0\0'*8000)
-            rows=convert(raw,out,'audio.m4a')
+            # Hosted runner images no longer guarantee a system ffmpeg.
+            with patch('backend.update_archive.previews.shutil.which',return_value=None):
+                rows=convert(raw,out,'audio.m4a')
             self.assertEqual(rows[0]['mime'],'audio/ogg')
             self.assertTrue((out/'audio.ogg').read_bytes().startswith(b'OggS'))
 

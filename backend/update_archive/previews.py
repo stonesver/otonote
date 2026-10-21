@@ -18,6 +18,17 @@ TEXT_LIMIT = 512 * 1024
 PREVIEW_VERSION = 2
 
 
+def ffmpeg_executable():
+    executable = shutil.which('ffmpeg')
+    if executable:
+        return executable
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except (ImportError, RuntimeError):
+        raise ArchiveError('audio_converter_unavailable') from None
+
+
 def convert(raw, output, name, *, context=None):
     raw, output = Path(raw), Path(output)
     suffix = Path(name).suffix.lower()
@@ -62,8 +73,7 @@ def convert(raw, output, name, *, context=None):
                 out.setparams(source.getparams()); out.writeframes(source.readframes(frames))
         results.append({'path': 'audio.wav', 'name': name, 'mime': 'audio/wav'})
     elif suffix in ('.wav', '.ogg', '.mp3', '.m4a', '.aac', '.flac', '.acb', '.awb'):
-        if not shutil.which('ffmpeg'):
-            raise ArchiveError('audio_converter_unavailable')
+        ffmpeg = ffmpeg_executable()
         audio = raw
         if suffix in ('.acb', '.awb'):
             vgm = shutil.which('vgmstream-cli')
@@ -77,7 +87,7 @@ def convert(raw, output, name, *, context=None):
             done = subprocess.run(command, capture_output=True, timeout=35)
             if done.returncode or not audio.exists() or audio.stat().st_size > PREVIEW_BYTES:
                 raise ArchiveError('cri_conversion_failed')
-        done = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(audio),
+        done = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', str(audio),
             '-t', '180', '-vn', '-ac', '1', '-ar', '24000', '-c:a', 'libopus', '-b:a', '48k',
             str(output / 'audio.ogg')], capture_output=True, timeout=45)
         if done.returncode:

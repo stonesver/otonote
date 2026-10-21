@@ -122,6 +122,15 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
             if not previews_only:
                 approvals = approved_entries(repo, selected, now=clock())
                 entries = repo.entries(selected, now=clock())
+                # Baselines can contain tens of thousands of manual-only rows.
+                # Select work from one snapshot; refresh permissions only at an
+                # actual file boundary. New approvals are picked up next run.
+                entries = [e for e in entries
+                    if e['status'] not in ('saved', 'removed', 'metadata_only')
+                    and (e['id'] in approvals or (selected_mode == 'auto'
+                        and e['status'] not in ('waiting_manual', 'evicted_fifo',
+                                                'cleaned_manual', 'expired')
+                        and e.get('attempts', 0) < 3))]
                 new_batch_ids = set(result['batches'])
                 fresh = [e for e in entries if e.get('batch') in new_batch_ids]
                 older = [e for e in entries if e.get('batch') not in new_batch_ids]
@@ -132,6 +141,9 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
                     allowance = max_bytes if not groups[1 - group_index] else max_bytes // 2
                     for e in candidates:
                         now = clock()
+                        if (now - started >= max_seconds - 180
+                                or now - group_start >= min(420, max_seconds / 2)):
+                            break
                         current_state, _ = repo.state()
                         current_mode = mode or current_state['modes'].get(selected, 'auto')
                         if current_mode == 'record':

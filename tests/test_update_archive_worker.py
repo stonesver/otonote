@@ -20,6 +20,20 @@ class Source:
 
 
 class WorkerTests(unittest.TestCase):
+    def test_manual_baseline_does_not_read_the_ledger_once_per_entry(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            repo = ArchiveRepository(LocalBucket(root), clock=lambda: 100)
+            source = Source()
+            source.files = [{'source': 'remote_asset', 'key': f'baseline-{i}',
+                             'size': 3} for i in range(200)]
+            run_once(repo, source, clock=lambda: 100)
+            with patch.object(repo.bucket, 'get', wraps=repo.bucket.get) as reads:
+                result = run_once(repo, source, clock=lambda: 101)
+            self.assertEqual(result['status'], 'unchanged')
+            self.assertEqual(source.fetched, [])
+            self.assertLess(reads.call_count, 50)
+
     def test_preview_only_backfills_without_source_detection_download_or_queued_cleanup(self):
         from backend.update_archive.requests import cleanup_plan, confirm_cleanup
         with tempfile.TemporaryDirectory() as root:

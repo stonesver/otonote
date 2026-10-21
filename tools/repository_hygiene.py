@@ -2,7 +2,7 @@
 """Fail-closed source selection and value-free credential checks.
 
 This is a publication boundary, not a claim that arbitrary files are secret-free.
-See docs/CONFIGURATION_POLICY.md. Reports contain locations/rules, never matches.
+See docs/governance/configuration.md. Reports contain locations/rules, never matches.
 """
 from __future__ import annotations
 

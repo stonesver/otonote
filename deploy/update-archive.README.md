@@ -1,6 +1,8 @@
 # 官方更新档案：本地使用与外置配置
 
-程序默认关闭。2026-10-20 已按用户后续授权完成实际部署并开启双服归档，真实验收及尚未观察的自然定时回执见[上线记录](../docs/releases/2026-10-20-official-update-archive.md)。本地开发阶段的结果单独保留在验收记录中。
+程序默认关闭。本文定义本地验证、外置配置、上线与回退流程；实际启用状态需核对环境与运行回执，不能从模板或本地测试推断。未结验收见[待办](../docs/BACKLOG.md)。
+
+2026-10-20 合入的[上线验收](https://github.com/stonesver/otonote/pull/111)已确认双服启用、真实存储条件写入与权限隔离、管理服务认证和出站边界。首次正式 CLI 运行仅建立基线，未保存历史资源；该记录尚未确认托管 runner 首轮及三个自然时点。本页不保留现场日志，也不将既有验收当作实时健康状态。解密／特殊音频预览仍取决于私密解码引用及转换器；未配置完整 APK 时不补拉历史客户端。
 
 ## 本地验收
 
@@ -13,7 +15,7 @@ python -m venv /tmp/ournotes-archive-venv
 /tmp/ournotes-archive-venv/bin/python -m backend.update_archive.demo
 ```
 
-打开 `http://127.0.0.1:18086/#archive`。演示只在临时目录生成图片、文本、WAV 和待选条目，退出即清除；默认只读。需要验证确认/补存交互时加 `--writable`，它只允许操作本次合成数据，不读取正式配置。
+打开 `http://127.0.0.1:18086/#archive`。演示只在临时目录生成图片、文本、WAV 和待选条目，退出即清除；默认只读。需要验证确认/补存交互时加 `--writable`，它只允许操作演示合成数据，不读取正式配置。
 
 单次命令为 `python -m backend.update_archive --config /外置路径/archive.json --region global`（或 `jp`）。不传配置或 `enabled: false` 时直接返回 disabled，不初始化 S3。不要把真实配置、客户端材料、桶凭据或输出提交进 Git。
 
@@ -45,11 +47,11 @@ python -m venv /tmp/ournotes-archive-venv
 - 同一内容的再次入库使用新的对象代号，防止迟到删除影响新保存；失败上传继续占用预留。旧上传至少等待 30 分钟加 2 分钟传输宽限，再验证恢复/回收。读取租约最长 300 秒，单次响应在 290 秒内停止读。
 - 工作台文件/预览/文本差异/导出均经过既有认证。原件附件下载；预览媒体只在同源展示，脚本文本经 `textContent` 显示。ZIP 导出为有界临时 spool，最大 128 MiB，不进行即时官方下载。
 
-## 独立上线流程
+## 独立上线与验收
 
 工作流只追加独立 `archive` job：没有 `needs: produce`，GitHub 托管 runner、`content-archive-<region>` 锁，自己的环境和凭据。原 `produce` job 保持逐字一致，cron 仍只有 `0 1,6,11 * * *`。
 
-新环境上线需授权并完成以下检查；本次已执行的项目以[上线记录](../docs/releases/2026-10-20-official-update-archive.md)为准：
+上线需具备对应授权并完成：
 
 1. 核对账户并发/网络/存储请求余量，确保两服原生产容量优先；没有余量就保持关闭。
 2. 审核真实清单路径和两服材料，实际验证归档桶条件写入、只读源权限、共享账本与保留策略；本地替身通过不能代替真实 R2 验收。
@@ -59,7 +61,7 @@ python -m venv /tmp/ournotes-archive-venv
 6. 原生产指纹覆盖整个工作流文件，首次接入可能触发一次原机制要求的完整生产；不得绕过门禁。核对后续三个自然时点的生产回执、公开指针和归档回执。
 7. 回退只关闭两服归档变量；不要取消整个工作流或回退生产数据。验证原生产仍运行、归档停止新工作，并如实提示此时不会自动物理清理。
 
-本地实际证据见 [验收记录](../docs/designs/2026-10-20-official-update-archive-local-validation.md)。
+实际回执和必要恢复材料保存于仓库外；普通改动通过 Git 追溯。
 
 管理服务原有按 UID 限制的出站防火墙不能直接开放互联网。正式接入通过 `ournotes-archive-egress.service.example` 的无凭据回环 CONNECT relay：仅允许一个配置的 R2 账户域名的 TLS 443。管理服务只增加到回环 18085 的权限，并配置 `HTTPS_PROXY` 与回环 `NO_PROXY`；relay 不接收存储密钥，S3 签名和 TLS 仍由管理服务 SDK 完成。SDK 闭包见 `admin/archive-requirements.txt`，单独只读挂载，不更换原生产更新镜像。
 

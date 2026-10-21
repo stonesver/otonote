@@ -34,7 +34,7 @@ bash scripts/build-web-client.sh --preview output/contribution-preview
 python3 -m tools.code_publication --source output/contribution-preview --verify-only
 ```
 
-构建输出目录必须尚不存在；再次验证请使用新的目录名。以上是公开源码的基础离线验证，不代表完整测试或生产验收。根据修改范围补充相关检查，正式候选必须通过[开发流程](docs/DEVELOPMENT_WORKFLOW.md)规定的固定验证。
+构建输出目录必须尚不存在；再次验证请使用新的目录名。以上是公开源码的基础离线验证，不代表完整测试或生产验收。根据修改范围补充相关检查，正式候选必须通过[开发流程](docs/runbooks/development.md)规定的固定验证。
 
 完整页面预览还需另行提供内容快照；部分测试依赖未随仓库分发的游戏数据、Python 依赖或服务。没有这些条件时，明确写出未运行的检查，不要把缺失输入时的构建通过当作实机或线上验收。
 
@@ -45,9 +45,15 @@ python3 -m tools.code_publication --source output/contribution-preview --verify-
 | 使用流程或功能入口 | `docs/USER_GUIDE.md`，必要时更新关于页面 |
 | 模块职责、构建或运行方式 | `docs/TECHNICAL_OVERVIEW.md` 与对应开发文档 |
 | 第三方依赖、字体或运行库 | 锁文件/依赖清单、`THIRD_PARTY_NOTICES.md` 与 `site/src/lib/project-credits.ts` 中受影响的条目 |
-| 许可或公开范围 | `docs/LICENSING.md`、`docs/PUBLIC_SOURCE.md`、README 与关于页面 |
+| 许可或公开范围 | `docs/LICENSING.md`、`docs/governance/public-source.md`、README 与关于页面 |
 | 公开联系方式 | `site/src/lib/site-contact.mjs` 与引用这些信息的文档 |
 
 关于页面保留中文与英文；新增文字时同步维护两种语言。页面内站内链接使用现有区服/语言路径规则，避免切换到错误的内容版本。
 
-真实配置和发布资料继续留在仓库外。提交前按[配置与脱敏边界](docs/CONFIGURATION_POLICY.md)检查变更；PR、构建产物或截图中也不要携带私有信息。提交 PR 不会自动部署线上站点。
+真实配置和发布资料继续留在仓库外。提交前按[配置与脱敏边界](docs/governance/configuration.md)检查变更；PR、构建产物或截图中也不要携带私有信息。提交 PR 不会自动部署线上站点。
+
+## 文档修改
+
+先从[文档索引](docs/README.md)找到权威说明，并遵循[文档维护规则](docs/governance/documentation.md)。普通改动更新已有文档，不新增设计／计划／完成报告；重要决策保留理由，已解决待办移除，改动历史交给 Git／PR。新增公开文档须登记用途，提交前运行 `python3 -m tools.docs_status`。
+
+公开说明围绕本站需求与行为独立表述，不包含其他同类网站的参考名称、链接、截图或比较过程；必要的第三方署名和许可证保留。真实环境资料和原始验收材料留在仓库外，注明保留用途。文档清理不能删除配置、模板、部署脚本、服务定义、测试样例或程序输入；用途不明的附件先保留。

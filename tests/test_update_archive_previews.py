@@ -6,6 +6,45 @@ from backend.update_archive.previews import convert
 
 
 class PreviewTests(unittest.TestCase):
+    def test_media_after_first_thousand_objects_is_not_silently_ignored(self):
+        from types import SimpleNamespace as N
+        from unittest.mock import patch
+        objects = [N(type=N(name='Transform'), path_id=i) for i in range(1100)]
+        objects.append(N(type=N(name='Texture2D'), path_id=1101,
+                         read=lambda: N(m_Name='late texture', image=Image.new('RGBA', (4, 4), 'blue'))))
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);raw=root/'late.bundle';raw.write_bytes(b'UnityFS\0synthetic')
+            out=root/'out';out.mkdir()
+            with patch('UnityPy.load', return_value=N(objects=objects)):
+                rows=convert(raw,out,'late.bundle')
+            self.assertTrue(any(r['mime'].startswith('image/') for r in rows))
+
+    def test_bundle_keeps_images_text_and_playable_audio_when_one_asset_is_binary(self):
+        import io, wave
+        from types import SimpleNamespace as N
+        from unittest.mock import patch
+        audio = io.BytesIO()
+        with wave.open(audio, 'wb') as stream:
+            stream.setparams((1, 2, 8000, 0, 'NONE', 'not compressed'))
+            stream.writeframes(b'\0\0' * 8000)
+        def obj(kind, data, index):
+            return N(type=N(name=kind), path_id=index, read=lambda: data)
+        objects = [obj('TextAsset', N(m_Name='binary', m_Script=b'\xff\x00'), 1),
+                   obj('Texture2D', N(m_Name='card', image=Image.new('RGBA', (16, 24), 'red')), 2),
+                   obj('TextAsset', N(m_Name='script', m_Script=b'<script>plain text</script>'), 3),
+                   obj('AudioClip', N(m_Name='voice', samples={'voice.wav': audio.getvalue()}), 4)]
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);raw=root/'mixed.bundle';raw.write_bytes(b'UnityFS\0synthetic')
+            out=root/'out';out.mkdir()
+            with patch('UnityPy.load', return_value=N(objects=objects)):
+                rows=convert(raw,out,'mixed.bundle')
+            self.assertTrue(any(r['mime'].startswith('image/') for r in rows))
+            self.assertTrue(any(r['mime'].startswith('audio/') for r in rows))
+            text=next(r for r in rows if r['mime']=='text/plain')
+            self.assertEqual((out/text['path']).read_text(), '<script>plain text</script>')
+            sound=next(r for r in rows if r['mime']=='audio/wav')
+            with wave.open(str(out/sound['path'])) as stream:self.assertEqual(stream.getnframes(),8000)
+
     def test_image_becomes_bounded_webp_and_script_stays_text(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

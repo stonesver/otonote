@@ -66,7 +66,11 @@ def source(config, selected_region):
                 packages.append({'path': str(root / item['file']), 'name': item['name'], 'sha256': item['sha256']})
             adapter.packages = VerifiedPackages(selected_region, packages, material('apksig'))
         adapter.received_bytes = received
-        adapter.context = {'metadata': material('metadata'), 'clientVersion': adapter.client.client_version}
+        adapter.context = {'metadata': material('metadata'), 'clientVersion': adapter.client.client_version,
+                           'region': selected_region}
+        if selected_region == 'jp':
+            from tools.jp_client_profile import load_binding
+            adapter.context['profile'] = load_binding(Path(material('metadata')))['decoderProfile']
         if material('profile'):
             profile = json.loads(Path(material('profile')).read_bytes())
             # Current production decoder receipts carry the selected profile.
@@ -101,9 +105,13 @@ class PreparedSource:
         self.config, self.region, self.stack = config, selected_region, stack
         self.adapter = None
 
+    def prepare(self):
+        if self.adapter is None:
+            self.adapter = self.stack.enter_context(source(self.config, self.region))
+            self.stack.enter_context(hide_storage_environment(self.config, self.region))
+
     def snapshot(self, previous=None):
-        self.adapter = self.stack.enter_context(source(self.config, self.region))
-        self.stack.enter_context(hide_storage_environment(self.config, self.region))
+        self.prepare()
         return self.adapter.snapshot(previous=previous)
 
     def fetch(self, row, target):

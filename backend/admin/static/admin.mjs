@@ -1,5 +1,6 @@
 import {chart} from './charts.mjs';
 import {noticeManager} from './notices.mjs';
+import {request} from './request.mjs';
 const $ = id => document.getElementById(id);
 const number = value => value == null ? '—' : new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1}).format(value);
 const bytes = value => value == null ? '—' : value < 1e6 ? `${number(value / 1e3)} KB` : value < 1e9 ? `${number(value / 1e6)} MB` : `${number(value / 1e9)} GB`;
@@ -30,9 +31,7 @@ function rows(container, items, title='尚无记录', detail='开始采集后会
   }));
 }
 async function api(path,options={}) {
-  const response=await fetch(path,{...options,cache:'no-store',signal:AbortSignal.timeout(12000)});
-  if(!response.ok) throw new Error(response.status===401?'认证已失效，请重新登录管理入口。':response.status===403?'当前入口不允许执行此操作。':response.status===409?'数据已变更或存在请求冲突，请刷新后核对。':response.status===400?'请求参数无效，请检查输入。':'请求未完成，请检查节点状态。');
-  return response.json();
+  return request(path,options);
 }
 function status(message,error=false){$('health').textContent=message;$('health').parentElement.classList.toggle('error',error);}
 function siteId(){return $('site').value;}

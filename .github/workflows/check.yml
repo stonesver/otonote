@@ -77,8 +77,10 @@ jobs:
       - name: Isolated official update archive gates
         run: |
           python3 -m pip install -r backend/update_archive/requirements.txt PyYAML==6.0.2
+          ffmpeg -version
           python3 -m unittest discover -s tests -p '*archive*.py' -q
           node --check backend/admin/static/archive.mjs
+          node --test site/tests/admin-request.test.mjs
       - name: Changed media compilation gates
         run: |
           python3 -m pip install Pillow==11.3.0

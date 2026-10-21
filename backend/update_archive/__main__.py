@@ -13,6 +13,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--config')
     parser.add_argument('--region', required=True, choices=('global', 'jp'))
+    parser.add_argument('--previews-only', action='store_true')
     args = parser.parse_args(argv)
     try:
         config = load_config(args.config) if args.config else {'schemaVersion': 1, 'enabled': False}
@@ -23,14 +24,14 @@ def main(argv=None):
         signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError()))
         signal.alarm(1200)
         from .runtime import PreparedSource
-        from .previews import generate, bind_context
+        from .previews import generate
         repo = repository(config)
         with contextlib.ExitStack() as stack:
             adapter = PreparedSource(config, args.region, stack)
             def preview(repository, entry, *, clock, max_output_bytes):
-                bind_context(repository, entry, getattr(adapter, 'context', {}), clock=clock)
-                generate(repository, entry, clock=clock, max_output_bytes=max_output_bytes)
-            result = run_once(repo, adapter, previewer=preview)
+                generate(repository, entry, context=getattr(adapter, 'context', {}),
+                         clock=clock, max_output_bytes=max_output_bytes)
+            result = run_once(repo, adapter, previewer=preview, previews_only=args.previews_only)
         print(json.dumps(result, sort_keys=True))
         return 1 if result['status'] == 'failed' else 0
     except (ArchiveError, OSError, ValueError, KeyError, TypeError, RuntimeError):

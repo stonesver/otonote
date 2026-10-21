@@ -59,7 +59,7 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
 
     @app.get('/assets/{name}')
     def asset(name: str):
-        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'archive.mjs', 'notices.mjs', 'notice-controls.mjs'}:
+        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'archive.mjs', 'notices.mjs', 'notice-controls.mjs', 'request.mjs'}:
             raise HTTPException(404)
         return FileResponse(STATIC / name, media_type='text/javascript' if name.endswith('mjs') else 'text/css')
 

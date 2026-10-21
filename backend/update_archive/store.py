@@ -265,6 +265,9 @@ class ArchiveRepository:
     def summary(self, *, now=None):
         now = self.clock() if now is None else now
         state, _ = self.state()
+        return self.summary_from_state(state)
+
+    def summary_from_state(self, state):
         return {'status': 'ready', 'revision': state['revision'], 'capacityBytes': self.capacity,
                 'storedBytes': self.used(state), 'controlReservedBytes': CONTROL_RESERVE,
                 'usedBytes': self.used(state) + CONTROL_RESERVE, 'windowSeconds': None, 'retention': 'capacity_fifo',

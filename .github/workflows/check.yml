@@ -81,7 +81,7 @@ jobs:
           python3 -m unittest discover -s tests -p '*archive*.py' -q
           node --check backend/admin/static/archive.mjs
           node --check backend/update_archive/local_static/app.js
-          node --test site/tests/admin-request.test.mjs
+          node --test site/tests/admin-request.test.mjs site/tests/admin-navigation.test.mjs
       - name: Changed media compilation gates
         run: |
           python3 -m pip install Pillow==11.3.0

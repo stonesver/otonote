@@ -33,6 +33,7 @@ class Library:
                 CREATE TABLE IF NOT EXISTS groups(id TEXT PRIMARY KEY, body TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS objects(sha TEXT PRIMARY KEY, size INTEGER NOT NULL, received REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS analysis(id TEXT PRIMARY KEY, body TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS analysis_jobs(id TEXT PRIMARY KEY, body TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
             ''')
 
@@ -164,51 +165,151 @@ class Library:
                           key=lambda e: (e['observedAt'], e['id']), reverse=True)
         return {'entry': entry, 'original': original,
                 'localAvailable': bool(original and self.has(original.get('sha256'))),
-                'versions': versions, 'analysis': json.loads(row[0]) if row else None}
+                'versions': versions, 'analysis': json.loads(row[0]) if row else None,
+                'analysisJob': self.analysis_records()[1].get(original['id'] if original else eid)}
 
-    def analyze(self, eid):
+    def analysis_records(self):
+        with self.connect() as db:
+            reports = {r[0]: json.loads(r[1]) for r in db.execute('SELECT id, body FROM analysis')}
+            jobs = {r[0]: json.loads(r[1]) for r in db.execute('SELECT id, body FROM analysis_jobs')}
+        return reports, jobs
+
+    def preview_report(self, eid):
+        # Thumbnail requests read only their version chain, not the entire index.
+        chain, current = {}, eid
+        with self.connect() as db:
+            while current and current not in chain:
+                row = db.execute('SELECT body FROM entries WHERE id=?', (current,)).fetchone()
+                if not row:
+                    break
+                entry = json.loads(row[0]); chain[current] = entry
+                if entry.get('sha256') or entry.get('change') not in ('removed', 'metadata_changed'):
+                    break
+                current = entry.get('previousEntryId')
+            if eid not in chain:
+                raise ArchiveError('entry_not_found')
+            original = content_entry(chain, chain[eid])
+            row = db.execute('SELECT body FROM analysis WHERE id=?',
+                             (original['id'] if original else eid,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    @staticmethod
+    def analysis_status(report, job):
+        if job:
+            return job['status']
+        if report:
+            return 'complete' if report.get('inventoryComplete') and not report.get('previewError') else 'partial'
+        return 'pending'
+
+    def analysis_signature(self, entry):
+        materials = entry.get('previews', {})
+        return identity([entry.get('sha256'), [(role, item.get('sha256'), self.has(item.get('sha256')))
+                         for role, item in sorted(materials.items()) if role.startswith('context_')]])
+
+    def save_analysis_job(self, eid, body):
+        with self.connect() as db:
+            db.execute('INSERT OR REPLACE INTO analysis_jobs VALUES (?,?)', (eid, json.dumps(body)))
+
+    def analysis_due(self, entry, report, job, now):
+        if not job:
+            return not report or self.analysis_status(report, None) != 'complete'
+        if job.get('signature') != self.analysis_signature(entry):
+            return True
+        # A running record with no writer lock means its process was interrupted.
+        return job['status'] == 'running' or (job['status'] == 'failed' and now >= job.get('retryAt', 0))
+
+    def analyze_pending(self, max_seconds=600):
+        deadline = time.monotonic() + max_seconds
+        result = {'complete': 0, 'partial': 0, 'failed': 0, 'deferred': 0, 'errors': []}
+        reports, jobs = self.analysis_records()
+        # One snapshot, one candidate per version; removal aliases share its result.
+        candidates = [e for e in self.entries().values() if e.get('sha256') and self.has(e['sha256'])
+                      and self.analysis_due(e, reports.get(e['id']), jobs.get(e['id']), time.time())]
+        candidates.sort(key=lambda e: (e['observedAt'], e['id']))
+        for i, entry in enumerate(candidates):
+            if time.monotonic() >= deadline:
+                result['deferred'] = len(candidates) - i
+                break
+            try:
+                report = self.analyze(entry['id'], only_pending=True)
+                if report is not None:
+                    result[self.analysis_status(report, None)] += 1
+            except ArchiveError as exc:
+                if str(exc) in ('local_library_busy', 'local_disk_full'):
+                    result['deferred'] = len(candidates) - i
+                    result['errors'].append({'error': str(exc)})
+                    break
+                result['failed'] += 1
+                result['errors'].append({'entryId': entry['id'], 'error': str(exc)})
+        return result
+
+    def sync_and_analyze(self, repo):
+        result = self.sync(repo)
+        result['analysis'] = self.analyze_pending()
+        return result
+
+    def analyze(self, eid, *, only_pending=False):
         with self.writing():
             detail = self.detail(eid)
             entry = detail['original']
             if not entry or not detail['localAvailable']:
                 raise ArchiveError('historical_original_missing')
-            raw = self.object_path(entry['sha256'])
-            if file_digest(raw) != entry['sha256']:
-                raise ArchiveError('local_original_corrupt')
-            context = None
-            materials = entry.get('previews', {})
-            meta, profile = materials.get('context_metadata'), materials.get('context_profile')
-            if meta and profile and self.has(meta['sha256']) and self.has(profile['sha256']):
-                if any(file_digest(self.object_path(item['sha256'])) != item['sha256']
-                       for item in (meta, profile)):
-                    raise ArchiveError('local_context_corrupt')
-                context = json.loads(self.object_path(profile['sha256']).read_bytes())
-                context['metadata'] = str(self.object_path(meta['sha256']))
-            # Each completed analysis is immutable. Parser failure cannot erase a
-            # previous useful result; raw bytes are never rewritten by analysis.
-            with tempfile.TemporaryDirectory(dir=self.root / 'analysis', prefix='work-') as folder:
-                work = Path(folder); output = work / 'output'; output.mkdir()
-                config = work / 'context.json'; config.write_bytes(canonical(context))
-                command = [sys.executable, '-m', 'backend.update_archive.local_analysis',
-                           '--input', str(raw), '--output', str(output), '--name', entry['key'],
-                           '--context', str(config)]
-                env = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'TMPDIR',
-                       'OURNOTES_CRI_KEY', 'OURNOTES_MASTER_SALT_HEX', 'OURNOTES_MASTER_KEY_HEX',
-                       'OURNOTES_MASTER_IV_HEX', 'PYTHONPYCACHEPREFIX')}
-                try:
-                    done = subprocess.run(command, env=env, capture_output=True, timeout=300)
-                    if done.returncode:
-                        raise ArchiveError('local_analysis_failed')
-                    report = json.loads((output / 'report.json').read_bytes())
-                    generation = identity([entry['id'], time.time_ns()])
-                    os.replace(output, self.root / 'analysis' / generation)
-                    report.update(directory=generation, entryId=entry['id'])
-                    with self.connect() as db:
-                        db.execute('INSERT OR REPLACE INTO analysis VALUES (?,?)',
-                                   (entry['id'], json.dumps(report)))
-                    return report
-                except subprocess.TimeoutExpired:
-                    raise ArchiveError('local_analysis_timeout') from None
+            reports, jobs = self.analysis_records()
+            if only_pending and not self.analysis_due(entry, reports.get(entry['id']), jobs.get(entry['id']), time.time()):
+                return None
+            job = {'status': 'running', 'signature': self.analysis_signature(entry), 'updatedAt': time.time()}
+            self.save_analysis_job(entry['id'], job)
+            try:
+                report = self._analyze_original(entry)
+            except Exception as exc:
+                error = str(exc) if isinstance(exc, ArchiveError) else 'local_analysis_failed'
+                if isinstance(exc, OSError) and exc.errno in (errno.ENOSPC, errno.EDQUOT):
+                    error = 'local_disk_full'
+                self.save_analysis_job(entry['id'], {**job, 'status': 'failed', 'error': error,
+                                       'updatedAt': time.time(), 'retryAt': time.time() + 3600})
+                raise ArchiveError(error) from None
+            self.save_analysis_job(entry['id'], {**job, 'status': self.analysis_status(report, None),
+                                   'updatedAt': time.time()})
+            return report
+
+    def _analyze_original(self, entry):
+        raw = self.object_path(entry['sha256'])
+        if file_digest(raw) != entry['sha256']:
+            raise ArchiveError('local_original_corrupt')
+        context = None
+        materials = entry.get('previews', {})
+        meta, profile = materials.get('context_metadata'), materials.get('context_profile')
+        if meta and profile and self.has(meta['sha256']) and self.has(profile['sha256']):
+            if any(file_digest(self.object_path(item['sha256'])) != item['sha256']
+                   for item in (meta, profile)):
+                raise ArchiveError('local_context_corrupt')
+            context = json.loads(self.object_path(profile['sha256']).read_bytes())
+            context['metadata'] = str(self.object_path(meta['sha256']))
+        # Each completed analysis is immutable. Parser failure cannot erase a
+        # previous useful result; raw bytes are never rewritten by analysis.
+        with tempfile.TemporaryDirectory(dir=self.root / 'analysis', prefix='work-') as folder:
+            work = Path(folder); output = work / 'output'; output.mkdir()
+            config = work / 'context.json'; config.write_bytes(canonical(context))
+            command = [sys.executable, '-m', 'backend.update_archive.local_analysis',
+                       '--input', str(raw), '--output', str(output), '--name', entry['key'],
+                       '--context', str(config)]
+            env = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'TMPDIR',
+                   'OURNOTES_CRI_KEY', 'OURNOTES_MASTER_SALT_HEX', 'OURNOTES_MASTER_KEY_HEX',
+                   'OURNOTES_MASTER_IV_HEX', 'PYTHONPYCACHEPREFIX')}
+            try:
+                done = subprocess.run(command, env=env, capture_output=True, timeout=300)
+                if done.returncode:
+                    raise ArchiveError('local_analysis_failed')
+                report = json.loads((output / 'report.json').read_bytes())
+                generation = identity([entry['id'], time.time_ns()])
+                os.replace(output, self.root / 'analysis' / generation)
+                report.update(directory=generation, entryId=entry['id'])
+                with self.connect() as db:
+                    db.execute('INSERT OR REPLACE INTO analysis VALUES (?,?)',
+                               (entry['id'], json.dumps(report)))
+                return report
+            except subprocess.TimeoutExpired:
+                raise ArchiveError('local_analysis_timeout') from None
 
 
 def main():
@@ -224,7 +325,7 @@ def main():
         repo = repository(load_config(args.config))
         if repo is None:
             raise ArchiveError('archive_disabled')
-        result = library.sync(repo)
+        result = library.sync_and_analyze(repo)
     elif args.command == 'analyze':
         result = library.analyze(args.entry)
     else:

@@ -6,7 +6,8 @@ const number = value => value == null ? '—' : new Intl.NumberFormat('zh-CN', {
 const bytes = value => value == null ? '—' : value < 1e6 ? `${number(value / 1e3)} KB` : value < 1e9 ? `${number(value / 1e6)} MB` : `${number(value / 1e9)} GB`;
 const time = value => value ? new Date(value * 1000).toLocaleTimeString('zh-CN', {hour12:false}) : '尚无数据';
 const words = {page:'页面',image:'图片',audio:'音频',video:'视频',live2d:'Live2D',static:'脚本与样式',data:'数据',download:'文件',other:'其他',queued:'等待执行',running:'正在执行',succeeded:'已完成',failed:'失败',interrupted:'已中断',passed:'已完成',not_run:'尚未运行',unknown:'状态未知',unavailable:'不可用',success:'生成成功',cancelled:'已取消'};
-let config, currentView = 'overview', generation = 0, loadData = [], inFlight = false;
+let config, currentView = 'overview', generation = 0, loadData = [];
+const inFlight = new Map();
 
 function el(tag, text, className) {
   const node = document.createElement(tag);
@@ -35,7 +36,7 @@ async function api(path,options={}) {
 }
 function status(message,error=false){$('health').textContent=message;$('health').parentElement.classList.toggle('error',error);}
 function siteId(){return $('site').value;}
-const notices = noticeManager({api,status,siteId});
+const notices = noticeManager({api,status:(...args)=>{if(currentView==='notices')status(...args);},siteId});
 function summaryWindow(){return $('window').value==='date'?'date:'+$('summary-date').value:$('window').value;}
 function loadQuery(){const value=$('load-window').value;return /^\d+$/.test(value)?`seconds=${value}`:`window=${encodeURIComponent(value==='date'?'date:'+$('load-date').value:value)}`;}
 function renderSummary(result) {
@@ -254,18 +255,29 @@ async function refreshGrowth(gen=generation){
   status('登录诊断已更新');
   $('updated').textContent=`快照 ${new Date(d.generatedAt).toLocaleString('zh-CN',{hour12:false})} · 首条 ${d.firstRequest?new Date(d.firstRequest).toLocaleString('zh-CN',{hour12:false}):'无'} · 末条 ${d.lastRequest?new Date(d.lastRequest).toLocaleString('zh-CN',{hour12:false}):'无'}`;
 }
-async function refresh(){
-  if(!config||(!siteId()&&!['archive','settings'].includes(currentView))||inFlight)return;inFlight=true;$('refresh').disabled=true;const gen=generation;
+async function refresh(forceArchive=false){
+  const view=currentView;
+  if(!config||(!siteId()&&!['archive','settings'].includes(view)))return;
+  if(inFlight.has(view)){$('refresh').disabled=true;return;}
+  const gen=generation;inFlight.set(view,gen);$('refresh').disabled=true;
   try{
-    if(currentView==='overview'){const result=await api(`/api/summary/${encodeURIComponent(siteId())}?window=${encodeURIComponent($('window').value==='date'?'date:'+$('summary-date').value:$('window').value)}`);if(gen===generation)renderSummary(result);}
-    else if(currentView==='load')await refreshLoads(gen);
-    else if(currentView==='growth')await refreshGrowth(gen);
-    else if(currentView==='tasks')await refreshNodes(gen);
-    else if(currentView==='archive'){const {mount}=await import('./archive.mjs');await mount($('archive-root'),api);status('归档只读取已保存结果 · 官方检测仍按每日三个既有时点运行');}
-    else if(currentView==='notices')await notices.load();
+    if(view==='overview'){const result=await api(`/api/summary/${encodeURIComponent(siteId())}?window=${encodeURIComponent($('window').value==='date'?'date:'+$('summary-date').value:$('window').value)}`);if(gen===generation)renderSummary(result);}
+    else if(view==='load')await refreshLoads(gen);
+    else if(view==='growth')await refreshGrowth(gen);
+    else if(view==='tasks')await refreshNodes(gen);
+    else if(view==='archive'){
+      const {mount}=await import('./archive.mjs');await mount($('archive-root'),api,{force:forceArchive});
+      if(gen===generation)status('归档只读取已保存结果 · 官方检测仍按每日三个既有时点运行');
+    }
+    else if(view==='notices')await notices.load();
     else{settings();status('配置仅在后端维护 · 页面不显示密钥');}
-  }catch(error){status(error.message,true);}finally{inFlight=false;$('refresh').disabled=false;if(gen!==generation)queueMicrotask(refresh);}
+  }catch(error){if(gen===generation)status(error.message,true);}
+  finally{
+    inFlight.delete(view);
+    if(currentView===view){$('refresh').disabled=false;if(gen!==generation)queueMicrotask(()=>refresh());}
+  }
 }
+
 function navigate(){
   const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings','archive','notices'].includes(key)?key:'overview';generation++;
   const titles={archive:['官方更新档案','自动保存新资源，按活动分组；大版本和超大单元可手动补存。'],overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
@@ -273,9 +285,9 @@ function navigate(){
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==`view-${currentView}`;
   for(const a of document.querySelectorAll('[data-view]')){if(a.dataset.view===currentView)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
   status('正在读取对应数据…');$('updated').textContent='等待更新';
-  $('title').textContent=titles[currentView][0];$('subtitle').textContent=titles[currentView][1];$('breadcrumb').textContent='网站运行 / '+titles[currentView][0];refresh();
+  $('title').textContent=titles[currentView][0];$('subtitle').textContent=titles[currentView][1];$('breadcrumb').textContent='网站运行 / '+titles[currentView][0];$('refresh').disabled=inFlight.has(currentView);refresh();
 }
-$('refresh').addEventListener('click',async()=>{if(currentView==='archive'){const {mount}=await import('./archive.mjs');await mount($('archive-root'),api,{force:true});}else await refresh();});for(const id of ['site','window','load-window','summary-date','load-date'])$(id).addEventListener('change',()=>{$('summary-date').hidden=$('window').value!=='date';$('load-date').hidden=$('load-window').value!=='date';generation++;refresh();});
+$('refresh').addEventListener('click',()=>refresh(true));for(const id of ['site','window','load-window','summary-date','load-date'])$(id).addEventListener('change',()=>{$('summary-date').hidden=$('window').value!=='date';$('load-date').hidden=$('load-window').value!=='date';generation++;refresh();});
 $('load-source').addEventListener('change',renderLoads);addEventListener('hashchange',navigate);
 const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});for(const id of ['summary-date','load-date']){$(id).value=today;$(id).max=today;$(id).min=new Date(Date.now()-29*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});}
 try{config=await api('/api/config');$('preview').hidden=!config.preview;$('site').replaceChildren(...config.sites.map(s=>new Option(s.name||s.id,s.id)));navigate();if(!config.sites.length&&currentView!=='archive')status('尚未配置站点');}

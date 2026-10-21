@@ -34,7 +34,7 @@ async function detail(entry){
 }
 async function reload(){
  if(busy){pendingReload=true;return;}busy=true;
- try{summary=await get('/summary');last=Date.now();if(summary.status==='disabled'){root.replaceChildren(el('div','官方更新档案尚未启用。既有网站定时更新照常运行。','notice'));initialized=false;return;}
+ try{summary=await get('/summary');if(summary.status==='disabled'){root.replaceChildren(el('div','官方更新档案尚未启用。既有网站定时更新照常运行。','notice'));initialized=false;return;}
  if(!initialized){build();initialized=true;}
  root.querySelector('[data-capacity]').textContent=`R2 暂存：${bytes(summary.storedBytes)} · 控制预留 ${bytes(summary.controlReservedBytes)} · 总额度 ${bytes(summary.capacityBytes)} · 按容量 FIFO · 不等待本地接收`;
  const checks=summary.checks.slice(-6).reverse();root.querySelector('[data-checks]').textContent=checks.length?checks.map(c=>`${c.region.toUpperCase()} ${date(c.finishedAt)} · ${c.status}${c.error?' · '+c.error:''}`).join('； '):'尚无检查记录。';
@@ -47,7 +47,7 @@ async function reload(){
  const batchSelect=root.querySelector('[data-batch]'),groupSelect=root.querySelector('[data-group]');batchSelect.replaceChildren(new Option('全部批次',''),...b.batches.map(x=>new Option(`${date(x.observedAt)} · ${x.source}`,x.id)));batchSelect.value=batch;
  groupSelect.replaceChildren(new Option('全部活动分组',''),...b.groups.filter(g=>g.region===region).map(g=>new Option(g.name,g.id)));groupSelect.value=group;
  root.querySelector('[data-mode]').value=summary.regions[region].mode;
- await history();
+ await history();last=Date.now();
  }finally{busy=false;if(pendingReload){pendingReload=false;await reload();}}
 }
 function build(){

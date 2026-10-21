@@ -19,6 +19,33 @@ class AdminArchiveTests(unittest.TestCase):
             self.assertEqual(client.get('/api/archive/summary').json()['status'], 'disabled')
             self.assertEqual(client.get('/api/config').status_code, 200)
 
+    def test_metadata_routes_share_one_snapshot_and_batches_omit_member_ids(self):
+        eid = self.repo.add('global', 'note.txt', b'hello', observed_at=1, now=1)
+        self.repo.mutate(lambda s: s['batches'].update({'batch': {
+            'id': 'batch', 'region': 'global', 'source': 'remote_asset', 'observedAt': 1,
+            'entries': [eid] * 10000, 'group': None}}))
+        with TestClient(create_admin(self.config, archive_repo=self.repo), base_url=self.config['origin']) as client:
+            with patch.object(self.repo, 'state', wraps=self.repo.state) as read:
+                for path in ('summary', 'entries', 'requests', 'entries/'+eid, 'history/'+eid):
+                    self.assertEqual(client.get('/api/archive/'+path).status_code, 200)
+                batches = client.get('/api/archive/batches').json()['batches']
+                self.assertEqual(read.call_count, 1)
+            self.assertNotIn('entries', batches[0])
+            self.assertEqual(batches[0]['entryCount'], 10000)
+
+    def test_write_invalidates_snapshot_and_conflicts_use_live_revision(self):
+        with self.writer() as client:
+            summary = client.get('/api/archive/summary').json()
+            self.repo.mutate(lambda s: s['modes'].update(global_='manual'))
+            response = client.post('/api/archive/mode', json={
+                'region': 'global', 'mode': 'manual', 'revision': summary['revision']})
+            self.assertEqual(response.status_code, 409)
+            fresh = client.get('/api/archive/summary').json()
+            self.assertGreater(fresh['revision'], summary['revision'])
+            self.assertEqual(client.post('/api/archive/mode', json={
+                'region': 'global', 'mode': 'record', 'revision': fresh['revision']}).status_code, 200)
+            self.assertEqual(client.get('/api/archive/summary').json()['regions']['global']['mode'], 'record')
+
     def test_authenticated_preview_reads_archives_but_cannot_queue_cleanup(self):
         import time
         now = time.time()
@@ -141,3 +168,42 @@ class AdminArchiveTests(unittest.TestCase):
                 self.assertEqual(client.get('/api/config').status_code, 200)
                 self.assertEqual(client.get('/assets/admin.mjs').status_code, 200)
                 self.assertIn(client.get('/api/archive/summary').status_code, (200,503))
+
+
+class ArchiveSnapshotTests(unittest.TestCase):
+    def test_expiration_invalidation_and_failures_never_serve_expired_state(self):
+        from backend.admin.archive_cache import ArchiveSnapshot
+        from unittest.mock import Mock
+        now = [0]
+        read = Mock(side_effect=[{'revision': 1, 'baselines': {'large': True}},
+                                 {'revision': 2}, OSError('offline'), {'revision': 3}])
+        cache = ArchiveSnapshot(read, ttl=30, clock=lambda: now[0])
+        self.assertNotIn('baselines', cache.get())
+        now[0] = 29
+        self.assertEqual(cache.get()['revision'], 1)
+        self.assertEqual(read.call_count, 1)
+        now[0] = 30
+        self.assertEqual(cache.get()['revision'], 2)
+        cache.invalidate()
+        with self.assertRaises(OSError):
+            cache.get()
+        self.assertEqual(cache.get()['revision'], 3)
+
+    def test_concurrent_cold_reads_fetch_only_once(self):
+        from backend.admin.archive_cache import ArchiveSnapshot
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        started, finish = threading.Event(), threading.Event()
+        calls = []
+        def read():
+            calls.append(1); started.set()
+            self.assertTrue(finish.wait(2))
+            return {'revision': 1}
+        cache = ArchiveSnapshot(read)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            first = pool.submit(cache.get)
+            self.assertTrue(started.wait(2))
+            others = [pool.submit(cache.get) for _ in range(3)]
+            finish.set()
+            self.assertTrue(all(f.result()['revision'] == 1 for f in [first, *others]))
+        self.assertEqual(len(calls), 1)

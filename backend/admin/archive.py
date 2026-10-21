@@ -16,14 +16,16 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from .collector import small_json
+from .archive_cache import ArchiveSnapshot
 from backend.update_archive.models import ArchiveError, Conflict, REGIONS
 from backend.update_archive import requests as commands
 
 
 class ArchiveAdmission:
     """Bound ledger memory across concurrent views and file responses."""
-    def __init__(self, app):
+    def __init__(self, app, invalidate=None):
         self.app = app
+        self.invalidate = invalidate
         self.slot = asyncio.Semaphore(1)
         self.media = asyncio.Semaphore(4)
 
@@ -45,12 +47,17 @@ class ArchiveAdmission:
                     finally:
                         if admitted:self.slot.release()
             async with self.slot:
-                return await self.app(scope, receive, send)
+                try:
+                    return await self.app(scope, receive, send)
+                finally:
+                    if self.invalidate and scope.get('method') not in ('GET', 'HEAD'):
+                        await run_in_threadpool(self.invalidate)
         return await self.app(scope, receive, send)
 
 
 def install(app, config, *, repo=None, preview=False):
-    app.add_middleware(ArchiveAdmission)
+    snapshot = ArchiveSnapshot(lambda: repository().state()[0])
+    app.add_middleware(ArchiveAdmission, invalidate=snapshot.invalidate)
     router = APIRouter(prefix='/api/archive')
     config = config if isinstance(config, dict) else {'schemaVersion': 1, 'enabled': False}
     cached = [repo]
@@ -90,11 +97,16 @@ def install(app, config, *, repo=None, preview=False):
                            for k, p in e.get('previews', {}).items() if k.startswith('preview_')]
         return row
 
+    def cached_entry(state, eid):
+        if eid not in state['entries']:
+            raise ArchiveError('entry_not_found')
+        return state['entries'][eid]
+
     @router.get('/summary')
     def summary():
         if cached[0] is None and (not config or not config.get('enabled', False)):
             return {'status': 'disabled', 'writable': False}
-        data = protected(lambda: repository().summary())()
+        data = protected(lambda: repository().summary_from_state(snapshot.get()))()
         data['writable'] = not preview
         return data
 
@@ -103,8 +115,10 @@ def install(app, config, *, repo=None, preview=False):
                 status: str = '', source: str = '', query: str = '', group: str = ''):
         if region not in REGIONS or offset < 0 or not 1 <= limit <= 100 or len(query) > 200:
             raise HTTPException(400, 'invalid_filter')
-        rows = protected(lambda: repository().entries(region))()
-        groups = repository().state()[0]['batches'] if group else {}
+        state = protected(snapshot.get)()
+        rows = sorted((e for e in state['entries'].values() if e['region'] == region),
+                      key=lambda e: (e['observedAt'], e['id']), reverse=True)
+        groups = state['batches'] if group else {}
         rows = [e for e in rows if (not group or groups.get(e.get('batch'), {}).get('group') == group)
                 and (not batch or e.get('batch') == batch)
                 and (not status or e['status'] == status) and (not source or e['source'] == source)
@@ -116,26 +130,29 @@ def install(app, config, *, repo=None, preview=False):
     def batches(region: str = 'global', offset: int = 0, limit: int = 50):
         if region not in REGIONS or offset < 0 or not 1 <= limit <= 100:
             raise HTTPException(400, 'invalid_filter')
-        s = protected(lambda: repository().state()[0])()
+        s = protected(snapshot.get)()
         rows = sorted((b for b in s['batches'].values() if b['region'] == region),
                       key=lambda b: b['observedAt'], reverse=True)
-        return {'batches': rows[offset:offset + limit], 'total': len(rows), 'groups': list(s['groups'].values())}
+        fields = ('id', 'region', 'source', 'sourceId', 'previousSourceId', 'observedAt', 'group')
+        return {'batches': [{**{k: b[k] for k in fields if k in b},
+                             'entryCount': len(b.get('entries', []))} for b in rows[offset:offset + limit]],
+                'total': len(rows), 'groups': list(s['groups'].values())}
 
     @router.get('/entries/{eid}')
     def detail(eid: str):
-        return protected(lambda: public_entry(repository().entry(eid)))()
+        return protected(lambda: public_entry(cached_entry(snapshot.get(), eid)))()
 
     @router.get('/history/{eid}')
     def history(eid: str):
-        r = repository()
-        e = protected(lambda: r.entry(eid))()
-        rows = protected(lambda: r.entries(e['region']))()
+        state = protected(snapshot.get)()
+        e = protected(lambda: cached_entry(state, eid))()
+        rows = sorted(state['entries'].values(), key=lambda row: (row['observedAt'], row['id']), reverse=True)
         return {'entries': [public_entry(row) for row in rows
-                            if row['source'] == e['source'] and row['key'] == e['key']]}
+                            if row['region'] == e['region'] and row['source'] == e['source'] and row['key'] == e['key']]}
 
     @router.get('/requests')
     def requests():
-        s = protected(lambda: repository().state()[0])()
+        s = protected(snapshot.get)()
         return {'requests': sorted(s['requests'].values(), key=lambda r: r['createdAt'], reverse=True)[:100],
                 'cleanup': sorted(s['cleanup'].values(), key=lambda r: r['createdAt'], reverse=True)[:100]}
 

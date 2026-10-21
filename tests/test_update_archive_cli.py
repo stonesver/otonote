@@ -41,7 +41,7 @@ class CliTests(unittest.TestCase):
             repo=ArchiveRepository(LocalBucket(root/'store'))
             e=repo.entries('global')[0]
             self.assertEqual(repo.content(e['id']),b'new.txt')
-            self.assertEqual(e['previewStatus'],'ready')
+            self.assertNotIn('previewStatus', e)  # Normal cloud runs only capture originals.
 
     def test_storage_credentials_are_absent_from_source_and_parser_children(self):
         from unittest.mock import patch

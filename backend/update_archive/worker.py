@@ -6,9 +6,10 @@ import time
 import uuid
 
 from .diff import compare, inventory
-from .models import ArchiveError, Conflict, WINDOW, file_record, identity, region
+from .models import ArchiveError, Conflict, file_record, identity, region
 from .policy import TRANSFER_LIMIT, decisions
 from .store import file_digest
+from .history import prior_entry
 
 
 def observe(repo, snapshot, *, now, mode):
@@ -23,6 +24,9 @@ def observe(repo, snapshot, *, now, mode):
                         'catalogHash', 'catalogSha256', 'masterManifestSha256', 'clientNotice', 'cdnRoot') if k in observation}
     def commit(s):
         made = []
+        histories = {}
+        for e in s['entries'].values():
+            histories.setdefault((e['region'], e['source'], e['key']), {})[e['id']] = e
         for source in sources:
             current = sorted((r for r in rows if r['source'] == source), key=lambda r: r['key'])
             baseline_key = selected + ':' + source
@@ -33,29 +37,41 @@ def observe(repo, snapshot, *, now, mode):
                 continue
             s['baselines'][baseline_key] = {'id': source_id, 'files': current,
                                           'observation': safe_observation, 'observedAt': now}
-            if old is None:
-                continue  # Bootstrap is a baseline, never an unsolicited full download.
-            changes = compare(current, old['files'])
+            changes = compare(current, old['files'] if old else [])
             if not changes:
                 continue
-            batch_id = identity([selected, source, old['id'], source_id])
+            batch_id = identity([selected, source, old['id'] if old else None, source_id, now])
             if batch_id in s['batches']:
                 continue
             states = decisions(changes, mode=mode,
-                old_client=old['observation'].get('clientVersion'),
+                old_client=old['observation'].get('clientVersion') if old else None,
                 new_client=safe_observation.get('clientVersion'),
                 hard_limit=snapshot.get('fileLimit', 256 * 1024 ** 2))
             ids = []
             for row in changes:
                 eid = identity([batch_id, row['source'], row['key']])
+                previous_id = prior_entry(histories.get((selected, source, row['key']), {}),
+                                          selected, source, row['key'], row.get('previous'))
+                if row.get('previous') and previous_id is None:
+                    # A pre-v2 baseline had no entry. Preserve its last-known
+                    # version as an explicit uncaptured historical record.
+                    previous_id = identity(['baseline', selected, source, old['id'], row['key']])
+                    s['entries'].setdefault(previous_id, {
+                        'id': previous_id, 'region': selected, 'source': source, 'key': row['key'],
+                        'file': row['previous'], 'change': 'baseline', 'baseline': True,
+                        'size': row['previous']['size'], 'observedAt': old['observedAt'],
+                        'status': 'waiting_manual', 'objects': [], 'attempts': 0,
+                        'previousEntryId': None})
                 s['entries'].setdefault(eid, {'id': eid, 'region': selected, 'batch': batch_id,
                     'source': source, 'key': row['key'], 'file': row, 'change': row['change'],
-                    'size': row['size'], 'observedAt': now, 'expiresAt': now + WINDOW,
-                    'status': states[(source, row['key'])], 'objects': [], 'attempts': 0})
+                    'size': row['size'], 'observedAt': now,
+                    'previousEntryId': previous_id,
+                    'status': states[(source, row['key'])] if old else 'waiting_manual',
+                    'baseline': old is None, 'objects': [], 'attempts': 0})
                 ids.append(eid)
             group = next((g['id'] for g in s['groups'].values() if g['region'] == selected and g.get('active')), None)
             s['batches'][batch_id] = {'id': batch_id, 'region': selected, 'source': source,
-                'sourceId': source_id, 'previousSourceId': old['id'], 'observedAt': now,
+                'sourceId': source_id, 'previousSourceId': old['id'] if old else None, 'observedAt': now,
                 'observation': safe_observation, 'entries': ids, 'group': group}
             made.append(batch_id)
         return made
@@ -122,8 +138,8 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
                             break
                         approvals = approved_entries(repo, selected, now=now)
                         approved = e['id'] in approvals
-                        if (e['expiresAt'] <= now or e['status'] in ('saved', 'removed', 'metadata_only', 'expired')
-                                or e['status'] in ('evicted_fifo', 'cleaned_manual') and not approved):
+                        if (e['status'] in ('saved', 'removed', 'metadata_only')
+                                or e['status'] in ('evicted_fifo', 'cleaned_manual', 'expired') and not approved):
                             continue
                         if not approved and (current_mode != 'auto' or e['status'] == 'waiting_manual'
                                              or e.get('attempts', 0) >= 3):
@@ -187,6 +203,19 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
                             repo.mutate(failed)
                             result['failed'] += 1
                 finish_requests(repo, selected, now=clock())
+            # Independently retry version-matched context capture for saved
+            # originals; a context failure never changes raw capture status.
+            from .context import capture_context
+            for e in repo.entries(selected, now=clock()):
+                if clock() - started >= max_seconds - 95:
+                    break
+                if e['status'] != 'saved' or e.get('decoderContext'):
+                    continue
+                try:
+                    result['budgetBytes'] += capture_context(repo, e['id'], getattr(source, 'context', {}),
+                        now=clock(), budget=max_bytes - result['budgetBytes'])
+                except (ArchiveError, OSError):
+                    result['contextPending'] = result.get('contextPending', 0) + 1
             if previewer:
                 preview_started = clock()
                 preview_bytes = 0

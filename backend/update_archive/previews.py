@@ -184,7 +184,7 @@ def generate(repo, entry, *, clock=time.time, context=None, max_output_bytes=PRE
             raw = root / ('raw' + Path(entry['key']).suffix)
             state, _ = repo.state()
             live = state['entries'].get(entry['id'])
-            if not live or live['status'] != 'saved' or live['expiresAt'] <= clock():
+            if not live or live['status'] != 'saved':
                 raise ArchiveError('entry_changed')
             version = state['batches'].get(live.get('batch'), {}).get('observation', {}).get('clientVersion')
             if context and context.get('clientVersion') != version:

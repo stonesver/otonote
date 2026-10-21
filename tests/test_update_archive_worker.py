@@ -69,7 +69,7 @@ class WorkerTests(unittest.TestCase):
             result = run_once(repo, source, clock=lambda: 102)
             self.assertEqual(result['saved'], 1)
 
-    def test_cleaned_files_need_explicit_request_and_original_expiry_is_fixed(self):
+    def test_cleaned_files_need_explicit_request_and_have_no_expiry(self):
         from backend.update_archive.requests import queue_save
         from backend.update_archive.models import WINDOW
         with tempfile.TemporaryDirectory() as root:
@@ -86,8 +86,9 @@ class WorkerTests(unittest.TestCase):
             run_once(repo, source, clock=lambda: 105)
             current = repo.entry(e['id'], now=105)
             self.assertEqual(current['status'], 'saved')
-            self.assertEqual(current['expiresAt'], 101 + WINDOW)
+            self.assertNotIn('expiresAt', current)
             self.assertEqual(current['firstArchivedAt'], 101)
+            self.assertEqual(current['storedAt'], 105)
 
     def test_failure_cannot_write_production_keys_or_abort_another_region(self):
         class Broken(Source):
@@ -127,6 +128,9 @@ class WorkerTests(unittest.TestCase):
             repo=ArchiveRepository(BadDelete(root),clock=lambda:100)
             source=Source();run_once(repo,source,clock=lambda:100)
             old=repo.add('jp','old',b'old',observed_at=1,now=1)
+            from backend.update_archive.requests import cleanup_plan, confirm_cleanup
+            plan = cleanup_plan(repo, [old], actor='owner', now=2)
+            confirm_cleanup(repo, plan['id'], plan['digest'], actor='owner', now=2)
             from backend.update_archive.models import WINDOW
             source.files=[{'source':'remote_asset','key':'new','size':3,'sha256':hashlib.sha256(b'new').hexdigest()}]
             result=run_once(repo,source,clock=lambda:WINDOW+2)

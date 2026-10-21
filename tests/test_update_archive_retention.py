@@ -18,15 +18,16 @@ class RetentionTests(unittest.TestCase):
             repo.add('jp', 'b', b'5678', now=104, observed_at=102)
             self.assertEqual(repo.entry(eid, now=104)['status'], 'evicted_fifo')
 
-    def test_expiration_reclaims_original_and_previews_without_losing_current_baseline(self):
+    def test_age_never_reclaims_original_or_history(self):
         with tempfile.TemporaryDirectory() as root:
             repo = ArchiveRepository(LocalBucket(root))
             eid = repo.add('global', 'a', b'abc', now=100, observed_at=100)
             repo.mutate(lambda s: s['baselines'].update({'global:remote_asset': {'id': 'baseline'}}))
-            with self.assertRaisesRegex(ArchiveError, 'entry_unavailable'):
-                repo.content(eid, now=100 + WINDOW)
+            self.assertEqual(repo.content(eid, now=100 + 1000 * WINDOW), b'abc')
             repo.expire(now=100 + WINDOW)
-            self.assertEqual(repo.summary()['storedBytes'], 0)
+            repo.compact(now=100 + 1000 * WINDOW)
+            self.assertEqual(repo.summary()['storedBytes'], 3)
+            self.assertEqual(repo.entry(eid)['status'], 'saved')
             self.assertEqual(repo.state()[0]['baselines']['global:remote_asset']['id'], 'baseline')
 
     def test_parallel_regions_never_exceed_common_capacity(self):

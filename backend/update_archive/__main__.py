@@ -31,7 +31,8 @@ def main(argv=None):
             def preview(repository, entry, *, clock, max_output_bytes):
                 generate(repository, entry, context=getattr(adapter, 'context', {}),
                          clock=clock, max_output_bytes=max_output_bytes)
-            result = run_once(repo, adapter, previewer=preview, previews_only=args.previews_only)
+            result = run_once(repo, adapter, previewer=preview if args.previews_only else None,
+                              previews_only=args.previews_only)
         print(json.dumps(result, sort_keys=True))
         return 1 if result['status'] == 'failed' else 0
     except (ArchiveError, OSError, ValueError, KeyError, TypeError, RuntimeError):

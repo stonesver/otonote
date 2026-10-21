@@ -20,7 +20,7 @@ import uuid
 import zlib
 
 from .models import (ArchiveError, Conflict, CAPACITY, CONTROL_RESERVE, MAX_CONTROL, MAX_EXPANDED_CONTROL,
-                     WINDOW, canonical, digest, identity, region, safe_name, timestamp)
+                     canonical, digest, identity, region, safe_name, timestamp)
 
 PREFIX = 'update-archive/v1/'
 LEDGER = 'control/ledger.json'
@@ -102,6 +102,11 @@ class LocalBucket:
     def open(self, key):
         return self.path(key).open('rb')
 
+    def open_at(self, key, offset):
+        stream = self.open(key)
+        stream.seek(offset)
+        return stream
+
     def exists(self, key):
         return self.path(key).exists()
 
@@ -167,6 +172,13 @@ class S3Bucket:
         except Exception:
             raise ArchiveError('archive_read_failed') from None
 
+    def open_at(self, key, offset):
+        try:
+            args = {'Range': f'bytes={offset}-'} if offset else {}
+            return self.client.get_object(Bucket=self.bucket, Key=self.name(key), **args)['Body']
+        except Exception:
+            raise ArchiveError('archive_read_failed') from None
+
     def exists(self, key):
         try:
             self.client.head_object(Bucket=self.bucket, Key=self.name(key))
@@ -197,7 +209,7 @@ class ArchiveRepository:
         self.bucket, self.capacity, self.clock = bucket, capacity, clock
 
     def empty(self):
-        return {'schemaVersion': 1, 'revision': 0, 'capacity': self.capacity, 'entries': {},
+        return {'schemaVersion': 2, 'revision': 0, 'capacity': self.capacity, 'entries': {},
                 'objects': {}, 'baselines': {}, 'batches': {}, 'checks': [], 'requests': {},
                 'groups': {}, 'modes': {}, 'leases': {}, 'cleanup': {}}
 
@@ -213,8 +225,10 @@ class ArchiveRepository:
         if raw is not None and len(raw) > MAX_EXPANDED_CONTROL:
             raise ArchiveError('control_too_large')
         state = json.loads(raw) if raw is not None else self.empty()
-        if state.get('schemaVersion') != 1 or state.get('capacity') != self.capacity:
+        if state.get('schemaVersion') not in (1, 2) or state.get('capacity') != self.capacity:
             raise ArchiveError('archive_state_mismatch')
+        from .history import upgrade
+        upgrade(state)
         self.control_bytes = len(item[0]) if item else 0
         return state, item[1] if item else None
 
@@ -253,16 +267,16 @@ class ArchiveRepository:
         state, _ = self.state()
         return {'status': 'ready', 'revision': state['revision'], 'capacityBytes': self.capacity,
                 'storedBytes': self.used(state), 'controlReservedBytes': CONTROL_RESERVE,
-                'usedBytes': self.used(state) + CONTROL_RESERVE, 'windowSeconds': WINDOW,
+                'usedBytes': self.used(state) + CONTROL_RESERVE, 'windowSeconds': None, 'retention': 'capacity_fifo',
                 'regions': {r: {'mode': state['modes'].get(r, 'auto'),
                     'storedBytes': sum(o['size'] for k, o in state['objects'].items() if k.startswith(r + '/')),
                     'previewReady': sum(e['region'] == r and e['status'] == 'saved' and e.get('previewStatus') == 'ready'
-                                        and e.get('previewVersion', 0) >= 2 and e['expiresAt'] > now for e in state['entries'].values()),
-                    'previewPending': sum(e['region'] == r and e['status'] == 'saved' and e['expiresAt'] > now
+                                        and e.get('previewVersion', 0) >= 2 for e in state['entries'].values()),
+                    'previewPending': sum(e['region'] == r and e['status'] == 'saved'
                                           and (e.get('previewStatus') in (None, 'deferred') or e.get('previewVersion', 0) < 2)
                                           for e in state['entries'].values()),
                     'pending': sum(e['region'] == r and e['status'] in ('pending', 'deferred_auto', 'waiting_manual', 'failed')
-                                   and e['expiresAt'] > now for e in state['entries'].values())}
+                                   for e in state['entries'].values())}
                     for r in ('global', 'jp')}, 'checks': state['checks'][-20:]}
 
     def entries(self, selected_region, *, now=None):
@@ -273,8 +287,6 @@ class ArchiveRepository:
     def visible(self, entry, now=None):
         now = self.clock() if now is None else now
         result = copy.deepcopy(entry)
-        if entry['expiresAt'] <= now and entry['status'] not in GONE:
-            result['status'] = 'expired'
         return result
 
     def entry(self, entry_id, *, now=None):
@@ -294,7 +306,7 @@ class ArchiveRepository:
         region(selected_region); safe_name(name); timestamp(observed_at); timestamp(now)
         eid = identity([selected_region, name, observed_at])
         self.register({'id': eid, 'region': selected_region, 'key': name, 'source': 'remote_asset',
-                       'observedAt': observed_at, 'expiresAt': observed_at + WINDOW,
+                       'observedAt': observed_at,
                        'status': 'pending', 'size': len(data), 'objects': [], 'attempts': 0})
         if self.entry(eid, now=now)['status'] in GONE and not restore:
             return eid
@@ -321,30 +333,34 @@ class ArchiveRepository:
             s, _ = self.state()
             if self.used(s) + size <= self.capacity - CONTROL_RESERVE:
                 return
-            leases = {v['entry'] for v in s['leases'].values() if v['until'] > now}
-            candidates = sorted((e for e in s['entries'].values() if e['status'] == 'saved'
-                                 and e['id'] not in leases and e['id'] not in exclude),
-                                key=lambda e: (e['firstArchivedAt'], e['id']))
+            # FIFO is physical-object based. All aliases of the oldest raw
+            # object are evicted together; device receipts never participate.
+            candidates = sorted(((k, o) for k, o in s['objects'].items()
+                                 if o['status'] == 'live' and o.get('role', 'raw') == 'raw'),
+                                key=lambda item: (item[1]['storedAt'], item[0]))
             if not candidates or not evict:
                 raise ArchiveError('capacity_deferred')
-            self.remove([candidates[0]['id']], reason='evicted_fifo', now=now)
+            key, oldest = candidates[0]
+            refs = oldest['refs']
+            leases = {v['entry'] for v in s['leases'].values() if v['until'] > now}
+            if set(refs).intersection((*exclude, *leases)):
+                raise ArchiveError('capacity_deferred')
+            self.remove(refs, reason='evicted_fifo', now=now)
         raise ArchiveError('cleanup_limit')
 
     def save(self, eid, path, *, now=None, restore=False, role='raw', evict=True):
-        elapsed_start = time.monotonic()
         now = self.clock() if now is None else now
         path = Path(path)
         size, sha, token = path.stat().st_size, file_digest(path), uuid.uuid4().hex
         entry = self.entry(eid, now=now)
-        if entry['expiresAt'] <= now:
-            raise ArchiveError('entry_expired')
         if entry['status'] in GONE and not restore:
             raise Conflict('entry_changed')
         # A fresh generation never reuses a deleting key: a delayed remote delete
         # therefore cannot destroy a later restoration of identical bytes.
         current_objects = self.state()[0]['objects']
         key = next((k for k, o in current_objects.items() if k.startswith(entry['region'] + '/')
-                    and o['sha256'] == sha and o['status'] == 'live'),
+                    and o['sha256'] == sha and o['status'] == 'live'
+                    and o.get('role', 'raw') == role),
                    entry['region'] + '/objects/' + sha + '-' + token)
         existing = current_objects.get(key)
         if not existing:
@@ -352,7 +368,7 @@ class ArchiveRepository:
 
         def reserve(s):
             e = s['entries'][eid]
-            if e['expiresAt'] <= now or (e['status'] in GONE and not restore):
+            if e['status'] in GONE and not restore:
                 raise Conflict('entry_changed')
             obj = s['objects'].get(key)
             if obj and obj['status'] != 'live':
@@ -361,7 +377,7 @@ class ArchiveRepository:
                 if self.used(s) + size > self.capacity - CONTROL_RESERVE:
                     raise Conflict('capacity_changed')
                 s['objects'][key] = {'size': size, 'sha256': sha, 'status': 'reserved',
-                                     'token': token, 'until': now + 1800, 'refs': [eid], 'role': role}
+                                     'token': token, 'until': now + 1800, 'refs': [eid], 'role': role, 'storedAt': now}
             elif eid not in obj['refs']:
                 obj['refs'].append(eid)
             if key not in e['objects']:
@@ -381,7 +397,7 @@ class ArchiveRepository:
 
         def finish(s):
             e, obj = s['entries'][eid], s['objects'].get(key)
-            if (not obj or e.get('saveToken') != token or e['expiresAt'] <= now + time.monotonic() - elapsed_start
+            if (not obj or e.get('saveToken') != token
                     or (e['status'] in GONE and not restore)
                     or obj['status'] not in ('live', 'reserved')):
                 raise Conflict('entry_changed')
@@ -398,6 +414,7 @@ class ArchiveRepository:
                     e.pop('previews', None); e.pop('previewStatus', None); e.pop('decoderContext', None)
                 e.update(status='saved', sha256=sha, objectKey=key, size=size)
                 e.setdefault('firstArchivedAt', now)
+                e['storedAt'] = obj['storedAt']
             else:
                 e.setdefault('previews', {})[role] = {'key': key, 'size': size, 'sha256': sha}
             return key
@@ -406,7 +423,7 @@ class ArchiveRepository:
     def save_previews(self, eid, files, *, now=None, version=2):
         """Publish one bounded extraction with two CAS operations; never evict raw."""
         now = self.clock() if now is None else now
-        started, token = time.monotonic(), uuid.uuid4().hex
+        token = uuid.uuid4().hex
         if not 1 <= len(files) <= 128:
             raise ArchiveError('invalid_preview_batch')
         rows, total = [], 0
@@ -422,7 +439,7 @@ class ArchiveRepository:
 
         def reserve(s):
             e = s['entries'].get(eid)
-            if not e or e['status'] != 'saved' or e['expiresAt'] <= now:
+            if not e or e['status'] != 'saved':
                 raise Conflict('entry_changed')
             by_sha = {o['sha256']: k for k, o in s['objects'].items()
                       if k.startswith(e['region'] + '/') and o['status'] == 'live'}
@@ -434,7 +451,7 @@ class ArchiveRepository:
                     by_sha[row['sha256']] = key
                     s['objects'][key] = {'size': row['size'], 'sha256': row['sha256'],
                         'status': 'reserved', 'token': token, 'until': now + 1800,
-                        'refs': [eid], 'role': row['role']}
+                        'refs': [eid], 'role': row['role'], 'storedAt': now}
                 obj = s['objects'][key]
                 if eid not in obj['refs']:obj['refs'].append(eid)
                 if key not in e['objects']:e['objects'].append(key)
@@ -459,8 +476,7 @@ class ArchiveRepository:
 
         def finish(s):
             e = s['entries'].get(eid)
-            if (not e or e['status'] != 'saved' or e.get('previewToken') != token
-                    or e['expiresAt'] <= now + time.monotonic() - started):
+            if not e or e['status'] != 'saved' or e.get('previewToken') != token:
                 raise Conflict('entry_changed')
             for row in planned:
                 obj = s['objects'].get(row['key'])
@@ -525,10 +541,8 @@ class ArchiveRepository:
         return released
 
     def expire(self, *, now=None, deadline=None):
-        now = self.clock() if now is None else now
-        ids = [e['id'] for e in self.state()[0]['entries'].values()
-               if e['expiresAt'] <= now and e['status'] not in GONE]
-        return self.remove(ids, reason='expired', now=now, deadline=deadline) if ids else 0
+        """Compatibility hook: capacity FIFO replaces time-based expiration."""
+        return 0
 
     def recover(self, *, now=None, deadline=None):
         """Resume marked deletes; reclaim abandoned uploads only after quiescence.
@@ -571,8 +585,7 @@ class ArchiveRepository:
                     if current != obj:
                         return
                     refs = [eid for eid in obj['refs'] if eid in s['entries']
-                            and s['entries'][eid]['status'] not in GONE
-                            and s['entries'][eid]['expiresAt'] > now]
+                            and s['entries'][eid]['status'] not in GONE]
                     if valid and refs:
                         current.update(status='live', refs=refs, signature=signature)
                         for eid in refs:
@@ -580,6 +593,7 @@ class ArchiveRepository:
                             if obj.get('role', 'raw') == 'raw':
                                 e.update(status='saved', objectKey=key, sha256=obj['sha256'], size=obj['size'])
                                 e.setdefault('firstArchivedAt', now)
+                                e['storedAt'] = obj['storedAt']
                     elif not valid:
                         del s['objects'][key]
                         for eid in obj['refs']:
@@ -595,13 +609,13 @@ class ArchiveRepository:
         def shrink(s):
             s['leases'] = {k: v for k, v in s['leases'].items() if v['until'] > now}
             s['checks'] = s['checks'][-180:]
-            s['entries'] = {k: e for k, e in s['entries'].items()
-                            if e['expiresAt'] > now or e['status'] not in GONE
-                            or any(k in s['objects'] for k in e['objects'])}
-            s['batches'] = {k: b for k, b in s['batches'].items() if b.get('observedAt', now) + WINDOW > now}
+            # History and tombstones outlive their physical R2 objects.
             for field in ('requests', 'cleanup'):
-                s[field] = {k: r for k, r in s[field].items()
-                            if r.get('createdAt', now) + WINDOW > now or r['status'] in ('queued', 'running')}
+                active = {k: r for k, r in s[field].items()
+                          if r['status'] in ('queued', 'running', 'partial')}
+                completed = sorted(((k, r) for k, r in s[field].items() if k not in active),
+                                   key=lambda item: item[1].get('createdAt', 0))[-180:]
+                s[field] = {**dict(completed), **active}
         self.mutate(shrink)
 
     @contextlib.contextmanager
@@ -610,7 +624,7 @@ class ArchiveRepository:
         token = uuid.uuid4().hex
         def lease(s):
             e = s['entries'].get(eid)
-            if not e or e['status'] != 'saved' or e['expiresAt'] <= now:
+            if not e or e['status'] != 'saved':
                 raise ArchiveError('entry_unavailable')
             obj = s['objects'].get(e['objectKey'])
             if not obj or obj['status'] != 'live':

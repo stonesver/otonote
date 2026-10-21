@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本地资源历史库</title><link rel="stylesheet" href="/app.css">
+<main><header><h1>本地资源历史库</h1><p>原件长期留存在本机。查看历史版本与移除前内容，R2 清理不影响已接收资源。</p></header>
+<form id="filters"><input id="query" placeholder="搜索资源路径" aria-label="搜索资源路径"><select id="region" aria-label="区服"><option value="">全部区服</option><option value="global">国际服</option><option value="jp">日服</option></select><label><input type="checkbox" id="removed">仅查看移除记录</label><button>查询</button></form>
+<p id="message" role="status"></p><div class="columns"><section aria-label="更新记录"><div id="entries"></div><nav id="pages"></nav></section><section id="detail" aria-label="历史详情"><p>选择一条记录，查看原件及历史版本。</p></section></div></main>
+<script src="/app.js" type="module"></script></html>

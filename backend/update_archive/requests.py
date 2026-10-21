@@ -2,7 +2,7 @@
 import copy
 import uuid
 import time
-from .models import ArchiveError, Conflict, WINDOW, identity, region
+from .models import ArchiveError, Conflict, identity, region
 from .store import GONE
 
 
@@ -10,7 +10,7 @@ def selected_entries(state, ids, now, *, limit=500):
     if not isinstance(ids, list) or not ids or len(ids) > limit or any(not isinstance(i, str) for i in ids):
         raise ArchiveError('invalid_selection')
     ids = sorted(set(ids))
-    if any(i not in state['entries'] or state['entries'][i]['expiresAt'] <= now for i in ids):
+    if any(i not in state['entries'] for i in ids):
         raise ArchiveError('selection_unavailable')
     return ids
 
@@ -70,7 +70,7 @@ def approved_entries(repo, selected_region, *, now):
             continue
         for eid in r['entries']:
             e = s['entries'].get(eid)
-            if e and e['region'] == selected_region and e['expiresAt'] > now:
+            if e and e['region'] == selected_region:
                 if e['size'] * 2 + r.get('spentBytes', 0) <= r['maxBytes']:
                     result.setdefault(eid, r['id'])
     return result
@@ -82,9 +82,9 @@ def finish_requests(repo, selected_region, *, now):
             if r['status'] not in ('queued', 'running', 'partial'):
                 continue
             entries = [s['entries'].get(eid) for eid in r['entries']]
-            if all(e and e['status'] == 'saved' and e['expiresAt'] > now for e in entries):
+            if all(e and e['status'] == 'saved' for e in entries):
                 r['status'] = 'complete'
-            elif all(not e or e['expiresAt'] <= now for e in entries):
+            elif all(not e for e in entries):
                 r['status'] = 'expired'
             elif any(e and e['status'] == 'saved' for e in entries):
                 r['status'] = 'partial'

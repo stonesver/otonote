@@ -80,7 +80,7 @@ def install(app, config, *, repo=None, preview=False):
 
     def public_entry(e):
         row = {k: copy.deepcopy(e[k]) for k in ('id', 'region', 'batch', 'source', 'key', 'change',
-            'size', 'observedAt', 'expiresAt', 'firstArchivedAt', 'status', 'sha256', 'attempts',
+            'size', 'observedAt', 'previousEntryId', 'storedAt', 'firstArchivedAt', 'status', 'sha256', 'attempts',
             'previewStatus', 'previewError', 'previewVersion', 'previewWarningCount', 'cleanupReason', 'cleanedAt', 'error') if k in e}
         file = e.get('file', {})
         row['upstream'] = {k: file[k] for k in ('hash', 'hashAlgorithm', 'sha256', 'path', 'package', 'resourceType') if k in file}
@@ -125,6 +125,14 @@ def install(app, config, *, repo=None, preview=False):
     def detail(eid: str):
         return protected(lambda: public_entry(repository().entry(eid)))()
 
+    @router.get('/history/{eid}')
+    def history(eid: str):
+        r = repository()
+        e = protected(lambda: r.entry(eid))()
+        rows = protected(lambda: r.entries(e['region']))()
+        return {'entries': [public_entry(row) for row in rows
+                            if row['source'] == e['source'] and row['key'] == e['key']]}
+
     @router.get('/requests')
     def requests():
         s = protected(lambda: repository().state()[0])()
@@ -152,8 +160,7 @@ def install(app, config, *, repo=None, preview=False):
                 if chosen_region not in REGIONS and data.get('scope') != 'all':
                     raise HTTPException(400, 'invalid_region')
                 batch_ids = {k for k, b in s['batches'].items() if b.get('group') == data.get('group')}
-                ids = [e['id'] for e in s['entries'].values() if e['expiresAt'] > time.time()
-                       and e['status'] not in ('expired', 'cleaned_manual', 'evicted_fifo')
+                ids = [e['id'] for e in s['entries'].values() if e['status'] not in ('expired', 'cleaned_manual', 'evicted_fifo')
                        and (data['scope'] == 'all' or e['region'] == chosen_region)
                        and (data['scope'] != 'batch' or e.get('batch') == data.get('batch'))
                        and (data['scope'] != 'group' or e.get('batch') in batch_ids)]
@@ -217,7 +224,7 @@ def install(app, config, *, repo=None, preview=False):
     def preview_snapshot(eid, pid):
         r = repository(); s, _ = r.state()
         e = s['entries'].get(eid)
-        if not e or e['status'] != 'saved' or e['expiresAt'] <= time.time():
+        if not e or e['status'] != 'saved':
             raise HTTPException(410, 'archive_content_unavailable')
         if not re.fullmatch(r'preview_[a-f0-9]{16}', pid) or pid not in e.get('previews', {}):
             raise HTTPException(404, 'preview_not_found')

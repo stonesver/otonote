@@ -98,7 +98,7 @@ class AdminArchiveTests(unittest.TestCase):
             self.assertEqual((response.status_code,response.content),(206,b'ell'))
             self.assertEqual(client.head('/api/archive/previews/'+eid+'/'+pid).headers['content-length'],'5')
 
-    def test_corrupt_or_expired_preview_is_not_served(self):
+    def test_corrupt_or_cleaned_preview_is_not_served(self):
         import time
         from pathlib import Path
         from backend.update_archive.previews import generate
@@ -110,7 +110,7 @@ class AdminArchiveTests(unittest.TestCase):
             self.repo.bucket.path(item['key']).write_bytes(b'wrong')
             self.assertEqual(client.get('/api/archive/text/'+eid+'/'+pid).status_code,400)
             self.assertEqual(client.get('/api/archive/previews/'+eid+'/'+pid).status_code,410)
-            self.repo.mutate(lambda s:s['entries'][eid].update(expiresAt=now-1))
+            self.repo.remove([eid], reason='cleaned_manual', now=now+1)
             self.assertEqual(client.get('/api/archive/text/'+eid+'/'+pid).status_code,410)
             self.assertEqual(client.head('/api/archive/previews/'+eid+'/'+pid).status_code,410)
 

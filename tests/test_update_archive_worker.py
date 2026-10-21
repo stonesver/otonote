@@ -20,6 +20,30 @@ class Source:
 
 
 class WorkerTests(unittest.TestCase):
+    def test_preview_only_backfills_without_source_detection_download_or_queued_cleanup(self):
+        from backend.update_archive.requests import cleanup_plan, confirm_cleanup
+        with tempfile.TemporaryDirectory() as root:
+            repo=ArchiveRepository(LocalBucket(root),clock=lambda:100)
+            source=Source();run_once(repo,source,clock=lambda:100)
+            source.files=[{'source':'remote_asset','key':'note.txt','size':8,
+                           'sha256':hashlib.sha256(b'note.txt').hexdigest()}]
+            run_once(repo,source,clock=lambda:101)
+            e=repo.entries('global',now=102)[0]
+            plan=cleanup_plan(repo,[e['id']],actor='owner',now=102)
+            confirm_cleanup(repo,plan['id'],plan['digest'],actor='owner',now=102)
+            before=repo.state()[0]['baselines']
+            source.prepare=lambda:None
+            source.snapshot=lambda **kw:(_ for _ in ()).throw(AssertionError('no source detection'))
+            source.fetch=lambda *a:(_ for _ in ()).throw(AssertionError('no original download'))
+            def preview(r,entry,**kw):
+                p=Path(root)/'preview.txt';p.write_bytes(b'view')
+                r.save_previews(entry['id'],[{'role':'preview_'+'a'*16,'path':p,'mime':'text/plain','name':'text'}],now=103)
+            result=run_once(repo,source,clock=lambda:103,previewer=preview,previews_only=True)
+            self.assertEqual(result['previewed'],1)
+            self.assertEqual(repo.state()[0]['baselines'],before)
+            self.assertEqual(repo.state()[0]['cleanup'][plan['id']]['status'],'queued')
+            self.assertEqual(repo.content(e['id'],now=103),b'note.txt')
+
     def test_new_content_is_saved_without_admin_and_unchanged_is_cheap(self):
         with tempfile.TemporaryDirectory() as root:
             repo = ArchiveRepository(LocalBucket(root), clock=lambda: 100)

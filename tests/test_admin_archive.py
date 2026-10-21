@@ -85,6 +85,55 @@ class AdminArchiveTests(unittest.TestCase):
             self.assertEqual(client.get('/api/archive/text/'+eid+'/'+pid).json()['text'], '<script>alert(1)</script>')
             self.assertEqual(client.get('/api/archive/diff/'+eid+'/'+pid+'/'+eid+'/'+pid).json()['diff'], '')
 
+    def test_viewing_existing_text_and_media_needs_no_ledger_writes(self):
+        import time
+        from pathlib import Path
+        from backend.update_archive.previews import generate
+        now=time.time();eid=self.repo.add('global','script.txt',b'hello',observed_at=now,now=now)
+        generate(self.repo,self.repo.entry(eid))
+        pid=next(k for k in self.repo.entry(eid)['previews']if k.startswith('preview_'))
+        with self.writer() as client, patch.object(self.repo,'mutate',side_effect=AssertionError('view must not write ledger')):
+            self.assertEqual(client.get('/api/archive/text/'+eid+'/'+pid).json()['text'],'hello')
+            response=client.get('/api/archive/previews/'+eid+'/'+pid,headers={'Range':'bytes=1-3'})
+            self.assertEqual((response.status_code,response.content),(206,b'ell'))
+            self.assertEqual(client.head('/api/archive/previews/'+eid+'/'+pid).headers['content-length'],'5')
+
+    def test_corrupt_or_expired_preview_is_not_served(self):
+        import time
+        from pathlib import Path
+        from backend.update_archive.previews import generate
+        now=time.time();eid=self.repo.add('global','script.txt',b'hello',observed_at=now,now=now)
+        generate(self.repo,self.repo.entry(eid))
+        entry=self.repo.entry(eid);pid=next(k for k in entry['previews']if k.startswith('preview_'))
+        item=entry['previews'][pid]
+        with self.writer() as client:
+            self.repo.bucket.path(item['key']).write_bytes(b'wrong')
+            self.assertEqual(client.get('/api/archive/text/'+eid+'/'+pid).status_code,400)
+            self.assertEqual(client.get('/api/archive/previews/'+eid+'/'+pid).status_code,410)
+            self.repo.mutate(lambda s:s['entries'][eid].update(expiresAt=now-1))
+            self.assertEqual(client.get('/api/archive/text/'+eid+'/'+pid).status_code,410)
+            self.assertEqual(client.head('/api/archive/previews/'+eid+'/'+pid).status_code,410)
+
+    def test_preview_stream_releases_metadata_admission_after_headers(self):
+        import asyncio
+        from backend.admin.archive import ArchiveAdmission
+        async def check():
+            streaming,finish,metadata=asyncio.Event(),asyncio.Event(),asyncio.Event()
+            async def app(scope,receive,send):
+                await send({'type':'http.response.start','status':200,'headers':[]})
+                if scope['path'].startswith('/api/archive/previews/'):
+                    streaming.set();await finish.wait()
+                else:metadata.set()
+                await send({'type':'http.response.body','body':b''})
+            async def noop(*args):pass
+            admission=ArchiveAdmission(app)
+            media=asyncio.create_task(admission({'type':'http','path':'/api/archive/previews/a/b'},noop,noop))
+            await asyncio.wait_for(streaming.wait(),1)
+            await asyncio.wait_for(admission({'type':'http','path':'/api/archive/summary'},noop,noop),1)
+            self.assertTrue(metadata.is_set());self.assertFalse(media.done())
+            finish.set();await media
+        asyncio.run(check())
+
     def test_broken_archive_configuration_does_not_break_old_modules(self):
         for bad in (None, [], {'schemaVersion':1,'enabled':True,'storage':None}):
             self.config['archive'] = bad

@@ -25,9 +25,25 @@ class ArchiveAdmission:
     def __init__(self, app):
         self.app = app
         self.slot = asyncio.Semaphore(1)
+        self.media = asyncio.Semaphore(4)
 
     async def __call__(self, scope, receive, send):
         if scope.get('type') == 'http' and scope.get('path', '').startswith('/api/archive/'):
+            if scope['path'].startswith('/api/archive/previews/'):
+                async with self.media:
+                    await self.slot.acquire()
+                    admitted = True
+                    async def media_send(message):
+                        nonlocal admitted
+                        # Snapshot preparation is memory heavy; the immutable
+                        # media stream is bounded and needn't hold up metadata.
+                        if message['type'] == 'http.response.start' and admitted:
+                            self.slot.release(); admitted = False
+                        await send(message)
+                    try:
+                        return await self.app(scope, receive, media_send)
+                    finally:
+                        if admitted:self.slot.release()
             async with self.slot:
                 return await self.app(scope, receive, send)
         return await self.app(scope, receive, send)
@@ -65,7 +81,7 @@ def install(app, config, *, repo=None, preview=False):
     def public_entry(e):
         row = {k: copy.deepcopy(e[k]) for k in ('id', 'region', 'batch', 'source', 'key', 'change',
             'size', 'observedAt', 'expiresAt', 'firstArchivedAt', 'status', 'sha256', 'attempts',
-            'previewStatus', 'previewError', 'cleanupReason', 'cleanedAt', 'error') if k in e}
+            'previewStatus', 'previewError', 'previewVersion', 'previewWarningCount', 'cleanupReason', 'cleanedAt', 'error') if k in e}
         file = e.get('file', {})
         row['upstream'] = {k: file[k] for k in ('hash', 'hashAlgorithm', 'sha256', 'path', 'package', 'resourceType') if k in file}
         if e.get('upstreamEtag'):
@@ -198,9 +214,24 @@ def install(app, config, *, repo=None, preview=False):
         await run_in_threadpool(protected(lambda: repository().mutate(move, revision=data.get('revision'))))
         return {'status': 'updated'}
 
+    def preview_snapshot(eid, pid):
+        r = repository(); s, _ = r.state()
+        e = s['entries'].get(eid)
+        if not e or e['status'] != 'saved' or e['expiresAt'] <= time.time():
+            raise HTTPException(410, 'archive_content_unavailable')
+        if not re.fullmatch(r'preview_[a-f0-9]{16}', pid) or pid not in e.get('previews', {}):
+            raise HTTPException(404, 'preview_not_found')
+        item = e['previews'][pid]; obj = s['objects'].get(item['key'])
+        if not obj or obj['status'] != 'live':
+            raise HTTPException(410, 'archive_content_unavailable')
+        # A bounded immutable preview is read as a committed snapshot. Unlike
+        # original downloads, viewing it never writes a lease to the big ledger.
+        return r, copy.deepcopy(e), copy.deepcopy(item), copy.deepcopy(obj['signature'])
+
     def serve(eid, request, preview_id=None):
         r = protected(repository)()
-        cm = r.reading(eid)
+        snapshot = protected(lambda: preview_snapshot(eid, preview_id))() if preview_id else None
+        cm = contextlib.nullcontext(snapshot[1]) if snapshot else r.reading(eid)
         entered = False
         try:
             e = cm.__enter__()
@@ -214,8 +245,9 @@ def install(app, config, *, repo=None, preview=False):
                 item = e['previews'][preview_id]
                 key = item['key']
                 mime = item.get('mime', 'application/octet-stream')
-            obj = r.state()[0]['objects'].get(key)
-            if not obj or obj['status'] != 'live' or obj.get('signature') != r.bucket.signature(key):
+            obj = r.state()[0]['objects'].get(key) if not snapshot else None
+            signature = snapshot[3] if snapshot else obj.get('signature') if obj and obj['status'] == 'live' else None
+            if signature is None or signature != r.bucket.signature(key):
                 raise ArchiveError('object_identity_changed')
             size, start, end = item['size'], 0, item['size'] - 1
             status = 200
@@ -280,19 +312,15 @@ def install(app, config, *, repo=None, preview=False):
         return protected(lambda: text_value(eid, pid))()
 
     def text_value(eid, pid):
-        r = repository()
-        with r.reading(eid) as e:
-            if pid not in e.get('previews', {}) or not pid.startswith('preview_'):
-                raise HTTPException(404)
-            item = e['previews'][pid]
-            if item.get('mime') not in ('text/plain', 'application/json') or item['size'] > 1024 * 1024:
-                raise HTTPException(400)
-            with contextlib.closing(r.bucket.open(item['key'])) as stream:
-                raw = stream.read(item['size'] + 1)
-            from backend.update_archive.models import digest
-            if len(raw) != item['size'] or digest(raw) != item['sha256']:
-                raise ArchiveError('object_digest_mismatch')
-            return {'text': raw.decode('utf-8'), 'truncated': item.get('truncated', False)}
+        r, _, item, _ = preview_snapshot(eid, pid)
+        if item.get('mime') not in ('text/plain', 'application/json') or item['size'] > 1024 * 1024:
+            raise HTTPException(400)
+        with contextlib.closing(r.bucket.open(item['key'])) as stream:
+            raw = stream.read(item['size'] + 1)
+        from backend.update_archive.models import digest
+        if len(raw) != item['size'] or digest(raw) != item['sha256']:
+            raise ArchiveError('object_digest_mismatch')
+        return {'text': raw.decode('utf-8'), 'truncated': item.get('truncated', False)}
 
     @router.get('/diff/{before}/{before_pid}/{after}/{after_pid}')
     def text_diff(before: str, before_pid: str, after: str, after_pid: str):

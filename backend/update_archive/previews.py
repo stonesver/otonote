@@ -15,6 +15,18 @@ from .models import ArchiveError, canonical, identity
 
 PREVIEW_BYTES = 64 * 1024 ** 2
 TEXT_LIMIT = 512 * 1024
+PREVIEW_VERSION = 2
+
+
+def ffmpeg_executable():
+    executable = shutil.which('ffmpeg')
+    if executable:
+        return executable
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except (ImportError, RuntimeError):
+        raise ArchiveError('audio_converter_unavailable') from None
 
 
 def convert(raw, output, name, *, context=None):
@@ -61,8 +73,7 @@ def convert(raw, output, name, *, context=None):
                 out.setparams(source.getparams()); out.writeframes(source.readframes(frames))
         results.append({'path': 'audio.wav', 'name': name, 'mime': 'audio/wav'})
     elif suffix in ('.wav', '.ogg', '.mp3', '.m4a', '.aac', '.flac', '.acb', '.awb'):
-        if not shutil.which('ffmpeg'):
-            raise ArchiveError('audio_converter_unavailable')
+        ffmpeg = ffmpeg_executable()
         audio = raw
         if suffix in ('.acb', '.awb'):
             vgm = shutil.which('vgmstream-cli')
@@ -76,7 +87,7 @@ def convert(raw, output, name, *, context=None):
             done = subprocess.run(command, capture_output=True, timeout=35)
             if done.returncode or not audio.exists() or audio.stat().st_size > PREVIEW_BYTES:
                 raise ArchiveError('cri_conversion_failed')
-        done = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', str(audio),
+        done = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', str(audio),
             '-t', '180', '-vn', '-ac', '1', '-ar', '24000', '-c:a', 'libopus', '-b:a', '48k',
             str(output / 'audio.ogg')], capture_output=True, timeout=45)
         if done.returncode:
@@ -104,24 +115,52 @@ def convert(raw, output, name, *, context=None):
             key, seed, _ = resolve_bundle_decoder(metadata, context['clientVersion'], profile=context.get('profile'))
             payload = decrypt_header(payload, name, key, seed)
         env = UnityPy.load(payload)
-        listing = []
+        listing, warnings = [], 0
         for index, obj in enumerate(env.objects):
-            if index >= 1000:
+            if index >= 100_000:
                 break
-            listing.append({'type': obj.type.name, 'pathId': str(obj.path_id)})
-            if obj.type.name in ('Texture2D', 'Sprite') and len(results) < 32:
-                data = obj.read()
-                image(data.image, str(getattr(data, 'm_Name', obj.path_id)))
-            elif obj.type.name == 'TextAsset' and len(results) < 64:
-                data = obj.read()
-                value = data.m_Script
-                value = value.encode('utf-8') if isinstance(value, str) else bytes(value)
-                text = value[:TEXT_LIMIT].decode('utf-8')
-                path = f'text-{len(results)}.txt'
-                (output / path).write_text(text)
-                results.append({'path': path, 'name': str(data.m_Name), 'mime': 'text/plain'})
+            record = {'type': obj.type.name, 'pathId': str(obj.path_id)}
+            # Object order is unrelated to usefulness: real Live2D textures can
+            # follow thousands of transforms. Bound the listing separately.
+            if len(listing) < 1000 or (obj.type.name in ('Texture2D', 'Sprite', 'TextAsset', 'AudioClip') and len(listing) < 1100):
+                listing.append(record)
+            try:
+                if obj.type.name in ('Texture2D', 'Sprite') and len(results) < 32:
+                    data = obj.read()
+                    image(data.image, str(getattr(data, 'm_Name', obj.path_id)))
+                elif obj.type.name == 'TextAsset' and len(results) < 64:
+                    data = obj.read()
+                    value = data.m_Script
+                    value = value.encode('utf-8') if isinstance(value, str) else bytes(value)
+                    text = value[:TEXT_LIMIT].decode('utf-8')
+                    if '\x00' in text:
+                        raise ArchiveError('unsupported_text_encoding')
+                    path = f'text-{len(results)}.txt'
+                    (output / path).write_text(text)
+                    results.append({'path': path, 'name': str(data.m_Name), 'mime': 'text/plain',
+                                    'truncated': len(value) > TEXT_LIMIT})
+                elif obj.type.name == 'AudioClip' and len(results) < 64:
+                    data = obj.read()
+                    for sample_index, (label, value) in enumerate(data.samples.items()):
+                        if sample_index >= 8 or len(results) >= 64:
+                            break
+                        if not isinstance(value, bytes) or len(value) > PREVIEW_BYTES:
+                            raise ArchiveError('preview_audio_budget')
+                        with tempfile.TemporaryDirectory(prefix='otonote-audio-') as folder:
+                            temp = Path(folder); sample = temp / ('sample' + Path(label).suffix.lower())
+                            sample.write_bytes(value); dest = temp / 'out'; dest.mkdir()
+                            for row in convert(sample, dest, sample.name):
+                                path = f'audio-{len(results)}' + Path(row['path']).suffix
+                                shutil.move(str(dest / row['path']), str(output / path))
+                                results.append({**row, 'path': path, 'name': str(label)})
+            except Exception as exc:
+                # One binary TextAsset or unsupported codec must not discard
+                # images, scripts and clips successfully extracted from the pack.
+                record['previewError'] = str(exc) if isinstance(exc, ArchiveError) else 'object_preview_unavailable'
+                warnings += 1
         (output / 'objects.json').write_bytes(canonical(listing))
-        results.append({'path': 'objects.json', 'name': '对象清单', 'mime': 'application/json'})
+        results.append({'path': 'objects.json', 'name': '对象清单', 'mime': 'application/json',
+                        'warningCount': warnings, 'truncated': len(env.objects) > len(listing)})
     else:
         raise ArchiveError('preview_unsupported')
     if sum(p.stat().st_size for p in output.iterdir()) > PREVIEW_BYTES:
@@ -143,25 +182,34 @@ def generate(repo, entry, *, clock=time.time, context=None, max_output_bytes=PRE
         with tempfile.TemporaryDirectory(prefix='otonote-archive-preview-') as folder:
             root = Path(folder); output = root / 'out'; output.mkdir()
             raw = root / ('raw' + Path(entry['key']).suffix)
-            with repo.reading(entry['id'], now=clock()) as live:
-                if live.get('decoderContext') and not context:
-                    for role, local in (('context_metadata', 'metadata.dat'), ('context_profile', 'profile.json')):
-                        item = live['previews'][role]
-                        with contextlib.closing(repo.bucket.open(item['key'])) as source:
-                            value = source.read(item['size'] + 1)
-                        from .models import digest
-                        if len(value) != item['size'] or digest(value) != item['sha256']:
-                            raise ArchiveError('context_identity_changed')
-                        (root / local).write_bytes(value)
-                    context = json.loads((root / 'profile.json').read_bytes())
-                    context['metadata'] = str(root / 'metadata.dat')
-                with contextlib.closing(repo.bucket.open(live['objectKey'])) as source, raw.open('wb') as out:
-                    count = 0
-                    for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                        count += len(chunk)
-                        if count > live['size']:
-                            raise ArchiveError('object_size_mismatch')
-                        out.write(chunk)
+            state, _ = repo.state()
+            live = state['entries'].get(entry['id'])
+            if not live or live['status'] != 'saved' or live['expiresAt'] <= clock():
+                raise ArchiveError('entry_changed')
+            version = state['batches'].get(live.get('batch'), {}).get('observation', {}).get('clientVersion')
+            if context and context.get('clientVersion') != version:
+                context = None
+            if live.get('decoderContext') and not context:
+                for role, local in (('context_metadata', 'metadata.dat'), ('context_profile', 'profile.json')):
+                    item = live['previews'][role]
+                    with contextlib.closing(repo.bucket.open(item['key'])) as source:
+                        value = source.read(item['size'] + 1)
+                    from .models import digest
+                    if len(value) != item['size'] or digest(value) != item['sha256']:
+                        raise ArchiveError('context_identity_changed')
+                    (root / local).write_bytes(value)
+                context = json.loads((root / 'profile.json').read_bytes())
+                context['metadata'] = str(root / 'metadata.dat')
+            del state
+            # Originals are immutable and verified below; publication rechecks
+            # entry state. Background parsing doesn't need an HTTP read lease.
+            with contextlib.closing(repo.bucket.open(live['objectKey'])) as source, raw.open('wb') as out:
+                count = 0
+                for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                    count += len(chunk)
+                    if count > live['size']:
+                        raise ArchiveError('object_size_mismatch')
+                    out.write(chunk)
             from .store import file_digest
             if count != live['size'] or file_digest(raw) != live['sha256']:
                 raise ArchiveError('object_digest_mismatch')
@@ -182,22 +230,32 @@ def generate(repo, entry, *, clock=time.time, context=None, max_output_bytes=PRE
                         reason = code
                 raise ArchiveError(reason)
             rows = json.loads((output / 'manifest.json').read_bytes())
-            used = 0
+            files, used, omitted = [], 0, 0
+            # Keep an object listing even when bounded thumbnails fill a turn.
+            rows.sort(key=lambda row: row['path'] != 'objects.json')
             for row in rows:
                 path = output / row['path']
                 if path.parent != output or path.is_symlink() or not path.is_file():
                     raise ArchiveError('invalid_preview_output')
-                used += path.stat().st_size
-                if used > min(PREVIEW_BYTES, max_output_bytes):
-                    raise ArchiveError('preview_capacity_deferred')
+                size = path.stat().st_size
+                if used + size > min(PREVIEW_BYTES, max_output_bytes):
+                    omitted += 1
+                    continue
+                used += size
                 role = 'preview_' + identity([entry['sha256'], row['path'], 'v1'])[:16]
-                repo.save(entry['id'], path, now=clock(), role=role, evict=False)
-                def attach(s):
-                    e = s['entries'][entry['id']]
-                    if e['status'] == 'saved' and role in e.get('previews', {}):
-                        e['previews'][role].update({k: v for k, v in row.items() if k != 'path'})
-                repo.mutate(attach)
-            status = 'ready'
+                files.append({**row, 'path': path, 'role': role})
+            if omitted and files:
+                files[0]['warningCount'] = files[0].get('warningCount', 0) + omitted
+                files[0]['truncated'] = True
+            if context and context.get('metadata'):
+                material = Path(context['metadata'])
+                if material.stat().st_size <= 32 * 1024 ** 2:
+                    profile = root / 'persisted-context.json'
+                    profile.write_bytes(canonical({k: context.get(k) for k in ('clientVersion', 'profile', 'region')}))
+                    files.extend([{'role': 'context_metadata', 'path': material},
+                                  {'role': 'context_profile', 'path': profile}])
+            repo.save_previews(entry['id'], files, now=clock(), version=PREVIEW_VERSION)
+            return
     except (ArchiveError, OSError, ValueError, subprocess.SubprocessError) as exc:
         error = str(exc) if isinstance(exc, ArchiveError) else 'preview_unsupported_or_budget'
         if isinstance(exc, ArchiveError) and (any(word in str(exc) for word in ('capacity', 'busy'))
@@ -206,7 +264,7 @@ def generate(repo, entry, *, clock=time.time, context=None, max_output_bytes=PRE
     def finish(s):
         e = s['entries'].get(entry['id'])
         if e and e['status'] == 'saved':
-            e.update(previewStatus=status, previewError=error)
+            e.update(previewStatus=status, previewError=error, previewVersion=PREVIEW_VERSION)
     repo.mutate(finish)
 
 

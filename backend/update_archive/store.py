@@ -215,6 +215,7 @@ class ArchiveRepository:
         state = json.loads(raw) if raw is not None else self.empty()
         if state.get('schemaVersion') != 1 or state.get('capacity') != self.capacity:
             raise ArchiveError('archive_state_mismatch')
+        self.control_bytes = len(item[0]) if item else 0
         return state, item[1] if item else None
 
     def mutate(self, fn, *, revision=None):
@@ -255,6 +256,11 @@ class ArchiveRepository:
                 'usedBytes': self.used(state) + CONTROL_RESERVE, 'windowSeconds': WINDOW,
                 'regions': {r: {'mode': state['modes'].get(r, 'auto'),
                     'storedBytes': sum(o['size'] for k, o in state['objects'].items() if k.startswith(r + '/')),
+                    'previewReady': sum(e['region'] == r and e['status'] == 'saved' and e.get('previewStatus') == 'ready'
+                                        and e.get('previewVersion', 0) >= 2 and e['expiresAt'] > now for e in state['entries'].values()),
+                    'previewPending': sum(e['region'] == r and e['status'] == 'saved' and e['expiresAt'] > now
+                                          and (e.get('previewStatus') in (None, 'deferred') or e.get('previewVersion', 0) < 2)
+                                          for e in state['entries'].values()),
                     'pending': sum(e['region'] == r and e['status'] in ('pending', 'deferred_auto', 'waiting_manual', 'failed')
                                    and e['expiresAt'] > now for e in state['entries'].values())}
                     for r in ('global', 'jp')}, 'checks': state['checks'][-20:]}
@@ -397,6 +403,80 @@ class ArchiveRepository:
             return key
         return self.mutate(finish)
 
+    def save_previews(self, eid, files, *, now=None, version=2):
+        """Publish one bounded extraction with two CAS operations; never evict raw."""
+        now = self.clock() if now is None else now
+        started, token = time.monotonic(), uuid.uuid4().hex
+        if not 1 <= len(files) <= 128:
+            raise ArchiveError('invalid_preview_batch')
+        rows, total = [], 0
+        for item in files:
+            role, path = item['role'], Path(item['path'])
+            if (not re.fullmatch(r'preview_[a-f0-9]{16}|context_metadata|context_profile', role)
+                    or path.is_symlink() or not path.is_file()):
+                raise ArchiveError('invalid_preview_batch')
+            size = path.stat().st_size; total += size
+            rows.append({**item, 'path': path, 'size': size, 'sha256': file_digest(path)})
+        if total > 128 * 1024 ** 2 or len({r['role'] for r in rows}) != len(rows):
+            raise ArchiveError('preview_budget_exceeded')
+
+        def reserve(s):
+            e = s['entries'].get(eid)
+            if not e or e['status'] != 'saved' or e['expiresAt'] <= now:
+                raise Conflict('entry_changed')
+            by_sha = {o['sha256']: k for k, o in s['objects'].items()
+                      if k.startswith(e['region'] + '/') and o['status'] == 'live'}
+            planned = []
+            for row in rows:
+                key = by_sha.get(row['sha256'])
+                if not key:
+                    key = e['region'] + '/objects/' + row['sha256'] + '-' + uuid.uuid4().hex
+                    by_sha[row['sha256']] = key
+                    s['objects'][key] = {'size': row['size'], 'sha256': row['sha256'],
+                        'status': 'reserved', 'token': token, 'until': now + 1800,
+                        'refs': [eid], 'role': row['role']}
+                obj = s['objects'][key]
+                if eid not in obj['refs']:obj['refs'].append(eid)
+                if key not in e['objects']:e['objects'].append(key)
+                planned.append({**row, 'key': key, 'existing': obj['status'] == 'live',
+                                'signature': obj.get('signature')})
+            if self.used(s) > self.capacity - CONTROL_RESERVE:
+                raise ArchiveError('preview_capacity_deferred')
+            e['previewToken'] = token
+            return planned
+        planned = self.mutate(reserve)
+        signatures = {}
+        for row in planned:
+            key = row['key']
+            if key in signatures:continue
+            if not row['existing']:
+                self.bucket.put_file(key, row['path'])
+                self.verify(key, row['sha256'], row['size'])
+            signature = self.bucket.signature(key)
+            if row['existing'] and signature != row['signature']:
+                raise ArchiveError('object_identity_changed')
+            signatures[key] = signature
+
+        def finish(s):
+            e = s['entries'].get(eid)
+            if (not e or e['status'] != 'saved' or e.get('previewToken') != token
+                    or e['expiresAt'] <= now + time.monotonic() - started):
+                raise Conflict('entry_changed')
+            for row in planned:
+                obj = s['objects'].get(row['key'])
+                if (not obj or obj['status'] not in ('live', 'reserved')
+                        or obj['status'] == 'reserved' and obj['token'] != token):
+                    raise Conflict('object_changed')
+                obj.update(status='live', signature=signatures[row['key']])
+                if eid not in obj['refs']:obj['refs'].append(eid)
+                e.setdefault('previews', {})[row['role']] = {k: v for k, v in row.items()
+                    if k in ('key','size','sha256','name','mime','width','height','truncated','warningCount')}
+            e.update(previewStatus='ready', previewVersion=version, previewError=None,
+                     previewWarningCount=sum(r.get('warningCount', 0) for r in planned))
+            if {'context_metadata','context_profile'} <= set(e['previews']):e['decoderContext'] = True
+            e.pop('previewToken', None)
+        self.mutate(finish)
+
     def remove(self, ids, *, reason, now=None, cleanup_id=None, deadline=None):
         if reason not in GONE:
             raise ArchiveError('invalid_cleanup_reason')
@@ -411,6 +491,7 @@ class ArchiveRepository:
                     continue
                 e['status'], e['cleanedAt'], e['cleanupReason'] = reason, now, reason
                 e.pop('saveToken', None)
+                e.pop('previewToken', None)
                 for key in e['objects']:
                     obj = s['objects'].get(key)
                     if not obj:

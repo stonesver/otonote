@@ -3,7 +3,7 @@ const bytes=n=>n<1024?`${n} B`:n<1024*1024?`${(n/1024).toFixed(1)} KiB`:`${(n/10
 const date=n=>new Date(n*1000).toLocaleString('zh-CN');
 function el(tag,text,cls){const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;}
 function button(text,fn,disabled=false){const b=el('button',text,'secondary');b.type='button';b.disabled=disabled;b.addEventListener('click',()=>Promise.resolve().then(fn).catch(showError));return b;}
-let root,api,summary,region='global',offset=0,filter='',selected=new Set(),query='',batch='',group='',status='',busy=false,pendingReload=false,initialized=false,last=0,comparison=null,layout='list';
+let root,api,summary,region='global',offset=0,filter='',selected=new Set(),query='',batch='',group='',status='',busy=false,pendingReload=false,initialized=false,last=0,comparison=null,layout='list',detailSequence=0;
 function showError(e){let n=root.querySelector('[data-message]');if(!n){n=el('p');n.dataset.message='';root.append(n);}n.textContent=e.message||'归档请求失败';}
 async function get(path){return api('/api/archive'+path);}
 async function post(path,data){return api('/api/archive'+path,{method:'POST',headers:{'Content-Type':'application/json','X-OurNotes-Request':'1'},body:JSON.stringify(data)});}
@@ -19,24 +19,57 @@ async function history(){const d=await get('/requests'),box=root.querySelector('
  const line=el('div',null,'data-row');line.append(el('span',`${row.kind} · ${row.entries.length} 项 · ${labels[row.status]||row.status}`),el('small',row.kind==='清理'?`已实际释放 ${bytes(row.releasedBytes)}`:`预算已计入 ${bytes(row.spentBytes)} / ${bytes(row.maxBytes)}`));if(row.kind==='补存'&&['queued','partial','running'].includes(row.status))line.append(button('取消请求',async()=>{await post(`/requests/${row.id}/cancel`,{});await history();},!summary.writable));box.append(line);
  }if(!box.children.length)box.append(el('p','尚无手动请求。','caption'));
 }
+function previewLabel(entry){
+ const previews=entry.previews||[],count=type=>previews.filter(p=>p.mime?.startsWith(type)).length;
+ const text=previews.filter(p=>['text/plain','application/json'].includes(p.mime)&&p.name!=='对象清单').length;
+ const parts=[[count('image/'),'图片'],[text,'文本'],[count('audio/'),'音频']].filter(([n])=>n).map(([n,label])=>`${label} ${n}`);
+ return parts.join(' · ')||(entry.previewStatus==='ready'?'仅结构清单':entry.previewStatus==='unsupported'?'格式暂不支持':'预览待生成');
+}
 async function detail(entry){
- const box=root.querySelector('[data-detail]');box.replaceChildren(el('h3',entry.key),el('p',`${entry.region.toUpperCase()} · ${entry.source} · ${bytes(entry.size)} · ${labels[entry.status]||entry.status}`),el('p',`发现 ${date(entry.observedAt)} / 到期 ${date(entry.expiresAt)}`));
- if(entry.sha256)box.append(el('code',entry.sha256));if(entry.error)box.append(el('p','保存状态：'+entry.error));if(entry.previewError)box.append(el('p','预览状态：'+entry.previewError));if(entry.upstream)box.append(el('pre',JSON.stringify(entry.upstream,null,2)));
- if(entry.status==='saved'){const a=el('a','下载原件','action-link');a.href=`/api/archive/files/${entry.id}`;box.append(a);}
- for(const p of (entry.status==='saved'?entry.previews||[]:[])){const url=`/api/archive/previews/${entry.id}/${p.id}`;if(p.mime?.startsWith('image/')){const im=el('img');im.src=url;im.alt=p.name||entry.key;im.loading='lazy';box.append(im);}else if(p.mime?.startsWith('audio/')){const audio=el('audio');audio.controls=true;audio.preload='none';audio.src=url;box.append(audio);}else if(['text/plain','application/json'].includes(p.mime)){const t=await get(`/text/${entry.id}/${p.id}`);box.append(el('pre',t.text),button('选此文本作为对照',()=>{comparison={id:entry.id,pid:p.id,name:entry.key};message('已选对照：'+entry.key+'。打开另一份文本后可以比较。');}));if(comparison)box.append(button('与所选文本比较',async()=>{const d=await get(`/diff/${comparison.id}/${comparison.pid}/${entry.id}/${p.id}`);box.append(el('h4',comparison.name+' → '+entry.key),el('pre',d.diff||'文本相同'));}));}}
- if(!entry.previews?.length)box.append(el('p',entry.status==='saved'?`预览：${entry.previewStatus||'等待生成'}。原件仍可下载。`:'该文件尚未保存或已不可用。','caption'));
- box.scrollIntoView({block:'nearest'});
+ const sequence=++detailSequence,box=root.querySelector('[data-detail]');
+ box.replaceChildren(el('h3',entry.key),el('p','正在读取包内预览…','caption'));box.scrollIntoView({block:'nearest'});
+ entry=await get(`/entries/${entry.id}`);if(sequence!==detailSequence)return;
+ box.replaceChildren(el('h3',entry.key),el('p',`${entry.region.toUpperCase()} · ${bytes(entry.size)} · ${labels[entry.status]||entry.status}`),el('p',`发现 ${date(entry.observedAt)} / 到期 ${date(entry.expiresAt)}`));
+ if(entry.status==='saved'){const a=el('a','下载 bundle / 原件','action-link');a.href=`/api/archive/files/${entry.id}`;box.append(a);}
+ if(entry.previewError)box.append(el('p','预览：'+entry.previewError,'caption'));
+ if(entry.previewWarningCount)box.append(el('p',`有 ${entry.previewWarningCount} 个对象未提取，详情见结构清单；其他预览可正常查看。`,'caption'));
+ if(entry.previewStatus==='ready'&&!entry.previews?.some(p=>p.mime?.startsWith('image/')||p.mime?.startsWith('audio/')||p.mime==='text/plain'))box.append(el('p','此包未提取到内嵌图片、文本或音频。预制体可能引用其他 bundle 中的素材，可展开结构清单或下载原件。','caption'));
+ let firstText=true;
+ for(const p of (entry.status==='saved'?entry.previews||[]:[])){
+  const url=`/api/archive/previews/${entry.id}/${p.id}`;
+  if(p.mime?.startsWith('image/')){
+   const figure=el('figure'),im=el('img');im.src=url;im.alt=p.name||entry.key;im.loading='lazy';im.className='archive-preview-image';
+   figure.append(im,el('figcaption',p.name||'图片'));box.append(figure);
+  }else if(p.mime?.startsWith('audio/')){
+   const section=el('section'),audio=el('audio');audio.controls=true;audio.preload='none';audio.src=url;
+   section.append(el('p',p.name||'音频'),audio);box.append(section);
+  }else if(['text/plain','application/json'].includes(p.mime)){
+   const section=el('details'),title=el('summary',`${p.name==='对象清单'?'结构清单':p.name||'文本'}${p.truncated?'（有截断）':''}`),content=el('div');section.append(title,content);box.append(section);
+   let loaded=false;
+   const load=async()=>{
+    if(!section.open||loaded)return;loaded=true;content.replaceChildren(el('p','读取中…','caption'));
+    try{const t=await get(`/text/${entry.id}/${p.id}`);if(sequence!==detailSequence)return;
+     content.replaceChildren(el('pre',t.text));
+     content.append(button('选此文本作为对照',()=>{comparison={id:entry.id,pid:p.id,name:entry.key};message('已选对照：'+entry.key);}));
+     if(comparison)content.append(button('与所选文本比较',async()=>{const d=await get(`/diff/${comparison.id}/${comparison.pid}/${entry.id}/${p.id}`);content.append(el('pre',d.diff||'文本相同'));}));
+    }catch(e){loaded=false;content.replaceChildren(el('p',e.message),button('重试',load));}
+   };
+   section.addEventListener('toggle',()=>load());
+   if(firstText&&p.name!=='对象清单'){firstText=false;section.open=true;load();}
+  }
+ }
+ if(!entry.previews?.length)box.append(el('p',entry.status==='saved'?'包内预览等待后台生成，原件可正常下载。':'该文件尚未保存或已不可用。','caption'));
 }
 async function reload(){
  if(busy){pendingReload=true;return;}busy=true;
  try{summary=await get('/summary');last=Date.now();if(summary.status==='disabled'){root.replaceChildren(el('div','官方更新档案尚未启用。既有网站定时更新照常运行。','notice'));initialized=false;return;}
  if(!initialized){build();initialized=true;}
- root.querySelector('[data-capacity]').textContent=`双服共用：${bytes(summary.usedBytes)} / ${bytes(summary.capacityBytes)}（含 ${bytes(summary.controlReservedBytes)} 控制预留） · 最近 10 天 · 全局 FIFO`;
+ root.querySelector('[data-capacity]').textContent=`资源与预览：${bytes(summary.storedBytes)} · 控制预留 ${bytes(summary.controlReservedBytes)} · 总额度 ${bytes(summary.capacityBytes)} · 最近 10 天 · 全局 FIFO · 本服预览就绪 ${summary.regions[region].previewReady||0} / 待处理 ${summary.regions[region].previewPending||0}`;
  const checks=summary.checks.slice(-6).reverse();root.querySelector('[data-checks]').textContent=checks.length?checks.map(c=>`${c.region.toUpperCase()} ${date(c.finishedAt)} · ${c.status}${c.error?' · '+c.error:''}`).join('； '):'尚无检查记录。';
  root.querySelectorAll('[data-write]').forEach(b=>b.disabled=!summary.writable);
  const b=await get(`/batches?region=${region}&limit=100`),qs=new URLSearchParams({region,offset:String(offset),limit:'50',query,status,source:filter,batch,group});
  const d=await get('/entries?'+qs),box=root.querySelector('[data-files]');box.replaceChildren();box.classList.toggle('archive-grid',layout==='grid');
- for(const e of d.entries){const row=el('div',null,'archive-file'),check=el('input');check.type='checkbox';check.setAttribute('aria-label',`选择 ${e.key}`);check.checked=selected.has(e.id);check.addEventListener('change',()=>check.checked?selected.add(e.id):selected.delete(e.id));const name=button(e.key,()=>detail(e));name.className='archive-name';if(layout==='grid'&&e.status==='saved'){const p=e.previews?.find(x=>x.mime?.startsWith('image/'));if(p){const im=el('img');im.src=`/api/archive/previews/${e.id}/${p.id}`;im.alt=e.key;im.loading='lazy';name.prepend(im);}}row.append(check,name,el('span',labels[e.status]||e.status),el('small',bytes(e.size)));box.append(row);}
+ for(const e of d.entries){const row=el('div',null,'archive-file'),check=el('input');check.type='checkbox';check.setAttribute('aria-label',`选择 ${e.key}`);check.checked=selected.has(e.id);check.addEventListener('change',()=>check.checked?selected.add(e.id):selected.delete(e.id));const name=button(e.key,()=>detail(e));name.className='archive-name';if(layout==='grid'&&e.status==='saved'){const p=e.previews?.find(x=>x.mime?.startsWith('image/'));if(p){const im=el('img');im.src=`/api/archive/previews/${e.id}/${p.id}`;im.alt=e.key;im.loading='lazy';name.prepend(im);}}row.append(check,name,el('span',labels[e.status]||e.status),el('small',`${bytes(e.size)}${e.status==='saved'?' · '+previewLabel(e):''}`));box.append(row);}
  if(!d.entries.length)box.append(el('p','当前筛选下没有文件。','caption'));
  root.querySelector('[data-page]').replaceChildren(button('上一页',()=>{offset=Math.max(0,offset-50);return reload();},!offset),el('span',` ${d.total?offset+1:0}–${Math.min(offset+50,d.total)} / ${d.total} `),button('下一页',()=>{offset=d.nextOffset;return reload();},d.nextOffset==null));
  const batchSelect=root.querySelector('[data-batch]'),groupSelect=root.querySelector('[data-group]');batchSelect.replaceChildren(new Option('全部批次',''),...b.batches.map(x=>new Option(`${date(x.observedAt)} · ${x.source}`,x.id)));batchSelect.value=batch;

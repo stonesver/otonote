@@ -147,6 +147,91 @@ class LocalHistoryTests(unittest.TestCase):
         self.assertFalse(result['complete'])
         self.assertNotIn('removedCandidates', result)
 
+    def test_sync_automatically_analyzes_and_reuses_completed_removal_result(self):
+        old = self.observe(b'old', 101)
+        removed = self.observe(None, 102)
+        result = self.local.sync_and_analyze(self.repo)
+        self.assertEqual(result['analysis']['complete'], 1)
+        report = self.local.detail(removed['id'])['analysis']
+        self.assertTrue(report['inventoryComplete'])
+        self.assertEqual(report['entryId'], old['id'])
+        with patch.object(self.local, 'entries', side_effect=AssertionError('no full index for thumbnails')):
+            self.assertEqual(self.local.preview_report(removed['id']), report)
+        with patch.object(self.local, '_analyze_original', side_effect=AssertionError('already complete')):
+            self.assertEqual(self.local.sync_and_analyze(self.repo)['analysis']['complete'], 0)
+        self.assertEqual(self.local.detail(old['id'])['analysis']['directory'], report['directory'])
+
+    def test_auto_analysis_isolates_failures_and_retries_after_cooldown(self):
+        old = self.observe(b'old', 101)
+        new = self.observe(b'new', 102)
+        self.local.sync(self.repo)
+        real = self.local._analyze_original
+        def analyze(entry):
+            if entry['id'] == old['id']:
+                raise ArchiveError('local_analysis_timeout')
+            return real(entry)
+        with patch.object(self.local, '_analyze_original', side_effect=analyze):
+            result = self.local.analyze_pending()
+        self.assertEqual((result['failed'], result['complete']), (1, 1))
+        with patch.object(self.local, '_analyze_original', side_effect=AssertionError('cooldown')):
+            self.assertEqual(self.local.analyze_pending()['failed'], 0)
+        jobs = self.local.analysis_records()[1]
+        self.local.save_analysis_job(old['id'], {**jobs[old['id']], 'retryAt': 0})
+        self.assertEqual(self.local.analyze_pending()['complete'], 1)
+        self.assertEqual(self.local.detail(new['id'])['analysisJob']['status'], 'complete')
+
+    def test_partial_analysis_retries_when_decoder_material_arrives(self):
+        entry = self.observe(b'old', 101)
+        self.local.sync(self.repo)
+        entry['previews'] = {'context_metadata': {'sha256': digest(b'meta')}}
+        with self.local.connect() as db:
+            db.execute('UPDATE entries SET body=? WHERE id=?', (json.dumps(entry), entry['id']))
+        partial = {'inventoryComplete': False, 'previews': [], 'previewError': 'decoder_context_missing'}
+        with patch.object(self.local, '_analyze_original', return_value=partial) as analyze:
+            self.assertEqual(self.local.analyze_pending()['partial'], 1)
+            self.local.analyze_pending()
+            self.assertEqual(analyze.call_count, 1)
+            sha = digest(b'meta'); self.local.object_path(sha).write_bytes(b'meta')
+            with self.local.connect() as db:
+                db.execute('INSERT INTO objects VALUES (?,?,?)', (sha, 4, 103))
+            self.local.analyze_pending()
+            self.assertEqual(analyze.call_count, 2)
+
+    def test_auto_analysis_defers_budget_and_busy_writer_then_recovers_interrupted_job(self):
+        entry = self.observe(b'old', 101)
+        self.local.sync(self.repo)
+        self.assertEqual(self.local.analyze_pending(max_seconds=0)['deferred'], 1)
+        with self.local.writing():
+            self.assertEqual(self.local.analyze_pending()['deferred'], 1)
+        self.local.save_analysis_job(entry['id'], {'status': 'running',
+                                    'signature': self.local.analysis_signature(entry)})
+        self.assertEqual(self.local.analyze_pending()['complete'], 1)
+
+    def test_local_list_filters_by_retained_bytes_including_removal_aliases(self):
+        from fastapi.testclient import TestClient
+        from backend.update_archive.local_web import create_app
+        a = self.observe(b'old', 101)
+        removed = self.observe(None, 102)
+        self.local.sync(self.repo)
+        self.source.payload = b'new'
+        run_once(self.repo, self.source, clock=lambda: 103, mode='manual')
+        missing = self.repo.entries('global')[0]
+        self.repo.add('jp', 'pressure', b'12345678', observed_at=104, now=104)
+        self.local.sync(self.repo)
+        with TestClient(create_app(self.local), base_url='http://127.0.0.1:18087') as client:
+            client.get('/')
+            rows = client.get('/api/entries?region=global').json()
+            self.assertEqual({e['id'] for e in rows['entries']}, {a['id'], removed['id']})
+            self.assertTrue(all(e['localAvailable'] for e in rows['entries']))
+            self.assertEqual(client.get('/api/entries?region=global&removed=true').json()['total'], 1)
+            all_rows = client.get('/api/entries?local=false&region=global').json()
+            self.assertEqual(all_rows['total'], 3)
+            self.assertFalse(next(e for e in all_rows['entries'] if e['id'] == missing['id'])['localAvailable'])
+            self.assertEqual(client.get('/api/entries?query=absent').json()['total'], 0)
+            self.assertEqual(client.get('/api/entries?region=global&offset=1').json()['total'], 2)
+            self.local.object_path(a['sha256']).unlink()
+            self.assertEqual(client.get('/api/entries?region=global').json()['total'], 0)
+
     def test_context_is_captured_without_cloud_preview_and_retries_after_budget_deferral(self):
         repo = ArchiveRepository(LocalBucket(self.root / 'context-cloud'))
         source = Source()

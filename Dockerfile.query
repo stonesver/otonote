@@ -24,12 +24,17 @@ RUN apt-get update \
 RUN groupadd --system --gid 10001 ournotes-query \
     && useradd --system --uid 10001 --no-create-home --gid ournotes-query ournotes-query
 
+RUN sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3.crt$/s/^/!/' /etc/ca-certificates.conf \
+    && update-ca-certificates
+
 WORKDIR /app
+COPY tools/python-security-requirements.txt /tmp/python-security-requirements.txt
 
 FROM runtime-base AS python-deps
 
 COPY requirements-query.txt ./
-RUN pip install --requirement requirements-query.txt
+RUN pip install --require-hashes -r /tmp/python-security-requirements.txt \
+    && pip install --requirement requirements-query.txt
 
 FROM python-deps AS query
 

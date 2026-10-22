@@ -1,4 +1,4 @@
-ARG NODE_BASE_IMAGE=docker.io/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
+ARG NODE_BASE_IMAGE=docker.io/library/node:22.23.4-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 FROM ${NODE_BASE_IMAGE}
 
 ARG SOURCE_REVISION
@@ -7,9 +7,14 @@ LABEL org.opencontainers.image.revision=${SOURCE_REVISION}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+RUN sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3.crt$/s/^/!/' /etc/ca-certificates.conf \
+    && update-ca-certificates
+
 WORKDIR /app
+COPY tools/python-security-requirements.txt /tmp/python-security-requirements.txt
 COPY tools/r2-requirements.txt /app/tools/r2-requirements.txt
 RUN python3 -m venv /opt/r2-venv \
+    && /opt/r2-venv/bin/pip install --require-hashes -r /tmp/python-security-requirements.txt \
     && /opt/r2-venv/bin/pip install --no-cache-dir -r /app/tools/r2-requirements.txt
 COPY tools/ /app/tools/
 COPY site/src/runtime/loading-presentation.mjs /app/site/src/runtime/loading-presentation.mjs

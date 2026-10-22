@@ -14,7 +14,7 @@ class WorkerDeliveryTest(unittest.TestCase):
         dockerfile = (REPO_ROOT / "Dockerfile.worker").read_text(encoding="utf-8")
 
         self.assertIn(
-            "ARG NODE_BASE_IMAGE=node:22.22.0-bookworm-slim", dockerfile
+            "ARG NODE_BASE_IMAGE=node:22.23.4-bookworm-slim", dockerfile
         )
         self.assertIn("FROM ${NODE_BASE_IMAGE} AS runtime-base", dockerfile)
         self.assertIn("python3-venv", dockerfile)

@@ -25,7 +25,7 @@ flowchart LR
 - 每项任务使用独立分支；并行开发使用独立 worktree，避免把他人的未完成修改打包。
 - PR 验证不下载整套游戏资源。CI 使用已提交的合成样例及计分回放样例，执行来源检查、依赖安装、离线测试和独立网页构建。
 - 本地预览：先执行 `npm --prefix site ci`，再执行 `bash scripts/build-web-client.sh --preview output/code-preview`。输出目录必须尚不存在；再次预览使用新的目录名。预览清单明确标记 `local-preview`，正式发布入口拒绝此产物。
-- 正式候选：`bash scripts/build-web-client.sh --candidate HEAD output/code-candidate`。运行环境使用 Node 22.22.0 与 Python 3.12（见 CI）。必须在干净检出上执行，指定提交必须等于 HEAD。
+- 正式候选：`bash scripts/build-web-client.sh --candidate HEAD output/code-candidate`。运行环境使用 Node 22.23.4 与 Python 3.12（见 CI）。必须在干净检出上执行，指定提交必须等于 HEAD。
 - 原有完整静态资源构建脚本保留给资源回放/旧版本维护；网页代码正式交付统一走上述候选入口。
 
 候选构建器只复制 Git 已跟踪且通过脱敏检查的文件到临时隔离目录，不读取原工作区的忽略文件。依赖按 `site/package-lock.json` 安装，执行固定测试命令，再构建候选。构建前后检查源码指纹，所有命令成功才生成验证回执。没有游戏装饰图时使用项目自己的品牌图形；没有专有 Live2D Core 时不打包它。真实游戏媒体和专有运行库仍须由独立内容/运维流程提供。 预渲染的加载角色图从本次固定的内容快照选择，确认文件存在后才生成 URL，页面切换和工具加载共用这份映射；缺图时使用代码包必带的 `loading/brand-fallback.svg`。冷启动入口继续内嵌图形，不依赖额外内容查询。CI 的加载资源测试同时检查干净构建产物、内容缺图回退及实际导航入口。
@@ -121,6 +121,8 @@ bash scripts/publish-web-client.sh \
 前端包的 HTTP 健康检查和真实用户验收是不同关卡：发布后仍需检查预渲染组合、CDN、主要页面及浏览器交互。只有源码和内容都通过相应验收，才记录为完成发布。预渲染仍引用旧代码/内容时不能立即回收旧版本。
 
 ## CI 与验收边界
+
+Python 环境首次安装依赖前，执行 `python -m pip install --require-hashes -r tools/python-security-requirements.txt`，校验并更新 pip 与 certifi。pip 自带独立证书库，系统 CA、应用 certifi 和 pip 必须分别验证。基础镜像重建时刷新系统 CA，并确认 emSign ECC Root CA - G3 不再受信任。容器升级保留旧镜像和外置配置，先验证候选环境，再逐个切换并检查对应业务接口。
 
 `.github/workflows/check.yml` 保留公开仓库原有 gitleaks 历史扫描和公开测试，增加来源边界、固定离线门禁、官方候选和程序包上传。PR 不持有生产凭据，不自动部署。
 

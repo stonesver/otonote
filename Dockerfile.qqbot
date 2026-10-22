@@ -5,9 +5,14 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     && apt-get -o Acquire::Retries=1 -o Acquire::https::Timeout=30 install -y --no-install-recommends ca-certificates fonts-noto-cjk tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10002 qqbot && useradd --uid 10002 --gid qqbot --no-create-home qqbot
+RUN sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3.crt$/s/^/!/' /etc/ca-certificates.conf \
+    && update-ca-certificates
+
 WORKDIR /app
+COPY tools/python-security-requirements.txt /tmp/python-security-requirements.txt
 COPY requirements-query.txt requirements-qqbot.txt ./
-RUN pip install -r requirements-qqbot.txt
+RUN pip install --require-hashes -r /tmp/python-security-requirements.txt \
+    && pip install -r requirements-qqbot.txt
 COPY backend/qqbot ./backend/qqbot
 COPY backend/__init__.py ./backend/__init__.py
 USER qqbot

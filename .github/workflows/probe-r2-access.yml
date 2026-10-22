@@ -36,6 +36,7 @@ jobs:
           for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
             [[ -n "${!name}" ]] || { echo "Missing Environment Secret: $name" >&2; exit 1; }
           done
+          python -m pip install --require-hashes -r tools/python-security-requirements.txt
           python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
           python - <<'PY'
           import os

@@ -3,9 +3,14 @@
 ARG BASE_IMAGE=python:3.11-slim
 FROM ${BASE_IMAGE}
 USER root
+RUN sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3.crt$/s/^/!/' /etc/ca-certificates.conf \
+    && update-ca-certificates
+
 WORKDIR /opt/ournotes-growth
 COPY requirements.txt ./requirements.txt
-RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY tools/python-security-requirements.txt /tmp/python-security-requirements.txt
+RUN python -m pip install --require-hashes -r /tmp/python-security-requirements.txt \
+    && python -m pip install --no-cache-dir -r requirements.txt
 COPY tools/ ./tools/
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 USER 65534:65534

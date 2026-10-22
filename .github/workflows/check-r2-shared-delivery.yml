@@ -25,7 +25,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install object client
-        run: python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
+        run: |
+          python -m pip install --require-hashes -r tools/python-security-requirements.txt
+          python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
       - name: Verify immutable test snapshot without changing current
         run: python -m tools.r2_delivery_probe --output "$RUNNER_TEMP/r2-shared-delivery.json"
       - uses: actions/upload-artifact@v4

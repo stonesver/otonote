@@ -3,9 +3,14 @@
 ARG BASE_IMAGE=python:3.11-slim-bookworm
 FROM ${BASE_IMAGE}
 USER root
+RUN sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3.crt$/s/^/!/' /etc/ca-certificates.conf \
+    && update-ca-certificates
+
 WORKDIR /app
 COPY tools/growth-export-requirements.txt /app/requirements.txt
-RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+COPY tools/python-security-requirements.txt /tmp/python-security-requirements.txt
+RUN python -m pip install --require-hashes -r /tmp/python-security-requirements.txt \
+    && python -m pip install --no-cache-dir -r /app/requirements.txt
 COPY backend/__init__.py backend/player_rankings.py /app/backend/
 COPY tools/collect_player_rankings.py tools/growth_login.py tools/game_service_status.py tools/global_game_config.py tools/growth_export.py tools/import_player_rankings.py /app/tools/
 COPY tools/ranking_regions.py tools/ranking_finalizations.py /app/tools/

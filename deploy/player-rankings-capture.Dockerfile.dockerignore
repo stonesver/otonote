@@ -16,3 +16,4 @@
 !tools/resource_pipeline/__init__.py
 !tools/resource_pipeline/localization.py
 !tools/resource_pipeline/models.py
+!tools/python-security-requirements.txt

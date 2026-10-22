@@ -39,7 +39,7 @@ jobs:
           tag="sha-${GITHUB_SHA}"
           base="ournotes-resource-worker:build-${GITHUB_SHA}"
           docker build --pull --file Dockerfile.worker --target worker \
-            --build-arg NODE_BASE_IMAGE=docker.io/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94 \
+            --build-arg NODE_BASE_IMAGE=docker.io/library/node:22.23.4-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d \
             --tag "$base" .
           docker build --file deploy/Dockerfile.global-update --build-arg "WORKER_BASE=$base" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \

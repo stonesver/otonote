@@ -12,8 +12,9 @@ class ProductionIsolationTests(unittest.TestCase):
     def test_existing_producer_job_is_unchanged(self):
         text = (ROOT / '.github/workflows/content-r2.yml').read_text()
         job = re.search(r'^  produce:\n.*?(?=^  [A-Za-z_][\w-]*:\n|\Z)', text, re.M | re.S)[0]
+        # Reviewed producer baseline includes hash-verified pip/CA bootstrapping.
         self.assertEqual(hashlib.sha256(job.encode()).hexdigest(),
-                         '5278fe35bd35b820a67ca5a8d3ead0da2197690326c9648a1ef4b1f6c4a2266f')
+                         'c85ee3a1709f1f87c5ede4be596782e245e39813767bba42e851de3e284bdb3f')
 
     def test_producers_do_not_import_archive(self):
         for base in ('tools', 'analysis/crypto'):

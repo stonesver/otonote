@@ -1,7 +1,8 @@
 # Archive-only runtime. Do not install this into the website producer image.
 boto3==1.43.105
 pyelftools==0.32
-Pillow==11.3.0
+Pillow==13.0.0
 UnityPy==1.25.2
 imageio-ffmpeg==0.6.0
 py3rijndael==0.3.3
+certifi==2026.10.19

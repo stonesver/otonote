@@ -136,6 +136,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python -m pip install --require-hashes -r tools/python-security-requirements.txt
           python -m pip install --disable-pip-version-check -r tools/r2-requirements.txt
           sudo install -d -o "$(id -u)" -g "$(id -g)" "$STABLE_ROOT"
           cp -a "$GITHUB_WORKSPACE/." "$STABLE_ROOT/"
@@ -567,7 +568,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install isolated archive dependencies
-        run: python -m pip install -r backend/update_archive/requirements.txt
+        run: |
+          python -m pip install --require-hashes -r tools/python-security-requirements.txt
+          python -m pip install -r backend/update_archive/requirements.txt
       - name: Prepare archive JP egress when configured
         if: matrix.region == 'jp'
         shell: bash

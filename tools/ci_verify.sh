@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKER_IMAGE="${OURNOTES_WORKER_IMAGE:-ournotes-resource-worker:local}"
 QUERY_IMAGE="${OURNOTES_QUERY_IMAGE:-ournotes-query:local}"
 QUERY_VENV="${OURNOTES_QUERY_VENV:-/tmp/ournotes-query-venv}"
-WORKER_NODE_BASE_IMAGE="${OURNOTES_WORKER_NODE_BASE_IMAGE:-node:22.22.0-bookworm-slim}"
+WORKER_NODE_BASE_IMAGE="${OURNOTES_WORKER_NODE_BASE_IMAGE:-node:22.23.4-bookworm-slim}"
 QUERY_PYTHON_BASE_IMAGE="${OURNOTES_QUERY_PYTHON_BASE_IMAGE:-python:3.11-slim-bookworm}"
 export ASTRO_TELEMETRY_DISABLED=1
 
@@ -20,6 +20,7 @@ if [[ ! -d "$QUERY_VENV" ]]; then
   echo "==> provisioning query service venv at $QUERY_VENV"
 fi
 python3 -m venv --system-site-packages "$QUERY_VENV"
+"$QUERY_VENV/bin/pip" install --require-hashes -r tools/python-security-requirements.txt
 "$QUERY_VENV/bin/pip" install --quiet --requirement requirements-query.txt
 
 python3 tools/docs_status.py
@@ -171,7 +172,7 @@ PY
     --entrypoint sh \
     "$WORKER_IMAGE" \
     -ec '
-    test "$(node --version)" = "v22.22.0"
+    test "$(node --version)" = "v22.23.4"
     python3 -c "import UnityPy"
     ffmpeg -version >/dev/null
     ffprobe -version >/dev/null

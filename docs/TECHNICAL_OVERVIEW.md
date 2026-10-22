@@ -85,7 +85,7 @@ Python 服务使用 FastAPI / Uvicorn；SQLite 用于查询数据库及服务状
 
 ## 本地开始
 
-需要 `.nvmrc` 对应的 Node.js 22.22.0，以及 Python 3.11+（CI 使用 Python 3.12）。在仓库根目录运行：
+需要 `.nvmrc` 对应的 Node.js 22.23.4，以及 Python 3.11+（CI 使用 Python 3.12）。在仓库根目录运行：
 
 ```sh
 nvm use

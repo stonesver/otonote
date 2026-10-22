@@ -1,4 +1,4 @@
-ARG NODE_BASE_IMAGE=node:22.22.0-bookworm-slim
+ARG NODE_BASE_IMAGE=node:22.23.4-bookworm-slim
 FROM ${NODE_BASE_IMAGE} AS runtime-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -17,7 +17,11 @@ RUN apt-get update \
         python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
+RUN sed -i '/^mozilla\/emSign_ECC_Root_CA_-_G3.crt$/s/^/!/' /etc/ca-certificates.conf \
+    && update-ca-certificates
+
 WORKDIR /app
+COPY tools/python-security-requirements.txt /tmp/python-security-requirements.txt
 
 FROM runtime-base AS python-wheel-builder
 
@@ -31,7 +35,9 @@ COPY requirements-worker.txt ./
 COPY analysis/requirements.txt ./analysis/requirements.txt
 COPY analysis/crypto/requirements.txt ./analysis/crypto/requirements.txt
 RUN python3 -m venv /opt/ournotes-wheel-venv \
+    && /opt/ournotes-wheel-venv/bin/pip install --require-hashes -r /tmp/python-security-requirements.txt \
     && /opt/ournotes-wheel-venv/bin/pip install --no-cache-dir wheel==0.45.1 \
+    && /opt/ournotes-wheel-venv/bin/pip wheel --wheel-dir /wheels --require-hashes -r /tmp/python-security-requirements.txt \
     && /opt/ournotes-wheel-venv/bin/pip wheel \
         --no-cache-dir \
         --wheel-dir /wheels \
@@ -44,6 +50,7 @@ COPY analysis/requirements.txt ./analysis/requirements.txt
 COPY analysis/crypto/requirements.txt ./analysis/crypto/requirements.txt
 COPY --from=python-wheel-builder /wheels /wheels
 RUN python3 -m venv "$VIRTUAL_ENV" \
+    && pip install --no-index --find-links /wheels --require-hashes -r /tmp/python-security-requirements.txt \
     && pip install \
         --no-cache-dir \
         --no-index \

@@ -12,6 +12,7 @@ COPY tools/python-security-requirements.txt /tmp/python-security-requirements.tx
 RUN python -m pip install --require-hashes -r /tmp/python-security-requirements.txt \
     && python -m pip install --no-cache-dir -r requirements.txt
 COPY tools/ ./tools/
+ENV GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=/etc/ssl/certs/ca-certificates.crt
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 USER 65534:65534
 ENTRYPOINT ["python", "-m", "tools.growth_web"]

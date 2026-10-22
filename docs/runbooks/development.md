@@ -122,7 +122,7 @@ bash scripts/publish-web-client.sh \
 
 ## CI 与验收边界
 
-Python 环境首次安装依赖前，执行 `python -m pip install --require-hashes -r tools/python-security-requirements.txt`，校验并更新 pip 与 certifi。pip 自带独立证书库，系统 CA、应用 certifi 和 pip 必须分别验证。基础镜像重建时刷新系统 CA，并确认 emSign ECC Root CA - G3 不再受信任。容器升级保留旧镜像和外置配置，先验证候选环境，再逐个切换并检查对应业务接口。
+Python 环境首次安装依赖前，执行 `python -m pip install --require-hashes -r tools/python-security-requirements.txt`，校验并更新 pip 与 certifi。pip 自带独立证书库，系统 CA、应用 certifi 和 pip 必须分别验证。基础镜像重建时刷新系统 CA，并确认 emSign ECC Root CA - G3 不再受信任。养成与榜单采集容器通过 `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` 使用已更新的系统 CA，避免 gRPC 内置证书库继续信任旧根。容器升级保留旧镜像和外置配置，先验证候选环境，再逐个切换并检查对应业务接口。
 
 `.github/workflows/check.yml` 保留公开仓库原有 gitleaks 历史扫描和公开测试，增加来源边界、固定离线门禁、官方候选和程序包上传。PR 不持有生产凭据，不自动部署。
 

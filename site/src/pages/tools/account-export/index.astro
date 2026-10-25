@@ -2,7 +2,7 @@
 import ToolPageHeader from "../../../components/ToolPageHeader.astro";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 const links=[{label:'查看 GitHub 源码',url:import.meta.env.PUBLIC_GROWTH_SOURCE_URL || 'https://github.com/stonesver/ournotes-growth-exporter'},
-  {label:'前往 GitHub 下载预览版',url:import.meta.env.PUBLIC_GROWTH_DOWNLOAD_URL || 'https://github.com/stonesver/ournotes-growth-exporter/releases'}]
+  {label:'下载三服预览版 v0.2.0-alpha.1',url:import.meta.env.PUBLIC_GROWTH_DOWNLOAD_URL || 'https://github.com/stonesver/ournotes-growth-exporter/releases/tag/v0.2.0-alpha.1'}]
   .filter(link=>typeof link.url==='string'&&/^https:\/\//.test(link.url));
 ---
 <BaseLayout title="养成导入与本地工具">
@@ -10,11 +10,12 @@ const links=[{label:'查看 GitHub 源码',url:import.meta.env.PUBLIC_GROWTH_SOU
   <section class="content-shell growth-tool-guide">
     <div class="growth-tool-links">{links.map(link=><a href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>)}</div>
     <ol>
-      <li>下载并解压。Windows 打开 <code>Start.cmd</code>，Mac 打开 <code>Start.command</code>，无需另配登录参数。</li>
-      <li>在本机页面输入邮箱、密码，读取后下载养成 JSON。</li>
-      <li>回到配卡工具「我的卡库 · 从游戏导入我的养成」，选择 JSON，预览后应用。</li>
+      <li>下载并解压。Windows 打开 <code>Start.cmd</code>，Mac 打开 <code>Start.command</code>。首次在本机页面载入有效的 SDK 应用配置 XML；包内仅提供模板。</li>
+      <li>选择账号所属区服（港澳台、EN 或韩服），输入 BHK 邮箱、密码，读取后下载养成 JSON。该区服须已有角色。</li>
+      <li>回到网站选择同一区服，在配卡工具「我的卡库 · 从游戏导入我的养成」选择 JSON，预览后应用。</li>
     </ol>
     <p>本地工具的密码不经过本站，JSON 仅在浏览器解析。也可直接网页登录：密码会经本站服务器处理，不保存密码或令牌。</p>
+    <p>旧版 v0.1.0-alpha.3 及更早的本地包仅支持港澳台，请更新后再读取 EN 或韩服。Google 游戏授权尚未接通；没有有效 SDK 配置时可使用网站的邮箱登录入口。</p>
     <p>非官方工具，存在账号限制风险；登录可能使游戏会话失效，遇到额外验证会停止。导入后请核对数据，回忆加成需自行设置。</p>
     <p>支持 Windows x64、Mac Apple Silicon。Mac 版尚未完成 Apple 公证，不支持 Intel Mac。用完后关闭工具终端即可退出。</p>
   </section>

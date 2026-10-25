@@ -13,7 +13,7 @@ TEMPLATE = ROOT / 'packaging/growth-tool'
 MODULES = ('growth_export.py', 'growth_login.py', 'growth_login_local.py', 'game_service_status.py', 'global_game_config.py',
            'growth_levels.py', 'growth_package_check.py', 'build_growth_distribution.py',
            'build_growth_macos.py')
-DOCUMENTS = ('README.md', 'LICENSE', 'requirements.txt', 'sdk.example.xml', 'sdk.bhk.xml', 'launcher.py', 'Start.cmd', 'Start.command')
+DOCUMENTS = ('README.md', 'LICENSE', 'requirements.txt', 'sdk.example.xml', 'launcher.py', 'Start.cmd', 'Start.command')
 
 
 def digest(path):
@@ -21,8 +21,6 @@ def digest(path):
 
 
 def source_tree(destination):
-    from tools.growth_login import Profile
-    Profile.from_resources(TEMPLATE / 'sdk.bhk.xml')
     destination.mkdir(parents=True)
     (destination / 'tools').mkdir()
     (destination / 'tools/__init__.py').write_text('')
@@ -77,7 +75,7 @@ def build(output, downloads=None):
     source = output / 'ournotes-growth-source'
     source_tree(source)
     result = {'source': write_zip(source, output / (source.name + '.zip')),
-              'sdkConfigIncluded': True, 'windowsExecutionVerified': False}
+              'sdkConfigIncluded': False, 'windowsExecutionVerified': False}
     if downloads is not None:
         lock = json.loads((TEMPLATE / 'windows-lock.json').read_text())
         for item in lock['files']:

@@ -54,7 +54,7 @@ def build(output):
     (portable / 'BUILD.json').write_text(json.dumps({
         'pythonVersion': platform.python_version(), 'platform': 'macos-arm64',
         'buildMacOS': platform.mac_ver()[0], 'dependencies': dependencies,
-        'sdkConfigIncluded': True, 'appleNotarized': False,
+        'sdkConfigIncluded': False, 'appleNotarized': False,
     }, indent=2) + '\n')
     result = write_zip(portable, output / (portable.name + '.zip'))
     (output / 'release.json').write_text(json.dumps(result, indent=2) + '\n')

@@ -1,5 +1,6 @@
 import json
 import hashlib
+import shutil
 import stat
 import tempfile
 import unittest
@@ -8,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 from tools.growth_login import Profile, LoginError
 from tools.growth_login_local import LoginServer
-from tools.build_growth_distribution import source_tree, write_zip
+from tools.build_growth_distribution import TEMPLATE, source_tree, write_zip
 from tests.test_growth_web import FakeSdk, FakeGame
 
 XML = b'''<resources><string name="appid">17703</string><string name="merchantid">1045</string><string name="serverid">16841</string><string name="channelid">2001</string><string name="one_global_brand_id">5</string><string name="one_global_area_id">6</string><string name="one_appkey">FAKE-APP-KEY</string></resources>'''
@@ -54,14 +55,21 @@ class DistributionTests(unittest.TestCase):
         finally:
             server.server_close()
 
-    def test_source_includes_shared_profile_but_no_private_config_snapshots_or_adb(self):
+    def test_source_includes_three_region_modules_but_no_sdk_identity_snapshots_or_adb(self):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / 'source'
-            source_tree(target)
+            template = Path(folder) / 'template'
+            shutil.copytree(TEMPLATE, template)
+            (template / 'sdk.bhk.xml').write_bytes(XML)
+            with patch('tools.build_growth_distribution.TEMPLATE', template):
+                source_tree(target)
             paths = {str(p.relative_to(target)) for p in target.rglob('*') if p.is_file()}
             self.assertNotIn('sdk.xml', paths)
-            self.assertIn('sdk.bhk.xml', paths)
-            self.assertEqual(Profile.from_resources(target / 'sdk.bhk.xml').channel_id, '2001')
+            self.assertNotIn('sdk.bhk.xml', paths)
+            self.assertNotIn('packaging/growth-tool/sdk.bhk.xml', paths)
+            self.assertIn('sdk.example.xml', paths)
+            self.assertIn('tools/global_game_config.py', paths)
+            self.assertIn('tools/game_service_status.py', paths)
             self.assertNotIn('tools/growth_cache_export.py', paths)
             self.assertFalse(any('snapshot' in path or 'verification' in path for path in paths))
             self.assertIn('launcher.py', paths)

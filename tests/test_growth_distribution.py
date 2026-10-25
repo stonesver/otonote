@@ -75,5 +75,18 @@ class DistributionTests(unittest.TestCase):
             self.assertIn('launcher.py', paths)
             self.assertNotIn('growth_cache_export', (target / 'tools/growth_login_local.py').read_text())
 
+    def test_release_bundles_only_explicit_minimal_application_config(self):
+        with tempfile.TemporaryDirectory() as folder:
+            sdk = Path(folder) / 'approved.xml'
+            sdk.write_bytes(XML)
+            target = Path(folder) / 'release'
+            source_tree(target, sdk)
+            self.assertEqual((target / 'sdk.bhk.xml').read_bytes(), XML)
+            self.assertIn('sdk.bhk.xml', (target / '.gitignore').read_text())
+            sdk.write_bytes(XML.replace(b'</resources>', b'<string name="password">PRIVATE</string></resources>'))
+            with self.assertRaisesRegex(ValueError, 'invalid_distribution_sdk_config'):
+                source_tree(Path(folder) / 'rejected', sdk)
+            self.assertFalse((Path(folder) / 'rejected/sdk.bhk.xml').exists())
+
 if __name__ == '__main__':
     unittest.main()

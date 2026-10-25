@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -105,6 +106,68 @@ class ResourceCacheTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'ambiguous'): resource.locate('icon')
 
 class CurrentImageCoverageTests(unittest.TestCase):
+    def item_resources(self, resource_class=CurrentResources):
+        resource = resource_class.__new__(resource_class)
+        ordinary, campaign = 'Item/coin', 'Image/Campaign/anniversary'
+        common_bundle = 'item_assets_all_' + 'a' * 32 + '.bundle'
+        campaign_bundle = 'image_assets_campaign_' + 'b' * 32 + '.bundle'
+        def location(key, kind, container, dependencies=()):
+            return SimpleNamespace(primary_key=key, resource_type=kind, internal_id=container,
+                                   dependencies=dependencies, provider_id='fixture')
+        bundles = [location(name, 'bundle', name) for name in (common_bundle, campaign_bundle)]
+        textures = [location(ref, 'UnityEngine.Texture2D', 'Assets/AddressableResources/' + ref + '.png', (bundle,))
+                    for ref, bundle in ((ordinary, common_bundle), (campaign, campaign_bundle))]
+        # Addressables can expose a Sprite and Texture2D at the same address.
+        sprite = location(campaign, 'UnityEngine.Sprite', textures[1].internal_id, (campaign_bundle,))
+        locations = [*bundles, sprite, *textures]
+        resource.catalog = SimpleNamespace(locations=locations)
+        resource.locations = {loc.primary_key: loc for loc in locations}
+        resource.by_key = {}
+        for loc in locations:
+            resource.by_key.setdefault(loc.primary_key, []).append(loc)
+        resource.rows = lambda table: [{'_imagePath': ref} for ref in (ordinary, campaign)] if table == 'MasterItem' else []
+        return resource, textures, bundles
+
+    def test_item_images_follow_typed_catalog_dependencies_in_both_editions(self):
+        from tools.current_content_inputs import extract_images
+        from tools.jp_phone_inputs import PhoneResources
+        for resource_class in (CurrentResources, PhoneResources):
+            with self.subTest(edition=resource_class.__name__), tempfile.TemporaryDirectory() as tmp:
+                resource, textures, bundles = self.item_resources(resource_class)
+                root = Path(tmp)
+                write_json(root / 'previous.json', {'assets': []})
+                output = root / 'images'; output.mkdir()
+                environments = {}
+                for index, (texture, bundle) in enumerate(zip(textures, bundles)):
+                    image = SimpleNamespace(width=2, height=2, save=lambda target, fmt: target.write_bytes(b'fixture-image'))
+                    data = SimpleNamespace(m_Name='fixture', image=image)
+                    obj = SimpleNamespace(type=SimpleNamespace(name='Texture2D'), path_id=index,
+                                          read=lambda data=data: data)
+                    environments[bundle.primary_key] = SimpleNamespace(container={texture.internal_id: obj})
+                resource.environment = lambda name: environments[name]
+                with patch('tools.current_content_inputs.ROOT', root):
+                    extract_images(resource, {'assetManifest': 'previous.json', 'extractedRoot': 'old'}, output)
+                assets = json.loads((output / 'manifest.json').read_text())['assets']
+                self.assertEqual({a['container_path']: a['bundle'] for a in assets},
+                                 {texture.internal_id: bundle.primary_key for texture, bundle in zip(textures, bundles)})
+                self.assertTrue(all((output / a['exported_file']).is_file() for a in assets))
+
+    def test_item_image_requires_one_catalog_texture_and_one_bundle(self):
+        from tools.current_content_inputs import core_image_targets
+        for invalid in ('missing', 'ambiguous', 'no-bundle', 'two-bundles'):
+            with self.subTest(invalid=invalid):
+                resource, textures, bundles = self.item_resources()
+                texture = textures[1]
+                if invalid == 'missing':
+                    resource.by_key[texture.primary_key] = []
+                elif invalid == 'ambiguous':
+                    other = SimpleNamespace(**vars(texture)); other.internal_id += '.other'
+                    resource.by_key[texture.primary_key].append(other)
+                else:
+                    texture.dependencies = () if invalid == 'no-bundle' else tuple(b.primary_key for b in bundles)
+                with self.assertRaisesRegex(ValueError, 'catalog entry|texture dependency'):
+                    core_image_targets(resource)
+
     def test_new_asset_ids_and_removals_follow_current_master(self):
         from tools.current_content_inputs import core_image_targets
         class Resources:

@@ -44,7 +44,12 @@ def core_image_targets(resources):
     for reference in sorted({r['_bannerAssetName'] for r in resources.rows('MasterGacha')}):
         add('gacha_assets_' + reference.lower().replace('/', '_') + '_', reference)
     for reference in sorted({r['_imagePath'] for r in resources.rows('MasterItem') if r.get('_imagePath')}):
-        add('item_assets_all_', reference)
+        # Items may reference campaign art in separate bundles. The typed
+        # catalog entry owns both the container path and its bundle dependency.
+        texture = resources.locate(reference, 'UnityEngine.Texture2D')
+        bundles = [resources.locate(name) for name in texture.dependencies if name.endswith('.bundle')]
+        if len(bundles) != 1: raise ValueError('ambiguous texture dependency: ' + reference)
+        targets[texture.internal_id] = bundles[0]
     for row in resources.rows('MasterBandItem'):
         band, item = row['_bandId'], row['_id']
         add(f'band_assets_band_{band}_banditem_{item}_band_item_', f'Band/{band}/BandItem/{item}/band_item')

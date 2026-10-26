@@ -3,12 +3,12 @@ const {part = 'cards'} = Astro.props;
 import '../styles/team-planning.css';
 ---
 {part === 'cards' ? <div class="planning-panel" data-planning-panel>
-  <label class="planning-field"><span>这次怎么配？</span><select data-planning-kind>
-    <option value="reference">先看参考队伍</option>
-    <option value="selected">用我选的卡</option>
-    <option value="current">按当前养成配队</option>
-    <option value="training">看看练好后怎么配</option>
-    <option value="trial">试试这张卡</option>
+  <label class="planning-field"><span>使用卡片</span><select data-planning-kind data-quick-native>
+    <option value="reference">参考卡库</option>
+    <option value="selected">手选卡片</option>
+    <option value="current">我的卡库</option>
+    <option value="training">培养后配队</option>
+    <option value="trial">加入试用卡</option>
   </select></label>
   <p data-planning-note class="calculator-scope-note" aria-live="polite"></p>
   <div data-planning-training hidden>
@@ -39,8 +39,8 @@ import '../styles/team-planning.css';
   </details>
 </div> : <div class="planning-panel" data-performance-panel>
   <div class="planning-fields">
-    <label class="planning-field"><span>按什么发挥来比较？</span><select data-performance-profile><option value="steady">参考发挥</option><option value="practice">练习中的发挥</option><option value="ideal">理想发挥</option></select></label>
-    <label class="planning-field"><span>这次更看重什么？</span><select data-recommendation-goal><option value="score">冲高分</option><option value="stable">少掉分，求稳定</option><option value="missions">激奏段落任务</option></select></label>
+    <label class="planning-field"><span>发挥条件</span><select data-performance-profile data-quick-native><option value="steady">参考发挥</option><option value="practice">练习中的发挥</option><option value="ideal">理想发挥</option></select></label>
+    <label class="planning-field"><span>推荐方向</span><select data-recommendation-goal><option value="score">冲高分</option><option value="stable">较低分表现</option><option value="missions">激奏段落任务</option></select></label>
   </div>
   <p data-performance-note class="calculator-scope-note" aria-live="polite"></p>
   <details><summary>调整发挥条件或导入演出记录</summary>

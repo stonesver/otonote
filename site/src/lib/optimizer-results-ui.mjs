@@ -1,8 +1,8 @@
 import {cardGrowthLabel} from './card-growth-labels.mjs';
-import {requestTeamSave} from './shared-team-context.mjs';
+import {requestTeamSave,openTeamWorkspace} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
-import {skillActivation} from './skill-activation-view.mjs';
-import {teamLineup,scoreComposition} from './score-visuals.mjs';
+import {createRecommendationTeamView} from './recommendation-team-view.mjs';
+import {scoreComposition} from './score-visuals.mjs';
 import {scoringScenarioSearch} from './scoring-rules/scenario-search.mjs';
 import {toolRoute} from './tool-route.mjs';
 const ui=text=>planningUiText(text,typeof document==='undefined'?'zh-CN':document.documentElement.lang);
@@ -40,11 +40,11 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
       el('span',mode==='gekisou'?'激奏演出':'普通自由演出','recommendation-mode'));
     const resultHeading=el('header',null,'task-result-heading'),identity=el('div');identity.append(header,el('span',recommendationScenarioLabel(result),'recommendation-scenario'));resultHeading.append(identity);row.append(resultHeading);
     const score=el('div',null,'recommendation-score');
-    score.append(el('strong',number(result.value)),el('span',objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
+    score.append(el('strong',result.value==null?'—':Math.round(result.value).toLocaleString()),el('span',objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
     if(result.delta!=null&&!result.planning?.missingActual)score.append(el('em',`${result.delta>=0?'+':''}${number(result.delta)} 较当前养成方案`,result.delta>=0?'is-positive':'is-negative'));
-    resultHeading.append(score);row.append(teamLineup(workbench,result.draft),skillActivation(workbench,result.draft,{mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result}));
-    if(direction?.reason)row.append(el('p',direction.reason,'recommendation-reason'));
-    if(direction?.tradeoff)row.append(el('p',direction.tradeoff,'recommendation-tradeoff'));
+    resultHeading.append(score);row.append(createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result}));
+
+
     const planning=result.planning;
     if(planning?.trainingChanges?.length){
       const training=el('div',null,'recommendation-training');training.append(el('strong',`这套队伍需要练好 ${planning.trainingChanges.length} 张卡`));
@@ -53,21 +53,25 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
       if(planning.plannedTeamCurrentValue!=null){const dl=el('dl',null,'recommendation-power');for(const [label,value] of values){const item=el('div');item.append(el('dt',label),el('dd',number(value)));dl.append(item);}training.append(dl);}
       if(planning.missingActual)training.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成比较这套队伍；持有情况未确认，不与当前卡库最佳队伍比较。':'部分当前养成未记录，暂不计算比现在提高多少。'));
       training.append(el('p','材料消耗尚未核算；应用队伍不会修改实际卡库。'));row.append(training);
-    }else if(planning?.missingActual)row.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成计算；持有情况未确认。':'包含参考养成，尚不能作为当前可用队伍或计算实际提升。','recommendation-caption'));
-    if(result.performanceSummary)row.append(el('p',typeof result.performanceSummary==='string'?result.performanceSummary:result.performanceSummary.label??'','recommendation-caption'));
-    const actions=el('div',null,'recommendation-actions'),apply=el('button','应用队伍');apply.type='button';
-    apply.addEventListener('click',()=>{workbench.draft=structuredClone(result.draft);workbench.planningScenarios?.restore();workbench.commit();workbench.dispatchEvent(new CustomEvent('calculator-edit-team'));workbench.querySelector('#team-editor')?.scrollIntoView({block:'start',behavior:'auto'});});actions.append(apply);
-    const save=el('button','存为队伍');save.type='button';
+    }else if(planning?.missingActual)row.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成计算；持有情况未确认。':'参考养成，非当前实力','recommendation-caption'));
+
+    const actions=el('div',null,'recommendation-actions'),apply=el('button','编辑队伍');apply.type='button';
+    apply.addEventListener('click',()=>{workbench.draft=structuredClone(result.draft);workbench.planningScenarios?.restore();workbench.commit();openTeamWorkspace('editor');});actions.append(apply);
+    const save=el('button','保存队伍','team-save-result');save.type='button';
     save.addEventListener('click',()=>requestTeamSave(result.draft,`${recommendationScenarioLabel(result)} · ${direction?.label??`${mode==='gekisou'?'激奏':'普通'}方案 ${i+1}`}`));actions.append(save);
-    if(planning?.trainingChanges?.length){const adjust=el('button','修改培养目标');adjust.type='button';adjust.addEventListener('click',()=>{workbench.querySelector('[data-planning-training]')?.scrollIntoView({block:'center',behavior:'auto'});workbench.querySelector('[data-planning-count]')?.focus();});actions.append(adjust);}
+    if(planning?.trainingChanges?.length){const adjust=el('button','修改培养目标');adjust.type='button';adjust.addEventListener('click',()=>{workbench.dispatchEvent(new CustomEvent('calculator-edit-planning'));});actions.append(adjust);}
     if(objective!=='formation_power'){
-      const link=el('a','查看分数明细');link.href=toolRoute(`/tools/song-calculator/${scoringScenarioSearch(result.draft,mode,result.scenario)}`,window.location.pathname);actions.append(link);
+      const link=el('a','分数明细');link.href=toolRoute(`/tools/song-calculator/${scoringScenarioSearch(result.draft,mode,result.scenario)}`,window.location.pathname);actions.append(link);
     }
     row.append(actions);
-    const detail=el('details',null,'recommendation-details');detail.append(el('summary','查看配对、分段得分与计算条件'));
+    const detail=el('details',null,'recommendation-details');detail.append(el('summary','计算详情'));
     // Expensive skill and chart views are created only when requested.
     detail.addEventListener('toggle',()=>{
       if(!detail.open||detail.dataset.loaded)return;detail.dataset.loaded='true';
+      if(direction?.tradeoff)detail.append(el('p',direction.tradeoff));
+      detail.append(el('p',`目标值 ${number(result.value)}`));
+      if(direction?.reason)detail.append(el('p',direction.reason));
+      if(result.performanceSummary)detail.append(el('p',typeof result.performanceSummary==='string'?result.performanceSummary:result.performanceSummary.label??''));
       if(result.sections?.length)detail.append(scoreComposition(result.sections,result.expectedScore));
       if(objective!=='formation_power')detail.append(el('p',`综合力 ${number(result.power)} · 本次比较范围 ${number(result.minimumScore)} – ${number(result.maximumScore)} 分`,'recommendation-caption'));
       if(result.scoreDistribution)detail.append(el('p',`较低一成位置的分数 ${number(result.scoreDistribution.p10)} · 共 ${result.scoreDistribution.count} 次比较；不是实战保底。`,'recommendation-caption'));

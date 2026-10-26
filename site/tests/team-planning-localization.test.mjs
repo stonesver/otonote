@@ -76,3 +76,10 @@ test('main journey controls and runtime readiness remain English after updates',
   const owned=optimizerReadiness({draft:{...empty,selectedSongId:'song',selectedDifficulty:'expert'},scope:'owned',inventory:{memberCardIds:[],supportCardIds:[]},locale:'en'});assert.doesNotMatch(owned.message,/[\u4e00-\u9fff]/);assert.match(owned.message,/reference teams/);
   for(const status of ['卡库已更新，请重新搜索。','准备计算…','正在寻找更好的编成','准备卡片与技能 · 1/5','完整复算领先队伍：待开始',' 未找到满足约束的队伍。'])assert.doesNotMatch(planningUiText(status,'en'),/[\u4e00-\u9fff]/,status);
 });
+
+test('deck pilot state controls and condition summaries translate for English players',()=>{
+  for(const text of ['自动配队','队伍比较','我的队伍','歌曲与难度','使用卡片','发挥条件','高级设置','推荐队伍','停止','修改条件','收起条件','参考队伍 · 卡片满养成','平均分','综合力','较低分表现','较高分表现','计算详情','编辑队伍']) {
+    assert.doesNotMatch(planningUiText(text,'en'),/[\u4e00-\u9fff]/,text);
+    assert.equal(planningUiText(text,'zh-CN'),text);
+  }
+});

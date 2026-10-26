@@ -1,3 +1,4 @@
+import {eventSongHeading,eventYieldBreakdown,eventChallengeBreakdown} from './event-result-presentation.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {eventSongCandidates} from './event-song-ranking.mjs';
@@ -6,6 +7,7 @@ import {EVENT_YIELD_GOAL_LABELS,orderEventYieldRows,eventYieldGaps} from './even
 import {createCalculationProgress} from './calculation-progress.mjs';
 import {createCalculationLiveUpdates,reconcileCalculationView} from './calculation-live-updates.mjs';
 import {selectedControlValues} from './filter-controls.mjs';
+let phasePanelId=0;
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:1}),grades=['D','C','B','A','S','SS'];
 const gapText=n=>n===0?'相同':`${n>0?'少':'多'} ${fmt(Math.abs(n))}`;
 const selectedDifficulties=field=>field.multiple?[...field.selectedOptions].map(o=>o.value).filter(value=>value!=='all'):field.value;
@@ -18,7 +20,7 @@ export function eventYieldCompletionText(data){
  const evidence=proven?`所选条件的收益第一名已证明；备选供参考${ties?'，同收益的期望分排序已证明':'，同收益的期望分排序未证明'}`:'当前结果尚未证明所选条件下的第一名';
  const continuation=proofs.some(p=>p.scope==='all_selected_charts_given_challenge_rows')?'；后续挑战以本次已计算方案为范围':'';
  return {complete,proven,label:complete?'活动收益比较完成':'活动收益推荐完成',detail:covered,
-   status:`${covered}。${evidence}${continuation}。展示 ${data.rows.length} 个队伍＋歌曲方案${data.cacheHits?`，复用 ${data.cacheHits} 次估分`:''}。${data.failures.length?'有计算失败，结果不完整。':complete?'':'可重新开始完整比较，已保存的估分缓存可复用。'}`};
+   status:`${covered}。${evidence}${continuation}。共找到 ${data.rows.length} 个队伍＋歌曲方案${data.cacheHits?`，复用 ${data.cacheHits} 次估分`:''}。${data.failures.length?'有计算失败，结果不完整。':complete?'':'可重新开始完整比较，已保存的估分缓存可复用。'}`};
 }
 
 export function eventYieldStopText(hasResults){
@@ -53,7 +55,7 @@ export function setupEventYieldOptimizer(tool){
  const stop=(publish=false)=>{worker?.terminate();worker=null;updates.stop({flushResult:publish});if(publish&&result)render();q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
  function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
-   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('reward-override')?.checked??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
+   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
  function sync(){
    if(tool.q('mode').value==='challenge'&&q('goal').value==='grade')q('goal').value='badges';
    const c=context(),next=JSON.stringify(c);
@@ -70,16 +72,21 @@ export function setupEventYieldOptimizer(tool){
    const next=JSON.stringify([displaySort,displayGoal,page,Boolean(worker),resultKey(result)]);
    if(next===renderKey)return;renderKey=next;
    const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey;
-   if(q('rewards')?.checked)view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('reward-override')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(q('rewards')?.checked)view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   const completion=eventYieldCompletionText(result);
+   const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
    const ordered=orderEventYieldRows(eligible,displaySort,target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
+   const alternatives=el('details',null,'event-alternatives'),comparisonHeading=el('summary');comparisonHeading.append(el('span',`比较方案 · ${ordered.length} 套`),boundary);alternatives.append(comparisonHeading);alternatives.open=ordered.length>1;
+   view.push(alternatives);
    const toolbar=el('div',null,'task-event-plan-sort'),sort=el('div',null,'task-event-sort-options');sort.setAttribute('role','group');sort.setAttribute('aria-label','收益方案排序');
-   if(q('goal').value==='both'){const goals=el('div',null,'task-event-result-tabs task-event-goal-tabs');goals.setAttribute('role','group');goals.setAttribute('aria-label','收益优先候选');for(const [goal,name] of [['badges','道具优先方案'],['eventPoints','pt 优先方案']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(target===goal));button.addEventListener('click',()=>{displayGoal=goal;page=0;selectedPlan=null;render();});goals.append(button);}view.push(goals);}
-   for(const [value,name] of [['yield','收益优先'],['short','时长优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(displaySort===value));button.addEventListener('click',()=>{displaySort=value;page=0;selectedPlan=null;render();});sort.append(button);}toolbar.append(el('span','方案排序'),sort,el('small',`${ordered.length} 个收益领先候选`));view.push(toolbar);
+   if(q('goal').value==='both'){const goals=el('div',null,'task-event-result-tabs task-event-goal-tabs');goals.setAttribute('role','group');goals.setAttribute('aria-label','收益优先候选');for(const [goal,name] of [['badges','道具优先'],['eventPoints','pt 优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(target===goal));button.addEventListener('click',()=>{displayGoal=goal;page=0;selectedPlan=null;render();});goals.append(button);}toolbar.append(goals);}
+   for(const [value,name] of [['yield','收益优先'],['short','时长优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(displaySort===value));button.addEventListener('click',()=>{displaySort=value;page=0;selectedPlan=null;render();});sort.append(button);}const count=el('small',`${ordered.length} 个收益领先候选`);toolbar.append(el('span','方案排序'),sort,count);alternatives.append(toolbar);
    const baseline=el('div',null,'task-event-plan-baseline'),identity=el('div',null,'task-event-baseline-name');identity.append(el('small','比较基准'),el('strong',reference?.song.title??'—'),el('span',reference?.song.difficulty.toUpperCase()??'—','task-event-chart-label'));baseline.append(identity);
-   const totals=el('div',null,'task-event-baseline-totals');for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){const metric=el('span');metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));totals.append(metric);}baseline.append(totals);view.push(baseline);
-   view.push(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}仅重排${EVENT_YIELD_GOAL_LABELS[target]}的领先候选；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}。`,'event-hint task-event-gap-note'));
-   const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','收益方案');view.push(tabs);
+   const totals=el('div',null,'task-event-baseline-totals');for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){const metric=el('span');metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));totals.append(metric);}baseline.append(totals);const comparisonNotes=el('details',null,'event-comparison-notes');comparisonNotes.append(el('summary','比较基准'),baseline);toolbar.append(comparisonNotes);
+   comparisonNotes.append(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}仅重排${EVENT_YIELD_GOAL_LABELS[target]}的领先候选；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}。`,'event-hint task-event-gap-note'));
+   const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','收益方案');alternatives.append(tabs);
+   count.hidden=ordered.length<=8;count.textContent=ordered.length?`${page*8+1}–${Math.min(ordered.length,page*8+8)} / ${ordered.length} 套`:'0 套';
    const visible=ordered.slice(page*8,page*8+8),selected=visible.find(r=>r.id===selectedPlan?.id&&r.song.id===selectedPlan?.song)??visible.find(r=>r.song.id===selectedPlan?.song)??visible[0];
    for(const row of visible){
      const signature=JSON.stringify({...row,search:undefined}),cached=articleCache.get(row.id+'|'+row.song.id),reuse=cached?.signature===signature;
@@ -87,27 +94,19 @@ export function setupEventYieldOptimizer(tool){
      if(!reuse)article.className+=' task-event-plan-enter';
      nextArticles.set(row.id+'|'+row.song.id,{signature,article});
      const differenceLabel=gap(row);
-     const tab=el('button',null,'task-event-plan-choice'),title=el('span',row.song.title,'task-event-choice-title'),meta=el('span',null,'task-event-choice-meta');meta.append(el('small',row.song.difficulty.toUpperCase(),'task-event-chart-label'),el('small',row.song.seconds==null?'时长未知':`${fmt(row.song.seconds)} 秒`));tab.append(title,meta);tab.dataset.yieldPlanKey=row.id+'|'+row.song.id;tab.title=row.song.title+' · '+row.song.difficulty.toUpperCase();tab.type='button';tab.setAttribute('aria-pressed',String(row===selected));tab.addEventListener('click',()=>{selectedPlan={id:row.id,song:row.song.id};for(const n of q('results').querySelectorAll('.task-event-plan-result'))n.hidden=n!==article;for(const b of tabs.children)b.setAttribute('aria-pressed',String(b===tab));});tabs.append(tab);
+     const tab=el('button',null,'task-event-plan-choice'),title=el('span',row.song.title,'task-event-choice-title'),meta=el('span',null,'task-event-choice-meta');meta.append(el('small',row.song.difficulty.toUpperCase(),'task-event-chart-label'),el('small',row.song.seconds==null?'时长未知':`${fmt(row.song.seconds)} 秒`));tab.append(title,meta);tab.dataset.yieldPlanKey=row.id+'|'+row.song.id;tab.title=row.song.title+' · '+row.song.difficulty.toUpperCase();tab.type='button';tab.setAttribute('aria-pressed',String(row===selected));tab.addEventListener('click',()=>{selectedPlan={id:row.id,song:row.song.id};for(const n of q('results').querySelectorAll('.task-event-plan-result'))n.hidden=n!==article;for(const b of tabs.children)b.setAttribute('aria-pressed',String(b===tab));article.scrollIntoView({block:'start',behavior:'instant'});});tabs.append(tab);
      const gapRow=el('span',null,'task-event-choice-gap');for(const [key,label] of [['badges','道具'],['eventPoints','pt']]){const value=differenceLabel[key],cell=el('span');cell.dataset.gap=value===0?'equal':value>0?'less':'more';cell.append(el('small',label),el('b',value===0?'持平':`${value>0?'−':'+'}${fmt(Math.abs(value))}`));gapRow.append(cell);}tab.append(gapRow);
-     if(reuse){for(const [index,node] of article.querySelectorAll('.task-event-yield-gap').entries()){const value=gap(row)[['badges','eventPoints'][index]];const text=`比收益第一${gapText(value)}`;if(node.textContent!==text)node.textContent=text;}}
+     if(reuse){for(const [index,node] of article.querySelectorAll('.task-event-yield-gap').entries()){const value=gap(row)[['badges','eventPoints'][index]];const text=`比收益第一${gapText(value)}`;if(node.textContent!==text)node.textContent=text;node.hidden=value===0;}}
      if(!reuse){
-     const differences=gap(row),metrics=el('div',null,'task-event-total-grid');for(const [key,label] of [['badges','道具总收益'],['eventPoints','活动 pt 总收益']]){const cell=el('div');cell.append(el('small',label),el('strong',fmt(row.total[key])),el('small',`比收益第一${gapText(differences[key])}`,'task-event-yield-gap'));metrics.append(cell);}article.append(metrics);
-     article.append(el('small',row.reward.mode==='ordinary'?'普通演出阶段':'挑战演出阶段','task-result-eyebrow'),el('h4',`${row.song.title} · ${row.song.difficulty.toUpperCase()} · ${grades[row.reward.scoreRank-2]}`));
-     if(row.recommendationGoals?.length)article.append(el('strong',row.recommendationGoals.map(goal=>EVENT_YIELD_GOAL_LABELS[goal]).join(' / ')));
-     article.append(el('p',`${row.performanceScenario?'当前发挥':'AP'} ${fmt(row.estimatedScore)} 分 · 估计档位范围 ${grades[row.minimumRank-2]}–${grades[row.maximumRank-2]} · 综合力 ${fmt(row.power)} · ${row.song.seconds==null?'时长未知':fmt(row.song.seconds)+' 秒'}`,'event-hint'));
-     article.append(eventTeamDetails(tool,row));
-     article.append(el('p',`道具加成 +${fmt(row.bonuses.rewardBP/100)}% · 活动 pt 加成 +${fmt(row.bonuses.eventPointBP/100)}%`));
-     article.append(el('p',`每次：${fmt(row.reward.badges)} 道具 · ${fmt(row.reward.eventPoints)} 活动 pt · ${fmt(row.reward.challengePoints)} 挑战 pt`));
-     if(row.reward.mode==='ordinary'){
-       article.append(el('strong',`${row.continuation?'普通＋挑战总计':'普通阶段总计'}：${fmt(row.total.badges)} 道具 · ${fmt(row.total.eventPoints)} 活动 pt`));
-       article.append(el('p',`${row.normalPlays} 次普通演出，耗 ${row.spentFire} 火（预算余 ${row.remainingFire} 火），新获得 ${fmt(row.earnedCP)} 挑战 pt${row.startingCP?`；另有 ${fmt(row.startingCP)} 已有挑战 pt`:''}。${row.continuation?`后续挑战 ${row.continuation.plays} 次，剩余 ${row.continuation.remainingCP} 挑战 pt。`:'挑战 pt 尚未兑换。'}`));
-       article.append(el('p',`${row.startingCP?'含已有挑战 pt 的预算比值':'完整方案每火'}：${fmt(row.total.badges/row.spentFire)} 道具 / ${fmt(row.total.eventPoints/row.spentFire)} 活动 pt`,'event-hint'));
-     }else article.append(el('strong',`每挑战 pt：${fmt(row.reward.badges/row.reward.challengeCost)} 道具 · ${fmt(row.reward.eventPoints/row.reward.challengeCost)} 活动 pt`));
-     const apply=el('button',row.reward.mode==='challenge'?'应用挑战收益队伍和歌曲':'应用普通队伍、歌曲和估计档位');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));article.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));
+     const differences=gap(row),metrics=el('div',null,'task-event-total-grid');for(const [key,label] of [['badges','道具总收益'],['eventPoints','活动 pt 总收益']]){const cell=el('div');cell.append(el('small',label),el('strong',fmt(row.total[key])),el('small',`比收益第一${gapText(differences[key])}`,'task-event-yield-gap'));cell.children[2].hidden=differences[key]===0;metrics.append(cell);}article.append(metrics);
+     metrics.append(el('p',row.reward.mode==='ordinary'?`${row.spentFire} 火 · ${row.normalPlays} 次普通${row.continuation?' · '+row.continuation.plays+' 次挑战':''}`:`每次 ${row.reward.challengeCost} 挑战 pt`,'event-plan-facts'));
+     article.append(eventYieldBreakdown(row));
+     const ordinaryPanel=el('section',null,'event-stage-panel');
+     ordinaryPanel.append(eventSongHeading(tool.data,row.song,{label:row.reward.mode==='ordinary'?'普通演出':'挑战演出',grade:grades[row.reward.scoreRank-2]}));
+     ordinaryPanel.append(eventTeamDetails(tool,row));
+     const apply=el('button',row.reward.mode==='challenge'?'使用挑战方案':'使用普通方案');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));const actions=el('div',null,'event-result-actions');actions.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));ordinaryPanel.append(actions);
      if(row.continuation){
-       const section=el('section',null,'event-recommendations');section.append(el('h4','后续挑战 · 独立队伍'));
-       section.append(el('p',`普通阶段小计：${fmt(row.normalPlays*row.reward.badges)} 道具 · ${fmt(row.normalPlays*row.reward.eventPoints)} 活动 pt`));
-       section.append(el('strong',`挑战阶段小计：${fmt(row.continuation.badges)} 道具 · ${fmt(row.continuation.eventPoints)} 活动 pt`));
+       const section=el('section',null,'event-recommendations event-stage-panel');
        if(!row.continuation.stages.length)section.append(el('p','挑战 pt 尚不足一次挑战；保留余额，本次不计入挑战收益。'));
        const stageTabs=el('div',null,'task-event-result-tabs');stageTabs.setAttribute('role','group');stageTabs.setAttribute('aria-label','后续挑战消耗方案');section.append(stageTabs);
        const priorCost=cached?.article.querySelector?.('[data-yield-stage-cost][aria-pressed="true"]')?.dataset.yieldStageCost;
@@ -117,23 +116,29 @@ export function setupEventYieldOptimizer(tool){
          const panel=el('section');panel.hidden=String(stage.cost)!==activeCost;stagePanels.push(panel);
          const stageTab=el('button',`${stage.cost} pt × ${stage.plays} 次`);stageTab.type='button';stageTab.dataset.yieldStageCost=String(stage.cost);stageTab.setAttribute('aria-pressed',String(String(stage.cost)===activeCost));stageTab.addEventListener('click',()=>{for(const n of stagePanels)n.hidden=n!==panel;for(const b of stageTabs.children)b.setAttribute('aria-pressed',String(b===stageTab));});stageTabs.append(stageTab);
          const r=stage.row;
-         panel.append(el('h5',`${r.song.title} · ${r.song.difficulty.toUpperCase()} · ${grades[r.reward.scoreRank-2]} 档 · ${stage.cost} 挑战 pt × ${stage.plays} 次`));
-         panel.append(el('p',`活动内综合力 ${fmt(r.power)} · ${r.performanceScenario?'当前发挥':'AP'} ${fmt(r.estimatedScore)} 分 · 估计档位范围 ${grades[r.minimumRank-2]}–${grades[r.maximumRank-2]}`,'event-hint'));
-         panel.append(el('p',`道具加成 +${fmt(r.bonuses.rewardBP/100)}% · 活动 pt 加成 +${fmt(r.bonuses.eventPointBP/100)}%；每次 ${fmt(stage.reward.badges)} 道具 · ${fmt(stage.reward.eventPoints)} 活动 pt`));
-         panel.append(eventTeamDetails(tool,r));
-         const use=el('button','应用这支后续挑战队伍');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});panel.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));section.append(panel);
-       }article.append(section);
-     }
+         panel.append(eventSongHeading(tool.data,r.song,{label:'挑战演出',grade:grades[r.reward.scoreRank-2],plays:stage.plays}),eventChallengeBreakdown(stage),eventTeamDetails(tool,r));
+         const use=el('button','使用挑战方案');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});const stageActions=el('div',null,'event-result-actions');stageActions.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));panel.append(stageActions);section.append(panel);
+       }
+       const phases=el('div',null,'event-phase-tabs');phases.setAttribute('role','tablist');phases.setAttribute('aria-label','演出阶段');
+       const phaseEntries=[['ordinary','普通演出',ordinaryPanel],['challenge',`后续挑战 · ${row.continuation.plays} 次`,section]],phaseButtons=[];
+       const activePhase=cached?.article.querySelector?.('[data-yield-phase][aria-selected="true"]')?.dataset.yieldPhase??'ordinary';
+       const selectPhase=value=>{for(const [index,[phase,,panel]] of phaseEntries.entries()){const active=phase===value;panel.hidden=!active;phaseButtons[index].setAttribute('aria-selected',String(active));phaseButtons[index].tabIndex=active?0:-1;}};
+       for(const [index,[phase,label,panel]] of phaseEntries.entries()){
+         const tab=el('button',label),id=`event-phase-${++phasePanelId}`;tab.type='button';tab.dataset.yieldPhase=phase;tab.id=id;tab.setAttribute('role','tab');tab.setAttribute('aria-controls',`${id}-panel`);panel.id=`${id}-panel`;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',id);
+         tab.addEventListener('click',()=>selectPhase(phase));tab.addEventListener('keydown',event=>{const next=event.key==='Home'?0:event.key==='End'?1:['ArrowLeft','ArrowRight'].includes(event.key)?1-index:null;if(next==null)return;event.preventDefault();selectPhase(phaseEntries[next][0]);phaseButtons[next].focus();});phaseButtons.push(tab);phases.append(tab);
+       }
+       selectPhase(activePhase);article.append(phases,ordinaryPanel,section);
+     }else article.append(ordinaryPanel);
      }
      view.push(article);
    }
-   if(pageCount>1){const pager=el('div',null,'task-event-plan-sort'),prev=el('button','上一页方案'),nextPage=el('button','下一页方案');prev.type=nextPage.type='button';prev.disabled=page===0;nextPage.disabled=page===pageCount-1;prev.addEventListener('click',()=>{page--;selectedPlan=null;render();});nextPage.addEventListener('click',()=>{page++;selectedPlan=null;render();});pager.append(prev,el('small',`${page+1} / ${pageCount}`),nextPage);view.push(pager);}
+   if(pageCount>1){const pager=el('div',null,'task-event-plan-sort'),prev=el('button','上一页方案'),nextPage=el('button','下一页方案');prev.type=nextPage.type='button';prev.disabled=page===0;nextPage.disabled=page===pageCount-1;prev.addEventListener('click',()=>{page--;selectedPlan=null;render();});nextPage.addEventListener('click',()=>{page++;selectedPlan=null;render();});pager.append(prev,el('small',`${page+1} / ${pageCount}`),nextPage);alternatives.append(pager);}
    if(result.failures.length){const d=el('details',null,'event-details');d.append(el('summary',`${result.failures.length} 张谱面失败，已排除，结果不完整`));for(const f of result.failures)d.append(el('p',`${f.title}：${f.message}`));view.push(d);}
    // Keep unchanged controls (including keyboard focus) and team subtrees mounted.
    const nextView=new Map();
    for(const [index,node] of view.entries()){
      if(node.className?.includes('task-event-plan-result'))continue;
-     const signature=node.outerHTML+((node===tabs)?JSON.stringify([...nextArticles].map(([key,value])=>[key,value.signature])):'');
+     const signature=node.outerHTML+((node===alternatives)?JSON.stringify([...nextArticles].map(([key,value])=>[key,value.signature])):'');
      const cached=viewCache.get(index);if(cached?.signature===signature&&node.outerHTML!==undefined)view[index]=cached.node;
      nextView.set(index,{signature,node:view[index]});
    }

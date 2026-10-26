@@ -1,5 +1,6 @@
 ---
 import '../styles/tool-ux.css';
+import '../styles/tool-design-system.css';
 import '../styles/skill-activation.css';
 import ToolGlyph from './ToolGlyph.astro';
 import { activeReleaseContext } from '../lib/release-context';
@@ -13,7 +14,7 @@ const href=import.meta.env.BASE_URL==='/'?'/tools/':siteHref('/tools/',activeRel
     <div class="tool-page-heading">
       {!directory && <a class="tool-page-back" href={href}>游戏工具 <span aria-hidden="true">/</span></a>}
       <h1>{kind && <span class="tool-title-glyph" aria-hidden="true"><ToolGlyph kind={kind} /></span>}{title}</h1>
-      <p>{description}</p>
+      {description && <p>{description}</p>}
     </div>
     {meta && <span class="tool-page-meta">{meta}</span>}
   </div>

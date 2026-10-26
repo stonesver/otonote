@@ -82,3 +82,30 @@ test('compact score presentation receives real bounds and clears them on a faile
  assert.equal(seen[0],null);assert.equal(seen.at(-1).expectedScore,1000);assert.equal(seen.at(-1).minimumScore,900);assert.equal(seen.at(-1).maximumScore,1100);
  await f.page.renderSongScore({notes:[{}]}, {}, [{severity:'error'}]);assert.equal(seen.at(-1),null);
 });
+
+for(const mode of ['ordinary','gekisou']) {
+ test(`${mode}: dock follows a real calculation and reports completion`,async()=>{
+  const f=fixture(mode),states=[];
+  f.page.scoreView={renderResult(){},refresh(){},updateSingle:state=>states.push(state)};
+  await f.page.renderSongScore({notes:[{}]}, {}, []);
+  assert.deepEqual(states.map(s=>s.state),['running','complete']);
+  states.length=0;
+  await f.page.renderSongScore({notes:[{}]}, {}, [{severity:'error'}]);
+  assert.deepEqual(states.map(s=>s.state),['error']);
+ });
+ test(`${mode}: stop invalidates pending work and a late result cannot restore it`,async()=>{
+  const f=fixture(mode),states=[];let complete,terminated=false;
+  f.page.inputRequest=4;
+  f.page.scoreView={renderResult(){},refresh(){},updateSingle:state=>states.push(state)};
+  const transport=f.page.calculateInWorker;
+  f.page.calculateInWorker=payload=>new Promise(resolve=>{complete=async()=>resolve(await transport(payload));});
+  f.page.scoreWorker={terminate(){terminated=true;}};
+  const pending=f.page.renderSongScore({notes:[{}]}, {}, []);
+  f.page.stopScoreCalculation();
+  assert.equal(f.page.inputRequest,5);assert.equal(terminated,true);
+  await complete();await pending;
+  assert.deepEqual(states.map(s=>s.state),['running','stopped']);
+  assert.equal(f.output(),'—');
+  assert.equal(JSON.parse(f.page.querySelector('[data-scoring-snapshot-json]').textContent).status,'stopped');
+ });
+}

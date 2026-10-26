@@ -10,7 +10,7 @@ export function pairingRelations(member,support) {
   if(a.band.some(v=>b.band.includes(v)))out.push({kind:'band',label:'同乐队',description:'成员与留影属于同一乐队；实际加成以计算明细为准。'});
   return out;
 }
-export function createWorkbenchTeamView(tool,draft) {
+export function createWorkbenchTeamView(tool,draft,{showGrowthNote=true}={}) {
   const data=tool.data??tool,rules=data.formalRules??data.rules,root=el('div',null,'score-lineup task-pairing');root.setAttribute('aria-label','五组成员与留影');
   const cards=(kind,id)=>data[`${kind}Cards`]?.find(c=>c.id===id);
   const music=rules?.tables.LiveMusic.find(m=>`music-${m._id}`===draft.selectedSongId),missions=[music?._gekisouMission1,music?._gekisouMission2,music?._gekisouMission3];
@@ -20,7 +20,7 @@ export function createWorkbenchTeamView(tool,draft) {
     const member=cards('member',slot.memberCardId),support=cards('support',slot.supportCardId);
     for(const [kind,card] of [['member',member],['support',support]]) {
       const face=el('div',null,`score-face score-face--${kind}`);
-      if(card){const state=resolveTeamCardGrowth({card,draft,rules,inventory:tool.inventory??tool.teamWorkspaceContext?.inventory});const view=createTeamCardView(card,{...state,kind,locale:data.locale,data});face.append(view);if(rules)attachCardSkillHover(tool,card,view.querySelector('.tw-card-art'),{growth:state.growth,leader:index===2});}
+      if(card){const state=resolveTeamCardGrowth({card,draft,rules,inventory:tool.inventory??tool.teamWorkspaceContext?.inventory});const view=createTeamCardView(card,{...state,kind,locale:data.locale,data,corners:true});face.append(view);if(rules)attachCardSkillHover(tool,card,view.querySelector('.tw-card-art'),{growth:state.growth,leader:index===2});}
       else {const choose=el('button',kind==='member'?'选择成员':'选择留影','task-empty-card');choose.type='button';choose.dataset.openTeamWorkspace='teams';face.append(choose);}pair.append(face);
       if(kind==='member') {
         const links=el('div',null,'task-pair-links');
@@ -29,6 +29,12 @@ export function createWorkbenchTeamView(tool,draft) {
         pair.append(links);
       }
     }root.append(pair);
+  }
+  const views=[...root.querySelectorAll('.tw-card-view')],sources=views.map(card=>card.dataset.source),uniform=sources.length&&sources.every(source=>source===sources[0]);
+  if(uniform)root.dataset.uniformSource=sources[0];
+  if(showGrowthNote&&(uniform||sources.includes('reference'))){
+    const en=data.locale==='en',labels=en?{actual:'Current growth',selected:'Entered growth',reference:'Reference growth',training:'Training targets',unknown:'Growth not recorded'}:{actual:'当前养成',selected:'手选养成',reference:'参考养成',training:'培养目标',unknown:'养成未记录'};
+    root.append(el('small',uniform?labels[sources[0]]:en?'Includes reference growth':'含参考养成','task-team-source'));
   }
   const leader=cards('member',draft.slots[2]?.memberCardId);
   if(leader&&rules){const state=resolveTeamCardGrowth({card:leader,draft,rules,inventory:tool.inventory??tool.teamWorkspaceContext?.inventory});const row=cardSkillRows(leader,rules,state.growth).find(r=>r.kind==='leader');if(row)root.append(el('p',`队长 · ${row.summary}`,'task-leader-skill'));}

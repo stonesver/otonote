@@ -25,7 +25,15 @@ export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg,
     detail: `<div class="loading-detail"><div class="loading-art"></div><div>${line()}${line('short')}<div class="loading-panel">${line()}${line()}${line('short')}</div><div class="loading-panel">${line()}${line()}</div></div></div>`,
     story: `<div class="loading-story">${Array.from({length:8},() => `<div class="loading-paragraph">${line()}${line()}${line('short')}</div>`).join('')}</div>`,
     scene: `<div class="loading-scene"></div><div class="loading-filters">${line()}${line()}${line()}</div>`,
-    tool: `<div class="loading-workspace">${Array.from({length:3},() => `<div class="loading-panel">${line('short')}${line()}${line()}${line()}</div>`).join('')}</div>`,
+    tool: `<div class="loading-tool-tabs">${line('short')}${line('short')}${line('short')}</div>
+      <div class="loading-workspace">
+        <div class="loading-tool-rail">${line('short')}${Array.from({length:5},()=>`<div class="loading-tool-field">${line('short')}<span></span></div>`).join('')}</div>
+        <div class="loading-tool-main">
+          <div class="loading-tool-song"><span class="loading-tool-disc">♪</span><div>${line()}${line('short')}</div><div class="loading-beat"><span></span><span></span><span></span><span></span><span></span></div></div>
+          <div class="loading-tool-roster">${Array.from({length:5},()=>`<div class="loading-tool-pair"><div class="loading-tool-member"><span>♪</span></div><div class="loading-tool-support"></div>${line('short')}</div>`).join('')}</div>
+          <div class="loading-tool-footer">${line()}<span></span></div>
+        </div>
+      </div>`,
     list: `<div class="loading-filters">${line()}${line()}</div><div class="loading-rows">${Array.from({length:6},row).join('')}</div>`
   };
   return `<!doctype html><html lang="zh-CN" data-tone="paper" data-shell="sidebar" data-loading="true"><head>

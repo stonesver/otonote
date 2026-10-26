@@ -1,4 +1,5 @@
 ---
+import "../styles/recommendation-team.css";
 import {filterVisual} from '../lib/filter-visuals';
 const optionVisual = (kind: string, value: string | number) => {
   const visual = filterVisual(kind, String(value));
@@ -37,6 +38,7 @@ import { getRuntimeUiLabels } from "../lib/runtime-ui-labels";
 import "../styles/tools.css";
 import "../styles/workbench-layout.css";
 import "../styles/calculator-polish.css";
+import "../styles/team-workbench.css";
 
 const rulesAvailable = scoringRulesAvailable(formalRules, catalog.release.id);
 
@@ -77,7 +79,7 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
   <script is:inline type="application/json" data-team-draft-data set:html={clientData}></script>
   <section class="calculator-journey">
     <header class="journey-heading"><div><span>当前选择</span><p class="journey-context">先选歌，再选择卡片和这次想比较的条件。</p></div></header>
-    <div class="journey-tasks" role="group" aria-label="选择配队任务"><button type="button" data-journey-task="automatic" aria-pressed="true">帮我配一队</button><button type="button" data-journey-task="saved" aria-pressed="false">比较队伍 / 换卡</button></div>
+    <div class="journey-tasks" role="group" aria-label="选择配队任务"><button type="button" data-journey-task="automatic" aria-pressed="true">自动配队</button><button type="button" data-journey-task="saved" aria-pressed="false">队伍比较</button></div>
     <section class="journey-step" data-journey-step="0" id="journey-step-0">
   <section class="team-draft-settings" id="song-settings" aria-labelledby="team-settings-title">
     <header class="tool-panel-header">
@@ -194,7 +196,7 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     </section>
     <section class="journey-step" data-journey-step="2" id="journey-step-2">
       <h3>这次想打普通，还是激奏？</h3><p class="journey-intro">选好模式后，按参考发挥比较；也可以看看理想发挥或练习时的差别。</p>
-<label hidden class="selection-filter-row"><span>演出模式</span><select data-pairing-mode><option value="ordinary">自由演出 · 普通</option><option value="gekisou">激奏演出</option></select></label><div class="journey-choices" role="group" aria-label="选择演出模式" data-choices="pairing-mode">
+<label hidden class="selection-filter-row"><span>演出模式</span><select data-pairing-mode data-quick-native><option value="ordinary">普通演出</option><option value="gekisou">激奏演出</option></select></label><div class="journey-choices" role="group" aria-label="选择演出模式" data-choices="pairing-mode">
 <button type="button" data-choice="ordinary" aria-pressed="false"><strong>普通自由演出</strong><span>比较综合力、加分技能和留影延时。</span></button>
 <button type="button" data-choice="gekisou" aria-pressed="false"><strong>激奏演出</strong><span>加上 COMBO / LUCK / JUST 三段任务与奖励。</span></button>
 </div>
@@ -246,15 +248,14 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     </div>
     </section>
     <section class="journey-step" data-journey-step="3" id="journey-step-3">
-      <p class="journey-results-tip">先比较推荐分数和成员／留影搭配，再应用队伍；需要核对时打开计分明细。结果为参考估算，尚未完成当前游戏版本的实战核验。</p>
   <section class="optimizer-results-panel" id="optimizer-results" aria-labelledby="optimizer-results-title">
-    <header class="tool-panel-header"><div><span>比较这首歌的出分</span><h2 id="optimizer-results-title">推荐编成</h2></div><span class="calculator-search-state" data-search-state>等待开始</span></header>
+    <header class="tool-panel-header"><div><h2 id="optimizer-results-title">推荐结果</h2></div><span class="calculator-search-state" data-search-state>等待开始</span></header>
     <p class="calculator-progress" data-pairing-progress aria-live="polite">计算时可以停止；修改卡片或条件后，需要重新比较。</p>
-    <div class="calculator-empty" data-results-empty><div class="calculator-empty-slots" aria-hidden="true">{[1,2,3,4,5].map(i=><span class:list={[i===3&&'is-leader']}>{i===3?'队长':i}</span>)}</div><h3>选好歌曲，就可以开始配队。</h3><p>还没录入卡库也没关系，可以先看参考队伍。结果会说明使用了哪些卡、按什么养成计算。</p></div>
+    <div class="calculator-empty" data-results-empty><div class="calculator-empty-slots" aria-hidden="true">{[1,2,3,4,5].map(i=><span class:list={[i===3&&'is-leader']}>{i===3?'队长':i}</span>)}</div><h3>等待推荐</h3></div>
     <ol data-practical-progress class="practical-progress" aria-label="实用推荐进度" hidden></ol>
     <p data-practical-summary hidden></p>
     <ol data-pairing-results></ol>
-    <details class="calculator-notes"><summary>搜索详情与计算条件</summary><p data-search-diagnostics></p><p>待排查分支是尚未排除的组合分组，搜索过程中还会继续拆分，不代表剩余队伍数量或完成百分比。</p><p data-search-limits></p></details>
+    <details class="calculator-notes"><summary>搜索记录</summary><p data-search-diagnostics></p><p>待排查分支是尚未排除的组合分组，搜索过程中还会继续拆分，不代表剩余队伍数量或完成百分比。</p><p data-search-limits></p></details>
   </section>
 
       <details class="journey-help"><summary>配队攻略与计算说明</summary>

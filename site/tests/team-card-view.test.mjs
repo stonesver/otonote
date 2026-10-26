@@ -114,3 +114,13 @@ test('unscoped editor input displays supplied growth without rewriting actual re
  d.modifiers.growth[card.id]={};result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.deepEqual(result,{growth:{},source:'unknown'});
  d.modifiers.planningScenario={scope:'owned'};result=resolveTeamCardGrowth({card,draft:d,inventory:owned,rules});assert.equal(result.growth.level,1);assert.equal(result.source,'actual');
 });
+
+test('workbench card corners separate band art from attribute and rarity without losing growth',()=>{
+ const view=createTeamCardView(card,{growth:actual,corners:true,data:{document}}),nodes=all(view);
+ const meta=nodes.find(n=>n.className==='tw-card-meta'),bands=nodes.find(n=>n.className==='tw-card-bands');
+ assert.equal(meta.children.some(n=>n.className==='tw-card-band'),false);
+ assert.ok(bands.children.some(n=>n.className==='tw-card-band'));
+ assert.ok(meta.children.some(n=>n.className==='tw-card-attribute'));
+ assert.ok(meta.children.some(n=>n.className==='tw-card-rarity'));
+ assert.equal(nodes.filter(n=>n.className==='tw-card-stat').length,5);
+});

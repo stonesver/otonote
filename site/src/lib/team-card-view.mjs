@@ -45,27 +45,27 @@ export function resolveTeamCardGrowth({card,draft,inventory,rules}) {
 }
 
 /** Noninteractive card content safe to place inside a caller-owned button or list item. */
-export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN',data={},compact=false,source='unknown'}={}) {
+export function createTeamCardView(card,{growth={},kind=card.kind,locale='zh-CN',data={},compact=false,corners=false,source='unknown'}={}) {
   const doc=data.document??globalThis.document,en=locale==='en',say=(zh,english)=>en?english:zh;
   const node=(tag,text,cls)=>{const value=doc.createElement(tag);if(text!=null)value.textContent=text;if(cls)value.className=cls;return value;};
   const appendImage=(container,url,alt,fallback)=>{const image=node('img');image.alt=alt;image.loading='lazy';image.addEventListener('error',()=>image.replaceWith(fallback),{once:true});image.src=url;container.append(image);};
-  const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.source=source;root.dataset.kind=kind;root.title=card.displayName??card.shortLabel??card.id;
+  const root=node('span',null,`tw-card-view${compact?' tw-card-view--compact':''}`);root.dataset.corners=String(corners);root.dataset.source=source;root.dataset.kind=kind;root.title=card.displayName??card.shortLabel??card.id;
   const art=node('span',null,'tw-card-art');
   if(card.imageUrl)appendImage(art,card.imageUrl,'',node('span','—','tw-card-no-art'));
   else art.append(node('span','—','tw-card-no-art'));
   root.append(art);
   const body=node('span',null,'tw-card-body');body.append(node('span',card.shortLabel??card.displayName??card.id,'tw-card-name'));
   if(!compact&&card.relationLabel)body.append(node('span',card.relationLabel,'tw-card-relation'));
-  const meta=node('span',null,'tw-card-meta'),facets=teamCardFacets(card),options=teamCardFilterOptions([card],data);
+  const bands=node('span',null,'tw-card-bands'),meta=node('span',null,'tw-card-meta'),facets=teamCardFacets(card),options=teamCardFilterOptions([card],data);
   for(const group of ['attribute','band','rarity'])for(const value of facets[group]){
     const option=options[group].find(row=>row.value===value),label=option?.label??value;
     const chip=node('span',null,`tw-card-${group}`);chip.title=label;
     const fallback=group==='attribute'?say(`属性 ${label}`,`Attribute ${label}`):group==='band'?say(`乐队 ${label}`,`Band ${label}`):label;
     if(option?.icon)appendImage(chip,option.icon,label,node('span',fallback));
     else chip.textContent=fallback;
-    meta.append(chip);
+    (corners&&group==='band'?bands:meta).append(chip);
   }
-  art.append(meta);
+  art.append(meta);if(corners)art.append(bands);
   const stats=node('span',null,'tw-card-growth');
   const fields=kind==='support'?[['level','supportLevel'],['rank','rank']]:[
     ['level','memberLevel'],['rank','rank'],['awake'],['skillLevel'],['gekisouSkillLevel']];

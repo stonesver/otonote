@@ -7,8 +7,8 @@ const timing = ['durationSeconds','chartSeconds','audioSeconds','cycleSeconds'];
 const skills = ['skillScoreGain','skillShare','scoreSpread','baseScore','scoreMultiplier','skillMultiplier','difficultyFactor','comboFactor'];
 const structure = ['eventCount','convertedNoteCount','averageDensity','peakDensity','bpmMin','bpmMax'];
 const gekisou = ['gekisouMultiplier','rankingBonusShare','rankingBonus','sampleCount','standardError'];
-export function rankingTableColumns(mode = 'ordinary') {
-  const keys = ['title', ...scores.slice(0,2), timing[0], ...basic.slice(1), ...scores.slice(2), ...timing.slice(1), ...skills, ...structure,
+export function rankingTableColumns(mode = 'ordinary', metric = 'expectedScore') {
+  const keys = ['title', ...(['requiredPower','targetScore'].includes(metric) ? ['requiredPower','targetScore'] : []), ...scores.slice(0,2), timing[0], ...basic.slice(1), ...scores.slice(2), ...timing.slice(1), ...skills, ...structure,
     ...(mode === 'gekisou' ? gekisou : [])];
   return keys.map(key => ({key, labels:RANKING_OPTIONS[key], width:key === 'title' ? 296 : ['p10Score','p10Efficiency'].includes(key) ? 164 : key === 'difficulty' || key === 'level' ? 76 : 116}));
 }
@@ -37,6 +37,7 @@ export function rankingStatusTags(row, locale = 'zh-CN') {
   ];
 }
 export function rankingMetricExplanation(metric,mode='ordinary',en=false) {
+  if(['requiredPower','targetScore'].includes(metric))return en ? 'Lower estimated power means an easier score threshold under the same AP and skill conditions, not easier play. Power is a linear estimate rounded up to 1,000; missing or unverified edition data is not ranked.' : '相同 AP 与技能条件下，参考综合力越低，越容易达到目标档位，不代表谱面操作更简单。综合力按基准线性估算、向上取整至千位；缺少或未经核验的版本数据不参与综合力排名。';
   if(!['p10Score','p10Efficiency'].includes(metric))return '';
   return mode==='gekisou'
     ? en?'P10 is the lower 10th percentile of fixed LUCK samples, not a guaranteed live score.':'P10 是固定 LUCK 样本中偏低的 10% 分位参考值，不是实战保底。'

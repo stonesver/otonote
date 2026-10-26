@@ -1,8 +1,6 @@
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
-import {currentEventDraft,eventTeamSaveButton} from './event-team-view.mjs';
+import {currentEventDraft,eventTeamSaveButton,createEventTeamView} from './event-team-view.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
-import {createWorkbenchTeamView} from './workbench-team-view.mjs';
-import {skillActivation} from './skill-activation-view.mjs';
 import {createCalculationProgress} from './calculation-progress.mjs';
 import {createCalculationLiveUpdates,reconcileCalculationView} from './calculation-live-updates.mjs';
 const fmt=n=>Math.round(n).toLocaleString('zh-CN');
@@ -13,9 +11,9 @@ export function setupChallengeOptimizer(tool){
   const feedback=createCalculationProgress(q('status'),'challenge');
   let worker=null,key='',results=null,paused=false,pausing=false,selectedTeam=null,resultTabs=null,articleCache=new Map(),tabCache=new Map();
   const updates=createCalculationLiveUpdates({hasResults:()=>Boolean(results?.results.length),onResult:result=>{results=result;render();},onProgress:showProgress});
-  const stop=(publish=false)=>{worker?.terminate();worker=null;paused=false;pausing=false;updates.stop({flushResult:publish});q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='推荐挑战出分队伍';root.setAttribute('aria-busy','false');};
+  const stop=(publish=false)=>{worker?.terminate();worker=null;paused=false;pausing=false;updates.stop({flushResult:publish});q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='推荐冲榜队伍';root.setAttribute('aria-busy','false');};
   const currentDraft=()=>currentEventDraft(tool);
-  const fingerprint=()=>JSON.stringify({mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('reward-override')?.checked??false});
+  const fingerprint=()=>JSON.stringify({mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge'||Boolean(tool.classList?.contains('task-workbench')&&tool.dataset.task!=='challenge');
     if(key!==fingerprint()){
@@ -47,7 +45,7 @@ export function setupChallengeOptimizer(tool){
   }
   function render(){
     const view=[],nextArticles=new Map(),nextTabs=new Map(),focused=document.activeElement?.dataset?.challengeTeamKey;
-    if(q('rewards')?.checked&&q('scope').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('reward-override')?.checked??false)}`,'task-event-reward-result-note'));
+    if(q('rewards')?.checked&&q('scope').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}`,'task-event-reward-result-note'));
     if(results.searchScope==='reference')view.push(el('p','全卡库参考 · 卡片按满等级、满突破、满觉醒与满技能比较；账号加成沿用当前设置。','event-hint'));
     const tabs=resultTabs??=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');view.push(tabs);
     const maximum=results.objective==='maximum_song_score',reference=results.searchScope==='reference';
@@ -66,7 +64,7 @@ export function setupChallengeOptimizer(tool){
       if(!reuse){
         card.append(heading,el('p',`最高 ${fmt(row.maximumScore)} · 平均 ${fmt(row.expectedScore)} · 最低 ${fmt(row.minimumScore)}`,'event-hint'),alternative);
         card.append(el('p',`活动内综合力 ${fmt(row.power)}${reference?' · 满养成参考，不代表实际持有':row.delta==null?' · 当前队伍不完整或不在所选卡库，未作对比':` · 比当前队伍${row.delta>=0?'提高':'降低'} ${fmt(Math.abs(row.delta))} 分`}`));
-        card.append(createWorkbenchTeamView(tool,row.draft),skillActivation(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value),summary:row}));
+        card.append(createEventTeamView(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value),summary:row}));
         const apply=el('button','应用这支挑战队伍');apply.type='button';apply.addEventListener('click',()=>{
           tool.teamWorkspaceContext.applyDraft(row.draft);tool.q('bonus-source').value='team';
           tool.q('team-status').textContent='已应用挑战出分候选（含队长、配对与养成）；奖励加成已按新队伍重算。稳定评分仍请按实打填写。';
@@ -103,14 +101,14 @@ export function setupChallengeOptimizer(tool){
         if(data.type==='result'){
           updates.stop();pausing=false;
           if(['paused','budget_exhausted'].includes(data.result.status)){
-            paused=true;q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='继续搜索最佳配队';root.setAttribute('aria-busy','false');
+            paused=true;q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='继续搜索';root.setAttribute('aria-busy','false');
           }else stop();
           results=data.result;render();const text=summary(results,false);
           feedback.finish(text.label,text.detail,results.certifiedSearch?.bestProven?'complete':'stopped');q('status').textContent=`${text.label}。${text.detail}`;
         }else {stop(true);q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
       worker.addEventListener('error',()=>{if(worker!==active)return;stop(true);q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});
-      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('reward-override')?.checked??false});
+      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
     }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;}
   });
   q('cancel').addEventListener('click',()=>{if(!worker||paused)return;pausing=true;updates.stop({flushResult:true});feedback.update({label:'正在暂停',detail:'保留当前队伍与搜索进度'});worker.postMessage({type:'pause'});q('cancel').hidden=true;q('status').textContent='正在暂停，保留当前搜索进度…';});

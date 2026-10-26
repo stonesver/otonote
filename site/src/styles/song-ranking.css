@@ -118,7 +118,7 @@
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 14px;padding:0 14px 9px;font-size:10px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary p {margin:0;line-height:1.5;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary [data-context] {color:#4d667b;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table-wrap {container-type:inline-size;max-width:100%;max-height:clamp(260px,calc(100dvh - 342px),740px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#9fb5c6 #edf2f7;border-block:1px solid #e4eaf0;background:#f4f7fa;isolation:isolate;scroll-padding-inline-start:calc(var(--rank-number-width) + var(--rank-song-width));scroll-padding-top:40px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table-wrap {container-type:inline-size;max-width:100%;height:min(76dvh,960px);min-height:420px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#9fb5c6 #edf2f7;border-block:1px solid #e4eaf0;background:#f4f7fa;isolation:isolate;scroll-padding-inline-start:calc(var(--rank-number-width) + var(--rank-song-width));scroll-padding-top:40px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table {width:calc(var(--rank-number-width) + var(--rank-song-width) + var(--ranking-data-width));min-width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0 4px;text-align:left;font-size:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-position-col {width:var(--rank-number-width);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-song-col {width:var(--rank-song-width);}
@@ -213,7 +213,7 @@
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary {padding:0 9px 7px;font-size:9px;gap:3px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary [data-result-status] {display:block;flex-basis:100%;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance {font-size:9px;}
- .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table-wrap {max-height:clamp(260px,calc(100dvh - 332px),600px);}
+ .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table-wrap {height:72dvh;min-height:360px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td {height:55px;padding:7px 9px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th {padding-inline:9px;font-size:10px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track {gap:4px;}
@@ -345,3 +345,10 @@
       .ranking-skill-slots small,.ranking-stages span,.ranking-stages small) {color:var(--tool-muted);}
  }
 }
+
+.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control {display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;}
+.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control select {min-width:68px;min-height:32px;padding:4px 8px;border:1px solid var(--rank-line);border-radius:5px;background:var(--paper);color:var(--rank-accent);}
+.tool-studio[data-tool-kind="song-ranking"] [data-load-more] {padding:6px 12px;white-space:nowrap;}
+.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control .tool-choice-group {display:flex;gap:4px;}
+.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control button {min-width:30px;min-height:30px;padding:4px 7px;border:1px solid var(--rank-line);border-radius:5px;background:var(--paper);color:var(--rank-muted);font-weight:600;}
+.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control button[aria-pressed=true] {background:var(--rank-accent);border-color:var(--rank-accent);color:var(--paper);}

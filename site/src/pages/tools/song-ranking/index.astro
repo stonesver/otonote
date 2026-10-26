@@ -106,8 +106,9 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
         </div>
             </details>
           </div>
-          <div class="ranking-board-tabs" role="group" aria-label="快捷榜单"><button type="button" data-board="expectedScore" aria-pressed="true">平均分</button><button type="button" data-board="efficiency">效率</button><button type="button" data-board="minimumScore">最低分</button><button type="button" data-board="maximumScore">最高分</button><button type="button" data-board="p10Score">偏低分</button><button type="button" data-board="durationSeconds">短曲</button><button type="button" data-board="skillScoreGain">技能增分</button><button type="button" data-board="averageDensity">密度</button></div>
+          <div class="ranking-board-tabs" role="group" aria-label="快捷榜单"><button type="button" data-board="expectedScore" aria-pressed="true">平均分</button><button type="button" data-board="efficiency">效率</button><button type="button" data-board="minimumScore">最低分</button><button type="button" data-board="maximumScore">最高分</button><button type="button" data-board="p10Score">偏低分</button><button type="button" data-board="requiredPower">达档综合力</button><button type="button" data-board="durationSeconds">短曲</button><button type="button" data-board="skillScoreGain">技能增分</button><button type="button" data-board="averageDensity">密度</button></div>
           <div class="ranking-quickstrip">
+            <label class="ranking-grade-control" data-grade-controls hidden><span>目标档位</span><select data-grade-target aria-label="目标档位">{["D","C","B","A","S","SS"].map((grade,i)=><option value={i+2} selected={grade==="S"}>{grade}</option>)}</select></label>
             <label class="ranking-difficulty-options"><span>难度</span><select data-filter="difficulty" multiple data-quick data-quick-all="all" aria-label="难度"><option value="all" selected>全部</option>{['easy','normal','hard','expert'].map(d => <option value={d} data-difficulty={d}>{d.toUpperCase()}</option>)}</select></label>
             <div class="ranking-edition-switch" role="group" aria-label="结果适用版本">{[["global","国际版 Global"],["jp","日服 JP"]].map(([edition,label])=><button type="button" data-edition-choice={edition} aria-label={label} title={label} aria-pressed={edition === catalog.release.region ? "true" : "false"}><span class="ranking-edition-symbol" data-edition={edition} aria-hidden="true"></span></button>)}<select data-filter="edition" data-quick-native aria-label="结果适用版本" hidden><option value="global" selected={catalog.release.region !== "jp"}>Global</option><option value="jp" selected={catalog.release.region === "jp"}>JP</option></select></div>
             <label class="ranking-grouping-control"><span class="ranking-sr-only">展示范围</span><select data-grouping data-quick-native aria-label="展示范围"><option value="charts">显示所有难度</option><option value="songs">每首歌仅显示一张</option></select></label>
@@ -131,7 +132,7 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
                 <button type="button" data-sort={column.key}><span>{column.labels[isEnglish ? 1 : 0]}</span><i aria-hidden="true">{column.key === 'expectedScore' ? '↓' : '↕'}</i></button>
               </th>)}
             </tr></thead>
-            <tbody data-rows>{initial.slice(0,25).map(row=><tr>
+            <tbody data-rows>{initial.slice(0,50).map(row=><tr>
               <td class="ranking-position">{row.rank ?? '—'}</td>
               {columns.map(column=><td class={column.key === 'title' ? 'ranking-song' : 'ranking-value'} data-column={column.key}>
                 {column.key === 'title' ? <div class="ranking-ssr-track">
@@ -151,10 +152,10 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
           </table>
         </div>
         <div class="ranking-empty" data-empty hidden><strong>没有符合这些条件的谱面</strong><p>清空或放宽筛选后继续比较。</p><button type="button" data-empty-reset>清空歌曲筛选</button><button type="button" data-show-all>查看全部筛选结果</button></div>
-        <footer class="ranking-pagination"><span data-range>第 1–25 项</span><span class="ranking-scroll-hint">↔ 横向查看更多列 · 点击表头排序</span><div><button type="button" data-prev aria-label="上一页">上一页</button><span data-page>1 / {Math.max(1,Math.ceil(initial.length/25))}</span><button type="button" data-next aria-label="下一页">下一页</button></div></footer>
+        <footer class="ranking-pagination"><span data-range role="status">已显示 {Math.min(50,initial.length)} / {initial.length} 项</span><span class="ranking-scroll-hint">向下滚动继续加载 · 横向查看更多列</span><button type="button" data-load-more>加载更多</button></footer>
       </section>
       <details class="tool-help"><summary>估算范围与限制</summary><ScoringModelNotice /></details>
-      <noscript>当前展示普通演出基准排行前 25 项；切换和排序需要 JavaScript。</noscript>
+      <noscript>当前展示普通演出基准排行前 50 项；切换和排序需要 JavaScript。</noscript>
     </song-ranking>
   </div>
 </div>

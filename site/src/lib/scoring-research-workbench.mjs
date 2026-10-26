@@ -127,6 +127,8 @@ class ScoringResearchWorkbench extends HTMLElement {
     let chart = chartSummary;
     const request=++this.inputRequest;
     this.querySelector('[data-song-score]').textContent=this.labels.song.readingChart;
+    this.scoreView?.renderResult(null);
+    if(chartSummary&&this.draft.slots.every(s=>s.memberCardId&&s.supportCardId))this.scoreView?.updateSingle?.({state:'running',label:'正在读取谱面…'});
     if (chartSummary?.analysisDataUrl) {
       try {
         const response = await fetch(chartSummary.analysisDataUrl);
@@ -174,13 +176,25 @@ class ScoringResearchWorkbench extends HTMLElement {
 
   disconnectedCallback(){this.taskWorkbench?.destroy();this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.performanceInput?.destroy();this.inputRequest++;this.scoreRequest++;this.rejectScore?.(new Error('Cancelled'));this.scoreWorker?.terminate();}
 
+  stopScoreCalculation() {
+    // Invalidate both chart loading and worker replies before terminating the transport.
+    this.inputRequest++;this.scoreRequest++;
+    this.rejectScore?.(new Error('Cancelled'));this.rejectScore=null;
+    this.scoreWorker?.terminate();this.scoreWorker=null;
+    this.querySelector('[data-song-score]').textContent='—';
+    this.querySelector('[data-song-score-details]').textContent='已停止估分，可重新计算。';
+    this.querySelector('[data-scoring-snapshot-json]').textContent=JSON.stringify({status:'stopped'});
+    this.scoreView?.renderResult(null);
+    this.scoreView?.updateSingle?.({state:'stopped',label:'已停止单曲估分。'});
+  }
+
   calculateInWorker(payload) {
     return new Promise((resolve,reject)=>{
       assertToolTeamCompatible(this.teamWorkspaceContext);
       const worker=new Worker(new URL('./song-calculation-worker.mjs',import.meta.url),{type:'module'});
       this.scoreWorker=worker;this.rejectScore=reject;
       worker.onmessage=({data})=>{worker.terminate();if(this.scoreWorker===worker){this.scoreWorker=null;this.rejectScore=null;}data.error?reject(new Error(data.error)):resolve(data.result);};
-      worker.onerror=()=>{worker.terminate();reject(new Error(this.labels.song.workerFailed));};
+      worker.onerror=()=>{worker.terminate();if(this.scoreWorker===worker){this.scoreWorker=null;this.rejectScore=null;}reject(new Error(this.labels.song.workerFailed));};
       worker.postMessage(payload);
     });
   }
@@ -211,6 +225,7 @@ class ScoringResearchWorkbench extends HTMLElement {
       if (!chart?.notes?.length) throw new Error(labels.chooseChart);
       if (this.draft.slots.some(s=>!s.memberCardId||!s.supportCardId)) throw new Error(labels.completeTeam);
       output.textContent=labels.calculating;details.textContent=labels.calculatingDetail;
+      this.scoreView?.updateSingle?.({state:'running',label:'正在计算单曲分数…'});
       if (this.querySelector('[data-scoring-mode]')?.value === 'gekisou') {
         const scenario = { timingOffsetMs:Number(this.querySelector('[data-gekisou-offset]').value),
           frameRate:Number(this.querySelector('[data-gekisou-fps]').value),opponents:readGekisouOpponentInputs(this),
@@ -223,7 +238,7 @@ class ScoringResearchWorkbench extends HTMLElement {
         output.textContent = format(result.expectedScore);
         if(result.performanceScenario)this.querySelector('[data-score-result-assumption]').textContent=labels.savedPerformanceAssumption;
         this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
-      this.scoreView?.renderResult(result);
+        this.scoreView?.renderResult(result);
         details.textContent = interpolate(labels.gekisouEstimate, {power:format(result.power),samples:result.sampleCount,min:format(result.minimumScore),max:format(result.maximumScore),error:format(result.standardError),share:format(result.rankingBonusShare*100)});
         if (inputWarnings.length) details.textContent += ' ' + inputWarnings.join(' ');
         const distribution=result.scoreDistribution;
@@ -237,6 +252,7 @@ class ScoringResearchWorkbench extends HTMLElement {
         for (const warning of result.warnings) { const item=document.createElement('li');item.textContent=warning;trace?.append(item); }
         this.querySelector('[data-scoring-input-hash]').textContent = result.inputHash;
         this.querySelector('[data-scoring-snapshot-json]').textContent = JSON.stringify({input:snapshot,result},null,2);
+        this.scoreView?.updateSingle?.({state:'complete',label:'单曲估分完成'});
         return;
       }
       const performance=this.performanceInput?.value??null;
@@ -272,10 +288,12 @@ class ScoringResearchWorkbench extends HTMLElement {
       this.querySelector("[data-scoring-input-hash]").textContent = result.inputHash;
       this.querySelector("[data-scoring-snapshot-json]").textContent = JSON.stringify({ input: snapshot, ...(performance?{performance}:{}), result }, null, 2);
       this.scoreView?.refresh();
+      this.scoreView?.updateSingle?.({state:'complete',label:'单曲估分完成'});
     } catch (error) {
       if(request!==this.scoreRequest)return;
       output.textContent = labels.unavailable;
       details.textContent = error.message;
+      this.scoreView?.updateSingle?.({state:'error',label:error.message});
       this.querySelector('[data-scoring-snapshot-json]').textContent=JSON.stringify({input:snapshot,status:'unavailable',error:error.message},null,2);
       const item = document.createElement("li"); item.textContent = error.message; trace?.append(item);
     }

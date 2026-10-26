@@ -2,7 +2,7 @@ import {rankingTableColumns, formatRankingCell, rankingStatusTags} from './song-
 import {RANKING_OPTIONS} from './song-ranking-options.mjs';
 import {rankingSongCover} from './ranking-song-cover.mjs';
 
-export function renderRankingTable(root, {rows, page, size, mode, metric, direction, locale, artwork, expanded, detail, reveal, scoreLabel}) {
+export function renderRankingTable(root, {rows, page, size, mode, metric, direction, locale, artwork, expanded, detail, reveal, scoreLabel, append = false}) {
   const document = root.ownerDocument, en = locale.startsWith('en');
   const make = (tag, text = '', className = '') => { const element = document.createElement(tag); element.textContent = text; element.className = className; return element; };
   const columns = rankingTableColumns(mode,metric), table = root.querySelector('[data-ranking-table]');
@@ -32,7 +32,7 @@ export function renderRankingTable(root, {rows, page, size, mode, metric, direct
     button.title = `${label} · ${en ? 'Click to change sort order' : '点击排序，再次点击切换方向'}`;
     button.closest('th').setAttribute('aria-sort',active ? direction === 'asc' ? 'ascending' : 'descending' : 'none');
   }
-  const body = root.querySelector('[data-rows]'); body.replaceChildren();
+  const body = root.querySelector('[data-rows]'); if (!append) body.replaceChildren();
   for (const row of rows.slice(page*size,(page+1)*size)) {
     const tr = make('tr');
     if (RANKING_OPTIONS[metric][2] !== 'text' && row.rank > 0 && row.rank <= 3) tr.dataset.podium = String(row.rank);

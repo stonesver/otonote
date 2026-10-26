@@ -17,7 +17,7 @@ const specialMetrics = ['gekisouMultiplier', 'rankingBonusShare', 'rankingBonus'
 class SongRanking extends HTMLElement {
   connectedCallback() {
     if (this.events) return;
-    this.events = new AbortController(); this.expanded = new Set(); this.page = 0;
+    this.events = new AbortController(); this.expanded = new Set();
     const listen = (el, type, fn) => el.addEventListener(type, fn, {signal:this.events.signal});
     listen(this.querySelector('[data-reload]'), 'click', () => location.reload());
     try {
@@ -32,14 +32,14 @@ class SongRanking extends HTMLElement {
       for (const button of this.querySelectorAll('[data-mode]')) listen(button, 'click', () => {
         this.mode = button.dataset.mode; this.expanded.clear();
         if (this.mode === 'ordinary' && specialMetrics.includes(this.metric)) this.setMetric('expectedScore');
-        this.page = 0; this.render();
+        this.render();
       });
-      for (const input of this.querySelectorAll('[data-filter], [data-duration], [data-overhead], [data-direction], [data-grouping], [data-grade-profile], [data-skill-percent], [data-skill-seconds]')) listen(input, 'input', () => { this.page = 0; this.render(); });
-      for(const button of this.querySelectorAll('[data-edition-choice]'))listen(button,'click',()=>{this.querySelector('[data-filter="edition"]').value=button.dataset.editionChoice;this.page=0;this.render();});
+      for (const input of this.querySelectorAll('[data-filter], [data-duration], [data-overhead], [data-direction], [data-grouping], [data-grade-profile], [data-grade-target], [data-skill-percent], [data-skill-seconds]')) listen(input, 'input', () => { this.render(); });
+      for(const button of this.querySelectorAll('[data-edition-choice]'))listen(button,'click',()=>{this.querySelector('[data-filter="edition"]').value=button.dataset.editionChoice;this.render();});
       const sortBy = (metric, header = false) => {
         if (header && metric === this.metric) this.querySelector('[data-direction]').value = this.querySelector('[data-direction]').value === 'asc' ? 'desc' : 'asc';
         else this.setMetric(metric);
-        this.revealMetric = !header; this.page = 0; this.render();
+        this.revealMetric = !header; this.render();
       };
       for (const button of this.querySelectorAll('[data-board]')) listen(button,'click',()=>sortBy(button.dataset.board));
       listen(this.querySelector('[data-ranking-head]'),'click',event=>{const button=event.target.closest('[data-sort]');if(button)sortBy(button.dataset.sort,true);});
@@ -54,28 +54,32 @@ class SongRanking extends HTMLElement {
       listen(this.querySelector('[data-copy-skills]'), 'click', () => {
         const slots = [...this.querySelectorAll('[data-skill-slot]')];
         for (const slot of slots.slice(1)) for (const key of ['percent','seconds']) slot.querySelector(`[data-skill-${key}]`).value = slots[0].querySelector(`[data-skill-${key}]`).value;
-        this.page = 0; this.render();
+        this.render();
       });
-      listen(this.querySelector('[data-prev]'), 'click', () => { this.page--; this.render(); });
-      listen(this.querySelector('[data-next]'), 'click', () => { this.page++; this.render(); });
+      listen(this.querySelector('[data-load-more]'), 'click', () => this.loadMore());
+      const results = this.querySelector('[data-results]');
+      listen(results, 'scroll', () => {
+        if (results.clientHeight > 0 && results.scrollHeight - results.scrollTop - results.clientHeight < 160) this.loadMore();
+      });
       const clearFilters = () => {
         for (const input of this.querySelectorAll('[data-filter]')) restoreFilterControl(input, input.dataset.filter==='edition'?this.siteEdition:input.tagName === 'SELECT' ? 'all' : '');
-        this.page = 0; this.render();
+        this.render();
       };
       for (const button of this.querySelectorAll('[data-reset], [data-empty-reset]')) listen(button, 'click', clearFilters);
-      listen(this.querySelector('[data-show-all]'), 'click', () => { this.querySelector('[data-replay-method]').value = 'linear'; this.page = 0; this.render(); });
+      listen(this.querySelector('[data-show-all]'), 'click', () => { this.querySelector('[data-replay-method]').value = 'linear'; this.render(); });
       listen(this.querySelector('[data-reset-all]'), 'click', () => {
         this.replays.reset(); this.mode = 'ordinary'; this.setMetric('expectedScore');
         for (const field of this.querySelectorAll('[data-filter]')) restoreFilterControl(field, field.dataset.filter==='edition'?this.siteEdition:field.tagName === 'SELECT' ? 'all' : '');
         this.querySelector('[data-grade-profile]').value = 'benchmark';
+        this.querySelector('[data-grade-target]').value = '6';
         this.querySelector('[data-overhead]').value = '0'; this.querySelector('[data-duration]').value = 'chart';
         this.querySelector('[data-grouping]').value = 'charts'; this.querySelector('[data-replay-fps]').value = '60';
         for (const field of this.querySelectorAll('[data-skill-percent]')) field.value = '100';
         for (const field of this.querySelectorAll('[data-skill-seconds]')) field.value = '5';
-        this.page = 0; this.render(); this.querySelector('[data-metric]').focus();
+        this.render(); this.querySelector('[data-metric]').focus();
       });
       this.shortcuts = setupQuickOptions(this);
-      this.replays = setupSongRankingReplay(this, () => { this.page = 0; this.render(); });
+      this.replays = setupSongRankingReplay(this, () => { this.render(); });
       this.querySelector('[data-startup]').hidden = true;
       this.render();
     } catch (error) {
@@ -100,8 +104,8 @@ class SongRanking extends HTMLElement {
     this.querySelector('[data-count]').textContent = '—';
     this.querySelector('[data-context]').textContent = say('请修正条件后继续比较', 'Correct the inputs to continue');
     this.querySelector('[data-result-status]').textContent = ''; this.querySelector('[data-range]').textContent = '—';
-    this.querySelector('[data-page]').textContent = '—';
-    this.querySelector('[data-prev]').disabled = this.querySelector('[data-next]').disabled = true;
+    this.tableOptions = null;
+    this.querySelector('[data-load-more]').disabled = true;
   }
   render() {
     try { this.renderResults(); }
@@ -118,6 +122,7 @@ class SongRanking extends HTMLElement {
     for (const button of this.querySelectorAll('[data-board]')) button.setAttribute('aria-pressed', String(button.dataset.board === this.metric));
     for (const option of q('[data-metric]').options) option.disabled = this.mode === 'ordinary' && specialMetrics.includes(option.value);
     q('[data-metric]').value = this.metric;
+    q('[data-grade-controls]').hidden = !['requiredPower','targetScore'].includes(this.metric);
     const filters = Object.fromEntries([...this.querySelectorAll('[data-filter]')].map(e => [e.dataset.filter, e.multiple ? selectedControlValues(e) : e.value]));
     for(const button of this.querySelectorAll('[data-edition-choice]'))button.setAttribute('aria-pressed',String(button.dataset.editionChoice===filters.edition));
     const skills = [...this.querySelectorAll('[data-skill-slot]')].map(slot => ({percent:slot.querySelector('[data-skill-percent]').value === '' ? NaN : Number(slot.querySelector('[data-skill-percent]').value), seconds:Number(slot.querySelector('[data-skill-seconds]').value)}));
@@ -129,7 +134,7 @@ class SongRanking extends HTMLElement {
       if (invalid) throw Error(say(`${invalid.getAttribute('aria-label') ?? '数值'}超出允许范围，请填写有效数值。`, `${invalid.getAttribute('aria-label') ?? 'Value'} is outside the allowed range. Enter a valid number.`));
       if (custom) validateSongSkillProfile(skills);
       options = validateRankingOptions({...filters, metric:this.metric, direction:q('[data-direction]').value, grouping:q('[data-grouping]').value,
-        locale:document.documentElement.lang, durationBasis:q('[data-duration]').value, overhead:q('[data-overhead]').value, profile, skills}, en);
+        targetRank:Number(q('[data-grade-target]').value), locale:document.documentElement.lang, durationBasis:q('[data-duration]').value, overhead:q('[data-overhead]').value, profile, skills}, en);
     } catch (error) { this.showError(error.message); return; }
     this.options = options;
     q('[data-error]').hidden = true; q('[data-results]').hidden = false;
@@ -139,7 +144,7 @@ class SongRanking extends HTMLElement {
       if (field.multiple ? !selectedControlValues(field).length : field.value === '' || field.value === 'all' || field.dataset.filter==='edition'&&field.value===this.siteEdition) continue;
       const label = field.tagName === 'SELECT' ? selectedOptionText(field) : `${field.getAttribute('aria-label')} ${field.value}`;
       const button = node('button', `${label} ×`); button.type = 'button'; button.setAttribute('aria-label', say(`取消筛选：${label}`, `Remove filter: ${label}`));
-      button.addEventListener('click', () => { restoreFilterControl(field, field.dataset.filter==='edition'?this.siteEdition:field.tagName === 'SELECT' ? 'all' : ''); this.page = 0; this.render(); (tags.querySelector('button') ?? q('.ranking-clear')).focus(); }); tags.append(button);
+      button.addEventListener('click', () => { restoreFilterControl(field, field.dataset.filter==='edition'?this.siteEdition:field.tagName === 'SELECT' ? 'all' : ''); this.render(); (tags.querySelector('button') ?? q('.ranking-clear')).focus(); }); tags.append(button);
     }
     tags.hidden = !tags.children.length;
     q('[data-filter-count]').textContent = String(tags.children.length); q('[data-filter-count]').hidden = !tags.children.length;
@@ -156,10 +161,10 @@ class SongRanking extends HTMLElement {
     const ranked = rankRefinedSongRows(rows, options);
     const valid = ranked.filter(row => row.rank !== null);
     const scoreLabel = replayView ? say('逐谱平均分','Replay mean') : custom ? say('快速平均参考分','Quick estimated mean') : profile === 'none' ? say('无技能参考分','No-skill score') : this.mode === 'gekisou' ? say('样本平均分','Sample mean') : say('基准平均分','Benchmark mean');
-    const size = 25, pages = Math.max(1, Math.ceil(ranked.length / size));
-    this.page = Math.max(0, Math.min(this.page, pages - 1));
+    const size = 50;
     q('[data-count]').textContent = say(`${ranked.length} 张谱面`, `${ranked.length} charts`);
     q('[data-context]').textContent = [this.mode === 'ordinary' ? say('普通','Ordinary') : say('激奏样本 · 非实战保底','Gekisou samples · not guaranteed'), profileLabel,
+      ['requiredPower','targetScore'].includes(this.metric) ? `${say('目标','Target')} ${q('[data-grade-target]').selectedOptions[0].textContent}` : '',
       `${metricLabel(this.metric)} ${options.direction === 'asc' ? '↑' : '↓'}`,
       replayView ? say('仅已完成精算内排名','Completed replays only') : ''].filter(Boolean).join(' · ');
     const calculated = ranked.filter(row => rankingRowState(row) === 'calculated').length, pending = ranked.filter(row => row.pending).length;
@@ -177,17 +182,33 @@ class SongRanking extends HTMLElement {
           : say(`效率分母：${options.durationBasis === 'chart' ? '谱面' : '音频'}时长 + ${number(options.overhead,2)} 秒；缺少所选时长时不计算效率。`, `Efficiency denominator: ${options.durationBasis} duration + ${number(options.overhead,2)} seconds. Missing duration has no efficiency.`);
     const explanation=rankingMetricExplanation(this.metric,this.mode,en); q('[data-metric-explanation]').textContent=explanation; q('[data-metric-explanation]').hidden=!explanation; q('[data-grouping-explanation]').hidden=options.grouping!=='songs';
     q('[data-value-unit]').textContent = RANKING_OPTIONS[this.metric][2] === 'percent' ? say('（比例原值，0.2 = 20%）', '(raw ratio: 0.2 = 20%)') : `(${metricLabel(this.metric)})`;
-    q('[data-page]').textContent = `${this.page+1} / ${pages}`;
-    q('[data-range]').textContent = ranked.length ? say(`第 ${this.page*size+1}–${Math.min(ranked.length,(this.page+1)*size)} 项，共 ${ranked.length} 项`, `${this.page*size+1}–${Math.min(ranked.length,(this.page+1)*size)} of ${ranked.length}`) : say('没有匹配结果', 'No matching results');
-    q('[data-prev]').disabled = this.page === 0; q('[data-next]').disabled = this.page === pages-1;
     q('[data-empty]').hidden = ranked.length > 0;
     q('[data-empty] strong').textContent = replayView ? say('当前筛选没有完成精算的谱面', 'No completed replay matches these filters') : say('没有符合这些条件的谱面', 'No charts match these filters');
     q('[data-empty] p').textContent = replayView ? say('开始逐谱精算，或切回全部筛选结果。若刚按每首歌选谱或数值范围比较，可放宽条件查看其他已算结果。', 'Run chart replay or return to all filtered results. Relax grouping or value filters to see other completed results.') : say('清空筛选，或放宽版本、计算状态、难度与数值区间。', 'Clear filters or relax edition, calculation state, difficulty and numeric ranges.');
     q('[data-show-all]').hidden = !replayView;
-    renderRankingTable(this,{rows:ranked,page:this.page,size,mode:this.mode,metric:this.metric,direction:options.direction,locale:document.documentElement.lang,
-      artwork:this.data.artwork,expanded:this.expanded,detail:(root,row)=>this.detail(root,row),reveal:this.revealMetric,scoreLabel});
+    this.tableOptions = {rows:ranked,page:0,size,mode:this.mode,metric:this.metric,direction:options.direction,locale:document.documentElement.lang,
+      artwork:this.data.artwork,expanded:this.expanded,detail:(root,row)=>this.detail(root,row),reveal:this.revealMetric,scoreLabel};
+    renderRankingTable(this,this.tableOptions);
+    this.visibleCount = Math.min(size,ranked.length);
+    q('[data-results]').scrollTop = 0;
+    this.updateLoadedCount();
     this.revealMetric=false;
     this.shortcuts?.sync();
+  }
+  loadMore() {
+    const options = this.tableOptions;
+    if (!options || this.visibleCount >= options.rows.length) return;
+    const next = options.rows.slice(this.visibleCount, this.visibleCount + options.size);
+    renderRankingTable(this,{...options,rows:next,page:0,append:true,reveal:false});
+    this.visibleCount += next.length;
+    this.updateLoadedCount();
+  }
+  updateLoadedCount() {
+    const total = this.tableOptions.rows.length, complete = this.visibleCount >= total;
+    this.querySelector('[data-range]').textContent = say(`已显示 ${this.visibleCount} / ${total} 项`, `Showing ${this.visibleCount} of ${total}`);
+    const more = this.querySelector('[data-load-more]');
+    more.disabled = complete;
+    more.textContent = complete ? say('已全部加载', 'All loaded') : say('加载更多', 'Load more');
   }
   detail(root,row) {
     renderRankingDetail(root,row,{mode:this.mode,locale:document.documentElement.lang,server:this.server,edition:this.options.edition,artwork:this.data.artwork[row.trackId],openChart:(chart,edition)=>this.chartDialog.open(chart,edition)});

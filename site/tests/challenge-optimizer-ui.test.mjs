@@ -5,7 +5,7 @@ import {installProgressDom} from './helpers/progress-dom.mjs';
 
 test('challenge controls remain functional after moving outside the result panel',t=>{
  const nodes=new Map(),node=key=>{if(!nodes.has(key))nodes.set(key,{value:'',listeners:{},hidden:false,textContent:'',children:[],addEventListener(type,fn){this.listeners[type]=fn;},setAttribute(){},append(...children){this.children.push(...children);},prepend(...children){this.children.unshift(...children);},removeChild(n){this.children.splice(this.children.indexOf(n),1);},insertBefore(n,anchor){if(this.children.includes(n))this.removeChild(n);this.children.splice(anchor?this.children.indexOf(anchor):this.children.length,0,n);},replaceChildren(...children){this.children=children;}});return nodes.get(key);};
- const tool={q:node,querySelector:node,classList:{contains:()=>true},dataset:{task:'challenge'},draft:{slots:[{memberCardId:'member-card-1',supportCardId:'support-card-1'}],selectedSongId:'music-1',selectedDifficulty:'expert',modifiers:{growth:{'member-card-1':{level:30}},tgwCardRank:20}},data:{tracks:[{id:'music-1',title:'挑战曲'}],charts:[{trackId:'music-1',difficulty:'expert',analysisDataUrl:'/chart.json'}]}};
+ const tool={personalGrowthStore:{read:()=>null},q:node,querySelector:node,classList:{contains:()=>true},dataset:{task:'challenge'},draft:{slots:[{memberCardId:'member-card-1',supportCardId:'support-card-1'}],selectedSongId:'music-1',selectedDifficulty:'expert',modifiers:{growth:{'member-card-1':{level:30}},tgwCardRank:20}},data:{tracks:[{id:'music-1',title:'挑战曲'}],charts:[{trackId:'music-1',difficulty:'expert',analysisDataUrl:'/chart.json'}]}};
  node('mode').value='challenge';node('event').value='7';node('[data-challenge-opt-scope]').value='selected';node('[data-challenge-opt-objective]').value='maximum_song_score';
  node('challenge-optimizer').querySelector=()=>{throw Error('Controls have moved into the conditions sidebar');};
  const workers=[];class WorkerStub{constructor(){workers.push(this);this.listeners={};}addEventListener(type,fn){this.listeners[type]=fn;}postMessage(payload){this.payload=payload;}terminate(){this.terminated=true;}}
@@ -43,7 +43,8 @@ test('challenge controls remain functional after moving outside the result panel
  assert.match(node('[data-challenge-opt-status]').textContent,/尚未证明/);
  assert.doesNotMatch(node('[data-challenge-opt-status]').textContent,/上界搜索阶段/);
  assert.equal(progress.dataset.state,'stopped');
- node('[data-challenge-opt-reward-override]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
+ node('[data-challenge-opt-rewards]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
+ node('[data-challenge-opt-reward-growth]').value='maximum';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowth,'maximum');assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
  ui.destroy();
  tool.dataset.task='team';ui.sync();assert.equal(node('challenge-optimizer').hidden,true);assert.equal(node('[data-challenge-opt-run]').disabled,true);
  tool.dataset.task='challenge';ui.sync();assert.equal(node('challenge-optimizer').hidden,false);assert.equal(node('[data-challenge-opt-run]').disabled,false);

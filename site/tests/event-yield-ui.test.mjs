@@ -52,7 +52,7 @@ test('cycle stages choose independent collection and AP basis without inheriting
 });
 test('joint event recommendation exposes both item and event-point objectives',()=>{
  const page=readFileSync(new URL('../src/pages/tools/event-efficiency/index.astro',import.meta.url),'utf8');
- const goals=page.match(/<select data-yield-goal>([\s\S]*?)<\/select>/)?.[1];
+ const goals=page.match(/<select\b[^>]*data-yield-goal[^>]*>([\s\S]*?)<\/select>/)?.[1];
  assert.match(goals,/value="badges"/);
  assert.match(goals,/value="eventPoints"/);
  assert.match(goals,/^<option value="both"/);
@@ -156,7 +156,8 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);
  node('mode').value='challenge';q('songs').value='all';optimizer.sync();optimizer.run();
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-e']);
- q('reward-override').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
+ q('rewards').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
+ q('reward-growth').value='maximum';optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowth,'maximum');assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
  // Both phase filters select subsets before the worker can load any charts.
  const multi=(field,values,options=['expert','hard','normal','easy'])=>{
   field.multiple=true;field.options=options.map(value=>({value,selected:values.includes(value)}));

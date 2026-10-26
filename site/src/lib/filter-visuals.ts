@@ -29,6 +29,6 @@ export function filterVisual(group: string, value: string, fallback?: string, la
 export const filterVisualOptions = {
   band: catalog.bands.map(b => ({ value: String(b.masterId), id: b.id, label: b.displayName, ...filterVisual('band', b.id) })),
   character: catalog.characters.map(c => ({ value: String(c.masterId), id: c.id, label: c.displayName, ...filterVisual('character', c.id) })),
-  attribute: catalog.cardTaxonomy.attributes.map(a => ({ value: String(a.code), ...filterVisual('attribute', String(a.code)) })),
+  attribute: catalog.cardTaxonomy.attributes.map(a => ({ value: String(a.code), color: a.color, ...filterVisual('attribute', String(a.code)) })),
   rarity: catalog.cardTaxonomy.rarities.map(r => ({ value: String(r.code), ...filterVisual('rarity', String(r.code)), label: r.label }))
 };

@@ -144,7 +144,11 @@ class SkillActivation extends HTMLElement {
       open.addEventListener('click',()=>summary.click());details.addEventListener('toggle',()=>open.setAttribute('aria-expanded',String(details.open)));order.append(open);
     }
     details.addEventListener('change',event=>event.stopPropagation());
-    details.addEventListener('toggle',()=>{if(!details.open){this.stop();return;}if(this.result){renderSkillActivation(body,this.result,this.data);return;}this.load(body);});
+    details.addEventListener('toggle',()=>{
+      if(!details.open){this.stop();return;}
+      if(this.result){renderSkillActivation(body,this.result,this.data);return;}
+      if(!this.worker)this.load(body);
+    });
   }
   stop(){this.worker?.terminate();this.worker=null;this.querySelector('.activation-body')?.stopReplay?.();}
   disconnectedCallback(){this.stop();}

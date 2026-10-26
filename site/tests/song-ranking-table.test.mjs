@@ -1,20 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {rankingTableColumns,formatRankingCell,rankingStatusTags,rankingMetricExplanation} from '../src/lib/song-ranking-table.mjs';
-import {rankRefinedSongRows as rank,RANKING_OPTIONS,RANKING_SORT_OPTIONS,GRADE_RANKING_METRICS} from '../src/lib/song-ranking-options.mjs';
+import {rankRefinedSongRows as rank,RANKING_OPTIONS,RANKING_SORT_OPTIONS} from '../src/lib/song-ranking-options.mjs';
 
 const row=(id,patch={})=>({id,title:id,trackId:`global--${id}`,sourceEdition:'global',level:25,difficulty:'expert',bands:['band-1'],bandLabels:['MyGO!!!!!'],attribute:'MyGO!!!!!',
   expectedScore:1000,baseScore:700,skillScoreGain:300,minimumScore:800,maximumScore:1200,p10Score:900,chartSeconds:100,audioSeconds:110,
   applicableEditions:['global'],pendingEditions:[],meta:{averageDensity:4,peakDensity:12,bpmMin:120,bpmMax:180},...patch});
 test('every sortable metric has a visible column in its applicable table, without duplicate columns',()=>{
   const ordinary=rankingTableColumns(),gekisou=rankingTableColumns('gekisou'),grade=rankingTableColumns('ordinary','requiredPower');
-  assert.equal(ordinary.length,27);assert.equal(gekisou.length,32);assert.equal(grade.length,27);
+  assert.equal(ordinary.length,27);assert.equal(gekisou.length,32);assert.equal(grade.length,29);
   for(const columns of [ordinary,gekisou,grade]) {
     assert.equal(columns[0].key,'title');assert.equal(new Set(columns.map(c=>c.key)).size,columns.length);
     assert.ok(columns.every(c=>c.width>0&&c.labels===RANKING_OPTIONS[c.key]));
   }
   assert.deepEqual([...new Set([...ordinary,...gekisou,...grade].map(c=>c.key))].sort(),Object.keys(RANKING_SORT_OPTIONS).sort());
-  for(const key of [...GRADE_RANKING_METRICS,'bandLabel','attribute','editionLabel','calculationState'])assert.ok(!grade.some(c=>c.key===key));
+  assert.deepEqual(grade.slice(1,3).map(c=>c.key),['requiredPower','targetScore']);
+  for(const key of ['enteredRank','bandLabel','attribute','editionLabel','calculationState'])assert.ok(!grade.some(c=>c.key===key));
 });
 test('title and metadata columns sort in both directions, with missing data last',()=>{
   const rows=[row('b',{title:'Song 10',bandLabels:['Z'],attribute:null}),row('a',{title:'Song 2',bandLabels:['A'],attribute:'M'}),row('missing',{title:'',bandLabels:[],attribute:null})];
@@ -68,4 +69,17 @@ test('P10 explanations distinguish skill orders from LUCK sampling',()=>{
   assert.match(rankingMetricExplanation('p10Score'),/120.*12/);
   assert.match(rankingMetricExplanation('p10Efficiency','gekisou'),/LUCK.*10%/);
   assert.equal(rankingMetricExplanation('expectedScore'),'');
+});
+
+test('target grade reorders the easier chart and unverified power remains unranked',()=>{
+  const reference=scores=>({verified:true,thresholds:scores.map((score,i)=>({rank:i+2,score}))});
+  const a=row('a',{benchmark:{power:100000},gradeReferences:{global:reference([0,100,200,300,400,900])}});
+  const b=row('b',{benchmark:{power:100000},gradeReferences:{global:reference([0,100,200,300,500,800])}});
+  const missing=row('missing',{benchmark:{power:100000}});
+  for(const [targetRank,first] of [[6,'a'],[7,'b']]){
+    const result=rank([missing,b,a],{edition:'global',metric:'requiredPower',targetRank,profile:'benchmark'});
+    assert.equal(result[0].id,first);
+    assert.equal(result.at(-1).rank,null);
+    assert.equal(formatRankingCell('requiredPower',result[0]),targetRank===6?'约 40,000':'约 80,000');
+  }
 });

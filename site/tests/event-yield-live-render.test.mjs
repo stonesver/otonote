@@ -9,6 +9,15 @@ function harness(t){
   replaceChildren(...children){this.children=children;}
   removeChild(node){this.children.splice(this.children.indexOf(node),1);}
   insertBefore(node,anchor){if(this.children.includes(node))this.removeChild(node);this.children.splice(anchor?this.children.indexOf(anchor):this.children.length,0,node);}
+  scrollIntoView(){}
+  focus(){globalThis.document.activeElement=this;}
+  querySelector(selector){
+   const all=this.children.flatMap(n=>[n,...n.descendants()]);
+   if(selector==='[data-yield-phase][aria-selected="true"]')return all.find(n=>n.dataset.yieldPhase&&n.attrs['aria-selected']==='true');
+   if(selector==='[data-yield-stage-cost][aria-pressed="true"]')return all.find(n=>n.dataset.yieldStageCost&&n.attrs['aria-pressed']==='true');
+   return null;
+  }
+  descendants(){return this.children.flatMap(n=>[n,...n.descendants()]);}
   before(node){this.beforeNode=node;}
   setAttribute(k,v){this.attrs[k]=v;}
   removeAttribute(k){delete this.attrs[k];}
@@ -42,7 +51,7 @@ test('new candidates publish automatically, reuse unchanged teams and preserve t
  await new Promise(resolve=>setTimeout(resolve,780));
  assert.notEqual(q('results').children[0],visible[0],'latest improvement appears automatically');
  const articles=q('results').querySelectorAll('.task-event-plan-result');
- const tabs=q('results').children.find(n=>n.attrs['aria-label']==='收益方案');tabs.children[1].listeners.click();
+ const tabs=q('results').querySelectorAll('.task-event-result-tabs').find(n=>n.attrs['aria-label']==='收益方案');tabs.children[1].listeners.click();
  const updated=partial(1200);updated.rows[0].search={bestProven:true};send(updated);
  await new Promise(resolve=>setTimeout(resolve,780));
  assert.deepEqual(q('results').querySelectorAll('.task-event-plan-result'),articles,'proof-only changes preserve cards and playback DOM');
@@ -79,7 +88,49 @@ test('default selection follows a new leader and invalidation discards queued re
  send(partial(1000));const better=partial(1200);better.rows[0].id='new';better.rows[0].song={...better.rows[0].song,id:'new',title:'新领先方案'};
  send(better);await new Promise(resolve=>setTimeout(resolve,780));
  const articles=q('results').querySelectorAll('.task-event-plan-result');assert.equal(articles[0].hidden,false);
- assert.ok(articles[0].children.some(n=>n.textContent.includes('新领先方案')));
+ assert.ok(articles[0].querySelectorAll('.event-song-copy')[0].children.some(n=>n.textContent.includes('新领先方案')));
  send(partial(1400));optimizer.invalidate();await new Promise(resolve=>setTimeout(resolve,780));
  assert.equal(q('results').children.length,0);assert.equal(q('status').beforeNode.hidden,true);
+});
+
+test('ten recommendations expose an accurate eight-item page and keep the last two reachable',t=>{
+ const {q,send,partial}=harness(t),data=partial(1000,'result'),sample=data.rows[0];
+ data.rows=Array.from({length:10},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,title:`Song ${i}`},total:{badges:1000-i,eventPoints:100}}));
+ send(data);
+ const nodes=n=>[n,...n.children.flatMap(nodes)];
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,8);
+ const comparison=q('results').querySelectorAll('.event-alternatives')[0],firstTeam=q('results').querySelectorAll('.task-event-plan-result')[0];
+ assert.ok(q('results').children.indexOf(comparison)<q('results').children.indexOf(firstTeam),'switching plans is available before the full roster');
+ assert.equal(comparison.open,true,'multiple candidates are visible without opening a disclosure');
+ assert.ok(nodes(q('results')).some(n=>n.textContent==='1–8 / 10 套'));
+ nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,2);
+ assert.ok(nodes(q('results')).some(n=>n.textContent==='9–10 / 10 套'));
+ const articles=q('results').querySelectorAll('.task-event-plan-result');assert.equal(articles.filter(n=>!n.hidden).length,1);
+});
+
+
+test('combined objectives stay inside comparison controls and phase tabs preserve separate teams and costs',t=>{
+ const {q,send,partial}=harness(t);q('goal').value='both';
+ const data=partial(1000,'result'),normal=data.rows[0];
+ normal.continuation={plays:4,badges:400,eventPoints:200,remainingCP:0,stages:[{cost:1600,plays:3,reward:{badges:100,eventPoints:50},row:{...normal,reward:{...normal.reward,mode:'challenge'},song:{...normal.song,title:'Challenge song'}}},{cost:200,plays:1,reward:{badges:10,eventPoints:5},row:{...normal,reward:{...normal.reward,mode:'challenge'},song:{...normal.song,title:'Remainder song'}}}]};
+ send(data);
+ const comparison=q('results').querySelectorAll('.event-alternatives')[0];
+ assert.equal(comparison.querySelectorAll('.task-event-goal-tabs').length,1);
+ assert.equal(q('results').children.some(n=>n.className?.includes('task-event-goal-tabs')),false);
+ let article=q('results').querySelectorAll('.task-event-plan-result')[0];
+ const tabs=article.querySelectorAll('.event-phase-tabs')[0],panels=article.children.filter(n=>n.attrs.role==='tabpanel');
+ assert.deepEqual(panels.map(n=>n.hidden),[false,true]);
+ tabs.children[1].listeners.click();assert.deepEqual(panels.map(n=>n.hidden),[true,false]);
+ assert.equal(tabs.children[1].attrs['aria-selected'],'true');
+ const costs=panels[1].querySelectorAll('.task-event-result-tabs')[0];costs.children[1].listeners.click();
+ assert.equal(costs.children[1].attrs['aria-pressed'],'true');
+ const changed={...data,rows:data.rows.map((row,i)=>i?row:{...row,total:{...row.total,badges:1100}})};send(changed);
+ article=q('results').querySelectorAll('.task-event-plan-result')[0];
+ assert.equal(article.querySelector('[data-yield-phase][aria-selected="true"]').dataset.yieldPhase,'challenge');
+ assert.equal(article.querySelector('[data-yield-stage-cost][aria-pressed="true"]').dataset.yieldStageCost,'200');
+ const updatedTabs=article.querySelectorAll('.event-phase-tabs')[0];
+ updatedTabs.children[1].listeners.keydown({key:'ArrowLeft',preventDefault(){}});
+ assert.equal(updatedTabs.children[0].attrs['aria-selected'],'true');
+ assert.equal(globalThis.document.activeElement,updatedTabs.children[0]);
 });

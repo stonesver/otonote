@@ -5,6 +5,8 @@ import {createWorkbenchTeamView} from './workbench-team-view.mjs';
 import {destroySkillPopover} from './calculator-card-ui.mjs';
 import {setupScoreWorkbenchView} from './score-workbench-view.mjs';
 import {setupEventWorkbenchView} from './event-workbench-view.mjs';
+import {setupTeamWorkbenchView} from './team-workbench-view.mjs';
+import {setupWorkbenchControls} from './workbench-controls.mjs';
 import {selectedOptionText} from './tool-quick-options.mjs';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
 const move=(parent,...nodes)=>nodes.filter(Boolean).forEach(n=>parent.append(n));
@@ -16,7 +18,12 @@ export function setupTaskWorkbench(host,kind) {
   for(const [id,title,path] of [['team','配队推荐','deck-builder'],['score','估分与选曲','song-calculator'],['event','活动收益','event-efficiency']]){const a=el('a',title);a.href=toolRoute(`/tools/${path}/`,location.pathname);if(id===kind)a.setAttribute('aria-current','page');nav.append(a);}
   const ranking=el('a','歌曲排行榜');ranking.href=toolRoute('/tools/song-ranking/',location.pathname);ranking.className='task-ranking-link';nav.append(ranking);
   const selectedServer=new URLSearchParams(location.search).get('server');if(selectedServer){const url=new URL(ranking.href);url.searchParams.set('server',selectedServer);ranking.href=url.href;}
-  host.classList.add('task-workbench');const studio=host.closest('.tool-studio');studio?.classList.add('task-studio');const pageTitle=studio?.querySelector('.tool-page-heading h1');if(pageTitle)pageTitle.textContent=kind==='team'?'配队推荐':kind==='score'?'估分与选曲':'活动收益';const heading=studio?.querySelector('.tool-page-header-inner');(heading??host).append(nav);nav.querySelector('.task-ranking-link')?.remove();
+  host.classList.add('task-workbench');const studio=host.closest('.tool-studio');studio?.classList.add('task-studio','tool-design-system');const pageTitle=studio?.querySelector('.tool-page-heading h1');if(pageTitle)pageTitle.textContent=kind==='team'?'配队推荐':kind==='score'?'估分与选曲':'活动收益';const heading=studio?.querySelector('.tool-page-header-inner');(heading??host).append(nav);nav.querySelector('.task-ranking-link')?.remove();
+  let breadcrumb;
+  {
+    const siteHeader=document.querySelector('[data-site-header]');
+    if(siteHeader){nav.classList.add('site-tool-nav');breadcrumb=siteHeader.querySelector('.site-breadcrumb');breadcrumb?.replaceWith(nav);if(!siteHeader.contains(nav))siteHeader.append(nav);studio?.classList.add('tool-top-navigation');}
+  }
   const context=el('section',null,'task-context-bar'),songButton=el('button','选择歌曲 / 谱面','task-song-entry'),accountButton=el('button','账号加成');songButton.type=accountButton.type='button';accountButton.className='task-account-entry';
   const songLabel=el('strong','未选谱面');const songHeading=el('header');songHeading.append(el('span','本次谱面'),el('small',kind==='team'?'用于比较推荐编成':kind==='score'?'用于计算当前队伍':'用于活动收益比较'));const songRow=el('div',null,'task-song-row');songRow.append(songLabel,songButton);context.append(songHeading,songRow);host.prepend(context);
   const shell=el('div',null,'task-workbench-shell'),aside=el('aside',null,'task-condition-panel'),main=el('div',null,'task-workbench-main');aside.setAttribute('aria-label','本次计算条件');shell.append(aside,main);context.after(shell);
@@ -97,15 +104,24 @@ export function setupTaskWorkbench(host,kind) {
   const conditions=createWorkbenchDialog(host,'调整计算条件',{className:'task-conditions-dialog',onClose:()=>{move(aside,conditionBody);conditionBody.hidden=shell.classList.contains('task-conditions-collapsed');refresh();}});
   adjust.addEventListener('click',()=>{conditionBody.hidden=false;conditions.body.append(conditionBody);conditions.open();});
   collapse.addEventListener('click',()=>{const closed=shell.classList.toggle('task-conditions-collapsed');collapse.textContent=closed?'展开':'收起';collapse.setAttribute('aria-expanded',String(!closed));collapse.setAttribute('aria-label',closed?'展开计算条件':'收起计算条件');collapse.title=closed?'展开计算条件':'收起计算条件';conditionBody.hidden=closed;});
-  const view=kind==='score'?setupScoreWorkbenchView(host,{main,conditionBody,current,context,accountButton,tags}):kind==='event'?setupEventWorkbenchView(host,{main,conditionBody,current,context,songRow,songLabel,songButton,accountButton,tags}):null;if(kind==='score')host.scoreView=view;
+  const view=kind==='team'?setupTeamWorkbenchView(host,{main,shell,aside,conditionBody,current,context,songRow,songLabel,songButton,tags,adjust}):kind==='score'?setupScoreWorkbenchView(host,{main,aside,conditionBody,current,context,accountButton,tags,adjust}):kind==='event'?setupEventWorkbenchView(host,{main,aside,adjust,conditionBody,current,context,songRow,songLabel,songButton,accountButton,tags}):null;if(kind==='score')host.scoreView=view;
+  const designControls=setupWorkbenchControls(host);
   const conditionSelector='select,input:not([type=file]):not([type=search]),textarea',conditionFields=new Set([...conditionBody.querySelectorAll(conditionSelector),...(kind==='event'?[...context.querySelectorAll(conditionSelector),q('[data-yield-basis]')]:[])]);
   for(const details of host.querySelectorAll('[data-performance-settings],[data-performance-panel] > details,[data-gekisou-scenario],[data-gekisou-settings],.tool-help,.scoring-snapshot-details,.journey-help,.calculator-notes'))modalizeDetails(host,details);
   enhanceNumericInputs(conditionBody);
   function refresh() {
     const draft=host.draft,track=host.data.tracks?.find(t=>t.id===draft.selectedSongId);songLabel.textContent=track?`${track.title} · ${draft.selectedDifficulty?.toUpperCase()??'未选难度'}`:'未选谱面';songButton.textContent=track?'更换谱面':'选择歌曲 / 谱面';songRow.querySelector('.task-song-cover')?.remove();const jacket=track&&picker?.querySelector(`[data-song-row="${track.id}"] .song-picker-jacket`);if(jacket){const cover=jacket.cloneNode();cover.className='task-song-cover';cover.alt='';songRow.prepend(cover);}
-    view?.refresh();
+    view?.refresh();designControls.sync();
     for(const link of nav.querySelectorAll('a:not(.task-ranking-link)')){const path=new URL(link.href).pathname.replace(/^\/(global|jp)\/(zh-CN|zh-TW|ja|en)/,'');link.href=toolNavigationHref(path,draft);}
     if(kind==='score')q('[data-score-team]')?.replaceChildren(createWorkbenchTeamView(host,draft));
+    const growthNote=current.querySelector('.task-pairing > .task-team-source');
+    if(growthNote){currentTitle.querySelector('.task-team-source')?.remove();currentTitle.append(growthNote);}
+    else if(!current.querySelector('.task-pairing[data-uniform-source],.task-pairing .tw-card-view[data-source=reference]'))currentTitle.querySelector('.task-team-source')?.remove();
+    if(kind==='team'||kind==='event') {
+      const mods=draft.modifiers??{};
+      accountButton.replaceChildren(el('span','账号加成'),el('small',`乐器 ${Object.keys(mods.bandItems??{}).length} 件 · 评级 ${Object.keys(mods.characterRanks??{}).length} 位 · TGW ${mods.tgwCardRank??1}`));
+      return;
+    }
     tags.replaceChildren();
     const entries=[],explicitPerformance=q('[data-performance-mode]')?.value==='explicit',savedPerformance=draft.modifiers?.performanceScenario;
     for(const field of [...conditionBody.querySelectorAll(conditionSelector),...(kind==='event'?[...context.querySelectorAll(conditionSelector),q('[data-yield-basis]')]:[])])conditionFields.add(field);
@@ -159,11 +175,11 @@ export function setupTaskWorkbench(host,kind) {
     }
     const grouped=new Map();for(const [name,value,group] of entries){if(group){if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(`${name}：${value}`);}else {const shortValue=name==='游戏显示的道具加成（%）'?`道具 +${value}%`:name==='游戏显示的活动 pt 加成（%）'?`活动 pt +${value}%`:name==='方案耗火预算'?`预算 ${value} 火`:name==='已有挑战 pt'?`已有 CP ${value}`:name==='TGW'?`TGW ${value}`:name==='乐器'?`乐器 ${value}`:name==='角色评级'?`评级 ${value}`:name==='回忆'?`回忆 ${value}`:name==='搜索约束'&&value==='默认'?'无额外约束':name==='优化目标'?({'expected_song_score':'平均分','minimum_song_score':'最低分','maximum_song_score':'最高分','formation_power':'综合力'}[q('[data-pairing-objective]')?.value]??value):value;appendConditionTag(short(shortValue,16),`${name}：${value}`,name);}}for(const [name,values] of grouped)appendConditionTag(name==='激奏名次'?values.map(v=>v.split('：').at(-1)).join('/')+' 名':name==='精细发挥'?'精细发挥':name,values,name);
   }
-  const statusObserver=new MutationObserver(records=>{for(const record of records){const status=record.target.nodeType===1?record.target:record.target.parentElement;if(status?.matches('[data-team-workspace-status],[data-performance-status],[data-manual-growth-status]')||status?.matches('[data-yield-status],[data-pairing-progress],[data-team-status]')&&/完成|失败|已停止/.test(status.textContent))showWorkbenchToast(status.textContent);}});
+  const statusObserver=new MutationObserver(records=>{for(const record of records){const status=record.target.nodeType===1?record.target:record.target.parentElement;if(kind==='event'&&status?.matches('[data-yield-status],[data-team-status]'))continue;if(status?.matches('[data-team-workspace-status],[data-performance-status],[data-manual-growth-status]')||status?.matches('[data-yield-status],[data-pairing-progress],[data-team-status]')&&/完成|失败|已停止/.test(status.textContent))showWorkbenchToast(status.textContent);}});
   statusObserver.observe(host,{subtree:true,childList:true,characterData:true});
   const detailObserver=new MutationObserver(records=>{for(const record of records)for(const n of record.addedNodes){if(n.nodeType!==1)continue;for(const d of [...(n.matches('details.recommendation-details,details.skill-activation')?[n]:[]),...n.querySelectorAll('details.recommendation-details,details.skill-activation')])modalizeDetails(host,d);}for(const entry of host.taskDetailPanels??[])if(!entry.details.isConnected)entry.destroy();});
   detailObserver.observe(host,{subtree:true,childList:true});
   const update=()=>refresh();host.addEventListener('change',update);host.addEventListener('optimizer-ui-state',update);const onDraft=e=>{if(e.detail.context?.host===host)refresh();};document.addEventListener('team-workspace:draft',onDraft);
   const readyObserver=new MutationObserver(refresh);readyObserver.observe(host,{attributes:true,attributeFilter:['hidden']});
-  refresh();host.taskWorkbench={refresh,destroy(){view?.destroy();nav.remove();studio?.classList.remove('task-studio');destroySkillPopover(host);statusObserver.disconnect();detailObserver.disconnect();readyObserver.disconnect();for(const entry of host.taskDetailPanels??[])entry.destroy();host.removeEventListener('change',update);host.removeEventListener('optimizer-ui-state',update);document.removeEventListener('team-workspace:draft',onDraft);}};return host.taskWorkbench;
+  refresh();host.taskWorkbench={refresh,destroy(){designControls.destroy();view?.destroy();if(breadcrumb)nav.replaceWith(breadcrumb);else nav.remove();studio?.classList.remove('task-studio','tool-top-navigation','tool-design-system');destroySkillPopover(host);statusObserver.disconnect();detailObserver.disconnect();readyObserver.disconnect();for(const entry of host.taskDetailPanels??[])entry.destroy();host.removeEventListener('change',update);host.removeEventListener('optimizer-ui-state',update);document.removeEventListener('team-workspace:draft',onDraft);}};return host.taskWorkbench;
 }

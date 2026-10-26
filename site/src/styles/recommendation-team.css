@@ -1,0 +1,50 @@
+/* Shared result cards retain the original on-art badges at every screen size. */
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pairs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pair { min-width:0; padding:10px; border:1px solid var(--tool-line); border-radius:8px; background:var(--tool-surface); display:grid; align-content:start; gap:10px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pair[data-leader="true"] { border-color:var(--tool-accent); }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-position { font-size:11px; color:var(--tool-muted); white-space:nowrap; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card { min-width:0; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-view { display:flex; flex-direction:column; gap:8px; width:100%; padding:0; border:0; border-radius:0; background:none; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-art { position:relative; width:100%; max-width:none; height:auto; flex:none; aspect-ratio:4/3; border-radius:6px; overflow:hidden; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-art > img { width:100%; height:100%; object-fit:cover!important; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-body { padding:0; min-width:0; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-name { font-size:13px; line-height:1.45; min-height:0; overflow-wrap:anywhere; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-source { font-size:11px; color:var(--tool-muted); }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pairs[data-uniform-source] .tw-card-source { display:none; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-relations { font-size:11px; color:var(--tool-muted); }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-growth-note { display:block; margin-top:8px; color:var(--tool-muted); }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-roster-details { margin-top:10px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-roster-details > summary { padding:10px 0; min-height:44px; cursor:pointer; color:var(--tool-accent); font-size:13px; }
+@media(min-width:701px) and (max-width:900px) {
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pairs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media(max-width:700px) {
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pairs { grid-template-columns:minmax(0,1fr); gap:0; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pair { grid-template-columns:22px minmax(0,1fr) minmax(0,1fr); padding:12px 0; border:0; border-bottom:1px solid var(--tool-line); border-radius:0; gap:8px; align-items:start; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-position { padding-top:4px; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pair[data-leader="true"] .recommendation-position { color:var(--tool-accent); font-weight:700; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-relations { grid-column:2/-1; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-name { display:none; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-pairs[data-uniform-source] .tw-card-body { display:none; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-art { aspect-ratio:3/4; background:var(--tool-tint); }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-view[data-kind="support"] .tw-card-art { aspect-ratio:4/3; }
+ .task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-art > img { object-position:center 28%; }
+}
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-meta { display:flex; position:absolute; inset:5px auto auto 5px; gap:3px; flex-wrap:wrap; max-width:calc(100% - 38px); min-height:0; z-index:1; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-meta > span { position:static; margin:0; padding:1px; background:#fffffff0; border-radius:3px; font-size:9px; min-height:0; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-meta img { width:17px!important; height:17px!important; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-meta .tw-card-band img { width:20px!important; height:17px!important; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-meta .tw-card-rarity img { width:auto!important; max-width:27px; height:14px!important; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-growth { display:contents; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat { position:absolute; display:inline-flex; align-items:center; gap:2px; max-width:calc(100% - 10px); width:auto; padding:2px 4px; border-radius:3px; background:#202a45e8; color:#fff; font-size:10px; line-height:1.3; z-index:1; white-space:nowrap; box-shadow:0 0 0 1px #ffffff50; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat :is(.tw-card-stat-label,.tw-card-stat-value) { font-size:inherit; color:inherit; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat img { width:13px!important; height:13px!important; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat[data-field="rank"] { top:5px; right:5px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat[data-field="level"] { bottom:45px; left:5px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat[data-field="level"] > :is(img,.tw-card-stat-label) { display:none; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat[data-field="awake"] { bottom:25px; left:5px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat[data-field="skillLevel"] { bottom:5px; left:5px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-stat[data-field="gekisouSkillLevel"] { bottom:5px; right:5px; background:#695287ed; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-view[data-kind="member"] .tw-card-mission { display:none; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-view[data-kind="support"] .tw-card-stat[data-field="level"] { bottom:5px; }
+.task-studio.task-studio[data-tool-kind][data-tool-kind] .recommendation-card .tw-card-view[data-kind="support"] .tw-card-mission { display:block; position:absolute; top:auto; bottom:5px; right:5px; padding:2px 4px; border-radius:3px; background:#695287ed; color:#fff; font-size:10px; line-height:1.3; box-shadow:0 0 0 1px #ffffff50; }

@@ -1,8 +1,9 @@
+import {setupEventPresentation} from './event-presentation.mjs';
 import {modalizeDetails} from './workbench-dialog.mjs';
 import {eventRewardOptions} from './event-reward-options.mjs';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
 /** Reshape live reward nodes; their original controllers still own every value. */
-export function setupEventWorkbenchView(host,{main,conditionBody,current,context,songRow,songLabel,songButton,accountButton,tags}){
+export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,context,songRow,songLabel,songButton,accountButton,tags,adjust}){
  const q=s=>host.querySelector(s),summary=q('.event-summary'),reward=q('#event-results'),legacySong=q('#event-song'),challenge=q('[data-challenge-optimizer]'),planning=q('.task-event-planning-group'),manual=q('.event-quick-bonus').closest('.task-condition-group'),bonus=accountButton.closest('.task-condition-group'),activity=conditionBody.firstElementChild;
  const originalYield=planning.querySelector('.task-event-yield-conditions');if(originalYield)originalYield.replaceWith(...originalYield.childNodes);
  const primary=el('section',null,'task-condition-group task-event-primary');primary.append(el('h3','卡片与预算'));conditionBody.insertBefore(primary,planning);
@@ -27,30 +28,57 @@ export function setupEventWorkbenchView(host,{main,conditionBody,current,context
  // Quick view mirrors the prototype: four numbers, then comparison and next step.
  summary.classList.add('task-quick-result');summary.querySelector('.event-summary-label').textContent='即时收益';summary.querySelector('[data-next-step]').hidden=true;
  const grid=el('div',null,'task-reward-grid');for(const s of ['badges','points','cp'])grid.append(q(`[data-summary-${s}]`).closest('div'));const unit=q('.event-summary-main');unit.classList.add('task-reward-unit');grid.append(unit);summary.querySelector('dl').before(grid);
- summary.append(q('[data-save]'),q('[data-comparison]'));const toPlan=el('button','转入活动收益配队');toPlan.type='button';toPlan.addEventListener('click',()=>q('[data-event-task="team"]').click());const footer=el('footer');footer.append(el('span','需要队伍与后续挑战的完整收益？'),toPlan);summary.append(footer);
+ summary.append(q('[data-save]'),q('[data-comparison]'));const toPlan=el('button','收益配队');toPlan.type='button';toPlan.addEventListener('click',()=>q('[data-event-task="team"]').click());const footer=el('footer');footer.append(el('span','寻找队伍与歌曲'),toPlan);summary.append(footer);
  const rewardDetails=el('details',null,'task-event-advanced');rewardDetails.append(el('summary','各评分档位与后续挑战速算'),reward);summary.append(rewardDetails);modalizeDetails(host,rewardDetails);modalizeDetails(host,q('[data-budget-details]'));
  q('.event-quick-bonus > h2')?.remove();q('.event-quick-bonus > label')?.setAttribute('hidden','');q('.event-quick-bonus > summary').textContent='填写游戏加成';q('.event-quick-bonus').open=true;
  const empty=el('section',null,'task-event-plan-empty');empty.append(el('small','完整刷取方案'),el('h2','比较队伍、歌曲和整份预算收益'),el('p','普通与后续挑战分别配队。计算后展示两阶段编成、次数与道具 / 活动 pt 总收益。'));main.insertBefore(empty,q('[data-yield-results]'));
  const instant=el('div',null,'calculator-start task-quick-toolbar');instant.append(el('strong','调整条件，收益即时更新'),el('small','输入游戏中的两项加成与稳定档位'));main.insertBefore(instant,tags);
- const footnote=q('.event-footnote');main.append(footnote);modalizeDetails(host,footnote);
+ const footnote=q('.event-footnote');advanced.append(...[...footnote.children].filter(n=>n.tagName!=='SUMMARY'));footnote.remove();
  // Song choice has its own visible home; current-team context only appears on demand.
  context.classList.add('task-event-song-card');const songHead=el('header'),scope=range.closest('label');scope.classList.add('task-event-song-scope');songHead.append(el('h2','选歌与谱面'),scope);
  for(const [index,name] of ['自动选曲','指定谱面'].entries()){range.options[index].textContent=name;const button=scope.querySelectorAll('.tool-options button')[index];if(button){button.setAttribute('aria-label',name);button.querySelector('span').textContent=name;}}
- const songCopy=el('div',null,'task-event-song-copy'),difficulty=el('span',null,'task-event-song-difficulty'),songHint=el('p',null,'task-event-song-hint'),placeholder=el('span','♪','task-event-song-placeholder'),songFooter=el('div',null,'task-event-song-footer');songBasis.classList.add('task-event-song-basis');songCopy.append(songLabel,difficulty);songRow.append(songCopy,songButton);songFooter.append(songBasis,songHint);context.replaceChildren(songHead,autoFilters,songRow,songFooter);main.prepend(context);
+ const songCopy=el('div',null,'task-event-song-copy'),difficulty=el('span',null,'task-event-song-difficulty event-difficulty'),songHint=el('p',null,'task-event-song-hint'),placeholder=el('span','♪','task-event-song-placeholder'),songFooter=el('div',null,'task-event-song-footer');songBasis.classList.add('task-event-song-basis');songCopy.append(songLabel,difficulty);songRow.append(songCopy,songButton);songFooter.append(songBasis,songHint);context.replaceChildren(songHead,autoFilters,songRow,songFooter);main.prepend(context);
  const reference=el('details',null,'task-event-current-source');reference.append(el('summary','当前队伍 · 配对与养成'),current);context.after(reference);current.querySelector('header small').textContent='本次使用的队伍';let wasCurrent=false;
  const rushSongs=el('section',null,'task-event-rush-songs'),rushChoices=el('div',null,'task-event-rush-choices'),rushCopy=el('p'),rushAdvice=el('p','建议先获取并养成本期商店兑换与活动 pt 奖励卡，再进行冲榜。可用左侧「临时纳入本期奖励卡」预先比较。','task-event-rush-advice'),challengeBasis=el('div',null,'task-event-challenge-basis');rushSongs.setAttribute('aria-label','本期活动曲选择');rushSongs.append(el('h2','本期活动曲'),rushCopy,rushAdvice,rushChoices,challengeBasis);main.insertBefore(rushSongs,context);let rushKey='';
+ const rushSelection=el('div',null,'event-rush-selection'),rushSelectedInfo=el('div',null,'event-rush-selected-info'),rushChange=el('button','更换歌曲 / 难度');rushChange.type='button';rushChoices.id='event-rush-song-choices';rushChange.setAttribute('aria-controls',rushChoices.id);rushSelection.append(rushSelectedInfo,rushChange);rushChoices.before(rushSelection);
+ let rushCondensed=false,rushExpanded=false,rushRunning=false,rushEvent=null,rushHasSelection=false;
+ rushChange.addEventListener('click',()=>{rushExpanded=!rushExpanded;updateRushSelection({active:host.dataset.task==='challenge',running:rushRunning});});
+ function updateRushSelection({active,running}){
+  const eventId=q('[data-event]').value;
+  if(eventId!==rushEvent){rushCondensed=false;rushExpanded=false;rushEvent=eventId;}
+  refreshRushSongs();
+  if(active&&running&&!rushRunning){rushCondensed=true;rushExpanded=false;}
+  rushRunning=active&&running;
+  const compact=active&&rushCondensed&&rushHasSelection&&!rushExpanded;
+  rushSelection.hidden=!active||!rushCondensed||!rushHasSelection;
+  rushChoices.hidden=compact;rushSongs.querySelector('h2').hidden=compact;
+  rushSongs.dataset.compact=String(compact);
+  rushChange.textContent=rushExpanded?'收起选曲':'更换歌曲 / 难度';rushChange.setAttribute('aria-expanded',String(!compact));
+ }
  function refreshRushSongs(){
-  const eventId=Number(q('[data-event]').value),selected=host.draft.selectedSongId,selectedDifficulty=host.draft.selectedDifficulty??'expert',next=`${eventId}:${selected}:${selectedDifficulty}`;if(next===rushKey)return;rushKey=next;rushChoices.replaceChildren();
+  const eventId=Number(q('[data-event]').value),selected=host.draft.selectedSongId,selectedDifficulty=host.draft.selectedDifficulty??'expert',next=`${eventId}:${selected}:${selectedDifficulty}`;if(next===rushKey)return;rushKey=next;rushChoices.replaceChildren();rushSelectedInfo.replaceChildren();rushHasSelection=false;if(rushCondensed)rushExpanded=false;
   const ids=[...new Set(host.data.rules.tables.ChallengeMusic.filter(row=>row._eventId===eventId).map(row=>`music-${row._liveMusicId}`))];
   for(const id of ids){const source=q(`[data-song-row="${id}"]`),track=host.data.tracks.find(row=>row.id===id);if(!track||!source)continue;
-   const card=el('div',null,'task-event-rush-song');card.dataset.selected=String(id===selected);const title=el('button',track.title),cover=source.querySelector('.song-picker-jacket')?.cloneNode();title.type='button';if(cover){cover.alt='';title.prepend(cover);}card.append(title);
+   const rule=host.data.rules.tables.ChallengeMusic.find(row=>row._eventId===eventId&&`music-${row._liveMusicId}`===id),attribute=host.data.filterVisualOptions?.attribute?.find(row=>Number(row.value)===rule?._musicType);
+   const card=el('div',null,'task-event-rush-song');if(attribute?.color)card.style.setProperty('--song-attribute',attribute.color);card.dataset.selected=String(id===selected);const title=el('button'),cover=source.querySelector('.song-picker-jacket')?.cloneNode();title.type='button';title.append(el('span',track.title));if(cover){cover.alt='';title.prepend(cover);}card.append(title);
+   if(attribute){const badge=el('div',null,'event-rush-attribute');if(attribute.icon){const icon=el('img');icon.src=attribute.icon;icon.alt='';badge.append(icon);}badge.append(el('span',`活动属性 · ${attribute.label}`));card.append(badge);}
    const charts=[...source.querySelectorAll('[data-song-choice]')],levels=el('div',null,'task-event-rush-levels');
-   const choose=difficulty=>{if(host.dataset.task==='team')range.value='selected';host.songPicker.applySelection({selectedSongId:id,selectedDifficulty:difficulty});};
+   const selectedChart=charts.find(c=>!c.disabled&&c.dataset.difficulty===selectedDifficulty);
+   if(id===selected&&selectedChart){
+    rushHasSelection=true;
+    if(cover){const image=cover.cloneNode();image.alt='';rushSelectedInfo.append(image);}
+    const text=el('div',null,'event-rush-selected-copy');text.append(el('strong',track.title));
+    const meta=el('div',null,'event-rush-selected-meta'),badge=card.querySelector('.event-rush-attribute');if(badge)meta.append(badge.cloneNode(true));
+    const chartBadge=el('span',`${selectedDifficulty.toUpperCase()} · ${selectedChart.dataset.level}`,'event-difficulty');chartBadge.dataset.difficulty=selectedDifficulty;meta.append(chartBadge);text.append(meta);rushSelectedInfo.append(text);
+    if(attribute?.color)rushSelection.style.setProperty('--song-attribute',attribute.color);
+   }
+   const choose=difficulty=>{if(host.dataset.task==='team')range.value='selected';host.songPicker.applySelection({selectedSongId:id,selectedDifficulty:difficulty});if(rushSongs.dataset.compact==='true')rushChange.focus({preventScroll:true});};
    title.addEventListener('click',()=>{const chart=charts.find(c=>!c.disabled&&c.dataset.difficulty===selectedDifficulty)??charts.find(c=>!c.disabled&&c.dataset.difficulty==='expert')??charts.find(c=>!c.disabled);if(chart)choose(chart.dataset.difficulty);});title.disabled=!charts.some(c=>!c.disabled);
-   for(const chart of charts){const difficulty=chart.dataset.difficulty,button=el('button',`${({easy:'EZ',normal:'NM',hard:'HD',expert:'EX'})[difficulty]??difficulty} ${chart.dataset.level}`);button.type='button';button.dataset.difficulty=difficulty;button.disabled=chart.disabled;button.setAttribute('aria-label',`${track.title} · ${difficulty.toUpperCase()} · Lv.${chart.dataset.level}`);button.setAttribute('aria-pressed',String(selected===id&&selectedDifficulty===difficulty));button.addEventListener('click',()=>choose(difficulty));levels.append(button);}card.append(levels);rushChoices.append(card);
+   for(const chart of charts){const difficulty=chart.dataset.difficulty,button=el('button');button.replaceChildren(el('span',({easy:'EASY',normal:'NORMAL',hard:'HARD',expert:'EXPERT'})[difficulty]??difficulty),el('strong',chart.dataset.level));button.type='button';button.dataset.difficulty=difficulty;button.disabled=chart.disabled;button.setAttribute('aria-label',`${track.title} · ${difficulty.toUpperCase()} · Lv.${chart.dataset.level}`);button.setAttribute('aria-pressed',String(selected===id&&selectedDifficulty===difficulty));button.addEventListener('click',()=>choose(difficulty));levels.append(button);}card.append(levels);rushChoices.append(card);
   }
   if(!rushChoices.children.length)rushChoices.append(el('p','本期活动曲暂不可用，请切换活动。'));
  }
+ const presentation=setupEventPresentation(host,{main,aside,conditionBody,context,adjust,primary,manual,challengeConditions,rushSongs,reference,tags,empty,instant,continuation,updateRushSelection});
  function refresh(){
   const task=host.dataset.task,quick=task==='quick',rush=task==='challenge';
   yieldRewards.refresh();rushRewards.refresh();
@@ -58,10 +86,10 @@ export function setupEventWorkbenchView(host,{main,conditionBody,current,context
   const challengeYield=!quick&&!rush&&q('[data-mode]').value==='challenge',showChallengeSongs=rush||challengeYield;
   context.hidden=quick||showChallengeSongs;rushSongs.hidden=!showChallengeSongs;if(showChallengeSongs)refreshRushSongs();
   rushCopy.textContent=rush?'直接点选歌曲和难度，活动能力加成计入出分。':'直接点选本期活动曲与难度，按所选谱面计算挑战收益。';rushAdvice.hidden=!rush||!(host.data.eventRewardCards?.[Number(q('[data-event]').value)]?.length);challengeBasis.hidden=!challengeYield;
-  if(challengeYield&&songBasis.parentElement!==challengeBasis)challengeBasis.append(songBasis);else if(!challengeYield&&songBasis.parentElement!==songFooter)songFooter.prepend(songBasis);
+
   const track=host.data.tracks.find(row=>row.id===host.draft.selectedSongId),selectedOnly=q('[data-yield-songs]').value==='selected',chart=host.data.charts.find(row=>row.trackId===track?.id&&row.difficulty===(host.draft.selectedDifficulty??'expert'));
   songRow.hidden=!selectedOnly;autoFilters.hidden=selectedOnly;continuation.hidden=quick||rush||q('[data-mode]').value!=='ordinary'||q('[data-yield-stages]').value!=='cycle';
-  context.dataset.required=String(selectedOnly&&!track);songLabel.textContent=track?track.title:selectedOnly?'先选择要计算的谱面':'自动比较歌曲，寻找收益靠前的方案';difficulty.textContent=track?`${(host.draft.selectedDifficulty??'expert').toUpperCase()}${chart?.level?' · Lv.'+chart.level:''}`:'尚未选择单曲';difficulty.hidden=!track;songButton.textContent=track?'更换谱面':'选择谱面';
+  context.dataset.required=String(selectedOnly&&!track);songLabel.textContent=track?track.title:selectedOnly?'先选择要计算的谱面':'自动比较歌曲，寻找收益靠前的方案';difficulty.textContent=track?`${(host.draft.selectedDifficulty??'expert').toUpperCase()}${chart?.level?' · Lv.'+chart.level:''}`:'尚未选择单曲';difficulty.dataset.difficulty=host.draft.selectedDifficulty??'expert';difficulty.hidden=!track;songButton.textContent=track?'更换谱面':'选择谱面';
   if(!songRow.querySelector('.task-song-cover'))songRow.prepend(placeholder);else placeholder.remove();
   songHint.textContent=selectedOnly?'仅计算所选谱面':'按筛选范围自动比较';songHint.title='后续挑战的选曲范围与判档依据在左侧单独设置。';
   primary.hidden=quick||rush;planning.hidden=quick||rush;manual.hidden=!quick;challengeConditions.hidden=!rush;summary.hidden=!quick;instant.hidden=!quick;const toolbar=q('.task-event-toolbar');if(toolbar)toolbar.hidden=quick||rush;challengeAction.hidden=!rush;
@@ -70,6 +98,7 @@ export function setupEventWorkbenchView(host,{main,conditionBody,current,context
   // These inputs retain their values across tasks; the rush task fixes the phase.
   q('[data-mode]').closest('label').hidden=rush;for(const s of ['[data-boost-wrap]','[data-cost-wrap]'])q(s).classList.toggle('task-rush-hidden',rush);
   activity.querySelector('h3').textContent=rush?'本期活动':'活动与阶段';
+  presentation.refresh();
  }
- const observer=new MutationObserver(refresh);observer.observe(q('[data-yield-results]'),{childList:true});refresh();return {refresh,destroy(){observer.disconnect();}};
+ const observer=new MutationObserver(refresh);observer.observe(q('[data-yield-results]'),{childList:true});refresh();return {refresh,destroy(){observer.disconnect();presentation.destroy();}};
 }

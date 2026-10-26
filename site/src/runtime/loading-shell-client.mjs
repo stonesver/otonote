@@ -2,6 +2,7 @@ import { SITE_NAME } from "../lib/site-brand.mjs";
 import {GAME_SERVERS, currentServerContext, withServer} from '../lib/game-servers.mjs';
 import {restoreServerLabels} from '../lib/server-label.mjs';
 import { activeNavigationGroup, activeNavigationChild, NAVIGATION_GROUPS } from '../lib/navigation.mjs';
+import {sidebarSelection} from '../lib/sidebar-navigation.mjs';
 import {restoreNavigationScroll, revealCurrentNavigation} from '../lib/navigation-scroll.mjs';
 import { loadingKind } from './loading-route.mjs';
 import { loadingPresentation } from './loading-presentation.mjs';
@@ -29,17 +30,21 @@ if (english) document.querySelectorAll('[data-loading-en]').forEach(node => { no
 document.querySelector('[data-loading-locale]').textContent = english ? 'English' : '简体中文';
 const navigation = document.querySelector('[data-site-nav]');
 navigation.setAttribute('aria-label', english ? 'Main navigation' : '主导航');
+navigation.querySelector('.nav-my-tools').setAttribute('aria-label', english ? 'My tools' : '我的工具');
+navigation.querySelector('.nav-browse').setAttribute('aria-label', english ? 'Browse' : '浏览');
 document.querySelector('.site-breadcrumb').setAttribute('aria-label', english ? 'Breadcrumb' : '当前位置');
 document.querySelector('.context-switcher summary').setAttribute('aria-label', english ? 'Server and language' : '切换服务器与语言');
 document.querySelector('[data-loading-retry]').href = location.href;
 const group = NAVIGATION_GROUPS.find(item => item.id === activeNavigationGroup(path));
 const child = activeNavigationChild(path, group?.children ?? []);
+const sidebar = sidebarSelection(path);
 const currentPath = child?.href ?? group?.href ?? (['/updates/', '/about/'].includes(path) ? path : '/');
 let title = english ? 'Overview' : '首页概览';
 document.querySelectorAll('[data-loading-route]').forEach(link => {
   const route = link.dataset.loadingRoute;
   link.href = withServer(base + route.slice(1), serverId);
-  if (route === path || (route === child?.href && path.startsWith(route))) link.setAttribute('aria-current', 'page');
+  link.removeAttribute('aria-current');
+  if (route === sidebar.route) link.setAttribute('aria-current', 'page');
   if (route === currentPath) title = link.textContent.trim();
 });
 const kind = loadingKind(location.pathname);
@@ -76,18 +81,18 @@ function toggleGroup(button, expanded) {
   submenu.inert = !expanded;
 }
 document.querySelectorAll('[data-loading-toggle]').forEach(button => {
-  const active = button.dataset.loadingToggle === group?.id;
-  let expanded = true;
-  try { expanded = sessionStorage.getItem(`ournotes-nav-group:${button.dataset.loadingToggle}`) !== 'false'; } catch { /* Storage is optional. */ }
+  const active = button.dataset.loadingToggle === sidebar.groupId;
+  let expanded = false;
+  try { expanded = sessionStorage.getItem(`otonote-sidebar-v2:${button.dataset.loadingToggle}`) === 'true'; } catch { /* Storage is optional. */ }
   if (active) button.closest('.nav-group').setAttribute('data-active', '');
   toggleGroup(button, active || expanded);
   button.addEventListener('click', () => {
     const next = button.getAttribute('aria-expanded') !== 'true';
     toggleGroup(button, next);
-    try { sessionStorage.setItem(`ournotes-nav-group:${button.dataset.loadingToggle}`, String(next)); } catch { /* Storage is optional. */ }
+    try { sessionStorage.setItem(`otonote-sidebar-v2:${button.dataset.loadingToggle}`, String(next)); } catch { /* Storage is optional. */ }
   }, options);
 });
-if (group) document.querySelector(`[data-loading-group="${group.id}"]`)?.setAttribute('data-active', '');
+if (sidebar.groupId) document.querySelector(`[data-loading-group="${sidebar.groupId}"]`)?.setAttribute('data-active', '');
 let navigationStorage;
 try { navigationStorage = sessionStorage; } catch { /* Storage is optional. */ }
 restoreNavigationScroll(navigation, navigationStorage, options);

@@ -46,11 +46,12 @@ test('a saved collapsed catalog is hidden before the music page first paints', (
   assert.equal(state.label, '展开导航分组：资料');
 });
 
-test('the active group and first visits remain expanded', () => {
+test('only the active group expands on first visits', () => {
   assert.equal(initialNavigation({ active: true }).submenu.hidden, false);
-  assert.equal(initialNavigation({ stored: null }).expanded, 'true');
+  assert.equal(initialNavigation({ stored: 'true' }).expanded, 'true');
+  assert.equal(initialNavigation({ stored: null }).expanded, 'false');
 });
 
 test('blocked storage leaves the navigation usable', () => {
-  assert.equal(initialNavigation({ blocked: true }).expanded, 'true');
+  assert.equal(initialNavigation({ blocked: true }).expanded, 'false');
 });

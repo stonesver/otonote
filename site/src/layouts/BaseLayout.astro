@@ -1,7 +1,7 @@
 ---
 import { SITE_NAME, siteDescription } from "../lib/site-brand.mjs";
-import { navIcons } from "../lib/navigation-icons.mjs";
-import { catalog, pageTitle } from "../lib/catalog";
+import { renderSidebarNavigation } from "../lib/sidebar-navigation.mjs";
+import { pageTitle } from "../lib/catalog";
 import PageEditionSwitcher from "../components/PageEditionSwitcher.astro";
 import RegionLocaleSwitcher from "../components/RegionLocaleSwitcher.astro";
 import UnifiedSearch from "../components/UnifiedSearch.astro";
@@ -54,9 +54,6 @@ const siteTitle = SITE_NAME;
 const buildBase = import.meta.env.BASE_URL;
 const href = (path: string) =>
   buildBase === "/" ? path : siteHref(path, activeReleaseContext);
-const moduleStatus = new Map(
-  catalog.modules.map((module) => [module.route, module.status])
-);
 const navItems = NAVIGATION_GROUPS.map((group) => ({
   ...group,
   label: ui[group.labelKey as keyof typeof ui],
@@ -146,66 +143,17 @@ const htmlLanguage = activeReleaseContext.locale;
       </a>
 
       <nav id="site-navigation" class="site-nav" aria-label={ui.mainNavigation} data-site-nav>
-        <p class="nav-caption">{htmlLanguage === "en" ? "EXPLORE" : "浏览目录"}</p>
-        <a class="nav-home" href={href("/")} aria-current={pathname === "/" ? "page" : undefined}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-7 9 7 M5 9v12h5v-7h4v7h5V9" /></svg>
-          {homeLabel}
-        </a>
-        {navItems.map((item) => (
-          <div class="nav-group" data-active={activeNavId === item.id || undefined} data-has-children={item.children.length > 0 || undefined}>
-            <a
-              class="nav-primary"
-              href={href(item.href)}
-              aria-current={pathname === item.href ? "page" : undefined}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={navIcons[item.id]} /></svg>
-              {item.label}
-              {moduleStatus.get(item.href) === "reserved" && (
-                <small>{ui.reserved}</small>
-              )}
-            </a>
-            {item.children.length > 0 && (
-              <button
-                class="nav-submenu-toggle"
-                type="button"
-                aria-expanded="true"
-                aria-controls={`nav-submenu-${item.id}`}
-                aria-label={`${ui.collapseNavigationGroup}${item.label}`}
-                data-nav-submenu-toggle
-                data-nav-group-id={item.id}
-              >
-                <span aria-hidden="true">−</span>
-              </button>
-            )}
-            {item.children.length > 0 && (
-              <div
-                id={`nav-submenu-${item.id}`}
-                class="nav-submenu"
-                aria-label={`${item.label}${ui.subNavigation}`}
-                data-nav-submenu
-              >
-                {item.children.map((child) => (
-                  <a
-                    href={href(child.href)}
-                    aria-current={child.href === activeChild?.href ? "page" : undefined}
-                  >
-                    {child.label}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        <Fragment set:html={renderSidebarNavigation({ui, englishUi: getUi("en"), locale: htmlLanguage, pathname: Astro.props.navigationPath ?? pathname, href})} />
         <script is:inline data-nav-state-init>
           // Restore saved groups while the navigation is parsed, before first paint.
           document.querySelectorAll("[data-nav-submenu-toggle]").forEach((button) => {
             let stored = null;
             try {
-              stored = window.sessionStorage.getItem(`ournotes-nav-group:${button.getAttribute("data-nav-group-id")}`);
+              stored = window.sessionStorage.getItem(`otonote-sidebar-v2:${button.getAttribute("data-nav-group-id")}`);
             } catch {
               // Keep the server-rendered navigation usable without storage.
             }
-            const expanded = button.closest("[data-active]") !== null || stored !== "false";
+            const expanded = button.closest("[data-active]") !== null || stored === "true";
             const submenu = document.getElementById(button.getAttribute("aria-controls"));
             const label = button.closest(".nav-group")?.querySelector(".nav-primary")?.textContent?.trim() ?? "";
             const english = document.documentElement.lang === "en";
@@ -255,7 +203,7 @@ const htmlLanguage = activeReleaseContext.locale;
       <span data-unavailable-path></span>
     </aside>
 
-    {pathname.startsWith("/tools/") && <SharedTeamWorkspace locale={activeReleaseContext.locale} />}
+    <SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={pathname.startsWith("/tools/")} />
     <main id="main-content" data-page-kind={pathname === "/" ? "home" : "module"} tabindex="-1">
       {activeReleaseContext.region === 'global' && <GameServiceNotice locale={activeReleaseContext.locale} />}
       {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
@@ -315,7 +263,13 @@ const htmlLanguage = activeReleaseContext.locale;
       });
       navigation?.addEventListener("click", (event) => {
         if (event.target instanceof Element && event.target.closest("a")) {
+          const workspace = event.target.closest("[data-nav-workspace]");
           closeNavigation();
+          if (workspace && event instanceof MouseEvent && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+            event.preventDefault();
+            if (mobileNavigation.matches && toggle instanceof HTMLElement) toggle.focus();
+            document.dispatchEvent(new CustomEvent("team-workspace:open"));
+          }
         }
       });
       document.addEventListener("keydown", (event) => {
@@ -340,7 +294,7 @@ const htmlLanguage = activeReleaseContext.locale;
       const submenuToggles = document.querySelectorAll("[data-nav-submenu-toggle]");
       const setStoredGroupState = (groupId: string, expanded: boolean) => {
         try {
-          window.sessionStorage.setItem(`ournotes-nav-group:${groupId}`, String(expanded));
+          window.sessionStorage.setItem(`otonote-sidebar-v2:${groupId}`, String(expanded));
         } catch {
           // The navigation remains functional when session storage is unavailable.
         }

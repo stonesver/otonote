@@ -14,7 +14,7 @@
 | `global-en` | EN Region | 3 | UTC |
 | `global-kr` | Korea | 4 | UTC+9 |
 
-EN 的 UTC 是本站明确的显示约定，不代表官方日界线。SDK 的 app/channel/server 参数仍来自所支持渠道的私有配置，与上表的游戏服务器编号分别处理。
+EN 的 UTC 是本站明确的显示约定，不代表官方日界线。SDK 的 app/channel/server 参数来自所支持渠道的应用配置，与上表的游戏服务器编号分别处理。
 
 - `GET /api/growth-export/capabilities/?serverId=global-en`：返回所选 serverId、支持列表、nonce、authMethods 和所选服维护状态。支持的方法目前仅 `email_password`。
 - `POST /api/growth-export/read/` 和 `/gacha-history/`：JSON 包含 `serverId`、`account`、`password`。历史客户端省略 serverId 时兼容港澳台；无效区服、额外参数、冲突来源拒绝。
@@ -45,4 +45,4 @@ EN 的 UTC 是本站明确的显示约定，不代表官方日界线。SDK 的 a
 
 ## 修改与交付验证
 
-自动测试覆盖三服路由、跨服拒绝、已有角色、每次独立认证、全链路版本一致、公开升级上限、认证后不重试、维护、代理参数、前端保存和时区。源码包用合成 SDK 配置验证，不包含真实配置。网关与网站代码分别交付，保留生产配置；实际账号读取、游戏内对账和桌面二进制安装是独立验收。
+自动测试覆盖三服路由、跨服拒绝、已有角色、每次独立认证、全链路版本一致、公开升级上限、认证后不重试、维护、代理参数、前端保存和时区。自动测试用合成 SDK 配置验证。Git 源码不包含真实配置；本地工具发行 ZIP 内置最小应用配置，启动时自动载入，详见[本地工具说明](../../packaging/growth-tool/README.md)。网关与网站代码分别交付，保留生产配置；实际账号读取、游戏内对账和桌面二进制安装是独立验收。

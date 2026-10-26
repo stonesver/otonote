@@ -10,16 +10,16 @@ import sys
 import sysconfig
 from pathlib import Path
 
-from tools.build_growth_distribution import DOCUMENTS, TEMPLATE, source_tree, write_zip
+from tools.build_growth_distribution import DOCUMENTS, TEMPLATE, bundle_sdk, source_tree, write_zip
 
 
-def build(output):
+def build(output, sdk_config=None):
     if sys.platform != 'darwin' or platform.machine() != 'arm64':
         raise SystemExit('Build this distribution on an Apple Silicon Mac.')
     output.mkdir(parents=True, exist_ok=False)
     output = output.resolve()
     source = output / 'source'
-    source_tree(source)
+    source_tree(source, sdk_config)
     subprocess.run([
         sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
         '--console', '--name', 'OurNotesGrowth', '--target-arch', 'arm64',
@@ -34,6 +34,7 @@ def build(output):
         if name not in ('launcher.py', 'Start.cmd'):
             shutil.copyfile(TEMPLATE / name, portable / name)
     (portable / 'Start.command').chmod(0o755)
+    bundle_sdk(portable, sdk_config)
     licenses = portable / 'third-party-licenses'
     licenses.mkdir()
     dependencies = {}
@@ -54,7 +55,7 @@ def build(output):
     (portable / 'BUILD.json').write_text(json.dumps({
         'pythonVersion': platform.python_version(), 'platform': 'macos-arm64',
         'buildMacOS': platform.mac_ver()[0], 'dependencies': dependencies,
-        'sdkConfigIncluded': True, 'appleNotarized': False,
+        'sdkConfigIncluded': sdk_config is not None, 'appleNotarized': False,
     }, indent=2) + '\n')
     result = write_zip(portable, output / (portable.name + '.zip'))
     (output / 'release.json').write_text(json.dumps(result, indent=2) + '\n')
@@ -64,4 +65,6 @@ def build(output):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    build(parser.parse_args().output)
+    parser.add_argument('--sdk-config', type=Path, help='approved minimal SDK XML to bundle in the release')
+    args = parser.parse_args()
+    build(args.output, args.sdk_config)

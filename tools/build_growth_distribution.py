@@ -6,23 +6,43 @@ import json
 import os
 import shutil
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from tools.growth_login import Profile
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / 'packaging/growth-tool'
 MODULES = ('growth_export.py', 'growth_login.py', 'growth_login_local.py', 'game_service_status.py', 'global_game_config.py',
            'growth_levels.py', 'growth_package_check.py', 'build_growth_distribution.py',
            'build_growth_macos.py')
-DOCUMENTS = ('README.md', 'LICENSE', 'requirements.txt', 'sdk.example.xml', 'sdk.bhk.xml', 'launcher.py', 'Start.cmd', 'Start.command')
+DOCUMENTS = ('README.md', 'LICENSE', 'requirements.txt', 'sdk.example.xml', 'launcher.py', 'Start.cmd', 'Start.command')
+SDK_FIELDS = frozenset(('appid', 'merchantid', 'serverid', 'channelid',
+                        'one_global_brand_id', 'one_global_area_id', 'one_appkey'))
 
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def source_tree(destination):
-    from tools.growth_login import Profile
-    Profile.from_resources(TEMPLATE / 'sdk.bhk.xml')
+def bundle_sdk(destination, sdk_config):
+    """Include only an explicitly supplied minimal application configuration."""
+    if sdk_config is None:
+        return
+    data = sdk_config.read_bytes()
+    if len(data) > 6000:
+        raise ValueError('invalid_distribution_sdk_config')
+    Profile.from_xml(data)
+    root = ET.fromstring(data)
+    if (root.attrib or len(root) != len(SDK_FIELDS)
+            or {entry.get('name') for entry in root} != SDK_FIELDS
+            or any(entry.tag != 'string' or set(entry.attrib) != {'name'} or len(entry)
+                   for entry in root)):
+        raise ValueError('invalid_distribution_sdk_config')
+    (destination / 'sdk.bhk.xml').write_bytes(data)
+
+
+def source_tree(destination, sdk_config=None):
     destination.mkdir(parents=True)
     (destination / 'tools').mkdir()
     (destination / 'tools/__init__.py').write_text('')
@@ -36,7 +56,8 @@ def source_tree(destination):
     build_inputs.mkdir(parents=True)
     for name in (*DOCUMENTS, 'windows-lock.json'):
         shutil.copyfile(TEMPLATE / name, build_inputs / name)
-    (destination / '.gitignore').write_text('sdk.xml\n*.snapshot.json\nournotes-growth*.json\n.venv/\n__pycache__/\noutput/\n')
+    (destination / '.gitignore').write_text('sdk.xml\nsdk.bhk.xml\n*.snapshot.json\nournotes-growth*.json\n.venv/\n__pycache__/\noutput/\n')
+    bundle_sdk(destination, sdk_config)
 
 
 def safe_extract(archive, destination):
@@ -72,19 +93,19 @@ def write_zip(root, output):
             'expandedBytes': sum(len(content(p)) for p in root.rglob('*') if p.is_file() or p.is_symlink())}
 
 
-def build(output, downloads=None):
+def build(output, downloads=None, sdk_config=None):
     output.mkdir(parents=True, exist_ok=False)
     source = output / 'ournotes-growth-source'
-    source_tree(source)
+    source_tree(source, sdk_config)
     result = {'source': write_zip(source, output / (source.name + '.zip')),
-              'sdkConfigIncluded': True, 'windowsExecutionVerified': False}
+              'sdkConfigIncluded': sdk_config is not None, 'windowsExecutionVerified': False}
     if downloads is not None:
         lock = json.loads((TEMPLATE / 'windows-lock.json').read_text())
         for item in lock['files']:
             if digest(downloads / item['filename']) != item['sha256']:
                 raise ValueError('download_digest_mismatch: ' + item['filename'])
         portable = output / 'ournotes-growth-windows-x64'
-        source_tree(portable)
+        source_tree(portable, sdk_config)
         runtime = portable / 'runtime'
         runtime.mkdir()
         for item in lock['files']:
@@ -105,8 +126,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True, type=Path, help='new output directory')
     parser.add_argument('--downloads', type=Path, help='verified Windows runtime and wheels directory')
+    parser.add_argument('--sdk-config', type=Path, help='approved minimal SDK XML to bundle in the release')
     args = parser.parse_args()
-    print(json.dumps(build(args.output, args.downloads), indent=2))
+    print(json.dumps(build(args.output, args.downloads, args.sdk_config), indent=2))
 
 
 if __name__ == '__main__':

@@ -1,6 +1,5 @@
 import { SITE_NAME } from "../lib/site-brand.mjs";
-import { NAVIGATION_GROUPS } from '../lib/navigation.mjs';
-import { navIcons } from '../lib/navigation-icons.mjs';
+import { renderSidebarNavigation } from '../lib/sidebar-navigation.mjs';
 import { getUi } from '../lib/ui-i18n.ts';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -14,10 +13,7 @@ export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg,
   const zh = getUi('zh-CN'), en = getUi('en');
   const label = key => `<span data-loading-en="${escape(en[key])}">${escape(zh[key])}</span>`;
   const link = (path, text, classes = '') => `<a class="${classes}" href="/global/zh-CN${path}" data-loading-route="${path}">${text}</a>`;
-  const groups = NAVIGATION_GROUPS.map(group => `<div class="nav-group" data-loading-group="${group.id}">
-    ${link(group.href, svg(navIcons[group.id]) + label(group.labelKey), 'nav-primary')}
-    ${group.children.length ? `<button class="nav-submenu-toggle" type="button" aria-expanded="true" aria-controls="nav-submenu-${group.id}" aria-label="${escape(zh.collapseNavigationGroup + zh[group.labelKey])}" data-loading-toggle="${group.id}"><span aria-hidden="true">−</span></button><div class="nav-submenu" id="nav-submenu-${group.id}">${group.children.map(child => link(child.href, label(child.labelKey))).join('')}</div>` : ''}
-  </div>`).join('');
+  const navigation = renderSidebarNavigation({ui: zh, englishUi: en, href: path => `/global/zh-CN${path}`});
   const skeletons = {
     home: `<div class="loading-hero"></div><div class="loading-grid">${Array.from({length:4},card).join('')}</div>`,
     cards: `<div class="loading-filters">${line()}${line()}${line()}</div><div class="loading-grid">${Array.from({length:10},card).join('')}</div>`,
@@ -44,7 +40,7 @@ export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg,
     <a class="skip-link" href="#main-content">${label('skipMain')}</a>
     <header class="site-header" data-site-header>
       ${link('/', `<span class="site-brand__mark" aria-hidden="true">${brandSvg}</span><span class="site-brand__full">${SITE_NAME}</span><span class="site-brand__compact" aria-hidden="true">${SITE_NAME}</span><small data-loading-en="Events · Data · Team tools">活动 · 资料 · 配队工具</small>`, 'site-brand')}
-      <nav id="site-navigation" class="site-nav" aria-label="主导航" data-site-nav><p class="nav-caption" data-loading-en="EXPLORE">浏览目录</p>${link('/',svg('M3 10l9-7 9 7 M5 9v12h5v-7h4v7h5V9')+'<span data-loading-en="Overview">首页概览</span>','nav-home')}${groups}<div class="nav-bottom">${link('/about/','<span data-loading-en="About">关于本站</span>')}${link('/updates/','<span data-loading-en="Version history">版本记录</span>')}<small>${SITE_NAME} · GLOBAL</small></div></nav>
+      <nav id="site-navigation" class="site-nav" aria-label="主导航" data-site-nav>${navigation}<div class="nav-bottom">${link('/about/','<span data-loading-en="About">关于本站</span>')}${link('/updates/','<span data-loading-en="Version history">版本记录</span>')}<small>${SITE_NAME} · GLOBAL</small></div></nav>
       <nav class="site-breadcrumb" aria-label="当前位置">${link('/','<span data-loading-en="Overview">首页概览</span>')}<span aria-hidden="true">/</span><strong data-loading-title>${SITE_NAME}</strong></nav>
       <div class="global-search"><button class="global-search-trigger" disabled type="button">${svg('M16 16l4 4 M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0')}<strong>${label('globalSearch')}</strong></button></div>
       <details class="context-switcher"><summary aria-label="切换服务器与语言"><span>GLOBAL</span><strong data-loading-locale>简体中文</strong></summary><div class="context-switcher__panel"><a href="/global/zh-CN/">简体中文</a> · <a href="/global/en/">English</a></div></details>

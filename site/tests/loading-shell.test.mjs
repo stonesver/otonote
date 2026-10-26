@@ -14,6 +14,11 @@ test('the cold entry contains usable navigation, styles, skeletons and retry bef
     `data:image/svg+xml;base64,${brand.toString('base64')}`]));
   const html = renderLoadingShell({css:'.loading-page{color:black}',clientScript:'',codeRoot:'/app/releases/test/',boot:'boot.js',brandSvg:'<svg/>',loadingArt});
   assert.match(html, /<header[\s>]/);
+  assert.match(html, /nav-my-tools/);
+  assert.match(html, /配队推荐/);
+  assert.match(html, /data-nav-workspace/);
+  assert.equal((html.match(/data-loading-toggle=/g) ?? []).length, 3);
+  assert.equal((html.match(/data-nav-submenu hidden inert/g) ?? []).length, 3);
   assert.match(html, /<style data-loading-style>\.loading-page/);
   assert.match(html, /<main[^>]*aria-busy="true"/);
   assert.match(html, /href="\/global\/zh-CN\/cards\/members\/"/);

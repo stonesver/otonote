@@ -37,3 +37,33 @@ test("nested data and tool routes retain their correct navigation context", () =
   assert.equal(activeNavigationGroup("/stories/episodes/story-entry-main-101/"), "stories");
   assert.equal(activeNavigationGroup("/"), "home");
 });
+
+
+import {SIDEBAR_TOOLS, SIDEBAR_GROUPS, sidebarSelection, renderSidebarNavigation} from '../src/lib/sidebar-navigation.mjs';
+
+test('compact sidebar preserves every canonical destination and promotes the three workbenches', () => {
+  const routes = new Set([...SIDEBAR_TOOLS, ...SIDEBAR_GROUPS.flatMap(group => [group, ...group.children])].map(item => item.href));
+  assert.deepEqual([...routes].sort(), navigationRoutes().sort());
+  assert.deepEqual(SIDEBAR_TOOLS.map(item => item.href), ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/']);
+  for (const item of SIDEBAR_TOOLS) assert.equal(sidebarSelection(item.href).groupId, undefined);
+  assert.deepEqual(sidebarSelection('/music/bgm/track-1/'), {route:'/music/bgm/', groupId:'library'});
+  assert.equal(sidebarSelection('/stories/episodes/story-entry-main-101/').groupId, 'library');
+  assert.equal(sidebarSelection('/tools/song-ranking/').groupId, 'more-tools');
+  assert.equal(sidebarSelection('/rankings/').groupId, 'events');
+});
+
+test('shared sidebar HTML starts compact, keeps locale URLs and highlights deep links', () => {
+  const ui = new Proxy({}, {get: (_, key) => String(key)});
+  const options = {ui, href: path => `/jp/en${path}`, locale:'en'};
+  const tools = renderSidebarNavigation({...options, pathname:'/tools/event-efficiency/'});
+  assert.equal((tools.match(/aria-expanded="false"/g) ?? []).length, 3);
+  assert.equal((tools.match(/aria-current="page"/g) ?? []).length, 1);
+  assert.match(tools, /data-nav-workspace aria-haspopup="dialog"/);
+  assert.match(tools, /href="\/jp\/en\/tools\/deck-builder\/\?workspace=1"/);
+  assert.match(tools, /MY TOOLS/);
+  const library = renderSidebarNavigation({...options, pathname:'/cards/members/card-1/'});
+  assert.match(library, /data-loading-group="library" data-active/);
+  assert.equal((library.match(/aria-expanded="true"/g) ?? []).length, 1);
+  assert.match(library, /data-loading-route="\/cards\/members\/" aria-current="page"/);
+  assert.equal((renderSidebarNavigation({...options, pathname:'/catalog/'}).match(/aria-current="page"/g) ?? []).length, 1);
+});

@@ -1,6 +1,6 @@
 /* Shared application frame. Keep the archive's paper, ink and lacquer palette. */
 :root {
-  --sidebar-width: 236px;
+  --sidebar-width: 208px;
   --header-height: 68px;
   --gutter: clamp(20px, 2.6vw, 40px);
 }
@@ -134,6 +134,21 @@
 .nav-bottom a { display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px; }
 .nav-bottom a:hover, .nav-bottom a[aria-current] { color: var(--lacquer); }
 .nav-bottom small { display: block; color: var(--silver-dark); font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; margin-top: 8px; }
+/* Global navigation: tools stay in reach; reference directories expand on demand. */
+[data-shell="sidebar"] .nav-section { display: grid; gap: 3px; flex-shrink: 0; }
+[data-shell="sidebar"] .nav-caption { font-size: 10px; letter-spacing: .12em; margin-bottom: 5px; }
+[data-shell="sidebar"] .nav-browse { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 18px; }
+[data-shell="sidebar"] .nav-tool { position: relative; }
+[data-shell="sidebar"] .nav-tool[aria-current="page"] { background: color-mix(in srgb, var(--lacquer) 10%, var(--paper-light)); font-weight: 750; }
+[data-shell="sidebar"] .nav-tool[aria-current="page"]::before { display: block; content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--lacquer); }
+[data-shell="sidebar"] .nav-workspace { margin-top: 5px; border: 1px solid var(--line); color: var(--silver-dark); font-weight: 600; }
+[data-shell="sidebar"] .nav-workspace:hover { color: var(--lacquer); border-color: color-mix(in srgb, var(--lacquer) 40%, var(--line)); }
+[data-shell="sidebar"] .nav-submenu[hidden] { display: none; }
+[data-shell="sidebar"] .site-nav a:focus-visible,
+[data-shell="sidebar"] .site-nav button:focus-visible { outline: 2px solid var(--lacquer); outline-offset: 2px; }
+[data-shell="sidebar"] .nav-bottom { margin-top: auto; padding-top: 12px; }
+[data-shell="sidebar"] .nav-bottom a { display: inline-block; margin-right: 12px; padding-block: 8px; font-size: 11px; }
+.tw-launcher[hidden] { display: none; }
 .nav-backdrop { display: none; }
 [data-shell="sidebar"] #main-content { min-height: calc(100vh - var(--header-height) - 180px); min-width: 0; }
 [data-shell="sidebar"] .site-footer { padding-block: 28px; gap: 20px; }

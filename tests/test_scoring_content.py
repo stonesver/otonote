@@ -63,6 +63,27 @@ class ScoringContentTests(unittest.TestCase):
         path=self.root/'MasterLiveMusic.json';path.write_text(path.read_text()+' ')
         self.assertEqual(bind_scoring_rules(self.root,'baseline',self.base)['verificationStatus'],'unavailable')
 
+    def test_retired_unconsumed_arena_table_does_not_disable_current_tools(self):
+        (self.root/'MasterArenaEventBonus.json').unlink()
+        rules = bind_scoring_rules(self.root, 'current', self.base)
+        self.assertEqual(rules['verificationStatus'], 'reference_compatible')
+        self.assertNotIn('ArenaEventBonus', rules['tables'])
+        self.assertNotIn('MasterArenaEventBonus', rules['masterSha256'])
+        self.assertEqual(rules['tables']['LiveMusic'][0]['_id'], 1)
+        self.assertFalse(rules['referenceProfile']['currentGameplayVerified'])
+        self.assertEqual(bind_scoring_rules(self.root, 'baseline', self.base)['reason'], 'audit_input_mismatch')
+
+    def test_present_arena_table_is_still_checked_and_bound(self):
+        path = self.root/'MasterArenaEventBonus.json'
+        rows = [{'_id':1}]
+        raw = json.dumps({'_allData':rows}).encode()
+        path.write_bytes(raw)
+        rules = bind_scoring_rules(self.root, 'current', self.base)
+        self.assertEqual(rules['tables']['ArenaEventBonus'], rows)
+        self.assertEqual(rules['masterSha256']['MasterArenaEventBonus'], hashlib.sha256(raw).hexdigest())
+        path.write_text('{"_allData":{}}')
+        self.assertEqual(bind_scoring_rules(self.root, 'current', self.base)['reason'], 'invalid_scoring_inputs')
+
     def test_reviewed_profile_uses_current_rows_and_rejects_drift(self):
         # Supply the effect tables required by the projection's closed schema.
         tables, hashes = project_tables(self.root)

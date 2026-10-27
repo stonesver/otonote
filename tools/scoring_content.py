@@ -11,6 +11,9 @@ from pathlib import Path
 from tools.build_formal_scoring_rules import ROOT, TABLES, project_tables
 
 BASELINE = ROOT / 'packages/scoring/data/formal-scoring-rules.json'
+# No implemented calculator consumes this retired table. Preserve and validate
+# it when present, without making current tools depend on an unused input.
+OPTIONAL_REFERENCE_TABLES = ('ArenaEventBonus',)
 
 
 def bind_reviewed_reference(master, release, base, profile):
@@ -56,10 +59,11 @@ def bind_scoring_rules(master: Path, release: str, baseline=None):
     base = baseline or json.loads(BASELINE.read_text())
     unavailable = {'schemaVersion': 1, 'sourceReleaseId': release,
                    'verificationStatus': 'unavailable'}
-    if any(not (master/f'Master{name}.json').is_file() for name in TABLES):
+    if any(not (master/f'Master{name}.json').is_file()
+           for name in TABLES if name not in OPTIONAL_REFERENCE_TABLES):
         return {**unavailable, 'reason': 'missing_scoring_inputs'}
     try:
-        tables, hashes = project_tables(master)
+        tables, hashes = project_tables(master, optional_tables=OPTIONAL_REFERENCE_TABLES)
     except (ValueError, KeyError, TypeError):
         return {**unavailable, 'reason': 'invalid_scoring_inputs'}
     if release == base['sourceReleaseId']:

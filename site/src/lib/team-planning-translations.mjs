@@ -410,7 +410,7 @@ Object.assign(teamPlanningEnglish, {
   '先比较推荐分数和成员／留影搭配，再应用队伍；需要核对时打开计分明细。结果为参考估算，尚未完成当前游戏版本的实战核验。':'Compare scores and card pairings before applying a team. Open score details to check the calculation. These estimates have not been fully verified in the current game client.'
 });
 const patterns=[
-  [/^部分卡片配对含尚未实现的计分机制，已跳过 (\d+) 个配对、(\d+) 个候选；推荐仅覆盖可完整计算的队伍。$/,(_,pairs,candidates)=>`Skipped ${pairs} pairings and ${candidates} candidates with unsupported scoring mechanisms; recommendations cover fully supported teams only.`],
+  [/^部分卡片配对含尚未实现的计分机制，已跳过 (\d+) 个配对、(\d+) 个候选(?:、(\d+) 位队长)?；推荐仅覆盖可完整计算的队伍。$/,(_,pairs,candidates,leaders)=>`Skipped ${pairs} pairings, ${candidates} candidates${leaders == null ? '' : ` and ${leaders} leader choices`} with unsupported scoring mechanisms; recommendations cover fully supported teams only.`],
   [/^需要培养 (\d+) 张卡$/,(_,n)=>`Requires upgrading ${n} card${n==='1'?'':'s'}`],
   [/^平均分比本次最高方案少 (.+) 分。$/,(_,n)=>`The mean score is ${n} points below the highest-scoring team checked.`],
   [/^整体偏差 (.+) 毫秒，波动在 ±(.+) 毫秒内均匀抽样，另有 (.+)% 漏击。(?:另设 (\d+) 处难段，分别放大时机波动。)?(\d+) 组参考样本，不代表个人实测水平。$/,(_,bias,spread,miss,ranges,n)=>`Timing offset ${bias} ms, uniformly sampled spread ±${spread} ms, and ${miss}% additional misses.${ranges?` ${ranges} difficult sections increase timing spread.`:''} ${n} reference samples; these are not measurements of your play.`],

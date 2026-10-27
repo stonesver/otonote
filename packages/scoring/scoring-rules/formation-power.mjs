@@ -1,3 +1,4 @@
+import { UnsupportedSkillMechanismError } from './skill-mechanism-error.mjs';
 import {
   createCardPowerBP, createCardPowerInt, addCardPower,
   multiplyCardPower, floorCardPower, cardPowerPoints
@@ -133,7 +134,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     const values = [0, 0, 0];
     for (const effect of effects) {
       if (effect._skillConditionGroup || effect._skillCumulativeConditionID) {
-        throw new Error(`Unsupported conditional power effect ${effect._id}`);
+        throw new UnsupportedSkillMechanismError(`Unsupported conditional power effect ${effect._id}`, { effectId: effect._id });
       }
       if (effect._skillTargetIDs.length && !effect._skillTargetIDs.some((n) => matchesTarget(member, n))) continue;
       const component = { 1001: 1, 1002: 2, 1003: 0 }[effect._skillEffectType];

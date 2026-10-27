@@ -83,3 +83,9 @@ test('deck pilot state controls and condition summaries translate for English pl
     assert.equal(planningUiText(text,'zh-CN'),text);
   }
 });
+
+test('partial leader coverage warning translates in English', () => {
+  const text = '部分卡片配对含尚未实现的计分机制，已跳过 2 个配对、0 个候选、1 位队长；推荐仅覆盖可完整计算的队伍。';
+  assert.match(planningUiText(text, 'en'), /2 pairings, 0 candidates and 1 leader choices/);
+  assert.doesNotMatch(planningUiText(text, 'en'), /[\u4e00-\u9fff]/);
+});

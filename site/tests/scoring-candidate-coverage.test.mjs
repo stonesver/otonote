@@ -4,6 +4,8 @@ import { fixture } from './fixtures/gekisou-skill-fixture.mjs';
 import { optimizePractical } from '../src/lib/practical-optimizer.mjs';
 import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.mjs';
 import { compilePairingModels } from '../src/lib/inventory-optimizer.mjs';
+import { eventYieldOracleFixture } from './helpers/event-yield-oracle-fixture.mjs';
+import { optimizeEventYield } from '../src/lib/event-yield-optimizer.mjs';
 import { resolveSearchInput } from '../src/lib/scoring-rules/formation-input.mjs';
 
 function setup(missions = [2, 2, 2]) {
@@ -114,4 +116,20 @@ test('restricted leader models cannot satisfy an unrestricted cache lookup', asy
   const models = await compilePairingModels(args.rules, input, { ...options, leaderIds: ['member-card-3'] });
   assert.deepEqual(models.map(m => m.leader), ['member-card-3']);
   await assert.rejects(compilePairingModels(args.rules, input, options), /Unsupported conditional power effect/);
+});
+
+test('event ceiling preparation falls back to partial supported teams on a leader capability gap', async () => {
+  const args = eventYieldOracleFixture();
+  const card = args.rules.tables.MemberCard.find(c => c._id === 1);
+  const effect = args.rules.tables.LeaderSkillEffect.find(e => e._leaderSkillID === card._leaderSkillID && e._level === 1);
+  card._leaderSkillID = 900100;
+  args.rules.tables.LeaderSkillEffect.push({ ...effect, _id: 900100, _leaderSkillID: 900100,
+    _skillConditionGroup: 415, _skillCumulativeConditionID: 70 });
+  const report = await optimizeEventYield({ ...args, mode: 'ordinary', goal: 'badges', basis: 'expectedScore',
+    liveBoost: 1, challengeCost: 200, includeChallenge: false, yieldControl: async () => {} });
+  assert.equal(report.status, 'completed');
+  assert.equal(report.scoringCoverage.complete, false);
+  assert.ok(report.results.length);
+  assert.ok(report.results.every(r => r.draft.slots[2].memberCardId !== 'member-card-1'));
+  assert.notEqual(report.certifiedSearch?.bestProven, true);
 });

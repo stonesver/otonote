@@ -418,6 +418,21 @@ def promote(bucket, store: Path, region: str, expected_current: str, *, source_r
         from tools.r2_verified_release import verify_release as verify_direct
         if not verify_direct(bucket, release, manifest, files):
             _run_bounded(files.items(), verify_remote, workers, progress=progress)
+    return _promote_verified_pointer(bucket, pointer_bytes, region, expected_current,
+                                     source_run=source_run, dry_run=dry_run)
+
+
+def _promote_verified_pointer(bucket, pointer_bytes, region, expected_current, *, source_run, dry_run=False):
+    """Internal final CAS, only after the caller has verified the complete release."""
+    if expected_current != "none" and not SHA256.fullmatch(expected_current):
+        raise ValueError("invalid expected pointer digest")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", source_run):
+        raise ValueError("invalid source run identity")
+    pointer = json.loads(pointer_bytes)
+    match = re.fullmatch(r"/content/releases/([a-f0-9]{24})/manifest.json", pointer.get("manifest", ""))
+    if pointer.get("schemaVersion") != 1 or not match or not SHA256.fullmatch(pointer.get("sha256", "")):
+        raise ValueError("invalid verified content pointer")
+    release_id = match[1]
     current_key = pointer_key(region)
     current = bucket.get(current_key)
     current_bytes, current_etag = current if current is not None else (None, None)

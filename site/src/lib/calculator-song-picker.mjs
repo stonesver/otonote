@@ -9,7 +9,7 @@ export function matchesSongMission(missions,filter) {
 export function matchesSongChart(chart,{difficulty='',min='',max=''}={}) {
   return !chart.disabled&&matchesFilter(chart.difficulty,difficulty)&&(!min||chart.level>=Number(min))&&(!max||chart.level<=Number(max));
 }
-export function setupCalculatorSongPicker(root,{getSelection,onSelect,allowedTrackIds=()=>null}) {
+export function setupCalculatorSongPicker(root,{getSelection,onSelect,allowedTrackIds=()=>null,getCalculationScope=()=>root.calculationScope}) {
   const picker=root.querySelector('[data-song-picker]');if(!picker)return null;
   const q=s=>picker.querySelector(s),rows=[...picker.querySelectorAll('[data-song-row]')],choices=[...picker.querySelectorAll('[data-song-choice]')];
   const fields=['query','band','difficulty','mission','sort','min','max'],pageSize=18;let page=0,visible=[];
@@ -19,10 +19,11 @@ export function setupCalculatorSongPicker(root,{getSelection,onSelect,allowedTra
     shortcuts.sync();
     const f=Object.fromEntries(fields.map(key=>{const field=q(`[data-song-${key}]`);return [key,field.multiple?selectedControlValues(field):field.value];}));
     const words=f.query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-    const allowed=allowedTrackIds();
+    const allowed=allowedTrackIds();let scopeKeys=null;
+    const calculationScope=getCalculationScope();if(calculationScope){try{scopeKeys=new Set(calculationScope.resolve({}).candidates.map(c=>`${c.trackId}:${c.difficulty}`));}catch{scopeKeys=new Set();}}
     visible=rows.filter(row=>{
       const charts=[...row.querySelectorAll('[data-song-choice]')];
-      for(const c of charts)c.hidden=!matchesSongChart({difficulty:c.dataset.difficulty,level:Number(c.dataset.level),disabled:c.disabled},f);
+      for(const c of charts)c.hidden=(scopeKeys&&!scopeKeys.has(`${c.dataset.songChoice}:${c.dataset.difficulty}`))||!matchesSongChart({difficulty:c.dataset.difficulty,level:Number(c.dataset.level),disabled:c.disabled},f);
       return (!allowed||allowed.has(row.dataset.songRow))&&(!attributes.values.length||attributes.values.includes(row.dataset.attribute))&&words.every(w=>row.dataset.search.includes(w))&&matchesFilter(row.dataset.bands.split(' '),f.band)&&matchesSongMission(row.dataset.missions.split(',').map(Number),f.mission)&&charts.some(c=>!c.hidden);
     });
     if(f.sort==='name')visible.sort((a,b)=>a.dataset.title.localeCompare(b.dataset.title,'zh-CN'));

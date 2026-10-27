@@ -180,8 +180,7 @@
   background: transparent;
   font-size: 14px;
 }
-/* Stage counts are not elapsed-time progress. Detailed counters remain in search details. */
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-calculation .calculation-progress :is(progress,small,div > span) { display: none; }
+/* Shared progress distinguishes stage counts from elapsed time. */
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-progress { grid-column: 1 / -1; margin: 0; font-size: 13px; overflow-wrap: anywhere; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .optimizer-results-panel {
   border: 0;

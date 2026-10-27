@@ -29,7 +29,7 @@ export function setupEventPresentation(host,{main,aside,conditionBody,context,ad
  team.append(field('[data-pool]'),field('[data-yield-goal]'),field('[data-yield-budget]'));
  quick.append(field('[data-manual-bonus]'),field('[data-manual-point-bonus]'),field('[data-rank]'));
  rush.append(field('[data-challenge-opt-scope]'),field('[data-challenge-opt-objective]'));
- fields.append(common,team,quick,rush);setup.append(fields,context);main.prepend(rushSongs);
+ fields.append(common,team,quick,rush);setup.append(fields,context);const sharedScope=q('[data-event-calculation-scope]');if(sharedScope)setup.append(sharedScope);main.prepend(rushSongs);
  const quickError=el('p',null,'event-input-error');quickError.setAttribute('role','status');setup.append(quickError);
  // Keep frequently adjusted plan and song controls beside the results.
  const filters=el('section',null,'task-condition-group');filters.append(el('h3','选曲与档位'),field('[data-yield-level]'),q('[data-yield-song-filters]'),field('[data-yield-basis]'));
@@ -99,7 +99,9 @@ export function setupEventPresentation(host,{main,aside,conditionBody,context,ad
   cancelWrap.hidden=!running||isRush;rushCancelWrap.hidden=!running||!isRush;
   dock.hidden=isQuick;search.hidden=isQuick||isRush;
   set(dockTitle,isRush?'活动曲冲榜':ordinary?`${q('[data-yield-budget]').value} 火 · ${selectedOptionText(q('[data-yield-goal]'))}`:'挑战收益');
+  if(!isQuick&&host.calculationScope?.enabled&&host.calculationScope?.summary)set(description,description.textContent+' · '+host.calculationScope.summary);
   set(dockNote,running?'计算中，可随时停止':isRush?selectedOptionText(q('[data-challenge-opt-scope]')):`${selectedOptionText(q('[data-pool]'))} · ${ordinary?selectedOptionText(q('[data-yield-stages]')):'当前挑战'}`);
+  if(sharedScope)sharedScope.hidden=isQuick||isRush||!ordinary||q('[data-yield-songs]').value==='selected';
   context.hidden=isQuick||isRush||!ordinary;rushSongs.hidden=isQuick||!isRush&&ordinary;
   // Keep current-team editing accessible without rendering another full roster above the result.
   if(state==='running'||state==='results')reference.hidden=true;

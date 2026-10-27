@@ -20,7 +20,7 @@ export function eventYieldChartPlan(candidates,rules,input){
 export async function runEventYieldBatch({rules,eventId,candidates,challengeCandidates=[],input,
  loadChart,optimizer=optimizeEventYield,candidateCache=new Map(),challengePlanCache=new Map(),
  getScoreCache=async()=>new Map(),afterChart=async()=>{},onJobComplete=async()=>{},onGroupComplete=async()=>{},
- onMessage=()=>{},signal,yieldControl=createCalculationScheduler({eco:input.eco!==false}),proveGroup,
+ onMessage=()=>{},signal,yieldControl=createCalculationScheduler({eco:input.eco===true}),proveGroup,
  globalPruning=true,witnessPrepass=true,runChallengeJobs,runGroupProofs}){
  const {plan,selected}=eventYieldChartPlan(candidates,rules,input),full=input.searchDepth==='full';
  const cycle=input.mode==='ordinary'&&input.includeChallenge;

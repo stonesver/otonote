@@ -190,6 +190,10 @@ html[data-tool-theme="site"][data-tool-theme] body {
   .tw-panel :is(.tw-tabs, .tw-edit-pair > header, .tw-edit-card > details, .tw-card-art, .tw-card-empty) { background: var(--paper); border-color: var(--tool-border); }
   .tw-panel :is(.tw-card-choice-action, .tw-pair > small, .tw-card-source, .tw-card-relation) { color: var(--tool-muted); }
   .tw-panel .tw-current { border-top-color: var(--lacquer); }
+  .tw-panel .tw-card-select input[type="checkbox"]:checked {
+    background: var(--tool-accent);
+    border-color: var(--tool-accent);
+  }
   .tw-panel .tw-tabs button[aria-selected="true"],
   .tw-panel button[aria-pressed="true"] {
     background: var(--tool-selected-bg);

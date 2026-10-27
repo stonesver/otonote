@@ -17,6 +17,7 @@ export function setupTaskWorkbench(host,kind) {
   const q=s=>host.querySelector(s),nav=el('nav',null,'task-workbench-nav');nav.setAttribute('aria-label','计算任务');
   for(const [id,title,path] of [['team','配队推荐','deck-builder'],['score','估分与选曲','song-calculator'],['event','活动收益','event-efficiency']]){const a=el('a',title);a.href=toolRoute(`/tools/${path}/`,location.pathname);if(id===kind)a.setAttribute('aria-current','page');nav.append(a);}
   const ranking=el('a','歌曲排行榜');ranking.href=toolRoute('/tools/song-ranking/',location.pathname);ranking.className='task-ranking-link';nav.append(ranking);
+  nav.addEventListener('click',event=>{const link=event.target.closest?.('a[href]');if(link)host.calculationScope?.carry(link);});
   const selectedServer=new URLSearchParams(location.search).get('server');if(selectedServer){const url=new URL(ranking.href);url.searchParams.set('server',selectedServer);ranking.href=url.href;}
   host.classList.add('task-workbench');const studio=host.closest('.tool-studio');studio?.classList.add('task-studio','tool-design-system');const pageTitle=studio?.querySelector('.tool-page-heading h1');if(pageTitle)pageTitle.textContent=kind==='team'?'配队推荐':kind==='score'?'估分与选曲':'活动收益';const heading=studio?.querySelector('.tool-page-header-inner');(heading??host).append(nav);nav.querySelector('.task-ranking-link')?.remove();
   let breadcrumb;

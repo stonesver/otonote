@@ -53,6 +53,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   const modeField=mode.closest('label');modeField.hidden=false;
   grid.append(song,cards,modeField,profile.closest('label'));
   context.append(node('h2','计算条件','ds-panel-title'),grid);
+  if(host.calculationScope){grid.append(q('[data-playlist-task]'));context.append(host.calculationScope.root);}
   q('.journey-choices').hidden=true;
   const footer=node('div',null,'team-setup-actions'), advancedSummary=node('span',null,'team-advanced-summary');
   adjust.textContent=ui('高级设置');adjust.classList.add('team-advanced-entry');
@@ -77,11 +78,9 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   q('#optimizer-results').after(notes);
   q('.calculator-start').hidden=true;
   aside.hidden=true;tags.hidden=true;
-  const myTeams=button('我的队伍','team-library-entry');myTeams.dataset.openTeamWorkspace='teams';tasks.append(myTeams);
   enhanceTaskSwitcher(tasks,[
     {button:q('[data-journey-task="automatic"]'),icon:'team'},
     {button:saved,icon:'compare'},
-    {button:myTeams,icon:'library'},
   ]);
 
   function openAdvanced(target) {
@@ -134,8 +133,9 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
     setText(scopeNote,scope[kind.value]??'');
     const explicit=q('[data-performance-explicit]').value.trim();
     const custom=explicit||['[data-performance-spread]','[data-performance-miss]','[data-performance-start]','[data-performance-end]'].some(s=>q(s).value!=='')||Number(q('[data-performance-bias]').value)!==0;
-    setText(summarySong,songLabel.textContent);
-    setText(summaryConditions,[selectedOptionText(kind),selectedOptionText(mode),ui(explicit?'导入演出记录':custom?'自定义发挥':selectedOptionText(profile))].join(' · '));
+    const playlistTask=q('[data-playlist-task] select')?.value==='playlist';song.hidden=playlistTask;const playlistNote=q('.team-playlist-note');if(playlistNote)playlistNote.hidden=!playlistTask;
+    setText(summarySong,playlistTask?'歌单逐曲推荐 · 每曲独立队伍':songLabel.textContent);
+    setText(summaryConditions,[selectedOptionText(kind),selectedOptionText(mode),ui(explicit?'导入演出记录':custom?'自定义发挥':selectedOptionText(profile)),playlistTask?host.calculationScope?.summary:null].filter(Boolean).join(' · '));
     setText(dockTitle,songLabel.textContent);
     setText(dockNote,summaryConditions.textContent);
     setText(run,state==='setup'||state==='running'?ui('推荐队伍'):host.data.locale==='en'?'Recommend again':'重新推荐');

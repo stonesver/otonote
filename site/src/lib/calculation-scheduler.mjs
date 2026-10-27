@@ -1,6 +1,6 @@
 /** Cooperative worker scheduling. Short bursts followed by proportional rest
  * reduce sustained CPU load without reducing the candidate set or precision. */
-export function createCalculationScheduler({eco=true,now=()=>performance.now(),sleep=ms=>new Promise(r=>setTimeout(r,ms))}={}){
+export function createCalculationScheduler({eco=false,now=()=>performance.now(),sleep=ms=>new Promise(r=>setTimeout(r,ms))}={}){
  let started=now(),pending=null;
  return async()=>{
    if(pending)return pending;

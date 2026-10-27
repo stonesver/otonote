@@ -1,7 +1,9 @@
 import {eventSongHeading,eventYieldBreakdown,eventChallengeBreakdown} from './event-result-presentation.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
-import {eventSongCandidates} from './event-song-ranking.mjs';
+import {setupEventScopeControls} from './tool-calculation-scopes.mjs';
+import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
+import {planEventSearch} from './event-search-plan.mjs';
 import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
 import {EVENT_YIELD_GOAL_LABELS,orderEventYieldRows,eventYieldGaps} from './event-yield-goals.mjs';
 import {createCalculationProgress} from './calculation-progress.mjs';
@@ -40,15 +42,16 @@ export function eventYieldProgressText(data){
  return {stage,detail:raw?detail.split(raw).join(stage):detail};
 }
 
-export function setupEventYieldOptimizer(tool){
+export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventScopeControls}={}){
  const root=tool.q('yield-optimizer'),q=s=>tool.querySelector(`[data-yield-${s}]`);
  const feedback=createCalculationProgress(q('status'),'yield');
  q('continue').textContent='重新开始完整比较';
  let worker=null,key='',result=null,renderKey='',displaySort='yield',displayGoal='badges',page=0,selectedPlan=null;
+ let mainScope,challengeScope,runScopes=null;
  let articleCache=new Map(),viewCache=new Map();
  const resultKey=data=>JSON.stringify([data.rows,data.failures]);
  const updates=createCalculationLiveUpdates({hasResults:()=>Boolean(result?.rows.length),
-   onResult:data=>{result=data;render();},onProgress:data=>{
+   onResult:data=>{result={...data,calculationScopes:runScopes};render();},onProgress:data=>{
      const progress=eventYieldProgressText(data);feedback.update({label:'正在比较活动收益',completed:data.done,total:data.total,detail:`${data.title??'所有候选歌曲'} · ${progress.detail}`});
      q('status').textContent=`${progress.stage}：${data.title??'所有候选歌曲'}（${data.done} / ${data.total}）`;
    }});
@@ -56,10 +59,17 @@ export function setupEventYieldOptimizer(tool){
  function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
    rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
+ function filters(c,challenge=false){
+   const allowed=tool.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===c.eventId).map(r=>`music-${r._liveMusicId}`);
+   if(challenge)return {allowedTrackIds:allowed,difficulty:c.challengeDifficulty,maxLevel:c.challengeMaxLevel};
+   const selected=c.songs==='selected',normal=c.mode==='ordinary'&&!selected;
+   return {allowedTrackIds:c.mode==='challenge'?allowed:null,difficulty:selected?'all':c.difficulty,maxLevel:selected?40:c.maxLevel,band:normal?c.band:'',attribute:normal?c.attribute:''};
+ }
  function sync(){
    if(tool.q('mode').value==='challenge'&&q('goal').value==='grade')q('goal').value='badges';
-   const c=context(),next=JSON.stringify(c);
+   const c=context();mainScope?.refresh();challengeScope?.refresh();const next=JSON.stringify([c,mainScope?.snapshot?.fingerprint,challengeScope?.snapshot?.fingerprint]);
    if(next!==key){stop();feedback.reset();key=next;result=null;articleCache.clear();viewCache.clear();selectedPlan=null;renderKey='';q('continue').hidden=true;q('results').replaceChildren();q('status').textContent='条件改变后需重新计算；原有卡组不会自动被替换。';}
+   scopeControls?.refresh?.();
    const unsupported=c.mode==='gekisou',needsSong=c.mode==='challenge'&&c.songs==='selected'&&!c.draft.selectedSongId;q('run').disabled=!!worker||unsupported||needsSong;tool.q('suggest').disabled=!!worker||unsupported||needsSong;q('run').title=needsSong?'先点选本期活动曲与难度':'';
    q('challenge-settings').hidden=c.mode!=='ordinary'||!c.includeChallenge;
    q('normal-settings').hidden=c.mode==='challenge';q('stages').disabled=c.mode==='challenge';
@@ -69,10 +79,12 @@ export function setupEventYieldOptimizer(tool){
    q('hint').textContent=c.mode==='challenge'?'比较本期挑战歌曲的直接收益；消耗沿用上方设置，挑战 pt 不参与收益排序。':'按整份耗火预算比较，自动估算队伍在歌曲中的档位。完整循环允许普通和挑战使用不同队伍；已有挑战 pt 单列，不冒充本次刷取所得。';
  }
  function render(){
+   scopeControls?.refresh?.();
    const next=JSON.stringify([displaySort,displayGoal,page,Boolean(worker),resultKey(result)]);
    if(next===renderKey)return;renderKey=next;
    const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey;
    if(q('rewards')?.checked)view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(result.calculationScopes){view.push(el('p',scopeSummary(result.calculationScopes.main)));if(result.calculationScopes.challenge)view.push(el('p','后续挑战 · '+scopeSummary(result.calculationScopes.challenge)));}
    const completion=eventYieldCompletionText(result);
    const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
@@ -157,13 +169,13 @@ export function setupEventYieldOptimizer(tool){
      const profile=needsInventory||c.rewardCards.length?tool.personalGrowthStore.read():null;
      if(needsInventory&&!profile)throw Error('请先导入实际卡库与养成，或选择“当前十张卡”。');
      c.draft.modifiers={...profile?.account,...c.draft.modifiers};c.inventory=profile?.inventory;
-     const allowed=tool.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===c.eventId).map(r=>`music-${r._liveMusicId}`);
-     const filterSongs=c.mode==='ordinary'&&c.songs!=='selected';
-     let candidates=eventSongCandidates({...tool.data,allowedTrackIds:c.mode==='challenge'?allowed:null,difficulty:c.songs==='selected'?'all':c.difficulty,maxLevel:c.songs==='selected'?40:c.maxLevel,band:filterSongs?c.band:'',attribute:filterSongs?c.attribute:''});
-     if(c.songs==='selected')candidates=candidates.filter(r=>r.trackId===c.draft.selectedSongId&&r.difficulty===(c.draft.selectedDifficulty??'expert'));
-     if(!candidates.length)throw Error(filterSongs?'没有符合条件的可计算歌曲，请放宽乐队、歌曲属性或难度范围。':'没有可计算的歌曲，请选歌或调整难度范围。');
-     const challengeCandidates=eventSongCandidates({...tool.data,allowedTrackIds:allowed,difficulty:c.challengeDifficulty,maxLevel:c.challengeMaxLevel});
-     if(c.mode==='ordinary'&&c.includeChallenge&&!challengeCandidates.length)throw Error('后续挑战没有符合难度范围的谱面，请放宽条件或只比较普通阶段。');
+     let main;try{main=mainScope.require(filters(c));}catch(error){throw Error('没有符合条件的可计算歌曲，请检查曲目、乐队、歌曲属性或难度范围。'+error.message);}let candidates=main.candidates;
+     if(c.songs==='selected'){main=selectedChartScope(main,{...c.draft,selectedDifficulty:c.draft.selectedDifficulty??'expert'});candidates=main.candidates;}
+     if(!candidates.length)throw Error('当前谱面不符合活动条件或资料暂缺，请重新选曲。');
+     let challenge=null;if(c.mode==='ordinary'&&c.includeChallenge){try{challenge=challengeScope.require(filters(c,true));}catch(error){throw Error('后续挑战没有符合条件的谱面，请检查本期曲池与难度。'+error.message);}}
+     const challengeCandidates=challenge?.candidates??[];
+     runScopes={main:{...main,candidates,songCount:new Set(candidates.map(r=>r.trackId)).size,chartCount:candidates.length},challenge};
+     c.calculationScopes=runScopes;
      if(c.mode==='challenge'&&c.goal==='grade')c.goal='badges';
      result=null;articleCache.clear();viewCache.clear();selectedPlan=null;renderKey='';page=0;q('continue').hidden=true;q('results').replaceChildren();worker=new Worker(new URL('./event-yield-worker.mjs',import.meta.url),{type:'module'});
      feedback.update({label:'准备活动收益比较',detail:'正在读取卡库、实际养成与谱面'});
@@ -173,15 +185,19 @@ export function setupEventYieldOptimizer(tool){
        if(data.type==='progress'){updates.progress(data);return;}
        if(data.type==='partial'){updates.result(data);return;}
        stop(data.type!=='result');if(data.type==='result'){
-         result=data;render();const summary=eventYieldCompletionText(data);feedback.finish(summary.label,summary.detail);q('continue').hidden=summary.complete;
-         q('status').textContent=summary.status;
+         result={...data,calculationScopes:runScopes};render();const summary=eventYieldCompletionText(data);feedback.finish(summary.label,summary.detail);q('continue').hidden=summary.complete;
+         q('status').textContent=scopeSummary(runScopes.main)+'。'+summary.status;
        }else {feedback.finish('计算失败',data.message,'error');q('continue').hidden=!result;q('status').textContent=`计算失败：${data.message}${result?'；保留当前显示的方案，可重新开始完整比较。':''}`;}
      });
      worker.addEventListener('error',()=>{if(worker!==active)return;stop(true);feedback.finish('计算服务加载失败','请重试','error');q('status').textContent='计算服务加载失败，请重试。';});
+     const planned=depth==='full'?candidates.length:planEventSearch(candidates,tool.data.rules,c.draft).quick.length;
+     q('status').textContent=`${scopeSummary(runScopes.main)}。本轮主阶段计划检查 ${planned} 张谱面${challenge?'；后续挑战 '+challenge.chartCount+' 张谱面':''}。`;
      worker.postMessage({rules:tool.data.rules,eventId:c.eventId,candidates,challengeCandidates,input:c});
    }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;tool.q('team-status').textContent=error.message;}
  }
- q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop(true);const summary=eventYieldStopText(Boolean(result));feedback.finish(summary.label,summary.detail,'stopped');q('continue').hidden=!result;q('status').textContent=summary.status;});
+ const scopeControls=createScopeControls(tool,{getFilters:challenge=>filters(context(),challenge),onChange:()=>{sync();tool.challengeOptimizer?.sync();},getResultCharts:()=>result?.rows.map(r=>r.song).filter(Boolean)??[]});
+ mainScope=scopeControls.main;challengeScope=scopeControls.challenge;
+ q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop(true);const summary=eventYieldStopText(Boolean(result));feedback.finish(summary.label,summary.detail,'stopped');q('continue').hidden=!result;q('status').textContent=scopeSummary(runScopes.main)+'。'+summary.status;});
  root.addEventListener('change',event=>{event.stopPropagation();sync();});
- return {sync,run,invalidate:()=>{key='';stop();sync();},destroy:stop};
+ return {sync,run,invalidate:()=>{key='';stop();sync();},destroy:()=>{stop();feedback.destroy();scopeControls.destroy();}};
 }

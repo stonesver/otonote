@@ -1,3 +1,4 @@
+import {teamScopeControls} from './helpers/calculation-scopes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,7 @@ function fixture(t, locale = 'zh-CN') {
   const q = selector => {
     if (selector === '[data-planning-kind]') return null;
     if (!nodes.has(selector)) nodes.set(selector, { value: '', textContent: '', dataset: {}, hidden: false, disabled: false,
-      handlers: {}, children: [], addEventListener(name, listener) { this.handlers[name] = listener; },
+      classList:{add(){}},append(...children){this.children.push(...children);},handlers: {}, children: [], addEventListener(name, listener) { this.handlers[name] = listener; },
       replaceChildren(...children) { this.children = children; } });
     return nodes.get(selector);
   };
@@ -28,12 +29,12 @@ function fixture(t, locale = 'zh-CN') {
   t.after(() => { if (previous === undefined) delete globalThis.Worker; else globalThis.Worker = previous; });
   const workbench = { querySelector: q,
     querySelectorAll: selector => selector === '[data-gekisou-rank]' ? [{ value: 1 }, { value: 1 }, { value: 1 }] : [],
-    dispatchEvent() {}, data: { formalRules: rules, locale, charts: [{ trackId: 'music-100001', difficulty: 'expert', analysisDataUrl: '/chart.json' }] },
+    dispatchEvent() {}, data: { formalRules: rules, locale, tracks:[{id:'music-100001',title:'Fixture'}], charts: [{id:'fixture',level:25, trackId: 'music-100001', difficulty: 'expert', analysisDataUrl: '/chart.json' }] },
     draft: createTeamDraft({ selectedSongId: 'music-100001', selectedDifficulty: 'expert',
       slots: [1, 2, 3, 4, 5].map(id => ({ memberCardId: `member-card-${id}`, supportCardId: `support-card-${id}` })) }) };
   installProgressDom(t,q('[data-pairing-progress]'));
-  setupInventoryOptimizer(workbench);
-  return { q, workbench, run: () => q('[data-optimize-pairing]').handlers.click(), get worker() { return worker; } };
+  let scopeControls;const optimizer=setupInventoryOptimizer(workbench,{createScopeControls:(...args)=>(scopeControls=teamScopeControls(...args))});
+  return { q, workbench,optimizer,get scopeControls(){return scopeControls;}, run: () => q('[data-optimize-pairing]').handlers.click(), get worker() { return worker; } };
 }
 function assertStopped({ q, workbench, worker }, message) {
   assert.equal(q('[data-search-state]').dataset.running, 'false');
@@ -111,4 +112,26 @@ test('partial coverage finishes with a visible limitation and concrete diagnosti
   assert.match(context.q('[data-search-diagnostics]').textContent, /member-card-64.*98765/);
   assert.equal(context.q('[data-results-empty]').hidden, true);
   assert.equal(worker.terminated, true);
+});
+
+test('playlist batch dispatches only its domain and never requires the previous selected song',async t=>{
+ const f=fixture(t);f.workbench.data.tracks.push({id:'music-100002',title:'Second'});f.workbench.data.charts.push({id:'second',trackId:'music-100002',difficulty:'hard',level:15,analysisDataUrl:'/second'});
+ f.scopeControls.task.value='playlist';f.scopeControls.scope.setSelection({kind:'temporary',entries:[{trackId:'music-100002',difficulties:['hard']}]});
+ await f.run();assert.deepEqual(f.worker.message.payload.playlistCandidates.map(c=>c.id),['second']);assert.equal(f.worker.message.payload.calculationScope.chartCount,1);
+ f.scopeControls.scope.setSelection({kind:'temporary',entries:[]});f.optimizer.invalidate();const previous=f.worker;await f.run();assert.equal(f.worker,previous);assert.match(f.q('[data-pairing-progress]').textContent,/范围为空/);
+});
+test('playlist completion and cancellation preserve explicit batch state',async t=>{
+ const f=fixture(t);f.scopeControls.task.value='playlist';await f.run();const worker=f.worker;
+ worker.onmessage({data:{requestId:worker.message.requestId,type:'result',result:{kind:'playlist-team-batch',status:'cancelled',rows:[],results:[],failures:[],total:1,done:0,calculationScope:worker.message.payload.calculationScope}}});
+ assert.equal(f.q('[data-pairing-progress]').progressNode.dataset.state,'stopped');assert.equal(f.workbench.optimizerState.running,false);
+});
+
+test('formation power without a song remains available without any chart fetch',async t=>{
+ const f=fixture(t);f.workbench.draft.selectedSongId=null;f.workbench.data.charts=[];
+ f.optimizer.invalidate();await f.run();assert.ok(f.worker);assert.equal(f.worker.message.payload.calculationScope,null);assert.equal(f.worker.message.payload.chart,undefined);
+});
+
+test('current-chart pairing ignores an empty remembered playlist',async t=>{
+ const f=fixture(t);f.scopeControls.scope.setSelection({kind:'temporary',entries:[]});f.optimizer.invalidate();await f.run();
+ assert.ok(f.worker);assert.equal(f.worker.message.payload.calculationScope.source.kind,'fixed');assert.equal(f.worker.message.payload.calculationScope.chartCount,1);
 });

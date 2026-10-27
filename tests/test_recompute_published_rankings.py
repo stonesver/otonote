@@ -41,6 +41,8 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
             catalog = {'release': {'id': 'sample'}, 'musicCharts': [{'id': 'chart-1'}],
                        'cover': manifest['root'] + 'public/media/sample.webp'}
             for key, value in [('projection/catalog.json', catalog),
+                               ('supplemental/formal-scoring-rules.json', {'sourceReleaseId':'sample','verificationStatus':'unavailable'}),
+                               ('supplemental/scoring-compatibility.json', {'sourceReleaseId':'sample','status':'unavailable','issues':[]}),
                                ('supplemental/song-rankings.json', {'old': True})]:
                 name = locale + '/' + key
                 raw = content.canonical(value)
@@ -108,6 +110,51 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
         self.assertEqual(result['status'], 'verified_local')
         self.assertEqual(self.bucket.objects, self.before)
         self.assertEqual(self.bucket.puts, [])
+
+    def test_pinned_rule_repair_publishes_rules_coverage_and_rankings_together(self):
+        self.seed()
+        rules = {'sourceReleaseId':'sample','verificationStatus':'reference_compatible',
+                 'tables':{'LiveMusic':[]}, 'nativeSha256':'native',
+                 'native':{'sourceReleaseId':'baseline','nativeSha256':'native'},
+                 'referenceProfile':{'sourceReleaseId':'baseline','nativeSha256':'native',
+                    'dataCompatibility':'supported_model','modelId':'ournotes-scoring-model-v1',
+                    'currentGameplayVerified':False}}
+        path = self.root/'repaired-rules.json'; path.write_bytes(content.canonical(rules))
+        def compute_repair(source, output, model):
+            for locale in ('en','zh-CN'):
+                manifest = json.loads((source/'manifest.json').read_bytes())
+                rule_path = source/manifest['locales'][locale]['files']['supplemental/formal-scoring-rules.json']['path']
+                self.assertEqual(json.loads(rule_path.read_bytes()), rules)
+            computed(source, output, model)
+            for locale in ('en','zh-CN'):
+                (output/(locale+'-compatibility.json')).write_bytes(content.canonical(
+                    {'sourceReleaseId':'sample','status':'partial','checks':1,'issues':[{'code':'unsupported_skill_mechanism'}]}))
+        result = self.run_refresh(publish=True, compute=compute_repair, scoring_rules=path,
+                                  expected_rules_sha256=content.digest(path.read_bytes()))
+        self.assertEqual(result['status'], 'published')
+        pointer = json.loads(self.bucket.objects[self.key]); prefix=pointer['manifest'].removesuffix('manifest.json').lstrip('/')
+        manifest=json.loads(self.bucket.objects[prefix+'manifest.json'])
+        for locale in ('en','zh-CN'):
+            for artifact in ('formal-scoring-rules','scoring-compatibility','song-rankings'):
+                record=manifest['locales'][locale]['files']['supplemental/'+artifact+'.json']
+                raw=self.bucket.objects[prefix+record['path']]
+                self.assertEqual(content.digest(raw),record['sha256'])
+                self.assertNotIn(json.loads(raw).get('verificationStatus'), ['unavailable'])
+        self.assertEqual(self.bucket.objects['content/previous.json'], self.before[self.key])
+
+    def test_rule_repair_rejects_wrong_digest_and_release_before_computing(self):
+        for fault in ('digest','release','audit'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                self.root=Path(directory);self.bucket=TrackedBucket();self.seed()
+                raw=content.canonical({'sourceReleaseId':'other' if fault=='release' else 'sample',
+                    'verificationStatus':'code_audited' if fault=='audit' else 'reference_compatible',
+                    'tables':{}})
+                path=self.root/'rules.json';path.write_bytes(raw)
+                with self.assertRaises(ValueError):
+                    self.run_refresh(publish=True, scoring_rules=path,
+                        expected_rules_sha256='0'*64 if fault=='digest' else content.digest(raw),
+                        compute=lambda *args:self.fail('invalid repair reached computation'))
+                self.assert_no_publication()
 
     def test_incomplete_or_invalid_scores_never_upload(self):
         for fault in ('model', 'coverage', 'score', 'release'):

@@ -4,6 +4,7 @@ import {readFile, writeFile, mkdir} from 'node:fs/promises';
 import {resolve, join} from 'node:path';
 import {loadSongRankingData} from '../packages/scoring/server/song-ranking-data.mjs';
 import {SCORE_MODEL_VERSION} from '../packages/scoring/scoring-rules/model-version.mjs';
+import {inspectPublishedSkillsCompatibility} from '../packages/scoring/scoring-rules/scoring-compatibility.mjs';
 
 const [sourceArg, outputArg, model] = process.argv.slice(2);
 if (model !== SCORE_MODEL_VERSION) throw Error('Requested model differs from producer');
@@ -24,6 +25,8 @@ for (const locale of ['zh-CN','en']) {
   const data = await loadSongRankingData({rules,releaseId:catalog.release.id,tracks,charts,
     publicRoot:source,cacheRoot:join(output,'cache')});
   await writeFile(join(output,locale + '.json'), JSON.stringify(data));
+  await writeFile(join(output,locale + '-compatibility.json'),
+    JSON.stringify(inspectPublishedSkillsCompatibility(rules,catalog)));
   console.log(JSON.stringify({locale,model:data.benchmark.modelVersion,
     ordinary:data.ordinary.length,gekisou:data.gekisou.length}));
 }

@@ -2,6 +2,8 @@
 
 Only shared-media releases are supported. Complete source inventory verification,
 fresh media identity checks, immutable writes/readback and pointer CAS are required.
+Unavailable reference rules can be repaired with explicitly digest-pinned inputs;
+rules, skill coverage and rankings are published as one immutable snapshot.
 """
 from __future__ import annotations
 
@@ -101,8 +103,46 @@ def validate_rankings(data, catalog, model):
                 raise ValueError('recomputed ranking score is invalid')
 
 
+def repair_reference_rules(source, manifest, path, expected):
+    if not isinstance(expected, str) or not SHA256.fullmatch(expected):
+        raise ValueError('rule repair requires a reviewed SHA-256')
+    path = Path(path)
+    if path.stat().st_size > SMALL_LIMIT:
+        raise ValueError('rule repair exceeds bounds')
+    raw = path.read_bytes()
+    if digest(raw) != expected:
+        raise ValueError('rule repair digest mismatch')
+    rules = json.loads(raw)
+    reference, native = rules.get('referenceProfile', {}), rules.get('native', {})
+    if (rules.get('sourceReleaseId') != manifest['contentReleaseId']
+            or rules.get('verificationStatus') != 'reference_compatible'
+            or not isinstance(rules.get('tables'), dict)
+            or reference.get('dataCompatibility') != 'supported_model'
+            or reference.get('modelId') != 'ournotes-scoring-model-v1'
+            or reference.get('currentGameplayVerified') is not False
+            or not reference.get('sourceReleaseId')
+            or reference['sourceReleaseId'] != native.get('sourceReleaseId')
+            or not rules.get('nativeSha256')
+            or rules['nativeSha256'] != native.get('nativeSha256')
+            or rules['nativeSha256'] != reference.get('nativeSha256')):
+        raise ValueError('rule repair is not a bound reference model')
+    replacements = {}
+    for locale in ('zh-CN', 'en'):
+        record = manifest['locales'][locale]['files']['supplemental/formal-scoring-rules.json']
+        old = json.loads((source/record['path']).read_bytes())
+        if (old.get('verificationStatus') != 'unavailable'
+                or old.get('sourceReleaseId') != manifest['contentReleaseId']):
+            raise ValueError('rule repair requires unavailable rules for this release')
+        replacements[record['path']] = canonical(rules)
+    # Change only this private computation copy, after the full source inventory
+    # has been verified. The published parent snapshot is never modified.
+    for name, raw in replacements.items():
+        (source/name).write_bytes(raw)
+    return replacements
+
+
 def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
-              publish=False, compute=calculate):
+              publish=False, compute=calculate, scoring_rules=None, expected_rules_sha256=None):
     if not SHA256.fullmatch(expected):
         raise ValueError('an explicit existing pointer digest is required')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', source_run):
@@ -113,8 +153,12 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     work.mkdir(parents=True)
     source, output = work/'source', work/'computed'
     pointer, manifest, files, media = download_source(bucket, region, expected, source, workers)
+    if (scoring_rules is None) != (expected_rules_sha256 is None):
+        raise ValueError('rule repair needs both a file and its reviewed digest')
+    replacements = (repair_reference_rules(source, manifest, scoring_rules, expected_rules_sha256)
+                    if scoring_rules is not None else {})
     compute(source, output, model)
-    replacements, counts = {}, {}
+    counts, coverage = {}, {}
     for locale in ('zh-CN', 'en'):
         records = manifest['locales'][locale]['files']
         catalog = json.loads((source/records['projection/catalog.json']['path']).read_bytes())
@@ -123,6 +167,15 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
         data = json.loads((output/(locale + '.json')).read_bytes())
         validate_rankings(data, catalog, model)
         replacements[records['supplemental/song-rankings.json']['path']] = canonical(data)
+        if scoring_rules is not None:
+            compatibility = json.loads((output/(locale+'-compatibility.json')).read_bytes())
+            if (compatibility.get('sourceReleaseId') != catalog['release']['id']
+                    or compatibility.get('status') not in ('compatible','partial')
+                    or not isinstance(compatibility.get('issues'), list)
+                    or type(compatibility.get('checks')) is not int or compatibility['checks'] <= 0):
+                raise ValueError('repaired skill coverage is invalid')
+            replacements[records['supplemental/scoring-compatibility.json']['path']] = canonical(compatibility)
+            coverage[locale] = {'status':compatibility['status'],'issues':len(compatibility['issues'])}
         counts[locale] = {mode:len(data[mode]) for mode in ('ordinary', 'gekisou')}
     identifier = digest(canonical({'parent':pointer['sha256'], 'model':model,
                                   'rankings':{k:digest(v) for k,v in replacements.items()}}))[:24]
@@ -153,6 +206,8 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     new_pointer.pop('libraryPointers', None)
     report = {'region':region,'model':model,'counts':counts,'previousPointer':pointer,
               'nextPointer':new_pointer,'sourcePointerSha256':expected}
+    if scoring_rules is not None:
+        report['scoringRepair'] = {'reviewedSha256':expected_rules_sha256,'coverage':coverage}
     (work/'verification.json').write_bytes(canonical(report))
     if not publish:
         return {**report, 'status':'verified_local'}
@@ -203,10 +258,13 @@ def main():
     parser.add_argument('--source-run', required=True)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--publish', action='store_true')
+    parser.add_argument('--scoring-rules', type=Path)
+    parser.add_argument('--expected-rules-sha256')
     args = parser.parse_args()
     try:
         report = recompute(S3Bucket.from_environment(workers=8), args.region, args.expected_current,
-                           args.work, model=args.model, source_run=args.source_run, publish=args.publish)
+                           args.work, model=args.model, source_run=args.source_run, publish=args.publish,
+                           scoring_rules=args.scoring_rules, expected_rules_sha256=args.expected_rules_sha256)
         print(json.dumps(report, ensure_ascii=False))
     except Exception as error:
         # Keep transport credentials and private endpoint details out of workflow output.

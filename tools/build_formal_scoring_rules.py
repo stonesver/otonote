@@ -26,10 +26,12 @@ TABLES = (
 )
 
 
-def project_tables(root: Path):
+def project_tables(root: Path, *, optional_tables=()):
     tables, digests = {}, {}
     for name in TABLES:
         path = root / f"Master{name}.json"
+        if name in optional_tables and not path.exists():
+            continue
         content = path.read_bytes()
         rows = json.loads(content)["_allData"]
         if not isinstance(rows, list):

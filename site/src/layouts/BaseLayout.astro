@@ -9,6 +9,7 @@ import TransitionPreview from "../components/TransitionPreview.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import GameServiceNotice from "../components/GameServiceNotice.astro";
 import SiteNotifications from "../components/SiteNotifications.astro";
+import SharedPlaylistWorkspace from "../components/SharedPlaylistWorkspace.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
 import pageFirstRenderScript from "../lib/page-first-render.mjs?raw";
 import { activeReleaseContext } from "../lib/release-context";
@@ -204,6 +205,7 @@ const htmlLanguage = activeReleaseContext.locale;
     </aside>
 
     <SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={pathname.startsWith("/tools/")} />
+    <SharedPlaylistWorkspace />
     <main id="main-content" data-page-kind={pathname === "/" ? "home" : "module"} tabindex="-1">
       {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
       {activeReleaseContext.region === 'global' && <GameServiceNotice locale={activeReleaseContext.locale} />}

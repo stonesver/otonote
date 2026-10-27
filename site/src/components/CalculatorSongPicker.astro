@@ -35,7 +35,7 @@ const difficulties=[['easy','EASY'],['normal','NORMAL'],['hard','HARD'],['expert
       const jacket=getAsset(track.jacketAssetId),attribute=getCardAttribute(track.musicType)?.names[catalog.release.locale]??track.musicTypeLabel;
       const native=formalRules.tables.LiveMusic.find(m=>`music-${m._id}`===track.id);
       const missions=[native?._gekisouMission1??0,native?._gekisouMission2??0,native?._gekisouMission3??0];
-      return <article class="song-picker-row" data-song-row={track.id} data-attribute={track.musicType} data-bands={track.bandIds.join(' ')} data-missions={missions.join(',')} data-search={`${track.title} ${track.bandLabels.join(' ')}`.toLocaleLowerCase()} data-title={track.title}>
+      return <article class="song-picker-row" data-song-row={track.id} data-song-duration={track.audioDuration} data-attribute={track.musicType} data-bands={track.bandIds.join(' ')} data-missions={missions.join(',')} data-search={`${track.title} ${track.bandLabels.join(' ')}`.toLocaleLowerCase()} data-title={track.title}>
         {jacket&&<img class="song-picker-jacket" src={jacket.previewUrl} alt="" loading="lazy" width="48" height="48" />}
         <div class="song-picker-info"><div class="song-title-line"><strong>{track.title}</strong><CardAttributeBadge code={track.musicType} compact /></div><span>{track.bandLabels.join(' / ')}</span><div class="song-missions" aria-label="激奏段落">{missions.map((m,i)=><span data-mission={m}>{i+1} {['—','COMBO','LUCK','JUST'][m]}</span>)}</div></div>
         <div class="song-picker-difficulties" role="group" aria-label={`${track.title}的难度`}>

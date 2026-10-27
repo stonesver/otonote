@@ -65,7 +65,7 @@ class ScoringResearchWorkbench extends HTMLElement {
     for(const [selector,field] of [['[data-calculator-song]','selectedSongId'],['[data-calculator-difficulty]','selectedDifficulty']]) {
       this.querySelector(selector).addEventListener('change',event=>{this.draft[field]=event.target.value||null;this.refreshInput();});
     }
-    this.songPicker=setupCalculatorSongPicker(this,{getSelection:()=>this.draft,onSelect:selection=>{
+    this.songPicker=setupCalculatorSongPicker(this,{getCalculationScope:()=>null,getSelection:()=>this.draft,onSelect:selection=>{
       Object.assign(this.draft,selection);
       this.querySelector('[data-score-song-picker]').open=false;
       this.querySelector('[data-calculator-song]').value=selection.selectedSongId;

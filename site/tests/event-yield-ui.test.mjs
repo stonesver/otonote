@@ -1,3 +1,4 @@
+import {eventScopeControls} from './helpers/calculation-scopes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -119,7 +120,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  };
  const q=key=>node(`[data-yield-${key}]`);
  const tool={q:node,querySelector:node,pairs:[],draft:{slots:[],selectedSongId:'music-2',selectedDifficulty:'hard'},data:{
-  rules:{tables:{ChallengeMusic:[{_eventId:1,_liveMusicId:2}]}},
+  rules:{tables:{LiveMusic:[{_id:1,_musicType:1},{_id:2,_musicType:2}],ChallengeMusic:[{_eventId:1,_liveMusicId:2}]}},
   tracks:[{id:'music-1',bandIds:['band-1'],musicType:1},{id:'music-2',bandIds:['band-2'],musicType:2}],
   charts:[{id:'1-e',trackId:'music-1',difficulty:'expert',level:25,analysisDataUrl:'/1'},
    {id:'2-e',trackId:'music-2',difficulty:'expert',level:25,analysisDataUrl:'/2'},
@@ -139,7 +140,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  // The workbench moves conditions/results into sibling columns under the tool.
  node('yield-optimizer').querySelector=()=>{throw new Error('Do not assume filters remain in the legacy panel');};
  installProgressDom(t,q('status'));
- const optimizer=setupEventYieldOptimizer(tool);
+ let scopes;const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:(...args)=>(scopes=eventScopeControls(...args))});
  optimizer.sync();optimizer.run();
  assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['1-e']);
  const progress=q('status').progressNode;workers[0].listeners.message({data:{type:'progress',stage:'普通',title:'歌曲',done:1,total:9,detail:'完整复算 2 / 12'}});assert.equal(progress.children[1].value,1/9);
@@ -195,5 +196,19 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  cancelled.listeners.message({data:{type:'progress',stage:'旧任务',done:9,total:9}});assert.equal(q('status').textContent,restartStatus);
  workers.at(-1).listeners.message({data:{type:'progress',stage:'practical-result',title:'歌曲',done:1,total:9,detail:'practical-result 1 / 9'}});
  assert.match(q('status').textContent,/更新当前领先方案/);assert.doesNotMatch(q('status').textContent,/practical-result/);
+ // The main playlist is filtered before planning; the official challenge pool is independent.
+ q('songs').value='all';q('stages').value='cycle';multi(q('difficulty'),['hard']);multi(q('challenge-difficulty'),['hard']);
+ scopes.main.setSelection({kind:'temporary',entries:[{trackId:'music-1',difficulties:['hard']}]});
+ scopes.challenge.setSelection({kind:'temporary',entries:[{trackId:'music-2',difficulties:['hard']}]});
+ optimizer.sync();optimizer.run();
+ assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['1-h']);
+ assert.deepEqual(workers.at(-1).data.challengeCandidates.map(c=>c.id),['2-h']);
+ const snapshot=workers.at(-1).data.input.calculationScopes;
+ assert.equal(snapshot.main.chartCount,1);assert.equal(snapshot.challenge.chartCount,1);
+ const last=workers.at(-1),before=workers.length;
+ scopes.challenge.setSelection({kind:'temporary',entries:[{trackId:'music-1',difficulties:['hard']}]});
+ optimizer.sync();assert.ok(!last.stopped);optimizer.run();assert.equal(workers.length,before);assert.deepEqual(workers.at(-1).data.challengeCandidates.map(c=>c.id),['2-h']);
+ q('stages').value='direct';q('songs').value='selected';scopes.main.setSelection({kind:'temporary',entries:[]});optimizer.sync();optimizer.run();assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);assert.equal(workers.at(-1).data.input.calculationScopes.main.source.kind,'fixed');
+ scopes.main.setSelection({kind:'all'});optimizer.sync();optimizer.run();assert.equal(workers.at(-1).data.input.calculationScopes.main.chartCount,1);
  optimizer.destroy();
 });

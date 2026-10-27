@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>歌单交互回归</title><link rel="stylesheet" href="/site/src/styles/tool-design-system.css"><link rel="stylesheet" href="/site/src/styles/calculator-journey.css"><link rel="stylesheet" href="/site/src/styles/playlist-workspace.css"><style>body{font:16px system-ui;margin:20px}dialog{max-width:min(800px,90vw);max-height:90vh;overflow:auto}button,input,select{font:inherit;padding:8px;margin:3px}label{display:block}#tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}</style><div id="tools"><section id="score"><h1>估分与选曲</h1></section><section id="event"><h1>活动收益</h1></section></div><script type="module">
+import {createCalculationScopeControl} from '/site/src/lib/calculation-scope-ui.mjs';
+localStorage.setItem('ournotes:server:global','global-hmt');
+const tracks=[1,2,3].map(i=>({id:`music-${i}`,title:`测试歌曲 ${i}`,audioDuration:90+i,bandIds:['band-1'],musicType:1}));
+const charts=tracks.flatMap(t=>['hard','expert'].map(difficulty=>({id:`${t.id}-${difficulty}`,trackId:t.id,difficulty,level:difficulty==='hard'?15:25,analysisDataUrl:`/${t.id}-${difficulty}`})));
+const data={tracks,charts,sourceReleaseId:'browser-fixture'};
+for(const id of ['score','event']){const host=document.querySelector('#'+id);const control=createCalculationScopeControl({host,mount:host,data,toolKey:id,getFilters:()=>id==='event'?{allowedTrackIds:['music-1']}: {}});window[id+'Scope']=control;const b=document.createElement('button');b.textContent='检查计算范围';b.onclick=()=>{try{host.dataset.result=String(control.require().chartCount);}catch(e){host.dataset.result=e.message;}};host.append(b);}
+</script></html>

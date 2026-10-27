@@ -2,7 +2,7 @@ import {estimateAPChart} from './ap-grade.mjs';
 import {createCalculationScheduler} from './calculation-scheduler.mjs';
 self.addEventListener('message',async({data})=>{
  const {rules,draft,candidates,mode,eventId,eco}=data,rows=[],failures=[];
- const yieldControl=createCalculationScheduler({eco:eco!==false});let next=0,done=0;
+ const yieldControl=createCalculationScheduler({eco:eco===true});let next=0,done=0;
  try{
   await Promise.all(Array.from({length:Math.min(4,candidates.length)},async()=>{
    while(next<candidates.length){

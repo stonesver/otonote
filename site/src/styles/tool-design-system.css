@@ -398,7 +398,7 @@ body:has(.event-action-dock:not([hidden])) .tw-launcher { left:12px; right:auto;
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress strong { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress small { font-size:11px; margin:2px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress progress { height:3px; margin:4px 0 0; }
-.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=complete] :is(progress,small) { display:none; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=complete] progress { display:none; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-state-message { margin:0; font-size:12px; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench:is(.event-workbench,.team-builder-view,.score-builder-view) { padding-bottom:calc(var(--event-dock-height,110px) + 24px); }
 body:has(.event-action-dock .event-calculation:not([hidden])) .tw-launcher { bottom:148px; }
@@ -526,7 +526,7 @@ html[data-motion="off"] .task-studio.task-studio.tool-design-system[data-tool-ki
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .score-condition-summary button { flex:none; }
 
 /* Failure reasons are actionable content: never truncate them with live telemetry. */
-.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] { padding:8px 10px; border-left:3px solid #bd4545; border-radius:4px; background:color-mix(in srgb,#bd4545 6%,var(--tool-surface)); max-height:32vh; overflow:auto; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] { padding:8px 11px; border:1px solid color-mix(in srgb,#b34451 16%,var(--tool-surface)); border-radius:10px; background:color-mix(in srgb,#b34451 4%,var(--tool-surface)); max-height:32vh; overflow:auto; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] :is(strong,small) { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; line-height:1.6; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] small { font-size:12px; }
 /* A chosen event chart becomes the compact heading for its running/result team. */
@@ -564,3 +564,78 @@ html[data-motion=off] .event-rush-selection { animation:none!important; }
 }
 @media(prefers-reduced-motion:reduce){.task-studio .ds-task-switcher button {transition:none!important;}}
 html[data-motion=off] .task-studio .ds-task-switcher button {transition:none!important;}
+
+/* The task choice occupies one full row; its explanation is not button text. */
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench [data-playlist-task]{grid-column:1/-1}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench [data-playlist-task] .tool-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench [data-playlist-task] .tool-options button{min-width:0;white-space:nowrap;padding:7px 8px}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .team-playlist-note{font-size:11px;line-height:1.5;color:var(--tool-muted);font-weight:400}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .team-setup>[data-calculator-guidance]{margin:0;padding:0 12px 12px;font-size:12px;line-height:1.6;color:var(--tool-muted)}
+
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .team-setup>.calculation-scope{padding:12px}
+
+/* Compact calculation dock: one surface, no repeated task description. */
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock {
+ width:720px; max-width:calc(100% - 48px); padding:12px 16px; flex-wrap:nowrap; gap:20px; overflow:visible;
+}
+@media(min-width:1101px) {
+html[data-shell=sidebar] .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock { width:720px; max-width:calc(100% - var(--sidebar-width,236px) - 48px); }
+}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-calculation { flex:1 1 280px; width:auto; min-width:0; max-width:none; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock:has(.event-calculation:not([hidden]) .calculation-progress:not([hidden])) .event-action-copy,
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock:has(.event-calculation:not([hidden]) .calculation-progress:not([hidden])) :is(.calculator-progress,.event-state-message) { display:none; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress {
+ --calculation-tone:var(--tool-accent); padding:0; margin:0; border:0; border-radius:0; background:transparent;
+}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress > div { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:3px 8px; }
+.calculation-progress .calculation-state { grid-column:1; grid-row:1; display:inline-flex; align-items:center; gap:5px; color:var(--calculation-tone,var(--tool-accent)); font-size:12px; font-weight:650; white-space:nowrap; }
+.calculation-state::before { content:''; width:12px; height:12px; box-sizing:border-box; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; }
+.calculation-progress[data-state=running] .calculation-state::before { animation:calculation-spin .9s linear infinite; }
+.calculation-progress[data-state=complete] .calculation-state::before { content:'✓'; border:0; line-height:12px; }
+.calculation-progress[data-state=stopped] .calculation-state::before { content:'Ⅱ'; border:0; line-height:12px; }
+.calculation-progress[data-state=error] .calculation-state::before { content:'!'; border:1px solid currentColor; border-radius:50%; font-size:10px; line-height:10px; text-align:center; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress strong { grid-column:2; grid-row:1; font-weight:500; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress > div > span { grid-column:2; grid-row:2; color:var(--tool-muted); font-size:11px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress progress { height:3px; margin:5px 0 0; accent-color:var(--calculation-tone); }
+.calculation-progress [hidden] { display:none!important; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=complete] { --calculation-tone:#35765d; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=stopped] { --calculation-tone:#946324; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] { --calculation-tone:#b34451; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock:has(.calculation-progress[data-state=complete]:not([hidden])) { animation:calculation-complete .9s ease-out; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-action-copy { max-width:260px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-action-copy small { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-actions { flex-wrap:nowrap; flex-shrink:0; }
+@keyframes calculation-spin { to { transform:rotate(360deg); } }
+@keyframes calculation-complete { from { box-shadow:0 0 0 3px #35765d25,0 4px 24px #21132218; } to { box-shadow:0 4px 24px #21132218; } }
+@media(max-width:900px) {
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock { inset:auto 10px 10px; width:calc(100% - 20px); max-width:640px; border:1px solid var(--tool-line); border-radius:10px; padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px)); flex-wrap:wrap; gap:8px 12px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-calculation { flex:1 1 100%; width:auto; min-width:0; max-width:none; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress > div { grid-template-columns:auto minmax(0,1fr) auto; gap:6px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress > div > span { grid-column:3; grid-row:1; font-size:10px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress strong { font-size:11px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-actions { flex:1; justify-content:flex-end; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-actions button { min-height:34px; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock:has(.calculation-progress[data-state=complete]:not([hidden])),.calculation-progress .calculation-state::before { animation:none; }
+}
+
+@media(min-width:901px) {
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock:has(.event-dock-search:not([hidden])) { width:860px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-search { flex-shrink:0; }
+}
+@media(max-width:900px) {
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-search { width:auto; flex:1; min-width:0; gap:8px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-search .event-search-depth { flex:0 1 102px; width:102px; font-size:0; gap:0; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-search-depth .tool-options { display:none; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock select[data-yield-depth] { display:block!important; font-size:12px; min-height:34px; padding:6px 22px 6px 8px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-search .event-eco { gap:4px; font-size:11px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-actions { flex:0 0 auto; width:auto; padding-left:0; margin-left:auto; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .event-dock-actions .event-primary { padding-inline:10px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock:has(.calculation-progress[data-state=running]:not([hidden])) [data-yield-run] { display:none; }
+}
+/* Errors use the same dock height as a short status, without a nested panel. */
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error]{padding:0;border:0;border-radius:0;background:transparent}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] > div {display:none}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] small {display:block;margin:0;color:#a23d4b;font-size:12px;line-height:1.5}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] small::before {content:'!';display:inline-grid;place-items:center;width:15px;height:15px;margin-right:7px;border:1px solid currentColor;border-radius:50%;font-size:11px;vertical-align:1px}

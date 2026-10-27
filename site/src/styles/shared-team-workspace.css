@@ -27,3 +27,77 @@
 
 /* Rarity stays with the artwork, while growth labels remain explicit at small sizes. */
 .tw-card-view--compact{position:relative}.tw-card-view--compact .tw-card-art>img{object-fit:contain!important}.tw-card-view--compact .tw-card-rarity{position:absolute;right:8px;top:8px;background:#fffE;border-radius:5px}.tw-card-view--compact .tw-card-rarity img{width:30px!important;height:22px!important}.tw-card-view--compact .tw-card-band img{width:44px!important}.tw-card-view--compact .tw-card-meta img{width:22px!important;height:22px!important}.tw-panel .ux-card-picker button{min-height:40px;font-size:13px}.tw-panel .ux-card-selection-options label{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px}.tw-panel .ux-card-grid>button:disabled{opacity:1}.tw-panel .ux-card-grid>button:disabled .tw-card-art{opacity:.55}.tw-panel .ux-card-grid>button:disabled>small{color:#76586b}
+/* Batch selection reuses the collection grid and its existing filters. */
+.tw-panel .tw-batch-toolbar,.tw-panel .tw-batch-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tw-panel .tw-batch-toolbar{padding:8px 0 2px}
+.tw-panel .tw-batch-tools{flex:1;justify-content:flex-end}
+.tw-panel .tw-batch-toolbar button{min-height:30px;padding:5px 9px;font-size:11px;border-radius:6px}
+.tw-panel .tw-batch-toolbar strong{font-size:11px;margin-right:auto;white-space:nowrap}
+.tw-panel .tw-batch-toolbar button[aria-pressed=true]{background:var(--tool-tint,#f6edf1);border-color:var(--tool-accent,#794560);color:var(--tool-accent,#794560)}
+.tw-panel .tw-batch-workspace:has(form[hidden]){display:none}
+.tw-panel .tw-batch-form{padding:12px;margin:10px 0;border:1px solid var(--tool-border,#e7e1ed);border-radius:9px;background:var(--tool-tint,#faf7fa)}
+.tw-panel .tw-batch-form-head,.tw-panel .tw-batch-save{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tw-panel .tw-batch-form-head strong{font-size:12px}.tw-panel .tw-batch-form-head select{flex:1;min-width:150px}
+.tw-panel .tw-batch-form :is(select,input,button){font-size:12px;min-height:32px;border-radius:6px}
+.tw-panel .tw-batch-fields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px}
+.tw-panel .tw-batch-fields label{font-size:11px;min-width:0}.tw-panel .tw-batch-fields input{width:100%;box-sizing:border-box;padding:6px}
+.tw-panel .tw-batch-form p{font-size:11px;line-height:1.5;margin:8px 0}
+.tw-panel .tw-batch-save{justify-content:space-between}.tw-panel .tw-batch-overwrite{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:11px}
+.tw-panel .tw-batch-overwrite input{width:15px;min-height:15px;accent-color:var(--tool-accent,#794560)}
+.tw-panel .tw-batch-message:empty{display:none}.tw-panel .tw-batch-message[data-tone=error]{color:#a23d4b}
+/* Selection uses a quiet tinted card and a labelled, keyboard-accessible check. */
+.tw-panel .tw-inventory-card.tw-inventory-selectable{position:relative;cursor:pointer}
+.tw-panel .tw-inventory-card.tw-inventory-selectable[data-selected=true]{border-color:var(--tool-accent,#794560);box-shadow:0 0 0 1px var(--tool-accent,#794560)}
+.tw-panel .tw-card-select{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;width:100%;min-height:36px;padding:8px 9px;border-top:1px solid var(--tool-border,#e7e1ed);font-size:11px;font-weight:600;line-height:19px;color:var(--tool-muted,#776d75);cursor:pointer;box-sizing:border-box}
+.tw-panel .tw-card-select input[type=checkbox]{appearance:none;display:grid;place-items:center;width:19px;height:19px;flex:0 0 19px;min-height:0;margin:0;padding:0;box-sizing:border-box;line-height:1;border:1.5px solid #b9aab4;border-radius:50%;background:#fff;cursor:pointer}
+.tw-panel .tw-card-select input[type=checkbox]:checked{border-color:var(--tool-accent,#794560);background:var(--tool-accent,#794560)}
+.tw-panel .tw-card-select input:checked::after{content:'';width:7px;height:4px;border:solid #fff;border-width:0 0 2px 2px;transform:translateY(-1px) rotate(-45deg)}
+.tw-panel .tw-inventory-selectable[data-selected=true] .tw-card-select{color:var(--tool-accent,#794560)}
+.tw-panel .tw-inventory-selectable:has(input:focus-visible){outline:2px solid var(--tool-accent,#794560);outline-offset:3px}
+body:has(.task-studio) .tw-panel .tw-inventory-card.tw-inventory-selectable{border-radius:9px}
+body:has(.task-studio) .tw-panel .tw-inventory-selectable[data-selected=true] :is(.tw-card-body,.tw-card-select){background:#f5eaf0}
+body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-body{width:100%;box-sizing:border-box}
+body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-meta{flex-wrap:nowrap;max-width:calc(100% - 48px);gap:2px;padding:3px;border-radius:5px;min-height:0}
+body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-meta img{width:15px!important;height:15px!important}
+body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-meta .tw-card-band img{width:20px!important}
+body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-meta .tw-card-rarity img{width:23px!important}
+body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-meta>span{min-width:0;font-size:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.tw-panel .tw-batch-toolbar [hidden],.tw-panel .tw-batch-form [hidden]{display:none!important}
+@media(hover:hover){.tw-panel .tw-inventory-selectable:hover{border-color:var(--tool-accent,#794560)}}
+@media(max-width:760px){
+ body:has(.task-studio) .tw-panel .tw-inventory-filter-header{position:static}
+ body:has(.task-studio) .tw-panel .tw-inventory-filter-header>.tw-inventory-filters{grid-template-columns:1fr 1.5fr;gap:8px}
+ body:has(.task-studio) .tw-panel .tw-inventory-filters label:has(input[type=search]){grid-column:1/-1}
+ body:has(.task-studio) .tw-panel .tw-inventory-filter-header>.tw-inventory-filters>label{flex-direction:column;align-items:flex-start;gap:4px}
+ body:has(.task-studio) .tw-panel .tw-inventory-extra-filters{margin-top:8px}
+ body:has(.task-studio) .tw-panel .tw-inventory-extra-filters>summary{font-size:11px;min-height:32px;display:flex;align-items:center;gap:8px}
+ body:has(.task-studio) .tw-panel .tw-inventory-extra-filters>summary::before{content:'+';font-size:16px;color:var(--tool-accent,#794560)}
+ body:has(.task-studio) .tw-panel .tw-inventory-extra-filters[open]>summary::before{content:'−'}
+ .tw-panel .tw-batch-toolbar{position:sticky;top:0;z-index:3;background:var(--tool-panel,#fffdf8);padding:10px 0;border-bottom:1px solid var(--tool-border,#e7e1ed);display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 8px}
+ .tw-panel .tw-batch-tools{display:contents}
+ .tw-panel .tw-batch-toolbar>button{grid-column:1;grid-row:1}
+ .tw-panel .tw-batch-tools strong{grid-column:2;grid-row:1;margin:0;font-size:11px;text-align:center;color:var(--tool-accent,#794560)}
+ .tw-panel .tw-batch-configure{grid-column:3;grid-row:1}
+ .tw-panel .tw-batch-selected-only{grid-column:1;grid-row:2}
+ .tw-panel .tw-batch-select-page{grid-column:2;grid-row:2}
+ .tw-panel .tw-batch-clear{grid-column:3;grid-row:2}
+ .tw-panel .tw-batch-toolbar button{min-height:34px;border-radius:7px;font-size:11px;padding:6px 9px;white-space:nowrap}
+ .tw-panel .tw-batch-tools button:not(.tw-batch-configure){background:transparent;border-color:transparent;color:var(--tool-muted,#776d75)}
+ .tw-panel .tw-batch-tools button[aria-pressed=true]{background:#f5eaf0;border-color:#e5d0dc;color:var(--tool-accent,#794560)}
+ .tw-panel .tw-batch-form,.tw-panel .tw-inventory-editor{scroll-margin-top:100px}
+ .tw-panel .tw-batch-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tw-panel .tw-batch-form{padding:10px}
+ .tw-panel .tw-batch-save button{margin-left:auto}
+ .tw-panel .tw-batch-form-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+ .tw-panel .tw-batch-form-head select{grid-row:2;grid-column:1/-1;min-width:0}
+ .tw-panel .tw-batch-form-head>button{grid-column:2;grid-row:1;min-height:26px;padding:3px 8px}
+}
+@media(max-width:600px){
+ body:has(.task-studio) .tw-panel .tw-inventory-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+ body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-art{height:148px}
+ body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-body{padding:8px;min-height:55px}
+ body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-name{font-size:11px;line-height:1.5}
+ body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-relation{font-size:10px;line-height:1.4}
+ body:has(.task-studio) .tw-panel .tw-inventory-card .tw-card-source{font-size:9px}
+}
+@media(forced-colors:active){.tw-panel .tw-card-select input[type=checkbox]{appearance:auto}.tw-panel .tw-card-select input::after{display:none}}

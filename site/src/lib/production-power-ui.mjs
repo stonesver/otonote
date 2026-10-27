@@ -131,7 +131,7 @@ export function setupProductionPower(workbench) {
     settings() {
       try { settings(); }
       catch (error) { controls?.append(cell("p", `设置无效：${error.message}`)); }
-    }, disconnect: () => { cancel(); presets?.disconnect(); },
+    }, disconnect: () => { optimizer?.destroy(); presets?.disconnect(); },
     changed() {
       cancel();
       workbench.querySelector("[data-pairing-results]")?.replaceChildren();

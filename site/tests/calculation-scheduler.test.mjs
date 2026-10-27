@@ -14,3 +14,10 @@ test('eco keeps short slices and proportional rest',async()=>{
  time=12;await yieldControl();assert.deepEqual(waits,[24]);
  time+=11;await yieldControl();assert.deepEqual(waits,[24]);
 });
+
+test('omitting eco uses full speed but continues to yield',async()=>{
+ let time=0;const waits=[];
+ const yieldControl=createCalculationScheduler({now:()=>time,sleep:async ms=>waits.push(ms)});
+ time=12;await yieldControl();assert.deepEqual(waits,[]);
+ time=48;await yieldControl();assert.deepEqual(waits,[0]);
+});

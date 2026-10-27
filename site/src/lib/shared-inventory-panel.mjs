@@ -1,3 +1,4 @@
+import {setupSharedInventoryBatch} from './shared-inventory-batch.mjs';
 import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
 import {createInventoryManager, growthFields} from './inventory-manager.mjs';
@@ -35,7 +36,7 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
   const manager=createInventoryManager(rules,cards);
   let profile=null,store,contextKey='',page=0,undo=null,pendingImport=null,fileRequest=0,destroyed=false,editor=null,accountDirty=false,accountBaseline=null,lastCardFeedback=null;
   const pageSize=24;
-  let shortcuts;
+  let shortcuts,batch;
   const listeners=[];
   function listen(target,type,handler){target.addEventListener(type,handler);listeners.push(()=>target.removeEventListener(type,handler));}
   function button(text,handler,variant='secondary'){const value=node('button',text);value.type='button';value.dataset.variant=variant;value.addEventListener('click',handler);return value;}
@@ -98,6 +99,13 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
   imports.entry.prepend(count);
   const filterHeader=node('div','','tw-inventory-filter-header');filterHeader.append(imports.entry,filters,commonFilters,extraFilters);
   root.replaceChildren(filterHeader,imports.host,editRoot,list,pagination,actions,importDetails,accountDetails,status);
+  const mobileFilters=globalThis.matchMedia?.('(max-width:760px)');
+  function arrangeFilters(){
+    if(mobileFilters?.matches)extraFilters.insertBefore(commonFilters,extraGrid);
+    else filterHeader.insertBefore(commonFilters,extraFilters);
+    extraFilters.querySelector('summary').textContent=t('筛选与排序','Filters and sorting');
+  }
+  if(mobileFilters)listen(mobileFilters,'change',arrangeFilters);arrangeFilters();
   function refreshFilterOptions(){
     shortcuts?.destroy();
     const options=teamCardFilterOptions(cards.filter(card=>card.kind===kind.value),data);
@@ -111,7 +119,7 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     const context=currentServerContext(),key=`${context.region}:${context.serverId??'unselected'}`;
     if(key!==contextKey){
       contextKey=key;store=createPersonalGrowthStore({rules,vipRanks:data.vipRanks,context});profile=null;undo=null;pendingImport=null;
-      confirmImport.disabled=true;closeEditor();accountDirty=false;page=0;lastCardFeedback=null;
+      confirmImport.disabled=true;closeEditor();batch?.reset();accountDirty=false;page=0;lastCardFeedback=null;
     }
     return context;
   }
@@ -136,20 +144,35 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     if(raw.inventory?.sourceReleaseId&&raw.inventory.sourceReleaseId!==rules.sourceReleaseId)importPreview.append(node('p',t('备份来自另一内容版本，所有卡片和养成已重新校验。','This backup is from another content version. All cards and growth values have been revalidated.')));
     pendingImport={profile:incoming,key:store.key,before};confirmImport.disabled=false;feedback(t('预览已准备好，请核对后确认导入。','Preview ready. Check the changes before confirming import.'));
   }
+  function filteredCards(){
+    const inventory=profile?.inventory??manager.empty();
+    const rows=filterTeamCards(cards.filter(card=>card.kind===kind.value),{query:search.value,attribute:selectedControlValues(attribute),band:selectedControlValues(band),character:character.value,rarity:selectedControlValues(rarity),ownership:owned.value,owned:inventory[`${kind.value}CardIds`],sort:sort.value,growth:inventory.growth});
+    return batch?.filter(rows)??rows;
+  }
   function renderCards(){
     shortcuts?.sync();
+    const activeFilters=[attribute,band,character,rarity].filter(control=>selectedControlValues(control).some(Boolean)).length+(sort.value!=='default'?1:0);
+    extraFilters.querySelector('summary').textContent=t('筛选与排序','Filters and sorting')+(activeFilters?t(` · ${activeFilters} 项`,` · ${activeFilters} active`):'');
     const inventory=profile?.inventory??manager.empty();
     count.textContent=`${t('成员卡','Member cards')} ${inventory.memberCardIds.length} · ${t('留影','Support cards')} ${inventory.supportCardIds.length}`;
-    const filtered=filterTeamCards(cards.filter(card=>card.kind===kind.value),{query:search.value,attribute:selectedControlValues(attribute),band:selectedControlValues(band),character:character.value,rarity:selectedControlValues(rarity),ownership:owned.value,owned:inventory[`${kind.value}CardIds`],sort:sort.value,growth:inventory.growth});
+    const filtered=filteredCards();
     const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.max(0,Math.min(page,pages-1));
     // Move the same editor node before replacing rows, preserving input, listeners and selection.
     root.insertBefore(editRoot,list);list.replaceChildren();let visibleEditor=false;
     for(const card of filtered.slice(page*pageSize,(page+1)*pageSize)){
       const row=node('article','','tw-inventory-card');row.dataset.cardId=card.id;
-      const growth=inventory.growth[card.id],view=createTeamCardView(card,{growth,kind:card.kind,locale:data.locale??(english?'en':'zh-CN'),data,source:growth?'actual':'unknown'});row.append(view);attachCardSkillHover(skillWorkbench,card,view.querySelector('.tw-card-art'),{growth});
+      const growth=inventory.growth[card.id],view=createTeamCardView(card,{growth,kind:card.kind,locale:data.locale??(english?'en':'zh-CN'),data,source:growth?'actual':'unknown'});row.append(view);
+      if(batch?.active){
+        const select=node('input');select.type='checkbox';select.checked=batch.has(card.id);select.dataset.batchCard=card.id;select.setAttribute('aria-label',t('选择 ','Select ')+(card.shortLabel??card.id));
+        row.dataset.selected=String(select.checked);row.classList.add('tw-inventory-selectable');
+        const toggle=()=>{batch.toggle(card.id);list.querySelector(`[data-batch-card="${card.id}"]`)?.focus({preventScroll:true});};
+        const selection=node('label','','tw-card-select'),selectionText=node('span',select.checked?t('已选','Selected'):t('选择','Select'));
+        selection.append(select,selectionText);
+        select.addEventListener('change',toggle);view.addEventListener('click',toggle);row.append(selection);
+      }else attachCardSkillHover(skillWorkbench,card,view.querySelector('.tw-card-art'),{growth});
       const restrictions=getRestrictions()??{},reason=restrictions.cardReason?.(card);
       if(reason)row.append(node('small',`${t('当前工具不可用','Unavailable in this tool')}: ${reason}`,'tw-warning'));
-      const editButton=button(growth?t('编辑养成','Edit growth'):t('录入养成','Record growth'),()=>openEditor(card));editButton.dataset.inventoryEdit=card.id;editButton.setAttribute('aria-expanded',String(editor?.card.id===card.id));row.append(editButton);
+      if(!batch?.active){const editButton=button(growth?t('编辑养成','Edit growth'):t('录入养成','Record growth'),()=>openEditor(card));editButton.dataset.inventoryEdit=card.id;editButton.setAttribute('aria-expanded',String(editor?.card.id===card.id));row.append(editButton);}
       if(lastCardFeedback?.id===card.id)row.append(node('p',lastCardFeedback.message,'tw-card-feedback'));
       list.append(row);if(editor?.card.id===card.id){list.append(editRoot);visibleEditor=true;}
     }
@@ -162,7 +185,7 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     if(cardId){const origin=[...list.querySelectorAll('[data-inventory-edit]')].find(button=>button.dataset.inventoryEdit===cardId);origin?.setAttribute('aria-expanded','false');if(returnFocus)(origin??search).focus({preventScroll:true});}
   }
   function openEditor(card){
-    if(editor){feedback(t('请先保存或取消正在编辑的卡片，再打开另一张。','Save or cancel the open card edit before opening another card.'));editor.form.querySelector('h3')?.focus({preventScroll:true});return;}
+    if(editor){feedback(t('请先保存或取消正在编辑的卡片，再打开另一张。','Save or cancel the open card edit before opening another card.'));revealEditor();return;}
     ensureStore();let current;try{current=store.read();}catch(error){if(currentServerContext().serverId){feedback(error.message,'error');return;}}
     lastCardFeedback=null;
     const saved=current?.inventory.growth[card.id],growth={...saved??manager.preset(card.id,card.kind)},inputs=new Map();
@@ -182,7 +205,8 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
       });
     }
     const save=node('button',saved?t('保存实际养成','Save actual growth'):t('加入卡库','Add to inventory'));save.type='submit';save.dataset.variant='primary';
-    const controls=node('div','','tw-actions');controls.append(save,button(t('取消','Cancel'),()=>closeEditor({returnFocus:true})));
+    const saveNext=node('button',t('保存并录入下一张','Save and next'));saveNext.type='submit';saveNext.dataset.saveNext='';
+    const controls=node('div','','tw-actions');controls.append(save,saveNext,button(t('取消','Cancel'),()=>closeEditor({returnFocus:true})));
     if(saved)controls.append(button(t('移出卡库','Remove from inventory'),()=>act(()=>{
       const fresh=checkCardRevision();for(const k of ['member','support'])fresh.inventory[`${k}CardIds`]=fresh.inventory[`${k}CardIds`].filter(id=>id!==card.id);delete fresh.inventory.growth[card.id];
       commit(fresh,t('已移出卡库，可撤销。','Removed from inventory. Undo is available.'),card.id);closeEditor({returnFocus:true});
@@ -195,9 +219,16 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
       const fresh=store.read()??store.empty();if(!same(fresh.inventory.growth[card.id]??null,baseline))throw Error(t('这张卡已在其他地方修改。请重新打开检查；当前输入仍保留。','This card changed elsewhere. Reopen it to review; your input is preserved.'));return fresh;
     }
     form.addEventListener('submit',event=>{event.preventDefault();act(()=>{
-      const fresh=checkCardRevision();fresh.inventory=manager.batch(fresh.inventory,[card.id],{patch:growth});commit(fresh,t('实际养成已保存。','Actual growth saved.'),card.id);closeEditor({returnFocus:true});
-    });});form.append(grid,controls);editRoot.replaceChildren(location,form);renderCards();title.focus({preventScroll:true});
+      const sequence=filteredCards(),index=sequence.findIndex(c=>c.id===card.id),following=index>=0?sequence.slice(index+1):[],advance=event.submitter===saveNext;
+      const fresh=checkCardRevision();fresh.inventory=manager.batch(fresh.inventory,[card.id],{patch:growth});commit(fresh,t('实际养成已保存。','Actual growth saved.'),card.id);closeEditor({returnFocus:!advance});
+      if(advance){
+        const remaining=filteredCards(),nextCard=following.find(c=>remaining.some(r=>r.id===c.id));
+        if(nextCard){page=Math.floor(remaining.findIndex(c=>c.id===nextCard.id)/pageSize);openEditor(nextCard);editRoot.scrollIntoView({block:'nearest'});}
+        else {feedback(t('当前筛选已录入到最后一张。','Reached the last card in this filter.'),'success');search.focus({preventScroll:true});}
+      }
+    });});form.append(grid,controls);editRoot.replaceChildren(location,form);renderCards();revealEditor();
   }
+  function revealEditor(){editRoot.scrollIntoView({block:'nearest'});editor?.form.querySelector('h3')?.focus({preventScroll:true});}
   function renderAccount(){
     if(accountDirty)return;
     const account=profile?.account??{};accountBaseline=structuredClone(account);accountFields.replaceChildren();accountStatus.textContent=store?.migrationNotice??'';
@@ -246,11 +277,16 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     try{profile=context.serverId?store.read():null;renderCards();renderAccount();}
     catch(error){feedback(t('资料未载入，原记录仍保留。可导入有效备份恢复：','Profile not loaded; the original record is preserved. Import a valid backup to recover: ')+error.message,'error');}
   }
+  const batchRoot=node('div','','tw-batch-workspace');root.insertBefore(batchRoot,list);
+  batch=setupSharedInventoryBatch({root:batchRoot,cards,manager,t,getStore:()=>{ensureStore();return store;},getInventory:()=>profile?.inventory??manager.empty(),getPageCards:()=>filteredCards().slice(page*pageSize,(page+1)*pageSize),
+    canEdit:()=>{if(!editor)return true;feedback(t('请先保存或取消正在编辑的卡片。','Save or cancel the open card first.'));revealEditor();return false;},
+    onStart:()=>{if(owned.value==='owned')owned.value='unowned';page=0;},onRender:reset=>{if(reset)page=0;renderCards();},commit,feedback});
+  root.insertBefore(batchRoot.querySelector('.tw-batch-toolbar'),batchRoot);
   refreshFilterOptions();refresh();
   return {
     refresh,
     // Closing the panel preserves these inputs; navigation/server changes must ask before discarding them.
-    hasUnsavedChanges(){return Boolean(editor||accountDirty||pendingImport||paste.value.trim()||file.files?.length||imports.hasUnsavedChanges());},
+    hasUnsavedChanges(){return Boolean(batch.hasUnsavedChanges()||editor||accountDirty||pendingImport||paste.value.trim()||file.files?.length||imports.hasUnsavedChanges());},
     destroy(){destroyed=true;fileRequest++;imports.destroy();shortcuts?.destroy();destroySkillPopover(skillWorkbench);for(const remove of listeners)remove();root.replaceChildren();}
   };
 }

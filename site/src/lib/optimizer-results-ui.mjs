@@ -29,8 +29,8 @@ function trainingDescription(change,workbench) {
   const fields=Array.isArray(change.fields)?change.fields:Object.entries(change.fields??change.changes??{}).map(([field,values])=>({field,...values}));
   return `${name}：${fields.map(item=>`${cardGrowthLabel(item.field,kind,typeof document==='undefined'?'zh-CN':document.documentElement.lang)} ${item.from??ui('未记录')} → ${item.to??'—'}`).join('，')}`;
 }
-export function renderOptimizerResults(workbench,results,{mode,objective,live=false}={}) {
-  const root=workbench.querySelector('[data-pairing-results]');root.replaceChildren();
+export function renderOptimizerResults(workbench,results,{mode,objective,live=false,target}={}) {
+  const root=target??workbench.querySelector('[data-pairing-results]');root.replaceChildren();
   workbench.querySelector('[data-results-empty]').hidden=Boolean(results.length);
   const candidates=visibleRecommendations(results),tabs=el('div',null,'task-candidate-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','推荐候选');if(candidates.length>1)root.append(tabs);const rows=[],buttons=[];
   for(const [i,result] of candidates.entries()) {

@@ -1,0 +1,31 @@
+---
+import '../styles/calculator-journey.css';
+import '../styles/playlist-workspace.css';
+---
+<div class="personal-library-launchers" data-personal-library-launchers>
+ <button type="button" class="playlist-launcher" data-playlist-workspace-open aria-haspopup="dialog">我的歌单</button>
+</div>
+<div data-playlist-workspace-host></div>
+<script>
+ type ScopeController=ReturnType<typeof import('../lib/calculation-scope-ui.mjs').createCalculationScopeControl>;
+ const group=document.querySelector<HTMLElement>('[data-personal-library-launchers]');
+ const launcher=group?.querySelector('button');
+ const teams=document.querySelector('[data-team-workspace-open]');
+ if(group&&launcher){
+  // Keep the existing launcher inside its owning shell for lazy workspace setup.
+  if(teams){teams.removeAttribute('hidden');teams.before(group);group.prepend(teams);}
+  let standalone:ScopeController|undefined,loading=false;
+  launcher.addEventListener('click',async()=>{
+   if(loading)return;
+   const active=[...document.querySelectorAll<HTMLElement & {playlistController?:ScopeController}>('.calculation-scope')].map(n=>n.playlistController).find(Boolean);
+   if(active){active.openManager();return;}
+   loading=true;launcher.textContent='正在打开…';
+   try{
+    if(!standalone){const [{createCalculationScopeControl},{sharedPlaylistData}]=await Promise.all([import('../lib/calculation-scope-ui.mjs'),import('../lib/shared-playlist-data.mjs')]);const host=document.querySelector<HTMLElement>('[data-playlist-workspace-host]');if(!host)return;const mount=document.createElement('div');mount.hidden=true;host.append(mount);standalone=createCalculationScopeControl({host,mount,data:sharedPlaylistData(),toolKey:'library',standalone:true});}
+    standalone.openManager();
+   }catch{launcher.textContent='加载失败，点击重试';}finally{loading=false;if(launcher.textContent==='正在打开…')launcher.textContent='我的歌单';}
+  });
+  const observeDock=()=>{const dock=document.querySelector('.event-action-dock');if(dock){const sync=()=>group.style.setProperty('--personal-dock-offset',`${Math.max(0,window.innerHeight-dock.getBoundingClientRect().top)}px`);new ResizeObserver(sync).observe(dock);sync();return true;}return false;};
+  if(!observeDock()){const observer=new MutationObserver(()=>{if(observeDock())observer.disconnect();});observer.observe(document.body,{childList:true,subtree:true});}
+ }
+</script>

@@ -40,7 +40,7 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
     <label>谱面难度（可多选）<select data-ap-difficulty multiple data-quick data-quick-all="all" data-quick-required><option value="all">全部</option><option data-difficulty="expert" value="expert" selected>EXPERT</option><option data-difficulty="hard" value="hard">HARD</option><option data-difficulty="normal" value="normal">NORMAL</option><option data-difficulty="easy" value="easy">EASY</option></select></label>
     <label class="ap-level-control">等级上限<input data-ap-level data-quick="20,25,28,30,40" type="number" min="1" max="40" value="40" /></label>
    </div>
-   <label class="event-eco"><input type="checkbox" data-ap-eco checked />节能计算（推荐）</label>
+   <label class="event-eco"><input type="checkbox" data-ap-eco />节能计算</label>
    <p class="event-hint">按 AP、满生命、无辅助估分，仅计算当前队伍，不搜索其他卡组。普通与挑战分别计算，激奏需使用团队结算档位。接近分档线时请用实打确认。</p>
    <div class="event-controls"><button class="event-primary" data-ap-run>计算各首歌的 AP 档位</button><button data-ap-cancel hidden>停止判档计算</button></div><p data-ap-status role="status"></p>
   </section>

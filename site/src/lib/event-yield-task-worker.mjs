@@ -19,7 +19,7 @@ self.addEventListener('message',async({data:{id,task}})=>{
    }
    return caches.get(c.id);
   };
-  const candidateCache=new Map(),challengePlanCache=new Map(),yieldControl=createCalculationScheduler({eco:input.eco!==false});
+  const candidateCache=new Map(),challengePlanCache=new Map(),yieldControl=createCalculationScheduler({eco:input.eco===true});
   let reportedAt=-Infinity;
   const onProgress=p=>{const now=performance.now();if(now-reportedAt<120)return;reportedAt=now;self.postMessage({id,type:'progress',progress:p});};
   let result;

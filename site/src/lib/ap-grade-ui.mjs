@@ -4,7 +4,8 @@ import {setupQuickOptions} from './tool-quick-options.mjs';
 import {createTeamDraft,parseTeamDraftSearch,serializeTeamDraftSearch} from './team-draft.mjs';
 import {createPersonalGrowthStore,applyPersonalGrowth} from './personal-growth-store.mjs';
 import {preparePresetDraft} from './preset-portfolio.mjs';
-import {eventSongCandidates} from './event-song-ranking.mjs';
+import {createCalculationScopeControl} from './calculation-scope-ui.mjs';
+import {scopeSummary} from './calculation-scope.mjs';
 import {applyAPBasis,eventToolSearch,AP_BASES} from './ap-grade.mjs';
 import {toolRoute} from './tool-route.mjs';
 import {selectedControlValues} from './filter-controls.mjs';
@@ -27,6 +28,9 @@ class APGradeTool extends HTMLElement{
   this.q('query').addEventListener('input',()=>{this.page=0;this.renderRows();});
   this.q('run').addEventListener('click',()=>this.run());this.q('cancel').addEventListener('click',()=>{this.stop();this.q('status').textContent='已停止判档计算。';});
   for(const [k,delta] of [['prev',-1],['next',1]])this.q(k).addEventListener('click',()=>{this.page+=delta;this.renderRows();});
+  this.calculationScope=createCalculationScopeControl({host:this,mount:this,data:this.data,toolKey:'ap-grade',getMode:()=>this.q('mode').value,
+   getFilters:()=>({allowedTrackIds:this.q('mode').value==='challenge'?this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>'music-'+r._liveMusicId):null,
+    difficulty:this.q('difficulty').multiple?selectedControlValues(this.q('difficulty')):this.q('difficulty').value,maxLevel:Number(this.q('level').value)}),onChange:()=>this.invalidate()});
   this.shortcuts=setupQuickOptions(this);
   this.renderTeam();this.renderRows();this.q('event-wrap').hidden=this.q('mode').value!=='challenge';
   this.teamWorkspaceCleanup=registerToolTeamContext(this,{
@@ -36,9 +40,9 @@ class APGradeTool extends HTMLElement{
    onInventoryChange:profile=>{this.profile=profile;}
   });
  }
- disconnectedCallback(){this.teamWorkspaceCleanup?.();this.stop();this.shortcuts?.destroy();}
+ disconnectedCallback(){this.calculationScope?.destroy();this.teamWorkspaceCleanup?.();this.stop();this.shortcuts?.destroy();}
  stop(){this.worker?.terminate();this.worker=null;this.q('cancel').hidden=true;this.q('run').disabled=false;this.removeAttribute('aria-busy');}
- invalidate(){this.stop();this.rows=null;this.page=0;this.q('failures').replaceChildren();this.q('status').textContent='队伍或谱面范围改变，请重新计算。';this.q('event-wrap').hidden=this.q('mode').value!=='challenge';this.renderRows();}
+ invalidate(){this.stop();this.calculationScope?.refresh();this.rows=null;this.page=0;this.q('failures').replaceChildren();this.q('status').textContent='队伍或谱面范围改变，请重新计算。';this.q('event-wrap').hidden=this.q('mode').value!=='challenge';this.renderRows();}
  renderTeam(){
   const root=this.q('team');root.replaceChildren();
   for(const [i,slot] of this.draft.slots.entries()){
@@ -63,7 +67,7 @@ class APGradeTool extends HTMLElement{
    const mode=this.q('mode').value,eventId=Number(this.q('event').value),level=Number(this.q('level').value);
    if(!Number.isInteger(level)||level<1||level>40)throw Error('最高等级需为 1–40 的整数');
    const allowed=mode==='challenge'?this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===eventId).map(r=>'music-'+r._liveMusicId):null;
-   const candidates=eventSongCandidates({...this.data,allowedTrackIds:allowed,difficulty:this.q('difficulty').multiple?selectedControlValues(this.q('difficulty')):this.q('difficulty').value,maxLevel:level});
+   const calculationScope=this.calculationScope.require({allowedTrackIds:allowed,difficulty:this.q('difficulty').multiple?selectedControlValues(this.q('difficulty')):this.q('difficulty').value,maxLevel:level});const candidates=calculationScope.candidates;
    if(!candidates.length)throw Error('没有符合条件的谱面');
    this.rows=null;this.page=0;this.renderRows();this.q('failures').replaceChildren();this.q('run').disabled=true;this.q('cancel').hidden=false;this.setAttribute('aria-busy','true');
    const worker=this.worker=new Worker(new URL('./ap-grade-worker.mjs',import.meta.url),{type:'module'});
@@ -71,7 +75,7 @@ class APGradeTool extends HTMLElement{
     if(this.worker!==worker)return;
     if(data.type==='progress'){this.q('status').textContent=`正在预测 ${data.done} / ${data.total} 张谱面…`;return;}
     this.stop();if(data.type==='result'){
-     this.rows=data.rows;this.q('status').textContent=`已预测 ${data.rows.length} 张谱面${data.failures.length?`，${data.failures.length} 张失败，结果不完整`:''}。切换判档依据或排序无需重新计算。`;this.renderRows();
+     this.rows=data.rows;this.q('status').textContent=`${scopeSummary(calculationScope)}。已预测 ${data.rows.length} 张谱面${data.failures.length?`，${data.failures.length} 张失败，结果不完整`:''}。切换判档依据或排序无需重新计算。`;this.renderRows();
      if(data.failures.length){const details=el('details');details.append(el('summary','查看未成功的谱面'));for(const f of data.failures)details.append(el('p',`${f.title} ${f.difficulty}：${f.message}`));this.q('failures').append(details);}
     }else this.q('status').textContent=data.message;
    });

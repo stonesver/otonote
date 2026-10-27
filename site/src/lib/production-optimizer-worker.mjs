@@ -1,3 +1,4 @@
+import {runPlaylistTeamBatch} from './playlist-team-batch.mjs';
 import {optimizePractical} from './practical-optimizer.mjs';
 import {optimizeInventory} from './inventory-optimizer.mjs';
 import {createFormationWorkerPool} from './formation-worker-pool.mjs';
@@ -10,6 +11,7 @@ self.addEventListener('message',async ({data})=>{
   const {requestId,payload}=data;let pool;
   const send=progress=>self.postMessage({requestId,type:'progress',progress});
   try {
+    if(payload.playlistCandidates){const result=await runPlaylistTeamBatch({candidates:payload.playlistCandidates,payload,signal:controller.signal,onProgress:send,onPartial:result=>self.postMessage({requestId,type:'playlist-partial',result})});self.postMessage({requestId,type:'result',result});return;}
     if(payload.planningScenario || payload.performanceScenario){const result=await optimizeTeamPlanning({...payload,signal:controller.signal,onProgress:send});self.postMessage({requestId,type:'result',result});return;}
     if(payload.searchMethod==='practical'){const result=await optimizePractical({...payload,signal:controller.signal,onProgress:send});self.postMessage({requestId,type:'result',result});return;}
     let size=Math.max(1,Math.min(4,Math.floor(payload.concurrency??1)));

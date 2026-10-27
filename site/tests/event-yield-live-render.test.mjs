@@ -1,3 +1,4 @@
+import {eventScopeControls} from './helpers/calculation-scopes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setupEventYieldOptimizer} from '../src/lib/event-yield-ui.mjs';
@@ -33,7 +34,7 @@ function harness(t){
  for(const [k,v] of Object.entries({budget:'100',starting:'0',depth:'full',goal:'badges',basis:'expectedScore',stages:'direct',songs:'all',difficulty:'all',level:'40','challenge-difficulty':'all','challenge-level':'40'}))q(k).value=v;
  q('goal').querySelector=node;
  const tool={q:node,querySelector:node,draft:{slots:[],modifiers:{}},data:{rules:{tables:{ChallengeMusic:[],LiveMusic:[]}},tracks:[{id:'music-1'}],charts:[{id:'chart-1',trackId:'music-1',difficulty:'hard',level:10,analysisDataUrl:'/chart'}]}};
- const optimizer=setupEventYieldOptimizer(tool);optimizer.sync();optimizer.run();t.after(()=>optimizer.destroy());
+ const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:eventScopeControls});optimizer.sync();optimizer.run();t.after(()=>optimizer.destroy());
  assert.equal(workers.length,1);
  const send=data=>workers.at(-1).listeners.message({data});
  const partial=(value,type='partial')=>({type,done:1,total:360,available:360,rows:['one','two'].map((id,i)=>({id,song:{id,title:id,difficulty:'hard',seconds:100},total:{badges:value-i,eventPoints:100},reward:{mode:'ordinary',scoreRank:5,badges:1,eventPoints:1,challengePoints:1},draft:{slots:[]},bonuses:{rewardBP:0,eventPointBP:0},normalPlays:33,spentFire:99,remainingFire:1,earnedCP:1,expectedScore:1000,estimatedScore:1000,minimumRank:5,maximumRank:5,power:1})),failures:[],coverageComplete:true});

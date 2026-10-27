@@ -1,5 +1,6 @@
 import {enhanceTaskSwitcher} from './tool-task-switcher.mjs';
-import {eventSongCandidates} from './event-song-ranking.mjs';
+import {createCalculationScopeControl} from './calculation-scope-ui.mjs';
+import {scopeSummary,chartKey} from './calculation-scope.mjs';
 import {applyAPBasis,withAPScoreThresholds,scoreThresholds} from './ap-grade.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {activationRows,playbackDuration} from './skill-activation-model.mjs';
@@ -56,6 +57,7 @@ export function setupScoreWorkbenchView(host,{main,aside,conditionBody,current,c
   rail.hidden=state.collapsed&&!expanded;conditionSummary.hidden=!state.collapsed;
   modify.textContent=expanded?'收起条件':'修改条件';modify.setAttribute('aria-expanded',String(!rail.hidden));
   conditionText.textContent=view==='single'?`${host.data.tracks.find(t=>t.id===host.draft.selectedSongId)?.title??'单曲估分'} · ${host.draft.selectedDifficulty?.toUpperCase()??'未选谱面'}`:`队伍选曲 · ${selectedControlValues(difficulty.field).map(d=>d.toUpperCase()).join(' / ')} · ${level.field.selectedOptions[0]?.textContent??'不限'}`;
+  if(view==='songs'&&calculationScope)conditionText.textContent+=' · '+calculationScope.summary;
   calculation.hidden=state.state==='setup';if(!calculation.hidden)feedback.update(state);else feedback.reset();
   run.hidden=false;run.disabled=running;cancel.hidden=!running;
   run.textContent=view==='single'?'重新估分':state.state==='setup'?'计算队伍选曲':'重新选曲';
@@ -70,6 +72,7 @@ export function setupScoreWorkbenchView(host,{main,aside,conditionBody,current,c
  modify.addEventListener('click',()=>{expanded=!expanded;if(expanded)setup.open=true;updateDock();});
  const dockObserver=new ResizeObserver(()=>host.style.setProperty('--event-dock-height',`${dock.getBoundingClientRect().height}px`));dockObserver.observe(dock);
  const desktop=window.matchMedia('(min-width:901px)'),resize=()=>{setup.open=desktop.matches;};desktop.addEventListener('change',resize);resize();
+ let calculationScope,resultScope=null;const checkedCharts=new Set();
  let view=new URLSearchParams(location.search).get('view')==='songs'?'songs':'single',worker=null,rows=null,page=0,key='';
  const stop=()=>{worker?.terminate();worker=null;};
  function setView(next){view=next;expanded=false;refresh();const url=new URL(location.href);url.searchParams.set('view',view);history.replaceState(null,'',url);host.taskWorkbench?.refresh();}
@@ -78,12 +81,13 @@ export function setupScoreWorkbenchView(host,{main,aside,conditionBody,current,c
   const found=(rows??[]).filter(r=>r.title.toLowerCase().includes(search.value.trim().toLowerCase())).map(r=>applyAPBasis(r,basis.field.value));
   found.sort((a,b)=>(sort.field.value==='grade'?b.scoreRank-a.scoreRank:sort.field.value==='score'?b.estimatedScore-a.estimatedScore:0)||(a.seconds??Infinity)-(b.seconds??Infinity)||a.level-b.level);
   const count=Math.max(1,Math.ceil(found.length/10));page=Math.min(page,count-1);tbody.replaceChildren();
-  for(const r of found.slice(page*10,page*10+10)){const row=el('tr'),song=el('td'),songTitle=el('strong',r.title);song.append(songTitle,el('small',`${r.difficulty.toUpperCase()} · Lv.${r.level}`));row.append(song,el('td',r.seconds==null?'—':`${fmt(r.seconds)} s`),el('td',grade(r.scoreRank),'task-grade-cell'));const points=el('td');points.append(el('strong',fmt(r.estimatedScore)),el('small',r.nextRank==null?'已达最高档':`距 ${grade(r.nextRank)} 档 ${fmt(r.nextRankGap)}`));const action=el('td'),use=el('button','单曲');use.type='button';use.addEventListener('click',()=>{q('[data-scoring-mode]').value='ordinary';host.shortcuts?.sync();host.songPicker.applySelection({selectedSongId:r.trackId,selectedDifficulty:r.difficulty});setView('single');});action.append(use);row.append(points,action);tbody.append(row);}
-  tableWrap.hidden=!found.length;empty.hidden=!!found.length;empty.textContent=rows?'没有符合搜索条件的歌曲。':'计算后可直接比较档位、分数与时长，再带入单曲查看明细。';pages.hidden=!found.length;pageLabel.textContent=`${page+1} / ${count}`;prev.disabled=page===0;next.disabled=page===count-1;
+  for(const r of found.slice(page*10,page*10+10)){const row=el('tr'),song=el('td'),songTitle=el('strong',r.title);const check=el('input');check.type='checkbox';check.setAttribute('aria-label',`选择 ${r.title} ${r.difficulty}`);check.checked=checkedCharts.has(chartKey(r));check.addEventListener('change',()=>{check.checked?checkedCharts.add(chartKey(r)):checkedCharts.delete(chartKey(r));updateSaveActions();});song.append(check,songTitle,el('small',`${r.difficulty.toUpperCase()} · Lv.${r.level}`));row.append(song,el('td',r.seconds==null?'—':`${fmt(r.seconds)} s`),el('td',grade(r.scoreRank),'task-grade-cell'));const points=el('td');points.append(el('strong',fmt(r.estimatedScore)),el('small',r.nextRank==null?'已达最高档':`距 ${grade(r.nextRank)} 档 ${fmt(r.nextRankGap)}`));const action=el('td'),use=el('button','单曲');use.type='button';use.addEventListener('click',()=>{q('[data-scoring-mode]').value='ordinary';host.shortcuts?.sync();host.songPicker.applySelection({selectedSongId:r.trackId,selectedDifficulty:r.difficulty});setView('single');});action.append(use);row.append(points,action);tbody.append(row);}
+  tableWrap.hidden=!found.length;empty.hidden=!!found.length;empty.textContent=rows?'没有符合搜索条件的歌曲。':'计算后可直接比较档位、分数与时长，再带入单曲查看明细。';pages.hidden=!found.length;pageLabel.textContent=`${page+1} / ${count}`;prev.disabled=page===0;next.disabled=page===count-1;updateSaveActions();
  }
  function refresh(){
   const draft=structuredClone(host.draft);delete draft.selectedSongId;delete draft.selectedDifficulty;delete draft.modifiers.performanceScenario;delete draft.modifiers.event;
-  const fingerprint=JSON.stringify([draft,selectedControlValues(difficulty.field),level.field.value]);if(key&&key!==fingerprint){stop();rows=null;page=0;states.songs={state:'setup',label:'队伍、养成或范围已改变，请重新计算。',collapsed:false};renderRows();}key=fingerprint;
+  calculationScope?.refresh();setupTitle.textContent=view==='songs'&&calculationScope?`计算条件 · ${calculationScope.summary}`:'计算条件';
+  const fingerprint=JSON.stringify([draft,selectedControlValues(difficulty.field),level.field.value,calculationScope?.snapshot?.fingerprint??null]);if(key&&key!==fingerprint){stop();rows=null;checkedCharts.clear();resultScope=null;page=0;states.songs={state:'setup',label:'队伍、养成或范围已改变，请重新计算。',collapsed:false};renderRows();}key=fingerprint;
   summary.hidden=preview.hidden=view!=='single';
   profile.closest('label').hidden=q('[data-scoring-mode]').closest('label').hidden=view!=='single';
   if(view==='songs'&&songs.nextElementSibling!==current)current.before(songs);
@@ -91,13 +95,23 @@ export function setupScoreWorkbenchView(host,{main,aside,conditionBody,current,c
   singleTab.setAttribute('aria-pressed',String(view==='single'));songsTab.setAttribute('aria-pressed',String(view==='songs'));title.textContent=view==='single'?'当前条件下的单曲估分':'固定当前队伍，比较歌曲';caption.textContent=view==='single'?'更换队伍、谱面或发挥后，自动重新计算':'按所选难度与等级，逐谱计算 AP 分数和档位';
   const track=host.data.tracks.find(t=>t.id===host.draft.selectedSongId),resultTitle=q('[data-score-result-title]');resultTitle.textContent=track?`${track.title} · ${host.draft.selectedDifficulty?.toUpperCase()??''}`:'选择谱面，查看单曲结果';updateDock();
  }
+ calculationScope=createCalculationScopeControl({host,mount:range,data:host.data,toolKey:'score',getFilters:()=>view==='songs'?{difficulty:selectedControlValues(difficulty.field),maxLevel:Number(level.field.value)}:{},onChange:()=>{refresh();}});
+ host.calculationScope=calculationScope;
+ const saveChecked=el('button','保存勾选谱面为歌单'),saveFiltered=el('button','保存全部筛选结果为歌单'),addChecked=el('button','加入已有歌单');
+ for(const b of [saveChecked,saveFiltered,addChecked]){b.type='button';controls.append(b);}
+ function updateSaveActions(){const selected=(rows??[]).filter(r=>checkedCharts.has(chartKey(r))).length,filtered=(rows??[]).filter(r=>r.title.toLowerCase().includes(search.value.trim().toLowerCase())).length;saveChecked.disabled=addChecked.disabled=!selected;saveFiltered.disabled=!filtered;saveChecked.textContent=`保存勾选谱面（${selected}）`;saveFiltered.textContent=`保存全部筛选结果（${filtered}）`; }
+ const chosen=()=>{const selected=(rows??[]).filter(r=>checkedCharts.has(chartKey(r)));if(!selected.length){status.textContent='请先勾选要保存的谱面。';updateCalculation('songs',{state:'error',label:status.textContent});return null;}return selected;};
+ saveChecked.addEventListener('click',()=>{const selected=chosen();if(selected)calculationScope.saveCharts(selected);});
+ addChecked.addEventListener('click',()=>{const selected=chosen();if(selected)calculationScope.addCharts(selected);});
+ saveFiltered.addEventListener('click',()=>{const selected=(rows??[]).filter(r=>r.title.toLowerCase().includes(search.value.trim().toLowerCase()));if(selected.length)calculationScope.saveCharts(selected);});
+ const carry=event=>{const link=event.target.closest?.('a[href]');if(link?.href.includes('/tools/'))calculationScope.carry(link);};host.addEventListener('click',carry);
  run.addEventListener('click',()=>{if(view==='single'){host.refreshInput();return;}if(worker)return;try{
   assertToolTeamCompatible(host.teamWorkspaceContext);if(host.draft.slots.some(s=>!s.memberCardId||!s.supportCardId))throw Error('请先完成五组成员与留影配对。');
-  const candidates=eventSongCandidates({...host.data,difficulty:selectedControlValues(difficulty.field),maxLevel:Number(level.field.value)});if(!candidates.length)throw Error('没有符合条件的可计算谱面。');
+  resultScope=calculationScope.require();const candidates=resultScope.candidates;checkedCharts.clear();
   const draft=structuredClone(host.draft);delete draft.modifiers.performanceScenario;delete draft.modifiers.event;
   rows=null;page=0;renderRows();const active=worker=new Worker(new URL('./ap-grade-worker.mjs',import.meta.url),{type:'module'});run.disabled=true;cancel.hidden=false;songs.setAttribute('aria-busy','true');updateCalculation('songs',{state:'running',label:`正在准备 ${candidates.length} 张谱面…`});
-  active.addEventListener('message',({data})=>{if(active!==worker)return;if(data.type==='progress'){updateCalculation('songs',{state:'running',label:'正在计算队伍选曲',completed:data.done,total:data.total});return;}stop();if(data.type==='result'){rows=data.rows;updateCalculation('songs',{state:data.failures.length?'error':'complete',label:`已计算 ${rows.length} 张谱面 · AP / 满生命${data.failures.length?`；${data.failures.length} 张失败，结果不完整`:''}`});renderRows();}else updateCalculation('songs',{state:'error',label:data.message});});
-  active.addEventListener('error',()=>{if(active!==worker)return;stop();updateCalculation('songs',{state:'error',label:'选曲计算服务加载失败，请重试。'});});active.postMessage({rules:withAPScoreThresholds(host.data.formalRules,host.data.tracks),draft,candidates,mode:'ordinary',eco:true});
+  active.addEventListener('message',({data})=>{if(active!==worker)return;if(data.type==='progress'){updateCalculation('songs',{state:'running',label:'正在计算队伍选曲',completed:data.done,total:data.total});return;}stop();if(data.type==='result'){rows=data.rows;updateCalculation('songs',{state:data.failures.length?'error':'complete',label:`${data.failures.length?'选曲结果不完整':'队伍选曲完成'} · ${rows.length} 张谱面`,detail:`${scopeSummary(resultScope)} · AP / 满生命${data.failures.length?`；${data.failures.length} 张失败`:''}`});renderRows();}else updateCalculation('songs',{state:'error',label:data.message});});
+  active.addEventListener('error',()=>{if(active!==worker)return;stop();updateCalculation('songs',{state:'error',label:'选曲计算服务加载失败，请重试。'});});active.postMessage({rules:withAPScoreThresholds(host.data.formalRules,host.data.tracks),draft,candidates,mode:'ordinary',eco:false});
  }catch(e){stop();updateCalculation('songs',{state:'error',label:e.message});}});
  cancel.addEventListener('click',()=>{if(view==='single'){host.stopScoreCalculation();return;}stop();updateCalculation('songs',{state:'stopped',label:'已停止选曲计算。'});});for(const field of [difficulty.field,level.field])field.addEventListener('change',()=>{refresh();host.taskWorkbench?.refresh();});
  for(const field of [basis.field,sort.field])field.addEventListener('change',()=>{page=0;renderRows();});search.addEventListener('input',()=>{page=0;renderRows();});prev.addEventListener('click',()=>{page--;renderRows();});next.addEventListener('click',()=>{page++;renderRows();});
@@ -108,5 +122,5 @@ export function setupScoreWorkbenchView(host,{main,aside,conditionBody,current,c
   const playback=result.skillPlayback,variant=playback?.variants?.[0];if(variant){const duration=playbackDuration(playback,variant),track=el('div',null,'task-skill-mini-track');for(const r of activationRows(playback,variant)){const bar=el('i');bar.style.left=`${r.startMs/duration*100}%`;bar.style.width=`${Math.max(1,(r.endMs-r.startMs)/duration*100)}%`;bar.title=`位置 ${r.slotIndex+1} · ${(r.startMs/1000).toFixed(1)}–${(r.endMs/1000).toFixed(1)} s`;track.append(bar);}preview.append(el('span','0:00'),track,el('span',`${Math.floor(duration/60000)}:${String(Math.floor(duration/1000)%60).padStart(2,'0')}`),el('small','一次实际技能顺序的发动窗口；平均分来自多种顺序。'));}
   refresh();
  }
- renderRows();refresh();return {refresh,renderResult,updateSingle:update=>updateCalculation('single',update),destroy(){dockObserver.disconnect();dock.remove();conditionSummary.remove();host.style.removeProperty('--event-dock-height');desktop.removeEventListener('change',resize);stop();shortcut.destroy();detailPanel.close();detailPanel.dialog.remove();}};
+ renderRows();refresh();return {refresh,renderResult,updateSingle:update=>updateCalculation('single',update),destroy(){feedback.destroy();host.removeEventListener('click',carry);calculationScope.destroy();delete host.calculationScope;dockObserver.disconnect();dock.remove();conditionSummary.remove();host.style.removeProperty('--event-dock-height');desktop.removeEventListener('change',resize);stop();shortcut.destroy();detailPanel.close();detailPanel.dialog.remove();}};
 }

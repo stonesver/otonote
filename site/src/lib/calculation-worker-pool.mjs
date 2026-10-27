@@ -36,7 +36,7 @@ export function createCalculationWorkerPool({size,createWorker}){
 }
 
 export function eventYieldParallelism(input,{cores=globalThis.navigator?.hardwareConcurrency??1,memory=globalThis.navigator?.deviceMemory}={}){
- if(input.eco!==false||input.searchDepth!=='full')return 1;
+ if(input.eco===true||input.searchDepth!=='full')return 1;
  // Keep one logical core for interaction; cap replicated scoring data on
  // low-memory and unknown-memory browsers rather than exhausting the device.
  return Math.max(1,Math.min(Number.isFinite(cores)?Math.floor(cores)-1:1,memory>=8?4:2));

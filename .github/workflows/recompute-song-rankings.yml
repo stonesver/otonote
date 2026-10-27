@@ -85,19 +85,22 @@ jobs:
           expected, target = sys.argv[1:]
           if not re.fullmatch('[a-f0-9]{64}', expected):
               raise SystemExit('Invalid reviewed rule digest')
-          client = boto3.client('s3',
-              endpoint_url='https://' + os.environ['R2_ACCOUNT_ID'] + '.r2.cloudflarestorage.com',
-              aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'],
-              aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'], region_name='auto',
-              config=Config(connect_timeout=15, read_timeout=30,
-                            retries={'mode':'standard','max_attempts':3}))
-          response = client.get_object(Bucket=os.environ['R2_PRIVATE_BUCKET'],
-                                       Key='state/objects/' + expected)
-          body = response['Body']
           try:
-              raw = body.read(16 * 1024 * 1024 + 1)
-          finally:
-              body.close()
+              client = boto3.client('s3',
+                  endpoint_url='https://' + os.environ['R2_ACCOUNT_ID'] + '.r2.cloudflarestorage.com',
+                  aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'],
+                  aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'], region_name='auto',
+                  config=Config(connect_timeout=15, read_timeout=30,
+                                retries={'mode':'standard','max_attempts':3}))
+              response = client.get_object(Bucket=os.environ['R2_PRIVATE_BUCKET'],
+                                           Key='state/objects/' + expected)
+              body = response['Body']
+              try:
+                  raw = body.read(16 * 1024 * 1024 + 1)
+              finally:
+                  body.close()
+          except Exception as error:
+              raise SystemExit('Cannot read pinned rule input: ' + type(error).__name__) from None
           if len(raw) > 16 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != expected:
               raise SystemExit('Rule repair input failed verification')
           Path(target).write_bytes(raw)

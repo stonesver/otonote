@@ -26,8 +26,14 @@ def growth(resources, output):
                 data = obj.read(); save(data.image,data.m_Name,name,resources.used[name]['sha256'])
     env = UnityPy.Environment()
     with zipfile.ZipFile(resources.apk) as archive:
-        for name in archive.namelist():
-            if '_fixparts_band_uibandrankicon_' in name or '_texture_bandrank_' in name:
+        names = archive.namelist()
+        rank_parts = [name for name in names if '_fixparts_band_uibandrankicon_' in name and name.endswith('.bundle')]
+        if not rank_parts:
+            # Newer clients embed the same serialized component in the profile prefab.
+            rank_parts = [name for name in names if '_fixparts_playerprofile_uiplayerprofilebandrankentity_' in name and name.endswith('.bundle')]
+        if len(rank_parts) != 1: raise ValueError('missing or duplicate rank mapping')
+        for name in names:
+            if name in rank_parts or '_texture_bandrank_' in name:
                 raw = archive.read(name)
                 env.load_file(raw if raw.startswith(b'UnityFS\0') else decrypt_header(raw,Path(name).name,resources.key,resources.seed),name=Path(name).name)
     apk_sha = file_hash(resources.apk)

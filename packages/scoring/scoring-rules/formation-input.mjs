@@ -127,5 +127,5 @@ function resolveLegacySearchInput(rules, draft, { scope = "selected", inventory,
     throw new Error("必选成员包含同名角色");
   }
   return { draft: result, inventory: pool, constraints: normalized, scope, theoreticalGrowth,
-    assumptions: ["未填写的账号角色评级为 1、TGW 为 1，乐器与回忆为 0。", ...(scope === "theoretical" && theoreticalGrowth === "maximum" ? ["卡片按满等级、满突破、满觉醒及满技能；账号评级、乐器、TGW使用填写值"] : scope === "selected" ? ["所选卡未填写等级时使用当前突破/觉醒的等级上限，未填写突破、觉醒和技能等级时为 1。"] : [])] };
+    assumptions: ["未填写的账号角色评级为 1、TGW 为 1，乐器为 0。", ...(scope === "theoretical" && theoreticalGrowth === "maximum" ? ["卡片按满等级、满突破、满觉醒及满技能；账号评级、乐器、TGW使用填写值"] : scope === "selected" ? ["所选卡未填写等级时使用当前突破/觉醒的等级上限，未填写突破、觉醒和技能等级时为 1。"] : [])] };
 }

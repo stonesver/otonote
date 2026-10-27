@@ -5,11 +5,20 @@ import { createFormationCalculator } from "../src/lib/scoring-rules/formation-po
 import { optimizeProductionPairing } from "../src/lib/production-optimizer.mjs";
 import { createTeamDraft, parseTeamDraftSearch, serializeTeamDraftSearch } from "../src/lib/team-draft.mjs";
 
-const rules = JSON.parse(readFileSync(new URL("../src/data/formal-scoring-rules.json", import.meta.url)));
+const rules = JSON.parse(readFileSync(new URL("../../packages/scoring/data/formal-scoring-rules.json", import.meta.url)));
 const calculator = createFormationCalculator(rules);
 const draft = () => createTeamDraft({ slots: Array.from({ length: 5 }, (_, i) => ({
   memberCardId: `member-card-${i + 1}`, supportCardId: `support-card-${i + 1}`
 })), selectedSongId: "music-100001", modifiers: { tgwCardRank: 2 } });
+
+test("unsupported legacy memory inputs cannot change power or the shared percentage base", () => {
+  const baseline = draft(), legacy = structuredClone(baseline);
+  legacy.modifiers.memoryPoints = { 1: 100000, 2: 200, 3: 300 };
+  const before = structuredClone(legacy);
+  assert.deepEqual(calculator.calculate(legacy), calculator.calculate(baseline));
+  assert.deepEqual(calculator.calculateSlot(legacy, 0), calculator.calculateSlot(baseline, 0));
+  assert.deepEqual(legacy, before, "keep saved legacy data intact");
+});
 
 test("leader skill category targets use mechanical categories, not display groups", () => {
   const r=structuredClone(rules), member=r.tables.MemberCard[0];
@@ -54,14 +63,14 @@ test("manual native-rule fixture: support is a rate; each source floors the SAME
   t.LeaderSkillEffect = [{ _id: 1, _leaderSkillID: t.MemberCard[0]._leaderSkillID, _level: 1,
     _skillTargetIDs: [], _skillEffectType: 1000, _effectValue: 1000 }];
   const d = createTeamDraft({ slots: [null, null, { memberCardId: "member-card-1", supportCardId: "support-card-1" }],
-    modifiers: { characterRanks: { 1: 2 }, memoryPoints: { 1: 3 }, tgwCardRank: 2 } });
+    modifiers: { characterRanks: { 1: 2 }, tgwCardRank: 2 } });
   const result = createFormationCalculator(r).calculate(d);
-  assert.deepEqual(result.slots[2].bonusBase, { performance: 111, technic: 213, visual: 317, total: 641 });
-  assert.deepEqual(result.breakdown.support, { performance: 11, technic: 42, visual: 95, total: 148 });
-  assert.equal(result.breakdown.leader.total, 63); // 11 + 21 + 31
+  assert.deepEqual(result.slots[2].bonusBase, { performance: 108, technic: 210, visual: 314, total: 632 });
+  assert.deepEqual(result.breakdown.support, { performance: 10, technic: 42, visual: 94, total: 146 });
+  assert.equal(result.breakdown.leader.total, 62); // 10 + 21 + 31
   assert.equal(result.breakdown.typeLink.total, 30); // 5 + 10 + 15
   assert.equal(result.breakdown.tgw.total, 6); // 1 + 2 + 3 (doesn't compound other bonuses)
-  assert.equal(result.total.total, 888); // 641 + 148 + 63 + 30 + 6
+  assert.equal(result.total.total, 876); // 632 + 146 + 62 + 30 + 6
 });
 
 test("music type follows member attribute, not the character band", () => {

@@ -13,6 +13,15 @@ from tests.test_r2_shared_media import TrackedBucket, reseal
 MODEL = 'ournotes-native-score-v9'
 
 
+def reference_rules():
+    return {'sourceReleaseId':'sample','verificationStatus':'reference_compatible',
+            'tables':{'LiveMusic':[]}, 'nativeSha256':'native',
+            'native':{'sourceReleaseId':'baseline','nativeSha256':'native'},
+            'referenceProfile':{'sourceReleaseId':'baseline','nativeSha256':'native',
+                'dataCompatibility':'supported_model','modelId':'ournotes-scoring-model-v1',
+                'currentGameplayVerified':False}}
+
+
 def computed(source, output, model):
     output.mkdir()
     for locale in ('en', 'zh-CN'):
@@ -113,12 +122,7 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
 
     def test_pinned_rule_repair_publishes_rules_coverage_and_rankings_together(self):
         self.seed()
-        rules = {'sourceReleaseId':'sample','verificationStatus':'reference_compatible',
-                 'tables':{'LiveMusic':[]}, 'nativeSha256':'native',
-                 'native':{'sourceReleaseId':'baseline','nativeSha256':'native'},
-                 'referenceProfile':{'sourceReleaseId':'baseline','nativeSha256':'native',
-                    'dataCompatibility':'supported_model','modelId':'ournotes-scoring-model-v1',
-                    'currentGameplayVerified':False}}
+        rules = reference_rules()
         path = self.root/'repaired-rules.json'; path.write_bytes(content.canonical(rules))
         def compute_repair(source, output, model):
             for locale in ('en','zh-CN'):
@@ -146,15 +150,30 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
         for fault in ('digest','release','audit'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
                 self.root=Path(directory);self.bucket=TrackedBucket();self.seed()
-                raw=content.canonical({'sourceReleaseId':'other' if fault=='release' else 'sample',
-                    'verificationStatus':'code_audited' if fault=='audit' else 'reference_compatible',
-                    'tables':{}})
+                rules=reference_rules()
+                if fault=='release':rules['sourceReleaseId']='other'
+                if fault=='audit':rules['verificationStatus']='code_audited'
+                raw=content.canonical(rules)
                 path=self.root/'rules.json';path.write_bytes(raw)
                 with self.assertRaises(ValueError):
                     self.run_refresh(publish=True, scoring_rules=path,
                         expected_rules_sha256='0'*64 if fault=='digest' else content.digest(raw),
                         compute=lambda *args:self.fail('invalid repair reached computation'))
                 self.assert_no_publication()
+
+    def test_invalid_skill_coverage_cannot_publish_repaired_rules(self):
+        self.seed()
+        path=self.root/'rules.json';path.write_bytes(content.canonical(reference_rules()))
+        def bad_coverage(source, output, model):
+            computed(source,output,model)
+            for locale in ('en','zh-CN'):
+                (output/(locale+'-compatibility.json')).write_bytes(content.canonical(
+                    {'sourceReleaseId':'other','status':'compatible','checks':1,'issues':[]}))
+        with self.assertRaisesRegex(ValueError, 'skill coverage'):
+            self.run_refresh(publish=True, compute=bad_coverage, scoring_rules=path,
+                expected_rules_sha256=content.digest(path.read_bytes()))
+        self.assert_no_publication()
+        self.assertEqual(self.bucket.puts, [])
 
     def test_incomplete_or_invalid_scores_never_upload(self):
         for fault in ('model', 'coverage', 'score', 'release'):

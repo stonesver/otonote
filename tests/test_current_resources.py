@@ -11,6 +11,30 @@ from tools.global_remote_sync import file_hash, write_json
 
 
 class ResourceCacheTests(unittest.TestCase):
+    def test_ampersand_bundle_uses_verified_download_and_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            resource = CurrentResources.__new__(CurrentResources)
+            resource.cache = Path(tmp)
+            resource.report = {'observation': {'cdnRoot': 'https://example.invalid'}, 'catalogSha256': 'catalog-a'}
+            resource.downloaded, resource.budget, resource.imports, resource.used = 0, 4, {}, {}
+            name = 'stamp_assets_ensemble_a&b&c_' + 'a' * 32 + '.bundle'
+            location = SimpleNamespace(primary_key=name, expected_size=4,
+                                       internal_id='https://dummy.net/asset/Android/' + name)
+
+            def download(url, path, size):
+                self.assertEqual(url, 'https://example.invalid/asset/Android/' + name)
+                path.parent.mkdir(parents=True); path.write_bytes(b'data')
+                receipt = {'url': url, 'byteSize': size, 'sha256': file_hash(path)}
+                write_json(path.with_name(path.name + '.receipt.json'), receipt)
+                return receipt
+
+            with patch('tools.current_resources.acquire', side_effect=download) as acquire:
+                path = resource.get(location)
+                self.assertEqual(path.read_bytes(), b'data')
+                self.assertEqual(resource.get(location), path)
+                acquire.assert_called_once()
+            self.assertEqual(resource.downloaded, 4)
+
     def test_absent_unchanged_asset_is_downloaded_and_cached(self):
         with tempfile.TemporaryDirectory() as tmp:
             resource = CurrentResources.__new__(CurrentResources)

@@ -217,6 +217,21 @@ class GlobalRemoteTest(unittest.TestCase):
             with self.assertRaises(ProtocolError):
                 allowed_url(url, ("example.org",))
 
+    def test_catalog_plan_preserves_ampersands_in_resource_filenames(self):
+        name = 'stamp_assets_ensemble_a&b&c_' + 'a' * 32 + '.bundle'
+        path = '/asset/Android/' + name
+        catalog = CatalogAdapter().parse_bytes(json.dumps({'locations': [{
+            'primaryKey': name, 'internalId': 'https://dummy.net' + path,
+            'providerId': 'UnityEngine.ResourceManagement.ResourceProviders.AssetBundleProvider',
+            'resourceType': 'AssetBundle', 'expectedSize': 4,
+        }]}).encode())
+        plan = plan_assets(catalog)
+        self.assertEqual(plan['assets'][0]['path'], path)
+        self.assertEqual(plan['remoteCount'], 1)
+        for suffix in ('?x=1&y=2', '#fragment', '/..', '/%2e%2e', '/\\escape'):
+            with self.subTest(suffix=suffix), self.assertRaises(ProtocolError):
+                remote_path('https://dummy.net' + path + suffix)
+
     def test_master_manifest_rejects_duplicate_escape_size_and_wrong_digest(self):
         valid = {"name": "MasterText.bin", "hash": "a" * 64, "size": 100}
         self.assertEqual(validate_manifest({"version": "v", "files": [valid]}, "v"), [valid])

@@ -153,7 +153,7 @@ test('job-local pair models reuse only identical inputs and honor cancellation',
   const {rules,draft}=fixture(),input=resolveSearchInput(rules,draft),modelCache={};
   const first=await compilePairingModels(rules,input,{modelCache});
   const second=await compilePairingModels(rules,structuredClone(input),{modelCache});assert.equal(second,first);
-  const changed=structuredClone(input);changed.draft.modifiers.memoryPoints={1:100};
+  const changed=structuredClone(input);changed.draft.modifiers.characterRanks={1:50};
   const third=await compilePairingModels(rules,changed,{modelCache});assert.notEqual(third,first);
   assert.notDeepEqual(third,first);
   const controller=new AbortController();controller.abort();

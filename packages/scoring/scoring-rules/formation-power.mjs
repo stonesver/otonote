@@ -149,7 +149,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     if (!Array.isArray(draft?.slots) || draft.slots.length !== 5) throw new Error("Exactly five slots required");
     const modifiers = draft.modifiers ?? {};
     const event = createEventPipeline(rules, modifiers.event, eventAdapters);
-    for (const name of ["growth", "characterRanks", "memoryPoints", "bandItems", "bandItemTotals"]) {
+    for (const name of ["growth", "characterRanks", "bandItems", "bandItemTotals"]) {
       const value = modifiers[name];
       if (value !== undefined && (!value || typeof value !== "object" || Array.isArray(value))) {
         throw new TypeError(`Invalid settings: ${name}`);
@@ -198,8 +198,11 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
       const memberBase = createCardPowerInt(...memberValues);
       const rank = modifiers.characterRanks?.[member._characterID] ?? 1;
       const rankBonus = required(t.CharacterRank, (r) => r._rank === rank, "character rank")._bonus;
-      const memoryPoints = requireInteger(modifiers.memoryPoints?.[member._characterID] ?? 0, "memory points");
-      const memory = uniform(memoryPoints);
+      // Native memory comes from song panels and member/support collection levels,
+      // not a per-character uniform input. Its verified Master tables are empty.
+      // Preserve legacy draft data, but do not let this unsupported override score.
+      // See docs/reference/calculation-search.md for the version-bound evidence.
+      const memory = zero();
       const characterRank = uniform(rankBonus), characterTotalRank = uniform(totalRankBonus);
       // CalculateSlotPower sp+0x958: member + both rank bonuses + memory.
       // Each percentage below independently uses this base, before other bonuses.
@@ -249,7 +252,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     return { status: referenceScoringRules(rules) ? 'estimated' : 'code_calculated', verificationStatus: rules.verificationStatus, sourceReleaseId,
       ruleSetVersion: rules.ruleSetVersion, leaderSlotIndex: 2, total, breakdown, slots, event: event.context,
       assumptions: ["Unspecified growth: rank 1, awake 1, maximum level at that awake/rank",
-        "Unspecified character ranks: 1; T.G.W: 1; instruments and memory: 0", event.context.id == null ? "No event power bonus" : `Event ${event.context.id} applied by version-bound adapter`] };
+        "Unspecified character ranks: 1; T.G.W: 1; instruments: 0", event.context.id == null ? "No event power bonus" : `Event ${event.context.id} applied by version-bound adapter`] };
   }
   // Pair matrices need one slot, not a second leader slot and a formation-wide
   // report. Use the identical validated arithmetic, without those allocations.

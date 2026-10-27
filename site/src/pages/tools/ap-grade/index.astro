@@ -16,9 +16,9 @@ import '../../../styles/event-efficiency.css';
 import '../../../styles/ap-grade.css';
 const available=scoringRulesAvailable(formalRules,catalog.release.id),href=(p:string)=>siteHref(p,activeReleaseContext);
 const cards=(rows:any[])=>rows.map(c=>({id:c.id,displayName:c.displayName,attributeCode:c.attributeCode,imageUrl:getAsset(c.thumbnailAssetId)?.previewUrl??null}));
-const data=JSON.stringify({rules:withAPScoreThresholds(formalRules,catalog.musicTracks),filterVisualOptions,memberCards:cards(catalog.memberCards),supportCards:cards(catalog.supportCards),tracks:catalog.musicTracks,
+const data=available?JSON.stringify({rules:withAPScoreThresholds(formalRules,catalog.musicTracks),filterVisualOptions,memberCards:cards(catalog.memberCards),supportCards:cards(catalog.supportCards),tracks:catalog.musicTracks,
  charts:catalog.musicCharts.map(({id,trackId,difficulty,level,duration,analysisDataUrl})=>({id,trackId,difficulty,level,duration,analysisDataUrl})),
- vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[]}).replaceAll('<','\\u003c');
+ vipRanks:globalSystems.sourceReleaseId===catalog.release.id?globalSystems.vipRanks:[]}).replaceAll('<','\\u003c'):'';
 const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eventType:number}>).filter(e=>e._eventType===1):[];
 ---
 <BaseLayout title="队伍 AP 估分">

@@ -163,6 +163,17 @@ class JpVersionProxyTests(unittest.TestCase):
 
 
 class JpSourceTests(unittest.TestCase):
+    def test_ampersand_resource_paths_preserve_filename_and_closed_boundary(self):
+        from tools.resource_pipeline.adapters.jp_public import asset_url
+        version = '1.0.0.300/' + 'a' * 32
+        path = 'stamp_assets_ensemble_a&b&c_' + 'b' * 32 + '.bundle'
+        prefix = '{Fwk.Resource.RemoteAssetDir}/'
+        self.assertEqual(asset_url(version, prefix + path),
+                         'https://static.bang-dream-on.jp/asset/1.0.0.300/Android/' + 'a' * 32 + '/' + path)
+        for suffix in ('?x=1&y=2', '#fragment', '/..', '/%2e%2e', '/\\escape'):
+            with self.subTest(suffix=suffix), self.assertRaises(ProtocolError):
+                asset_url(version, prefix + path + suffix)
+
     def test_jp_versions_and_paths_are_not_global_paths(self):
         from tools.resource_pipeline.adapters.jp_public import asset_directory, asset_url
         version = '1.0.0.300/'+'a'*32

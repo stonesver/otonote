@@ -105,7 +105,7 @@ class JpRemoteInputTests(unittest.TestCase):
 
     def test_missing_bundle_uses_official_cdn_with_catalog_identity_and_budget(self):
         payload = b'official resource bytes'
-        name = 'sample_' + 'a' * 32 + '.bundle'
+        name = 'sample_a&b_' + 'a' * 32 + '.bundle'
         loc = SimpleNamespace(
             primary_key=name, internal_id='{Fwk.Resource.RemoteAssetDir}/' + name,
             expected_size=len(payload), expected_hash='catalog-hash',
@@ -128,6 +128,7 @@ class JpRemoteInputTests(unittest.TestCase):
 
             def acquired(_client, url, target, size, *, identity):
                 self.assertTrue(url.startswith('https://static.bang-dream-on.jp/'))
+                self.assertTrue(url.endswith('/' + name))
                 self.assertEqual(identity['key'], name)
                 self.assertEqual(identity['hash'], loc.expected_hash)
                 self.assertEqual(size, len(payload))

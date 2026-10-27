@@ -169,5 +169,70 @@ class CachedLive2DTests(unittest.TestCase):
         self.assertFalse((self.data / 'live2d-catalog.json').exists())
 
 
+class PackagedBandRankTests(unittest.TestCase):
+    def extract(self, root, mapping_names, *, duplicate=False):
+        import zipfile
+        from tools.current_growth_inputs import growth
+
+        texture = 'ui_assets_embui_texture_bandrank_fixture.bundle'
+        apk = root / 'fixture.apk'
+        with zipfile.ZipFile(apk, 'w') as archive:
+            for name in [texture, *mapping_names]:
+                archive.writestr('assets/aa/Android/' + name, b'UnityFS\0fixture')
+        loaded = []
+        class Environment:
+            def __init__(self): self.objects = []
+            def load_file(self, _raw, *, name):
+                loaded.append(name)
+                if name == texture: return
+                entries = [{'bandRank': 1, 'sprite': {'m_FileID': 1, 'm_PathID': 11}},
+                           {'bandRank': 2, 'sprite': {'m_FileID': 1, 'm_PathID': 12}}]
+                if duplicate: entries.append(entries[0])
+                self.objects.append(SimpleNamespace(type=SimpleNamespace(name='MonoBehaviour'),
+                    read_typetree=lambda: {'_type': entries}, assets_file=object()))
+        def pointer(*, m_FileID, m_PathID, assetsfile):
+            label = {11: 'D1', 12: 'D2'}[m_PathID]
+            image = SimpleNamespace(width=2, height=2,
+                save=lambda target, *_args, **_kwargs: target.write_bytes(label.encode()))
+            return SimpleNamespace(read=lambda: SimpleNamespace(m_Name='ImgScorerank_' + label, image=image))
+        decoder = ModuleType('analysis.crypto.decrypt_global_formal_scores')
+        decoder.UnityPy = SimpleNamespace(Environment=Environment)
+        decoder.decrypt_header = Mock(side_effect=AssertionError('unexpected decrypt'))
+        classes = ModuleType('UnityPy.classes'); classes.PPtr = pointer
+        resources = SimpleNamespace(apk=apk, locations={}, report={'catalogSha256': 'fixture'})
+        with patch.dict('sys.modules', {'analysis.crypto.decrypt_global_formal_scores': decoder,
+                                       'UnityPy.classes': classes}):
+            count = growth(resources, root / 'growth')
+        return count, read_json(root / 'growth/manifest.json'), loaded
+
+    def test_legacy_and_profile_prefab_extract_same_serialized_mapping(self):
+        for name in ('ui_assets_embui_prefab_fixparts_band_uibandrankicon_fixture.bundle',
+                     'ui_assets_embui_prefab_fixparts_playerprofile_uiplayerprofilebandrankentity_fixture.bundle'):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                count, manifest, loaded = self.extract(Path(temporary), [name])
+                self.assertIn(name, loaded)
+                self.assertEqual(count, 2)
+                self.assertEqual([(r['rank'], r['label']) for r in manifest['bandRanks']], [(1, 'D1'), (2, 'D2')])
+                self.assertTrue(all((Path(temporary) / 'growth' / row['image']).is_file()
+                                    for row in manifest['bandRanks']))
+
+    def test_legacy_prefab_remains_the_unique_primary_source(self):
+        old = 'ui_assets_embui_prefab_fixparts_band_uibandrankicon_fixture.bundle'
+        new = 'ui_assets_embui_prefab_fixparts_playerprofile_uiplayerprofilebandrankentity_fixture.bundle'
+        with tempfile.TemporaryDirectory() as temporary:
+            _, _, loaded = self.extract(Path(temporary), [old, new])
+            self.assertIn(old, loaded)
+            self.assertNotIn(new, loaded)
+
+    def test_missing_ambiguous_or_duplicate_mapping_still_blocks(self):
+        prefix = 'ui_assets_embui_prefab_fixparts_playerprofile_uiplayerprofilebandrankentity_'
+        for names, duplicate in (([], False), ([prefix + 'a.bundle', prefix + 'b.bundle'], False),
+                                 ([prefix + 'a.bundle'], True)):
+            with self.subTest(names=names, duplicate=duplicate), tempfile.TemporaryDirectory() as temporary:
+                with self.assertRaisesRegex(ValueError, 'missing or duplicate rank mapping|duplicate growth image'):
+                    self.extract(Path(temporary), names, duplicate=duplicate)
+                self.assertFalse((Path(temporary) / 'growth/manifest.json').exists())
+
+
 if __name__ == '__main__':
     unittest.main()

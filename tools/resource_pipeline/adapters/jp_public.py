@@ -153,7 +153,7 @@ def asset_url(version, internal_id):
     if not isinstance(internal_id, str) or not internal_id.startswith(prefix):
         raise ProtocolError('unexpected JP catalog resource path')
     path = internal_id[len(prefix):]
-    if (not re.fullmatch(r'[A-Za-z0-9_./()\-]+', path)
+    if (not re.fullmatch(r'[A-Za-z0-9_./()&\-]+', path)
             or any(part in ('', '.', '..') for part in path.split('/'))):
         raise ProtocolError('unexpected JP catalog resource path')
     return asset_directory(version) + '/' + path

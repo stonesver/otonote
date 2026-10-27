@@ -41,10 +41,10 @@ function reweightModels(models, weight) {
   }) }));
 }
 
-export async function compilePairingModels(rules, input, { signal, yieldControl, onProgress, eventAdapters = [], pairCache, pairCacheKey, modelCache } = {}) {
+export async function compilePairingModels(rules, input, { signal, yieldControl, onProgress, eventAdapters = [], pairCache, pairCacheKey, modelCache, leaderIds } = {}) {
   // A fresh token belongs to one optimizer call. Practical seeds and exact
   // refinement share immutable models without copying another full edge matrix.
-  const modelKey = modelCache ? JSON.stringify(input) : null, saved = modelCache && jobModels.get(modelCache);
+  const modelKey = modelCache ? JSON.stringify({ input, leaderIds }) : null, saved = modelCache && jobModels.get(modelCache);
   if (saved?.rules === rules && saved.key === modelKey && saved.adapters.length === eventAdapters.length
     && saved.adapters.every((adapter,i) => adapter === eventAdapters[i])) {
     await yieldControl?.();
@@ -63,7 +63,8 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
     slots[index] = { memberCardId: member, supportCardId: support };
     return calculator.calculateSlot({ ...input.draft, slots }, index);
   };
-  const cached=pairCacheKey==null?null:pairCache?.get(pairCacheKey);
+  const cacheKey = pairCacheKey == null ? null : JSON.stringify([pairCacheKey, leaderIds]);
+  const cached=cacheKey==null?null:pairCache?.get(cacheKey);
   if(cached){
     const musicBonuses=new Map();
     for(const [i,member] of members.entries()){
@@ -85,7 +86,8 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
     onProgress?.({ phase: "pair_weights", completed: i + 1, total: members.length });
     await yieldControl?.();
   }
-  const leaders = input.constraints.leaderId ? [input.constraints.leaderId] : members;
+  const leaders = (input.constraints.leaderId ? [input.constraints.leaderId] : members)
+    .filter(id => !leaderIds || leaderIds.includes(id));
   const models = [];
   // Most leaders give the same bonus to a given pair. Intern immutable edges
   // by their final integer weight instead of storing one object per leader.
@@ -110,7 +112,7 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
   }
   // Song/type bonuses use only the member base, independently of support and
   // leader. This optional job cache is only used with the audited event adapter.
-  if(pairCacheKey!=null)pairCache?.set(pairCacheKey,{models:reweightModels(models,edge=>edge.weight-musicBonuses.get(edge.member))});
+  if(cacheKey!=null)pairCache?.set(cacheKey,{models:reweightModels(models,edge=>edge.weight-musicBonuses.get(edge.member))});
   return remember(models);
 }
 

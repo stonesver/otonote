@@ -103,13 +103,14 @@ test('partial coverage finishes with a visible limitation and concrete diagnosti
   const worker = context.worker;
   worker.onmessage({ data: { requestId: worker.message.requestId, type: 'result', result: {
     status: 'completed', searchMethod: 'planning', optimality: 'incomplete', evaluated: 0, results: [], warnings: [],
-    scoringCoverage: { complete: false, unsupportedPairs: [{ sourceCardId: 'member-card-64', message: 'Unsupported Gekisou effect 98765' }] },
+    scoringCoverage: { complete: false, unsupportedPairs: [{ sourceCardId: 'member-card-64', message: 'Unsupported Gekisou effect 98765' }], unsupportedLeaders: [{ sourceCardId: 'member-card-72', message: 'Unsupported conditional power effect 900100' }] },
     planning: { completedVariants: 1 },
   } } });
   assert.equal(context.q('[data-search-state]').textContent, '部分卡片未参与计算');
   assert.equal(context.q('[data-search-state]').dataset.running, 'false');
   assert.match(context.q('[data-pairing-progress]').textContent, /没有可完整计算的队伍/);
   assert.match(context.q('[data-search-diagnostics]').textContent, /member-card-64.*98765/);
+  assert.match(context.q('[data-search-diagnostics]').textContent, /member-card-72.*900100/);
   assert.equal(context.q('[data-results-empty]').hidden, true);
   assert.equal(worker.terminated, true);
 });

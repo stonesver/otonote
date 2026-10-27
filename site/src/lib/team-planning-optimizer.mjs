@@ -93,6 +93,7 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
     ruleSetVersion: rules.ruleSetVersion, mode, objective, results: directions, evaluated,
     baseline: baselineResult?.value ?? null, baselineResult, checkpoint: null, warnings: [...warnings],
     scoringCoverage: { complete: coverageComplete, unsupportedComparisons,
+      unsupportedLeaders: coverageReports.flatMap(r => r?.unsupportedLeaders ?? []),
       unsupportedPairs: coverageReports.flatMap(r => r?.unsupportedPairs ?? []),
       unsupportedCandidates: coverageReports.flatMap(r => r?.unsupportedCandidates ?? []) },
     planningScenario: resolved.planningScenario, performanceScenario: performance,

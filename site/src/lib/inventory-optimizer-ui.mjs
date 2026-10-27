@@ -165,7 +165,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         }
         if(r.scoringCoverage?.complete===false){
           progress.textContent+=ui(' 部分卡片配对暂无法计算，结果只覆盖可完整计算的队伍。');
-          const issues=[...(r.scoringCoverage.unsupportedPairs??[]),...(r.scoringCoverage.unsupportedCandidates??[]),...(r.scoringCoverage.unsupportedComparisons??[])];
+          const issues=[...(r.scoringCoverage.unsupportedLeaders??[]),...(r.scoringCoverage.unsupportedPairs??[]),...(r.scoringCoverage.unsupportedCandidates??[]),...(r.scoringCoverage.unsupportedComparisons??[])];
           const details=[...new Set(issues.map(issue=>`${issue.sourceCardId??[issue.memberCardId,issue.supportCardId].filter(Boolean).join(' + ')}: ${issue.message}`))];
           q('[data-search-diagnostics]').textContent+=' '+details.join('；');
         }

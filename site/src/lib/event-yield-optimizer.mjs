@@ -176,8 +176,12 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
      const rewards=maximum('rewardBP'),points=maximum('eventPointBP');
      if(rewards&&points){
        const ceiling={rewardBP:rewards.weight,eventPointBP:points.weight};
-       const models=await compilePairingModels(rules,input,{eventAdapters,signal,yieldControl,modelCache,pairCache:candidateCache,
-         pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null});
+       let models;
+       try { models=await compilePairingModels(rules,input,{eventAdapters,signal,yieldControl,modelCache,pairCache:candidateCache,
+         pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null}); }
+       catch (error) { witnessReport.unsupported=skillMechanismIssue(error); models=[]; }
+       // A failed witness proves nothing. The practical fallback reports the
+       // precise unsupported leaders and retains fully supported teams.
        let best;
        // Bonus is integer. Ten times the largest absolute edge power exceeds
        // every possible five-edge power difference; the matching therefore

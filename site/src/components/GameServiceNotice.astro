@@ -1,17 +1,33 @@
 ---
 interface Props { locale?: string; }
-const {locale='zh'}=Astro.props;
+const {locale='zh-CN'}=Astro.props;
 ---
-<aside class="game-service-notice" data-game-service-notice data-locale={locale} role="status" hidden>
-  <strong data-game-service-message></strong>
-  <span data-game-service-detail></span>
+<aside class="game-service-notice content-shell" data-game-service-notice data-locale={locale} role="status" aria-live="polite" hidden>
+  <div class="game-service-notice__surface">
+    <svg class="game-service-notice__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>
+    <div class="game-service-notice__rows" data-game-service-rows></div>
+  </div>
 </aside>
 <script>
   import {installGameServiceNotice} from '../lib/game-service-status.mjs';
   document.querySelectorAll('[data-game-service-notice]').forEach(installGameServiceNotice);
 </script>
-<style>
-  .game-service-notice { margin-block:0 1rem; padding:.9rem 1rem; border:1px solid #c8a66b; border-radius:.5rem; background:#fff6e4; color:#563e1d; }
-  .game-service-notice:not([hidden]) { display:grid; gap:.35rem; }
-  .game-service-notice span { font-size:.9rem; }
+<style is:global>
+  .game-service-notice[hidden] { display:none; }
+  .game-service-notice { margin-block:calc(18px + var(--site-notice-dock-height,0px)) 0; }
+  .page-editions ~ .game-service-notice { margin-block-start:max(18px,calc(var(--site-notice-dock-height,0px) - 60px)); }
+  .game-service-notice__surface { display:flex; align-items:center; gap:12px; padding:14px 18px; border:1px solid var(--line); border-radius:14px; background:var(--paper-light); color:var(--ink); }
+  .game-service-notice__icon { flex:none; width:20px; height:20px; color:var(--warning); }
+  .game-service-notice__rows { flex:1; min-width:0; }
+  .game-service-notice__row { display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 20px; font:400 13px/1.7 var(--font-body); }
+  .game-service-notice__row + .game-service-notice__row { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  .game-service-notice__row strong { font-size:13px; font-weight:650; }
+  .game-service-notice__row span { color:var(--silver-dark); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  @media(max-width:600px) {
+    .game-service-notice { margin-block-start:calc(14px + var(--site-notice-dock-height,0px)); }
+    .page-editions ~ .game-service-notice { margin-block-start:max(14px,calc(var(--site-notice-dock-height,0px) - 60px)); }
+    .game-service-notice__surface { align-items:flex-start; gap:10px; padding:12px 14px; border-radius:12px; }
+    .game-service-notice__icon { margin-top:2px; width:18px; height:18px; }
+    .game-service-notice__row { flex-direction:column; gap:2px; font-size:12px; }
+  }
 </style>

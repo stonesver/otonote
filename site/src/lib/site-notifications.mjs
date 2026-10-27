@@ -111,6 +111,7 @@ export function installSiteNotifications(container, options = {}) {
   let dismissibleRows = [];
   const sizeObserver = typeof win.ResizeObserver === 'function' ? new win.ResizeObserver(measureTickers) : null;
   function measureTickers() {
+    doc.documentElement.style.setProperty('--site-notice-dock-height', `${noticeDock.getBoundingClientRect().height}px`);
     container.querySelectorAll('[data-notification-ticker]').forEach(viewport => {
       const track = viewport.querySelector('[data-notification-track]');
       const distance = Math.max(0, track.scrollWidth - viewport.clientWidth);
@@ -121,6 +122,7 @@ export function installSiteNotifications(container, options = {}) {
   }
   function observeTickers() {
     sizeObserver?.disconnect();
+    sizeObserver?.observe(noticeDock);
     container.querySelectorAll('[data-notification-ticker], [data-notification-track]').forEach(node => sizeObserver?.observe(node));
     measureTickers();
   }
@@ -236,6 +238,8 @@ export function installSiteNotifications(container, options = {}) {
   doc.addEventListener('visibilitychange', visible); win.addEventListener('pageshow', visible);
   function stop() {
     stopped = true; win.clearInterval(timer);
+    doc.documentElement.style.removeProperty('--site-notice-dock-height');
+    doc.removeEventListener('ournotes:shell-dispose', stop);
     sizeObserver?.disconnect();
     doc.removeEventListener('visibilitychange', visible); win.removeEventListener('pageshow', visible);
     win.removeEventListener('pagehide', pagehide);
@@ -249,6 +253,7 @@ export function installSiteNotifications(container, options = {}) {
   }
   function pagehide(event) {if (!event.persisted) stop();}
   win.addEventListener('pagehide', pagehide);
+  doc.addEventListener('ournotes:shell-dispose', stop, {once:true});
   void check();
   return {check, render, stop};
 }

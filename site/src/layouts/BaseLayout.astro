@@ -205,8 +205,8 @@ const htmlLanguage = activeReleaseContext.locale;
 
     <SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={pathname.startsWith("/tools/")} />
     <main id="main-content" data-page-kind={pathname === "/" ? "home" : "module"} tabindex="-1">
-      {activeReleaseContext.region === 'global' && <GameServiceNotice locale={activeReleaseContext.locale} />}
       {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
+      {activeReleaseContext.region === 'global' && <GameServiceNotice locale={activeReleaseContext.locale} />}
       <slot />
     </main>
     <SiteNotifications locale={activeReleaseContext.locale} />

@@ -1,4 +1,4 @@
-import {currentServerContext, gameServer} from './game-servers.mjs';
+import {GAME_SERVERS, currentServerContext} from './game-servers.mjs';
 
 export function maintenanceNotice(observation, locale = 'zh', now = Date.now()) {
   if (observation?.status !== 'maintenance') return '';
@@ -13,11 +13,68 @@ export function maintenanceNotice(observation, locale = 'zh', now = Date.now()) 
       ? '预计结束时间已过，等待官方恢复确认。' : `预计 ${time}（UTC+8）结束。` : ''}`;
 }
 
+// Automatic observations live only for the current page, never in the notice store.
+export function retainMaintenance(previous, servers = {}) {
+  const result = {};
+  for (const {id} of GAME_SERVERS.filter(server => server.region === 'global')) {
+    const row = servers?.[id];
+    if (row?.status === 'maintenance') result[id] = {...row, uncertain:false};
+    else if (previous[id] && row?.status !== 'no_maintenance_signal') result[id] = {...previous[id], uncertain:true};
+  }
+  return result;
+}
+
+export function maintenanceStatusRows(observations, {region, serverId, locale = 'zh-CN'}, now = Date.now()) {
+  if (region !== 'global') return [];
+  const en = locale === 'en';
+  return GAME_SERVERS.filter(server => server.region === 'global' && (!serverId || server.id === serverId))
+    .flatMap(server => {
+      const row = observations[server.id];
+      if (row?.status !== 'maintenance') return [];
+      const end = Date.parse(row.maintenance?.expectedEndAt);
+      const time = Number.isFinite(end) ? new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
+        timeZone:'Asia/Shanghai', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false
+      }).format(end) : null;
+      const pending = row.uncertain || Number.isFinite(end) && end <= now;
+      return [{serverId:server.id,
+        title:en ? `${server.englishLabel} · Game server updating` : `${server.label} · 游戏服务器更新中`,
+        timing:(time ? en ? `Expected end: ${time} (UTC+8)` : `预计 ${time}（UTC+8）结束`
+          : en ? 'End time to be confirmed' : '结束时间待定')
+          + (pending ? en ? ' · Recovery not confirmed' : ' · 恢复待确认' : '')}];
+    });
+}
+
 export function installGameServiceNotice(root) {
   if (!root) return;
-  const locale = root.dataset.locale, en = locale === 'en';
+  let rendered = '';
+  return watchGameServiceStatus(observations => {
+    let context;
+    try { context = currentServerContext(); } catch { root.hidden = true; return; }
+    const rows = maintenanceStatusRows(observations, {...context, locale:root.dataset.locale});
+    root.hidden = !rows.length;
+    const signature = JSON.stringify(rows);
+    if (signature === rendered) return;
+    rendered = signature;
+    const doc = root.ownerDocument;
+    root.querySelector('[data-game-service-rows]').replaceChildren(...rows.map(row => {
+      const item = doc.createElement('div'); item.className = 'game-service-notice__row';
+      const title = doc.createElement('strong'); title.textContent = row.title;
+      const timing = doc.createElement('span'); timing.textContent = row.timing;
+      item.append(title, timing);
+      return item;
+    }));
+  });
+}
+
+function watchGameServiceStatus(onChange, {fetcher = globalThis.fetch} = {}) {
   let disposed = false, inFlight = false, timer, controller;
+  let observations = {};
   const events = new AbortController();
+  const publish = data => {
+    observations = retainMaintenance(observations, data.servers);
+    onChange(observations);
+    window.dispatchEvent(new CustomEvent('game-service-status-change', {detail:data}));
+  };
   const refresh = async () => {
     if (disposed || inFlight) return;
     clearTimeout(timer);
@@ -25,35 +82,16 @@ export function installGameServiceNotice(root) {
     const request = controller = new AbortController();
     const timeout = setTimeout(() => request.abort(), 9000);
     try {
-      const response = await fetch('/api/growth-export/status/', {
+      const response = await fetcher('/api/growth-export/status/', {
         credentials:'omit', cache:'no-store', signal:request.signal
       });
       if (!response.ok) throw Error();
       const data = await response.json();
       if (data.schemaVersion !== 1 || !data.servers || Date.parse(data.validUntil) <= Date.now()
           || !Number.isFinite(Date.parse(data.validUntil))) throw Error();
-      if (disposed) return;
-      const {serverId} = currentServerContext();
-      const selected = serverId ? [[serverId,data.servers[serverId]]] : Object.entries(data.servers);
-      const affected = selected.filter(([,row]) => row?.status === 'maintenance');
-      if (affected.length) {
-        const names = affected.map(([id]) => en ? gameServer(id)?.englishLabel : gameServer(id)?.label).filter(Boolean);
-        root.querySelector('[data-game-service-message]').textContent = `${names.join(' / ')} · ${maintenanceNotice(affected[0][1],locale)}`;
-        root.querySelector('[data-game-service-detail]').textContent = en
-          ? 'Browsing, team planning and local imports remain available.' : '资料浏览、配队和本地文件导入仍可使用。';
-        root.hidden = false;
-      } else {
-        const uncertain = selected.some(([,row]) => row?.status !== 'no_maintenance_signal');
-        if (!root.hidden && uncertain) throw Error();
-        root.hidden = true;
-      }
-      window.dispatchEvent(new CustomEvent('game-service-status-change',{detail:data}));
+      if (!disposed) publish(data);
     } catch {
-      if (!disposed && !root.hidden) {
-        root.querySelector('[data-game-service-message]').textContent = en
-          ? 'Game status could not be refreshed; recovery is not confirmed.' : '游戏状态暂时无法更新，尚不能确认维护已经结束。';
-        window.dispatchEvent(new CustomEvent('game-service-status-change', {detail:{servers:{}}}));
-      }
+      if (!disposed) publish({servers:{}});
     } finally {
       clearTimeout(timeout);
       inFlight = false;

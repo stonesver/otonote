@@ -47,7 +47,7 @@ def read_json(path: Path):
 def remote_path(internal_id: str) -> str:
     p = urlsplit(internal_id)
     if (p.scheme != "https" or p.netloc != "dummy.net" or p.query or p.fragment
-            or not re.fullmatch(r"/asset/Android/[A-Za-z0-9_./()-]+", p.path)
+            or not re.fullmatch(r"/asset/Android/[A-Za-z0-9_./()&-]+", p.path)
             or any(x in ("", ".", "..") for x in p.path[1:].split("/"))):
         raise ProtocolError("unexpected catalog remote path")
     return p.path

@@ -39,8 +39,13 @@ def extract_taxonomy(resources, output):
     from tools.card_taxonomy import build_card_taxonomy
     atlases = [n for n in resources.packaged if n.startswith('ui_assets_embui_atlas_fixuispriteatlas_')]
     if len(atlases) != 1: raise ValueError('missing unique JP UI atlas')
+    localized = [name for name in resources.packaged if name in (
+        'localization-assets-japanese(ja)_assets_all.bundle',
+        'localization-assets-japanese_assets_all.bundle',
+    )]
+    if len(localized) != 1: raise ValueError('missing unique JP Japanese localization bundle')
     records = []
-    for name in [atlases[0], 'localization-assets-japanese(ja)_assets_all.bundle']:
+    for name in [atlases[0], localized[0]]:
         env = resources.environment(name)
         for obj in env.objects:
             if obj.type.name != 'Sprite': continue

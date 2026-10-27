@@ -8,8 +8,58 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from tools.jp_phone_inputs import PhoneResources
+from tools.jp_phone_inputs import PhoneResources, extract_taxonomy
 from tools.jp_remote_sync import remote_cache_name, resource_identity
+
+
+class JpTaxonomyTests(unittest.TestCase):
+    def resources(self, localized):
+        from tools.build_site_catalog import CARD_TAXONOMY_NAMES
+        atlas = 'ui_assets_embui_atlas_fixuispriteatlas_' + 'a' * 32 + '.bundle'
+        resources = SimpleNamespace(packaged={name: 'assets/aa/Android/' + name
+                                             for name in [atlas, *localized]})
+        calls = []
+
+        def environment(name):
+            self.assertIn(name, resources.packaged)
+            calls.append(name)
+            names = CARD_TAXONOMY_NAMES if name == atlas else ['icon_awakened']
+            image = SimpleNamespace(width=2, height=2,
+                                    save=lambda target, _format: target.write_bytes(b'fixture-png'))
+            objects = []
+            for index, key in enumerate(sorted(names), 1):
+                data = SimpleNamespace(m_Name=key, image=image)
+                objects.append(SimpleNamespace(type=SimpleNamespace(name='Sprite'), path_id=index,
+                                               read=lambda data=data: data))
+            return SimpleNamespace(objects=objects)
+
+        resources.environment = environment
+        return resources, calls
+
+    def test_taxonomy_uses_unique_legacy_or_current_japanese_package(self):
+        for localized in ('localization-assets-japanese(ja)_assets_all.bundle',
+                          'localization-assets-japanese_assets_all.bundle'):
+            with self.subTest(localized=localized), TemporaryDirectory() as directory:
+                resources, calls = self.resources([localized, 'localization-assets-english_assets_all.bundle'])
+                count = extract_taxonomy(resources, Path(directory))
+                rows = json.loads((Path(directory) / 'manifest.json').read_text())['assets']
+                awake = next(row for row in rows if row['name'] == 'icon_awakened')
+                self.assertEqual(awake['bundle'], localized)
+                self.assertEqual(calls[1:], [localized])
+                self.assertEqual(count, len(rows))
+                self.assertTrue((Path(directory) / awake['exported_file']).is_file())
+
+    def test_missing_or_ambiguous_japanese_package_blocks_taxonomy(self):
+        for localized in ([], ['localization-assets-english_assets_all.bundle'],
+                          ['localization-assets-japanese(ja)_assets_all.bundle',
+                           'localization-assets-japanese_assets_all.bundle']):
+            with self.subTest(localized=localized), TemporaryDirectory() as directory:
+                resources, calls = self.resources(localized)
+                with self.assertRaisesRegex(ValueError, 'missing unique JP Japanese localization bundle'):
+                    extract_taxonomy(resources, Path(directory))
+                self.assertEqual(calls, [])
+                self.assertFalse((Path(directory) / 'manifest.json').exists())
+
 
 class JpCacheTests(unittest.TestCase):
     def test_remote_reuse_survives_prior_run_pruning_and_checks_identity(self):

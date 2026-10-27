@@ -108,7 +108,7 @@ class CurrentResources:
 
     def get(self, loc):
         name = loc.primary_key
-        if name.startswith('/') or '..' in Path(name).parts or not re.fullmatch(r'[a-zA-Z0-9_./-]+', name):
+        if name.startswith('/') or '..' in Path(name).parts or not re.fullmatch(r'[a-zA-Z0-9_./&-]+', name):
             raise ValueError('unsafe resource cache key')
         # Catalog keys can nearly exhaust NAME_MAX; leave room for receipts.
         cache_name = name if '/' not in name and len(name.encode()) <= 180 else hashlib.sha256((name + (self.report['catalogSha256'] if '/' in name else '')).encode()).hexdigest() + '.bundle'

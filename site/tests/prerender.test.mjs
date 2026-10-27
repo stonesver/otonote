@@ -105,6 +105,18 @@ test('styles arrive in HTML without a second request and keep code asset URLs', 
   assert.doesNotMatch(result.html,/<link rel="stylesheet"/);
 });
 
+for(const route of ['tools/deck-builder','tools/song-calculator','tools/event-efficiency']) {
+  test(`${route} reuses versioned CSS instead of retransmitting it in every HTML response`,()=>{
+    const stylesheet='.tool{color:purple}'.repeat(30000);
+    const result=prepareHtml('<html><head></head><body><main>Tool</main></body></html>',
+      {...args,route,css:'pages/tool-ABC.css',stylesheet});
+    assert.doesNotMatch(result.html,/data-prerender-styles/);
+    assert.match(result.html,/<link rel="stylesheet" href="\/app\/releases\/abc\/pages\/tool-ABC.css">/);
+    assert.ok(result.html.length<50000,'large tool styles must remain in the immutable code asset');
+    assert.ok(result.html.indexOf('rel="stylesheet"')<result.html.indexOf('<script>'),'discover the render-blocking stylesheet immediately');
+  });
+}
+
 test('personal growth retains the original automatic loading scene outside the tools route', () => {
   const result=prepareHtml('<html><head></head><body><main><personal-growth-workbench><script type="application/json">{"cards":[]}</script><h2>My growth</h2></personal-growth-workbench></main><script type="module" src="/app/releases/abc/scripts/tool.js"></script></body></html>',{...args,route:'my-growth'});
   assert.equal(result.payloads.length,1);assert.match(result.html,/loading-companion/);assert.match(result.html,/data-deferred-module/);assert.match(result.html,/personal-growth-workbench inert/);

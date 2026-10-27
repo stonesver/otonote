@@ -28,6 +28,19 @@ export function enhanceNumericInputs(root) {
   }
 }
 
+/** Advanced conditions already have a dialog boundary; keep their original nodes and listeners. */
+export function expandWorkbenchSettings(root) {
+  for(const details of root.querySelectorAll('details')) {
+    const summary=details.querySelector(':scope > summary');
+    if(!summary||details.classList.contains('task-inline-settings'))continue;
+    details.open=true;details.classList.add('task-inline-settings');
+    const title=summary.cloneNode(true);
+    for(const hidden of title.querySelectorAll('[hidden],.filter-panel-hint,.filter-panel-toggle'))hidden.remove();
+    const heading=node('h4',title.textContent.trim(),'task-settings-heading');
+    summary.hidden=true;summary.after(heading);
+  }
+}
+
 /** Turn an existing detail disclosure into a modal without cloning calculator inputs. */
 export function modalizeDetails(host,details) {
   if(!details||details.dataset.taskModal)return;

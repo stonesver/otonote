@@ -52,6 +52,10 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   cards.append(kind.closest('label'),scopeNote,cardActions);
   const modeField=mode.closest('label');modeField.hidden=false;
   grid.append(song,cards,modeField,profile.closest('label'));
+  const goals=q('[data-pairing-objective]').closest('.task-condition-group');
+  const growth=q('[data-planning-panel]').closest('.task-condition-group');
+  goals.classList.add('team-primary-goals');growth.classList.add('team-primary-growth');
+  grid.append(goals,growth);
   context.append(node('h2','计算条件','ds-panel-title'),grid);
   if(host.calculationScope){grid.append(q('[data-playlist-task]'));context.append(host.calculationScope.root);}
   q('.journey-choices').hidden=true;
@@ -84,9 +88,9 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   ]);
 
   function openAdvanced(target) {
-    adjust.click();
+    if(!target||!context.contains(target))adjust.click();
     if(target) {
-      // The dialog now owns the same control nodes; expand the target disclosure if needed.
+      // Retain the original controls in the rail or dialog; reveal their target if needed.
       for(let parent=target.parentElement;parent&&parent!==conditionBody;parent=parent.parentElement) {
         if(parent.tagName==='DETAILS')parent.open=true;
       }

@@ -81,9 +81,6 @@ export function setupProductionPower(workbench) {
         controls?.append(numberInput("该角色评级", modifiers.characterRanks?.[row._characterID] ?? 1, 1, 50, (v) => {
           modifiers.characterRanks ??= {}; modifiers.characterRanks[row._characterID] = v;
         }));
-        controls?.append(numberInput("该角色回忆固定值（每维）", modifiers.memoryPoints?.[row._characterID] ?? 0, 0, 100000, (v) => {
-          modifiers.memoryPoints ??= {}; modifiers.memoryPoints[row._characterID] = v;
-        }));
       } else controls?.append(cell("p", "留影的两项技能等级随突破阶数变化，按正式表自动计算。"));
     }
     const ids=[slot.memberCardId,slot.supportCardId].filter(Boolean);

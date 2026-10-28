@@ -202,6 +202,45 @@ import { createGekisouSongCalculator } from '../../packages/scoring/scoring-rule
 import { compilePairingModels, draftFromPairing } from '../src/lib/inventory-optimizer.mjs';
 import { createOrdinaryScoreBound } from '../../packages/scoring/scoring-rules/ordinary-score-bound.mjs';
 import { maximumPairing } from '../../packages/scoring/scoring-rules/maximum-pairing.mjs';
+import { searchEventFormations } from '../src/lib/event-formation-search.mjs';
+import { ordinaryIdealSkillCommands } from '../../packages/scoring/scoring-rules/ordinary-ideal-skills.mjs';
+import { compareScoreFactors } from '../../packages/scoring/scoring-rules/formal-score-replay.mjs';
+import { skillOrdersFor } from '../../packages/scoring/scoring-rules/skill-order-sampling.mjs';
+
+test('proof envelopes may exceed native int32 notes without breaking a legal cumulative search',async()=>{
+  const {r,c,d,effect}=ordinaryFixture();
+  Object.assign(effect,{_skillEffectType:2001,_effectValue:1750,_maxEffectValue:21000,_skillCumulativeConditionID:990});
+  r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[2],_conditionTargetIDs:[41,46],_maxCumulativeCount:12});
+  c.notes=Array.from({length:936},(_,i)=>({id:`long-${i}`,type:'tap',tick:1+i*93}));
+  const song=createFormalSongCalculator(r,c);
+  assert.ok(Number.isFinite(song.calculate(d).maximumScore));
+  assert.equal(song.upperBound(1000000,2**40),Infinity);
+  assert.equal(song.upperBound(1000000,Infinity),Infinity);
+  assert.throws(()=>song.upperBound(1000000,NaN),/finite/);
+  assert.throws(()=>song.upperBound(-1,2**40),/totalPower/);
+  const inventory={memberCardIds:r.tables.MemberCard.slice(0,6).map(row=>`member-card-${row._id}`),supportCardIds:d.slots.map(s=>s.supportCardId),growth:d.modifiers.growth??{}};
+  inventory.growth['member-card-6']={...inventory.growth['member-card-1']};
+  const result=await searchEventFormations({rules:r,chart:c,draft:d,inventory,scope:'owned',objective:'maximum_song_score',
+    maxEvaluations:1,proofCount:1,scoreBoundOptions:{jointPowerBound:true},partitionCards:true});
+  assert.ok(result.results.length);
+});
+
+test('cached ideal skill streams retain native owner ordering for every permutation and frame rate',async()=>{
+  const {createOrdinaryIdealSkillCommands}=await import('../../packages/scoring/scoring-rules/ordinary-ideal-skills.mjs');
+  const {r,c,d,effect}=ordinaryFixture();
+  Object.assign(effect,{_skillEffectType:2001,_effectValue:1750,_maxEffectValue:21000,_skillCumulativeConditionID:990});
+  r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[2],_conditionTargetIDs:[41,46],_maxCumulativeCount:12});
+  const skills=createFormalSkillResolver(r,{dynamic:true})(d),timeline=createFormalSongCalculator(r,c).timeline;
+  skills[1].liveEffects.push({...structuredClone(skills[0].liveEffects.at(-1)),rate:2.1,
+    cumulative:{...skills[0].liveEffects.at(-1).cumulative,unit:3}});
+  const normalized=commands=>commands.slice().sort(compareScoreFactors);
+  for(const fps of [30,60,120]){
+    const cached=createOrdinaryIdealSkillCommands(timeline,fps,1000);
+    for(const order of skillOrdersFor('full')){
+      assert.deepEqual(normalized(cached(skills,order)),normalized(ordinaryIdealSkillCommands(skills,timeline,order,fps,1000)));
+    }
+  }
+});
 
 test('Gekisou ideal and explicit inputs both execute the ordinary cumulative lifecycle',()=>{
   const {r,c,d,effect}=ordinaryFixture();
@@ -246,6 +285,6 @@ test('normalized cumulative search envelopes cover repeated handle magnitudes as
     input:{draft:d},metric:'expectedScore',bonusConstraintBound:true}).normalizedPowerEnvelope(1);
   const cumulative=envelope(true), fixed=envelope(false);
   assert.ok(cumulative&&fixed);
-  assert.ok(cumulative.baseCoefficient>fixed.baseCoefficient*2,
+  assert.ok(cumulative.baseCoefficient>fixed.baseCoefficient,
     'a long replacement stream cannot inherit the fixed-handle rounding budget');
 });

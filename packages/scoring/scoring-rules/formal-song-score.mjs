@@ -3,7 +3,7 @@ import { createEventPipeline } from "./event-rules.mjs";
 import { createFormationCalculator } from "./formation-power.mjs";
 import { calculateFormalNoteCore } from "./formal-note-core.mjs";
 import { createFormalSkillResolver, requiresOrdinarySkillReplay } from "./formal-skills.mjs";
-import { ordinaryIdealSkillCommands } from './ordinary-ideal-skills.mjs';
+import { createOrdinaryIdealSkillCommands } from './ordinary-ideal-skills.mjs';
 import { createFormalTickConverter } from "./formal-time.mjs";
 import { reconstructFormalChart, FORMAL_CHART_MODEL_VERSION } from "./formal-chart.mjs";
 import { stableSnapshotHash } from "../scoring-engine.mjs";
@@ -96,6 +96,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
   const resolveDynamicSkills = createFormalSkillResolver(rules, { dynamic: true });
   const setting = (key) => Number(rules.tables.LiveSettings.find((r) => r._key === key)?._value);
   const judgement = rules.tables.LiveJudgementParameter.find((r) => r._noteSimulateJudgement === 5)._scorePercent;
+  const idealSkillCommands = createOrdinaryIdealSkillCommands(timeline, frameRate, setting('life_base'));
   // The ideal factor history depends on the chart and effective skill commands,
   // never on formation power. Reuse that history across candidate teams inside
   // this calculator, retaining native replay for every previously unseen stream.
@@ -135,7 +136,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
     // factor, but retain that history across all 120 complete order sweeps.
     const orderCache = new Map();
     const scoreOrder = (order, trace = false) => {
-      const commands = replaySkills ? ordinaryIdealSkillCommands(replaySkills, timeline, order, frameRate, setting("life_base"))
+      const commands = replaySkills ? idealSkillCommands(replaySkills, order)
         : liveSkillCommands(order, skills, timeline.skillTimes, frameRate);
       // Key the effective command order, keeping duplicate order probability.
       const cacheKey = !trace && !scoreAdapters
@@ -216,14 +217,25 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
     const cache=new Map();
     return timeline.events.reduce((sum, event, index) => {
       const factor=typeof scoreUpFactor === 'function' ? scoreUpFactor(event,index) : scoreUpFactor;
+      if(factor===Infinity&&Number.isInteger(totalPower)&&totalPower>=0&&totalPower<=0x7fffffff)return Infinity;
       let combos=cache.get(event.weight);if(!combos)cache.set(event.weight,combos=new Map());
       let factors=combos.get(event.comboFactor);if(!factors)combos.set(event.comboFactor,factors=new Map());
-      if(!factors.has(factor))factors.set(factor,calculateFormalNoteCore({ totalPower,
+      if(!factors.has(factor)){
+      let score;
+      try { score=calculateFormalNoteCore({ totalPower,
       scoreAdjustmentFactor: setting("note_score_adjustment_factor"), musicScoreLevelFactor: timeline.difficultyFactor,
       noteFactorPercent: event.weight, judgementFactorPercent: judgement, comboBonusFactor: event.comboFactor,
       scoreUpFactor: factor,
       luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
-      eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000 }).score);
+      eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000 }).score; }
+      catch(error){
+        // A relaxed proof factor need not be a realizable native score. An
+        // overflowing envelope cannot prune; real scoring keeps its guards.
+        if(!(error instanceof RangeError)||!['first floor is outside int32','note score is outside int32'].includes(error.message))throw error;
+        score=Infinity;
+      }
+      factors.set(factor,score);
+      }
       return sum+factors.get(factor);
     },0);
   }

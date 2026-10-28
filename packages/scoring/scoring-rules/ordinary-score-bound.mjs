@@ -42,7 +42,9 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   for (const [key, skill] of pairSkills) {
     const effects = skill.liveEffects.filter(e => e.active).map(e => ({ type: e.type,
       value: Math.fround(Math.floor(Math.fround(Math.fround(e.rate) * 100000)) / 100000),
-      durationRawMs: e.durationRawMs ?? e.durationMs, dynamic: Boolean(e.cumulative) }));
+      durationRawMs: e.durationRawMs ?? e.durationMs, dynamic: Boolean(e.cumulative),
+      ...(e.cumulative ? {updates:Number.isInteger(e.cumulative.maximum)&&e.cumulative.maximum>=0
+        ? Math.min(song.timeline.events.length,e.cumulative.maximum) : song.timeline.events.length} : {}) }));
     const signature = JSON.stringify(effects);
     if(!canonical.has(signature))canonical.set(signature,{signature,effects,absolute:effects.reduce((n,e)=>n+Math.abs(e.value),0)});
     profiles.set(key,canonical.get(signature));
@@ -59,13 +61,17 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     // A cumulative handle can be replaced once per judgement frame. Both its
     // old-value removal and new-value insertion contribute to the absolute
     // command sum; bounding command COUNT alone does not bound that sum.
-    const replacements = song.timeline.events.length + 2;
-    const commands = 10 * Math.max(0, ...options.map(p => p.effects.reduce((n,e) => n + (e.dynamic ? replacements : 1), 0)));
-    const variation = options.some(p => p.effects.some(e => e.dynamic)) ? replacements : 1;
+    // Ideal AP counts only increase. A capped counter can change its handle
+    // at most maximum times, regardless of the number of later judgements.
+    const commands = 10 * Math.max(0, ...options.map(p => p.effects.reduce((n,e) => n + (e.dynamic ? e.updates+1 : 1), 0)));
+    const variation = Math.max(1,...options.flatMap(p=>p.effects.map(e=>e.dynamic?e.updates+1:1)));
     const magnitude = 2 * absolute * variation;
     const calls = Math.min(limit, 4 * (song.timeline.events.length + commands + 1)), undo = commands * calls;
     const stateError = gamma(2 * undo + 1) * (1 + 2 * magnitude)
-      + (1 + gamma(2 * undo + 1)) * undo * gamma(commands) * magnitude;
+      // Sum bucket-delta errors over their command magnitudes, then replay
+      // each bucket at most calls times. Multiplying the whole-song magnitude
+      // by the number of commands again counts those magnitudes twice.
+      + (1 + gamma(2 * undo + 1)) * calls * gamma(commands) * magnitude;
     return { commands, error: stateError + unitRoundoff * (1 + 2 * absolute + stateError) };
   };
   const linearCache = new Map(), events = song.timeline.events;

@@ -61,7 +61,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
      witnessCharts:witnessCharts.size,optimizerInvocations,allProven:!failures.length&&fullyOptimizedCharts===available,
      globalProofs:{...globalProofs},cacheHits,calculations};
  };
- const mainChart=async(c,{witnessOnly=false,practicalSeed=false}={})=>{
+ const mainChart=async(c,{witnessOnly=false,practicalSeed=false,preview=false}={})=>{
    const stage=eventYieldStageInput(input,input.mode),id=key(c,input.mode);
    if(failed.has(id))return;
    let chart,scoreCache;
@@ -76,18 +76,44 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
        const result=await optimizer({rules,eventId,...stage,candidate:c,chart,challengeRows,candidateCache,scoreCache,challengePlanCache,
          yieldControl,signal,goal,witnessOnly,searchMethod:practicalSeed?'practical':stage.searchMethod??'certified',maxEvaluations:full?0:stage.maxEvaluations??24,
          includeChallenge:input.mode==='ordinary'&&input.includeChallenge,
-         onProgress:p=>onMessage({type:'progress',done:completed(),total,title:c.title,stage:p.stage??p.phase,detail:p})});
+         onProgress:p=>{
+           const best=p.bestCandidate&&bestFor(goal);
+           if(p.bestCandidate&&(!best||compare(p.bestCandidate,best,goal)<0)){
+             rows.set('live:'+c.id+':'+goal,[{...p.bestCandidate,recommendationGoals:[goal],search:{bestProven:false}}]);onMessage(snapshot('partial'));
+           }
+           onMessage({type:'progress',done:completed(),total,title:c.title,stage:p.stage??p.phase,detail:p});
+         }});
        optimizerInvocations++;cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;
        if(witnessOnly)witnessCharts.add(c.id);
-       rows.set((practicalSeed?'seed:':'')+c.id+':'+goal,result.results.map(row=>({...row,recommendationGoals:[goal],search:{optimality:result.optimality,status:result.status,...result.certifiedSearch}})));
-       if(result.certifiedSearch?.globalUpperCandidate)uppers.set(goal,result.certifiedSearch.globalUpperCandidate);
+       rows.delete('live:'+c.id+':'+goal);
+       rows.set((preview?'preview:':practicalSeed?'seed:':'')+c.id+':'+goal,result.results.map(row=>({...row,recommendationGoals:[goal],search:{optimality:result.optimality,status:result.status,...result.certifiedSearch}})));
+       if(!preview&&result.certifiedSearch?.globalUpperCandidate)uppers.set(goal,result.certifiedSearch.globalUpperCandidate);
        if(!practicalSeed&&result.certifiedSearch?.bestProven)resolved.get(goal).add(c.id);
        await onJobComplete({candidate:c,mode:input.mode,goal,witnessOnly,practicalSeed,result,wallMs:performance.now()-started});
      }
      if(chart&&scoreCache)await afterChart({candidate:c,mode:input.mode,stageInput:stage,chart,scoreCache,candidateCache});
-   }catch(error){failures.push({id:c.id,mode:input.mode,title:c.title,message:error.message});failed.add(id);}
+   }catch(error){if(!preview){failures.push({id:c.id,mode:input.mode,title:c.title,message:error.message});failed.add(id);}}
    onMessage(snapshot('partial'));
  };
+ // Show a fully scored, legal cycle before starting unbounded certificates.
+ // These rows are incumbents only. They never account for a completed chart,
+ // and are removed before proofs use the final challenge continuation input.
+ if(cycle&&canGlobal&&challengeCandidates.length&&selected.length&&!signal?.aborted){
+   const c=challengeCandidates[0],stage=eventYieldStageInput(input,'challenge');
+   try{
+     const chart=await loadChart(c),scoreCache=await cacheFor(c,'challenge',stage,chart),goal=eventYieldGoals(input.goal,'challenge')[0];
+     const started=performance.now();
+     const result=await optimizer({rules,eventId,...stage,candidate:c,chart,challengeRows:[],candidateCache,scoreCache,challengePlanCache,
+       yieldControl,signal,goal,searchMethod:'practical',maxEvaluations:0,includeChallenge:false,
+       onProgress:p=>onMessage({type:'progress',done:0,total,title:c.title,stage:p.stage??p.phase,detail:p})});
+     optimizerInvocations++;cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;
+     challengeRows.push(...result.results.map(r=>({...r,recommendationGoals:[goal],search:{bestProven:false}})));
+     await onJobComplete({candidate:c,mode:'challenge',goal,practicalSeed:true,result,wallMs:performance.now()-started});
+     await afterChart({candidate:c,mode:'challenge',stageInput:stage,chart,scoreCache,candidateCache});
+     if(challengeRows.length&&!signal?.aborted)await mainChart(selected[0],{practicalSeed:true,preview:true});
+   }catch{/* The complete challenge domain below remains authoritative. */}
+   challengeRows.length=0;
+ }
  let parallelChallengesDone=false;
  if(cycle&&full&&runChallengeJobs&&!signal?.aborted){
   let outputs;
@@ -130,6 +156,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
    challengeDone++;
  }
  if(cycle&&!challengeRows.length&&!signal?.aborted)throw Error('后续挑战全部计算失败，无法可靠比较总收益。');
+ if(cycle&&!signal?.aborted)for(const id of rows.keys())if(id.startsWith('preview:'))rows.delete(id);
  if(canGlobal&&witnessPrepass)for(const c of selected){if(signal?.aborted)break;await mainChart(c,{witnessOnly:true});}
  // These representative charts supply legal incumbents, never coverage.
  // Every selected chart remains in the subsequent complete proof domain.

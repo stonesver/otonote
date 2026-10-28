@@ -96,13 +96,13 @@ const record=({candidate,mode,goal,witnessOnly=false,practicalSeed=false,result,
  if(practicalSeed)console.log(JSON.stringify({practicalSeed:candidate.id,goal,wallMs,best:samples.at(-1).best,elapsedMs:performance.now()-start}));
  checkBudget();
 };
-let completedCharts=0,batchResult,reportedProgressAt=0;
+let completedCharts=0,batchResult,reportedProgressAt=0,firstResultMs=null;
 if(productionRunner){
  batchResult=await productionRunner({rules,eventId:Number(values.event),candidates,challengeCandidates:challenges,input,candidateCache,challengePlanCache,
   loadChart:async c=>charts.get(c.id),yieldControl,signal:controller.signal,proveGroup,
   onJobComplete:record,onGroupComplete:({goal,proof})=>{groupSamples.push({goal,...proof});checkBudget();console.log(JSON.stringify({groupGoal:goal,proven:proof.proven,error:proof.error,
     best:proof.results?.[0]?{song:proof.results[0].song.id,total:proof.results[0].total,scoreRank:proof.results[0].reward.scoreRank}:null,stats:proof.stats,elapsedMs:performance.now()-start}));},
-  onMessage:m=>{checkBudget();const now=performance.now();if(m.type==='progress'&&m.detail?.phase==='event-group-proof'&&now-reportedProgressAt>2000){
+  onMessage:m=>{checkBudget();const now=performance.now();if(firstResultMs===null&&m.rows?.length){firstResultMs=now-start;console.log(JSON.stringify({firstResultMs,done:m.done,total:m.total}));}if(m.type==='progress'&&m.detail?.phase==='event-group-proof'&&now-reportedProgressAt>2000){
     reportedProgressAt=now;console.log(JSON.stringify({stage:m.stage,group:m.detail.group,groups:m.detail.groups,leaders:m.detail.leaders,
       visited:m.detail.visited,expanded:m.detail.expanded,completed:m.detail.completed,elapsedMs:now-start,best:m.detail.bestCandidate?.total}));
    }else if(m.type==='partial'&&now-reportedProgressAt>2000){reportedProgressAt=now;console.log(JSON.stringify({done:m.done,total:m.total,elapsedMs:now-start,evaluatedCharts:m.evaluatedCharts,prunedCharts:m.prunedCharts}));}}});
@@ -132,7 +132,7 @@ const summary={...preflight,node:process.version,environment:{platform:platform(
  evaluatedCharts:batchResult?.evaluatedCharts,prunedCharts:batchResult?.prunedCharts,witnessCharts:batchResult?.witnessCharts,coverageComplete:batchResult?.coverageComplete,
  globalProofs:batchResult?.globalProofs,failures:batchResult?.failures,groupSamples,timeLimitMs:Number(values['time-limit-ms']),cpuLimitMs:Number(values['cpu-limit-ms']),complete,
  allProven:complete&&(batchResult?batchResult.allProven:samples.every(r=>r.certificate?.bestProven)),
- wallMs:performance.now()-start,cpuMs:(usage.user+usage.system)/1000,rssBytes:process.resourceUsage().maxRSS*1024,
+ firstResultMs,wallMs:performance.now()-start,cpuMs:(usage.user+usage.system)/1000,rssBytes:process.resourceUsage().maxRSS*1024,
  groupFullScoreCalculations,fullScoreCalculations:groupCountersComplete&&samples.every(r=>r.counterCoverage!=='incomplete')?samples.reduce((n,r)=>n+r.fullScoreCalculations,groupFullScoreCalculations):null,
  expanded:samples.reduce((n,r)=>n+(r.certificate?.expanded??0),0)+groupSamples.reduce((n,g)=>n+(g.stats?.expanded??0),0),samples,
  winners:selectEventYieldRows(rows,input.goal).map(r=>({song:r.song.id,total:r.total,scoreRank:r.reward.scoreRank,recommendationGoals:r.recommendationGoals,search:r.search}))};

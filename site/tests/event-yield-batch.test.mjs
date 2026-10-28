@@ -65,8 +65,9 @@ test('challenge cycle stages keep their independent constraints and shared score
  const output=await run({input:{...input,includeChallenge:true,scope:'selected',challengeScope:'owned',challengeBasis:'minimumScore'},challengeCandidates:[challenge],
  optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:true});}});
  assert.equal(calls[0].mode,'challenge');assert.equal(calls[0].scope,'owned');assert.equal(calls[0].basis,'minimumScore');
- assert.equal(calls[0].includeChallenge,false);assert.equal(calls[0].scoreCache,calls[1].scoreCache);
- assert.equal(calls[2].challengeRows.length,2);assert.equal(output.coverageComplete,true);
+ const challengeCalls=calls.filter(o=>o.mode==='challenge');
+ assert.equal(calls[0].includeChallenge,false);assert.ok(challengeCalls.every(o=>o.scoreCache===challengeCalls[0].scoreCache));
+ assert.equal(calls.find(o=>o.mode==='ordinary'&&o.searchMethod!=='practical').challengeRows.length,2);assert.equal(output.coverageComplete,true);
  assert.equal(output.globalProofs.badges.scope,'all_selected_charts_given_challenge_rows');
 });
 
@@ -76,7 +77,7 @@ test('parallel phase failures replay complete serial domains without claiming mi
  runChallengeJobs:async()=>{throw Error('worker crashed');},runGroupProofs:async()=>{throw Error('worker missing coverage');},
  optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:o.mode==='challenge'||!o.witnessOnly,upper:20});},
  proveGroup:async()=>{grouped++;return {proven:false};}});
- assert.equal(calls.filter(c=>c.mode==='challenge').length,2);assert.equal(grouped,2);
+ assert.equal(calls.filter(c=>c.mode==='challenge'&&c.searchMethod!=='practical').length,2);assert.equal(grouped,2);
  assert.equal(output.done,9);assert.equal(output.allProven,true);assert.equal(output.coverageComplete,true);assert.deepEqual(output.failures,[]);
 });
 
@@ -92,4 +93,32 @@ test('parallel live improvements update candidates without prematurely certifyin
  }});
  assert.equal(output.coverageComplete,true);assert.equal(output.rows[0].total.badges,15);
  assert.equal(output.rows[0].search.bestProven,true);
+});
+
+test('a full challenge cycle publishes a legal income plan before waiting for challenge proofs',async()=>{
+ const messages=[],calls=[],challenge={id:'challenge',trackId:'music-0',seconds:5,level:20};
+ const output=await run({input:{...input,includeChallenge:true},challengeCandidates:[challenge],onMessage:m=>messages.push(structuredClone(m)),
+ optimizer:async o=>{
+  calls.push(o);
+  if(o.mode==='challenge'&&o.searchMethod!=='practical'){
+   const previews=messages.filter(m=>m.type==='partial'&&m.rows.length);
+   assert.ok(previews.length,'the first legal income plan must precede the potentially unbounded challenge proof');
+   assert.ok(previews.every(m=>!m.coverageComplete&&m.done===0));
+  }
+  return result(o.candidate,o.goal,{proven:o.searchMethod!=='practical'});
+ }});
+ assert.ok(calls.some(o=>o.mode==='challenge'&&o.searchMethod==='practical'));
+ assert.equal(new Set(calls.filter(o=>o.mode==='ordinary'&&o.searchMethod!=='practical').map(o=>o.candidate.id)).size,1);
+ assert.equal(output.coverageComplete,true);
+ assert.ok(output.rows.every(r=>r.search.bestProven));
+});
+
+test('cancelling at the first income preview retains it without starting an exact challenge proof',async()=>{
+ const controller=new AbortController(),calls=[];
+ const output=await run({input:{...input,includeChallenge:true},challengeCandidates:[{id:'challenge',trackId:'music-0',seconds:5,level:20}],
+ signal:controller.signal,onMessage:m=>{if(m.type==='partial'&&m.rows.length)controller.abort();},
+ optimizer:async o=>{calls.push(o);o.onProgress?.({phase:'practical-result',bestCandidate:row(o.candidate,o.goal)});return result(o.candidate,o.goal);}});
+ assert.ok(output.rows.length);assert.equal(output.done,0);assert.equal(output.coverageComplete,false);
+ assert.deepEqual(output.globalProofs,{});assert.deepEqual(output.failures,[]);
+ assert.ok(calls.every(o=>o.searchMethod==='practical'));
 });

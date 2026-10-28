@@ -5,6 +5,8 @@ import {proveEventYieldGroups} from '../src/lib/event-yield-group-proof.mjs';
 import {optimizeEventYield} from '../src/lib/event-yield-optimizer.mjs';
 import {createFormalSongCalculator} from '../src/lib/scoring-rules/formal-song-score.mjs';
 import {createEventEfficiency} from '../src/lib/scoring-rules/event-efficiency.mjs';
+import {resolveTeamCardGrowth} from '../src/lib/team-card-view.mjs';
+import {materializeTeamAssumptions} from '../src/lib/workbench-team-input.mjs';
 function* permutations(xs,n){if(!n){yield [];return;}for(let i=0;i<xs.length;i++)for(const rest of permutations(xs.filter((_,j)=>j!==i),n-1))yield [xs[i],...rest];}
 const compare=(a,b,goal)=>(goal==='grade'?b.rank-a.rank:0)||b.total[goal==='eventPoints'?'eventPoints':'badges']-a.total[goal==='eventPoints'?'eventPoints':'badges']||b.total[goal==='eventPoints'?'badges':'eventPoints']-a.total[goal==='eventPoints'?'badges':'eventPoints']||a.seconds-b.seconds;
 test('cross-chart first proof matches independent 7200-team native oracle including duration and nonmonotone ranks',async()=>{
@@ -44,6 +46,27 @@ test('cross-chart first proof matches independent 7200-team native oracle includ
 test('cross-chart proof explicitly refuses unsupported tie refinement',async()=>{
  const f=eventYieldOracleFixture();const result=await proveEventYieldGroups({rules:f.rules,eventId:1,input:{...f,mode:'ordinary',refineScoreTies:true},candidates:[f.candidate],goal:'badges'});
  assert.equal(result.proven,false);assert.equal(result.certificate.coverageComplete,false);
+});
+
+test('cross-chart owned results keep actual growth despite a prior full-reference team',async()=>{
+ const f=eventYieldOracleFixture();f.inventory.supportCardIds=f.inventory.supportCardIds.slice(0,5);
+ const input={...f,mode:'ordinary',basis:'expectedScore',liveBoost:1,challengeCost:200,includeChallenge:false,
+  constraints:{leaderId:'member-card-3',lockedPairs:f.draft.slots.map(s=>({...s}))}};
+ input.draft.modifiers.planningScenario={scope:'reference',unknownGrowth:'reference',referenceGrowth:'maximum'};
+ const before=structuredClone(input),result=await proveEventYieldGroups({rules:f.rules,eventId:1,input,candidates:[f.candidate],goal:'badges',
+  initialRows:[{draft:f.draft,song:f.candidate,orderCount:120,reward:{mode:'ordinary'},total:{badges:0,eventPoints:0}}],
+  loadChart:async()=>f.chart,getScoreCache:async()=>new Map()});
+ assert.equal(result.proven,true,JSON.stringify(result));assert.ok(result.results.length);
+ const data={rules:f.rules,...Object.fromEntries(['member','support'].map(kind=>[`${kind}Cards`,f.inventory[`${kind}CardIds`].map(id=>({id,kind}))]))};
+ for(const row of result.results){
+  const applied=materializeTeamAssumptions(row.draft,data,f.inventory);
+  assert.deepEqual(applied.modifiers.growth,row.draft.modifiers.growth);
+  for(const slot of row.draft.slots)for(const kind of ['member','support']){
+   const id=slot[`${kind}CardId`];
+   assert.deepEqual(resolveTeamCardGrowth({card:{id,kind},draft:row.draft,inventory:f.inventory,rules:f.rules}),{growth:f.inventory.growth[id],source:'actual'});
+  }
+ }
+ assert.deepEqual(input,before);
 });
 
 test('equal rewards keep the faster chart in the proven first-place domain',async()=>{

@@ -7,7 +7,7 @@ import {createOrdinaryScoreBound} from '../../../packages/scoring/scoring-rules/
 import {createBonusConstrainedScoreEnvelopeBound} from '../../../packages/scoring/scoring-rules/bonus-constrained-score-bound.mjs';
 import {createCandidateEvaluator} from './formation-candidate-evaluator.mjs';
 import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
-import {withEventRewardCandidates} from './event-reward-candidates.mjs';
+import {prepareEventSearchInput} from './event-search-input.mjs';
 import {bindEventScoreCache} from './event-search-cache.mjs';
 import {compareEventPlans} from './event-yield-goals.mjs';
 import {eventCandidateKey,createChallengeContinuationPlanner,createEventYieldRewardTransform,attainableBonusSums,constrainBonusCards} from './event-yield-optimizer.mjs';
@@ -32,7 +32,8 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   return finish(false,'group_bound_unavailable');
  const metric=goal==='eventPoints'?'eventPoints':'badges',other=metric==='badges'?'eventPoints':'badges';
  const primary=metric==='badges'?'rewardBP':'eventPointBP',secondary=primary==='rewardBP'?'eventPointBP':'rewardBP';
- const options=withEventRewardCandidates({rules,draft:input.draft,scope:input.scope,inventory:input.inventory,
+ if(input.scope==='owned'&&!input.inventory)return finish(false,'missing_owned_inventory');
+ const options=prepareEventSearchInput({rules,draft:input.draft,scope:input.scope,inventory:input.inventory,
   rewardCards:input.rewardCards??[],rewardGrowth:input.rewardGrowth??'level',rewardGrowthOverride:input.rewardGrowthOverride??false});
  let draft=structuredClone(options.draft);draft.modifiers??={};delete draft.modifiers.event;
  if(options.scope==='owned'){

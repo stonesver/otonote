@@ -10,7 +10,7 @@ import {skillMechanismIssue} from '../../../packages/scoring/scoring-rules/skill
 import {createFormalSongCalculator} from './scoring-rules/formal-song-score.mjs';
 import {createFormalSkillResolver} from './scoring-rules/formal-skills.mjs';
 import {createOrdinaryScoreBound} from '../../../packages/scoring/scoring-rules/ordinary-score-bound.mjs';
-import {withEventRewardCandidates} from './event-reward-candidates.mjs';
+import {prepareEventSearchInput} from './event-search-input.mjs';
 
 import {eventGradeEstimate} from './event-song-ranking.mjs';
 import {createEventPipeline} from './scoring-rules/event-rules.mjs';
@@ -83,7 +83,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
    const context=await searchDigest({...rules,tables:preparationTables});
    if(candidateCache.get('$preparation-rules')!==context){candidateCache.clear();candidateCache.set('$preparation-rules',context);scoreCache?.clear();}
  }
- ({draft,scope,inventory}=withEventRewardCandidates({rules,draft,scope,inventory,rewardCards,rewardGrowth,rewardGrowthOverride}));
+ ({draft,scope,inventory}=prepareEventSearchInput({rules,draft,scope,inventory,rewardCards,rewardGrowth,rewardGrowthOverride}));
  if(mode==='ordinary'&&(!Number.isInteger(liveBoost)||liveBoost<1||liveBoost>10||budget<liveBoost))throw Error('普通收益配队需消耗至少 1 火，预算不少于单次耗火');
  const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
  model.challengeCosts=rules.tables.ChallengeMusicBoostBonus.map(r=>r._consumedChallengePointCount);

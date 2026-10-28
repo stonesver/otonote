@@ -9,6 +9,8 @@ import {createTeamDraft} from '../src/lib/team-draft.mjs';
 import {refreshToolTeamGrowth} from '../src/lib/shared-team-context.mjs';
 import {resolveTeamCardGrowth} from '../src/lib/team-card-view.mjs';
 import {createFormationCalculator} from '../src/lib/scoring-rules/formation-power.mjs';
+import {applyEventPlan} from '../src/lib/event-team-view.mjs';
+import {materializeTeamAssumptions} from '../src/lib/workbench-team-input.mjs';
 
 test('AP basis chooses the grade threshold, not a continuous score multiplier',()=>{
  const model={scoreRank:(_,score)=>score>=1000?4:3};
@@ -158,6 +160,38 @@ test('selected search preserves explicit growth, while owned search rejects miss
  }
  delete input.inventory.growth['support-card-1'];
  await assert.rejects(optimizeEventYield({...input,mode:'challenge'}),/实际等级与养成/);
+});
+
+test('owned event recommendations discard stale reference and training assumptions through display and apply',async()=>{
+ const input=fixture(),before=structuredClone(input.inventory);
+ const data={rules:input.rules,...Object.fromEntries(['member','support'].map(kind=>[`${kind}Cards`,input.inventory[`${kind}CardIds`].map(id=>({id,kind}))]))};
+ for(const mode of ['ordinary','challenge'])for(const searchMethod of ['practical','certified']){
+  const options={...input,mode,searchMethod,includeChallenge:false};
+  const baseline=await optimizeEventYield(options);
+  for(const scope of ['reference','trial','owned','selected']){
+   const draft=structuredClone(input.draft);
+   draft.modifiers.planningScenario={schemaVersion:1,sourceReleaseId:input.rules.sourceReleaseId,scope,unknownGrowth:'reference',referenceGrowth:'maximum',
+    trialCardIds:{memberCardIds:input.inventory.memberCardIds,supportCardIds:input.inventory.supportCardIds},
+    plan:{enabled:true,mode:'maximum',targets:Object.fromEntries(input.inventory.memberCardIds.map(id=>[id,{skillLevel:5}]))}};
+   draft.modifiers.planningResult={referenceCardIds:input.inventory.memberCardIds,selectedTrainingCardIds:input.inventory.memberCardIds,
+    rewardGrowthCardIds:input.inventory.memberCardIds,actualGrowth:Object.fromEntries(input.inventory.memberCardIds.map(id=>[id,null]))};
+   const original=structuredClone(draft),found=await optimizeEventYield({...options,draft});
+   assert.deepEqual(found.results.map(r=>[r.id,r.total,r.expectedScore,r.power]),baseline.results.map(r=>[r.id,r.total,r.expectedScore,r.power]));
+   for(const row of found.results){
+    const nodes=new Map(),q=key=>{if(!nodes.has(key))nodes.set(key,{});return nodes.get(key);};
+    const tool={data,q,render(){this.draft=materializeTeamAssumptions(this.draft,data,input.inventory);}};
+    applyEventPlan(tool,row,mode);
+    assert.deepEqual(tool.draft.modifiers.growth,input.inventory.growth);
+    assert.equal(tool.draft.modifiers.planningScenario.scope,'owned');
+    for(const slot of row.draft.slots)for(const kind of ['member','support']){
+     const id=slot[`${kind}CardId`],face=resolveTeamCardGrowth({card:{id,kind},draft:row.draft,inventory:input.inventory,rules:input.rules});
+     assert.deepEqual(face,{growth:input.inventory.growth[id],source:'actual'});
+    }
+   }
+   assert.deepEqual(draft,original);
+  }
+ }
+ assert.deepEqual(input.inventory,before);
 });
 
 test('job cache preserves full results across same-context charts, and invalidates changed growth',async()=>{
@@ -327,6 +361,8 @@ test('certified event search matches exhaustive full-order scoring with six supp
 
 test('ordinary and challenge reward overrides match equivalent trained inventories',async()=>{
  const input=fixture(),before=structuredClone(input.inventory);
+ input.draft.modifiers.planningScenario={scope:'reference',referenceGrowth:'maximum'};
+ input.draft.modifiers.planningResult={rewardGrowthCardIds:['member-card-2'],referenceCardIds:['support-card-2']};
  const {createInventoryManager}=await import('../src/lib/inventory-manager.mjs');
  const manager=createInventoryManager(input.rules),rewardCards=[{resourceType:2,resourceId:1},{resourceType:3,resourceId:1}];
  const expectedInventory=structuredClone(input.inventory);
@@ -336,6 +372,11 @@ test('ordinary and challenge reward overrides match equivalent trained inventori
   const expected=await optimizeEventYield({...input,mode,includeChallenge:false,inventory:expectedInventory});
   const rows=r=>r.results.map(row=>[row.id,row.total,row.estimatedScore,row.power,row.draft.modifiers.growth]);
   assert.deepEqual(rows(actual),rows(expected));
+  for(const row of actual.results)for(const slot of row.draft.slots)for(const kind of ['member','support']){
+   const id=slot[`${kind}CardId`],reward=id===`${kind}-card-1`;
+   const face=resolveTeamCardGrowth({card:{id,kind},draft:row.draft,inventory:input.inventory,rules:input.rules});
+   assert.deepEqual(face,{growth:expectedInventory.growth[id],source:reward?'selected':'actual'});
+  }
  }
  assert.deepEqual(input.inventory,before);
 });

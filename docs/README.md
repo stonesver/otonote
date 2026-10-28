@@ -28,6 +28,7 @@
 | --- | --- | --- |
 | [Golden Replay evidence intake](../catalog/baselines/scoring/README.md) | `reference` | `current` |
 | [三服邮箱认证与账号读取](reference/account-reads.md) | `reference` | `current` |
+| [激奏舞台信息查询与配队入口设计](reference/arena-stage.md) | `reference` | `current` |
 | [计算搜索与证书边界](reference/calculation-search.md) | `reference` | `current` |
 | [服装图鉴](reference/costumes.md) | `reference` | `current` |
 | [抽卡记录](reference/gacha-history.md) | `reference` | `current` |

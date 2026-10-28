@@ -15,7 +15,7 @@ on:
       model:
         description: Must match the reviewed scoring source
         required: true
-        default: ournotes-native-score-v9
+        default: ournotes-native-score-v10
         type: string
       mode:
         description: Verify locally or publish the verified result

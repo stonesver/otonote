@@ -101,7 +101,7 @@ export function createComboReplay(bonusRows) {
  * note damage, then advance after this frame's inputs. Recovery is phase 1;
  * life-conditioned score skills are phase 2; converters expire after input. */
 export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, clock, life, skillEndFrame, onFactor = () => {}, withoutSkills = false }) {
-  const triggers = new Map(), endings = new Map(), converters = [], skillTrace = [], commands = [];
+  const triggers = new Map(), endings = new Map(), converters = [], skillTrace = [], commands = [], scores = [];
   let recoveryAmount = 0, lastFrame = 0;
   const enqueue = (map, frame, value) => { if (!map.has(frame)) map.set(frame, []); map.get(frame).push(value); lastFrame = Math.max(lastFrame, frame); };
   for (let i = 0; i < 5; i++) enqueue(triggers, clock.indexAt(skillTimes[i]), { slot: skillOrder[i], startMs: skillTimes[i] });
@@ -126,9 +126,10 @@ export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, c
       }
       return { judgement, convertedBy: null };
     },
-    advance(frame) {
+    advance(frame, notes = []) {
       currentTime = clock.at(frame).timeMs;
       let changed = false;
+      const startup = !withoutSkills && frame === 0 ? skills.flatMap((skill, slot) => skill.supportEffects.filter(e => e.startup).map(effect => ({ slot, effect }))) : [];
       const fired = withoutSkills ? [] : (triggers.get(frame) ?? []).sort((a, b) => a.slot - b.slot);
       for (const { slot, startMs } of fired) for (const effect of skills[slot].supportEffects.filter(e => e.type === 3001)) {
         const active = matches(effect.condition);
@@ -139,26 +140,66 @@ export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, c
         const currentLife = effect.condition.kind === 'life_at_least' ? life.at(currentTime) : null, active = matches(effect.condition);
         skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, currentLife, active });
         if (!active) continue;
-        const rate = Math.fround(Math.floor(Math.fround(Math.fround(effect.rate) * 100000)) / 100000);
-        if (effect.type !== 2000 && effect.targets.some(target => !fields[target])) throw new Error(`不支持的得分判定目标：${effect.id}`);
-        const delta = effect.type === 2000 ? { general: rate } : Object.fromEntries(effect.targets.map(target => [fields[target], rate]));
-        const ownerId = slot * 100 + 1;
+        const rawRate = effect.cumulative ? 0 : effect.rate;
+        const rate = Math.fround(Math.floor(Math.fround(Math.fround(rawRate) * 100000)) / 100000);
+        if (![2000, 2001].includes(effect.type) && effect.targets.some(target => !fields[target])) throw new Error(`不支持的得分判定目标：${effect.id}`);
+        const delta = [2000, 2001].includes(effect.type) ? { general: rate } : Object.fromEntries(effect.targets.map(target => [fields[target], rate]));
+        const ownerId = slot * 100 + (effect.sourceKind === 'support' ? 2 : 1);
+        const state = { effect, slot, ownerId, delta, count: 0, active: true, startFrame: frame,
+          endFrame: skillEndFrame(clock, startMs, effect.durationRawMs).frame };
+        scores.push(state);
         addFactor({ timeMs: startMs, ownerId, ...delta }, frame);
-        endAt(effect, startMs, { kind: 'score', ownerId, delta, slot, effectId: effect.id });
+        endAt(effect, startMs, { kind: 'score', ownerId, delta, slot, effectId: effect.id, state });
         changed = true;
       }
+      // UpdateStay and UpdateExecuteFrame both accumulate. Release is checked
+      // only in UpdateExecuting, beginning two frames after activation.
+      for (const state of scores.filter(s => s.active)) {
+        const { effect } = state;
+        const released = frame > state.startFrame + 1 && effect.release
+          ? notes.filter(note => effect.release.includes(note.judgement)).at(-1) : null;
+        if (released) {
+          addFactor({ timeMs: released.timeMs, ownerId: state.ownerId,
+            ...Object.fromEntries(Object.entries(state.delta).map(([key,value]) => [key,-value])) }, frame);
+          state.active = false; changed = true;
+          skillTrace.push({ frame, timeMs: released.timeMs, slotIndex: state.slot, effectId: effect.id, action: 'release' });
+        } else if (effect.cumulative && frame < state.endFrame) {
+          state.count += notes.filter(note => effect.cumulative.targets.includes(note.judgement)).length;
+          const count = Math.min(effect.cumulative.maximum, Math.floor(Math.fround(Math.fround(state.count) / Math.fround(effect.cumulative.unit))));
+          const raw = Math.fround(Math.min(effect.cumulative.maximumBP, Math.imul(count, effect.cumulative.stepBP)) / 10000);
+          const rate = Math.fround(Math.floor(Math.fround(raw * 100000)) / 100000);
+          const old = state.delta.general;
+          if (rate !== old) {
+            // Native disposes the old handle before adding its replacement.
+            addFactor({ timeMs: currentTime, ownerId: state.ownerId, general: -old }, frame);
+            addFactor({ timeMs: currentTime, ownerId: state.ownerId, general: rate }, frame);
+            state.delta.general = rate; changed = true;
+            skillTrace.push({ frame, timeMs: currentTime, slotIndex: state.slot, effectId: effect.id, action: 'cumulative', count, rate });
+          }
+        }
+      }
       for (const ending of (endings.get(frame) ?? []).sort((a, b) => a.slot - b.slot)) {
-        if (ending.kind === 'score') addFactor({ timeMs: ending.timeMs, ownerId: ending.ownerId,
-          ...Object.fromEntries(Object.entries(ending.delta).map(([key, value]) => [key, -value])) }, frame);
+        if (ending.kind === 'score' && !ending.state.active) continue;
+        if (ending.kind === 'score') { ending.state.active = false; addFactor({ timeMs: ending.timeMs, ownerId: ending.ownerId,
+          ...Object.fromEntries(Object.entries(ending.delta).map(([key, value]) => [key, -value])) }, frame); }
         else ending.converter.active = false;
         changed = true;
       }
-      for (const { slot, startMs } of fired) for (const effect of skills[slot].supportEffects.filter(e => e.type === 12006)) {
+      for (const converter of converters) if (converter.active && converter.effect.startup
+        && (frame === 1 ? currentTime >= converter.effect.durationRawMs : currentTime > converter.effect.durationRawMs)) {
+        converter.active = false; changed = true;
+      }
+      const conversions = [...startup, ...fired.flatMap(({slot,startMs}) => skills[slot].supportEffects.filter(e => e.type === 12006 && !e.startup).map(effect => ({slot,startMs,effect})))];
+      for (const { slot, startMs = 0, effect } of conversions) {
         const active = matches(effect.condition);
         skillTrace.push({ frame, timeMs: startMs, slotIndex: slot, effectId: effect.id, type: effect.type, active });
         if (!active) continue;
         const converter = { slot, effect, active: true, remaining: effect.limitCount > 0 ? effect.limitCount : null };
-        converters.push(converter); endAt(effect, startMs, { kind: 'conversion', slot, converter }); changed = true;
+        converters.push(converter);
+        // Startup expiration is checked in-place without seeking beyond an
+        // explicit clock or extending replay by a 99999-second lifetime.
+        if (!effect.startup) endAt(effect, startMs, { kind: 'conversion', slot, converter });
+        changed = true;
       }
       return changed;
     },

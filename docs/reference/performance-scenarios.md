@@ -20,12 +20,16 @@
 | --- | --- | --- |
 | 判定窗口、损血与得分百分比 | `LiveJudgementTiming`、`LiveJudgementParameter`；合成谱面逐一测试 GREAT／GOOD／BAD／MISS | 未重建触屏命中、长条按压及自动子音符调度。时机情景属于规则表参考模型 |
 | 普通连击、生命、迟到输入 | 复用既有 `createComboReplay`、`createLifeReplay`；原生方法样本 `formal-performance-state-native.json`；新测试比较普通与激奏的迟到输入 | 不把普通 FC 标签推定为 JUST 水平 |
-| 普通技能生命周期 | 将既有恢复、生命条件得分、转换激活／过期提取为 `createOrdinarySkillLifecycle`；两种模式共同调用；原测试全部保留 | 同帧输入先执行，恢复先于生命条件得分检查，旧转换在过期帧的输入中仍参与 |
+| 普通技能生命周期 | 恢复、生命条件得分、转换激活／过期、判定解除和累计加分统一使用 `createOrdinarySkillLifecycle`；两种模式共同调用；原测试全部保留 | 同帧输入先执行，恢复先于生命条件得分检查，旧转换在过期帧的输入中仍参与 |
 | 激奏动态生命条件 | 运行时读共享生命；高低生命分支测试 | 未测实机所有混合技能排列 |
 | 激奏扩窗 4004 | 原有 float32 百分比窗口逻辑，原始操作情景测试激活前后变化 | 明确判定文件保留原判定，不凭空增加 JUST |
 | 激奏转换 12006／13005 | 使用 Master 的实际目标判定与次数；仅成功转换消耗；13005 的正式目标包含 PERFECT 到 MISS | 普通转换先于激奏转换的混合排序仍需实机对照；不从技能文案推导排序 |
 | COMBO 断连与保护 12004 | build 25 `GekisouController.RecalculateBonusDependentCounts` 0x55d66b8：0x55d6d20..0x55d6d54 使 3..6 增加任务连击并更新最大值；0x55d6e7c..0x55d6e88 使未保护的 1/2 重置当前值、保留最大值。0x55d6e08..0x55d6e60 消耗所有匹配保护项 | 保护只保留任务连击，失误不增加任务连击，也不修复普通连击和生命。COMBO 排名使用最大任务连击，当前任务连击另行输出 |
 | LUCK／JUST／任务加成／结算 | 保留现有原生时间、抽奖、排名奖励与延迟确认实现；非 AP 判定进入 LUCK 基础点数和 PERFECT 数统计 | 对手是输入情景，不提供无依据的个人胜率 |
+
+普通技能还支持按 PERFECT／JUST 每 N 次增加倍率（2001），分别读取累计次数上限和效果值上限；激活帧也读取当前帧判定，更新时撤销旧句柄再添加新句柄，结束后撤销当前值。理想 AP 与非 AP、普通与激奏共用生命周期，AP 不直接套用最大倍率。判定解除条件（1020）在执行状态检查，采用本帧最后一个匹配音符的谱面时间；激活帧及紧接的 ExecuteFrame 不检查解除。开局静态乐队条件、执行上限为一次的 BAD／MISS 到 GOOD 转换按成功转换消耗，次数耗尽后不随成员技能重新发动。尚未支持的执行重置条件仍明确拒绝。
+
+这些新增普通机制检查了 1.1.0 原生方法：`SkillEffectUpdater` 的 Stay／ExecuteFrame／Executing、`SkillConditionNoteJudgementEqualChecker`、`NoteCumulativeScoreUpApplier` 和 `TargetJudgementConvertApplier`。`analysis/crypto/verify_current_ordinary_skills_native.py` 用显式私有路径和固定二进制摘要重放队长人数累计、上限、分量累计与判定除法的 ARM64 指令；合成样本保存在 `current-ordinary-native.json`。泛型集合、接口分派及属性匹配谓词由夹具替代，不能当作 Unity 调度或整场实机验收；当前整场模型仍保留参考兼容标记。
 
 非 AP 的 `ordinaryReferenceScore` 当前表示保留该次有效判定、移除激奏得分倍率的参考值，结果以 `referenceKind` 明确标记。它不是另一次自由演出的独立模拟，也不是单卡贡献；换卡应比较整队结果。
 

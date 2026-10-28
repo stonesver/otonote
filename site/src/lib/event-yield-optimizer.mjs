@@ -350,7 +350,7 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,eventAdapte
    if(signal?.aborted)return done();
    const state=states.pop();
    const requiredCharacters=new Map(state.memberRequired.map(id=>[characterFor.get(id),id]));
-   const nodeModel={leader,edges:modelRow.edges.filter(e=>!state.memberExcluded.includes(e.member)&&!state.supportExcluded.includes(e.support)
+   const nodeModel={...modelRow,edges:modelRow.edges.filter(e=>!state.memberExcluded.includes(e.member)&&!state.supportExcluded.includes(e.support)
      &&(!requiredCharacters.has(e.character)||requiredCharacters.get(e.character)===e.member)
      &&(state.memberRequired.length<5||state.memberRequired.includes(e.member))
      &&(state.supportRequired.length<5||state.supportRequired.includes(e.support)))};
@@ -376,7 +376,7 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,eventAdapte
          if(!a&&!required[1]||!b&&!required[0])continue;
          const min=a*required[0]+b*required[1];if(!Number.isSafeInteger(min))continue;
          const forCard=(kind,id)=>{const bonus=cardBonus(kind,id);return a*bonus[primary]+b*bonus[secondary];};
-         const constrained={leader,edges:constrainBonusCards(nodeModel.edges,state,forCard,min)};
+         const constrained={...nodeModel,edges:constrainBonusCards(nodeModel.edges,state,forCard,min)};
          const constrainedPower=maximumPairing({edges:constrained.edges,required:state.required,forbidden:state.forbidden,
            requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
          if(!constrainedPower){excluded=true;break;}
@@ -419,7 +419,7 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,eventAdapte
        await yieldControl();continue;
      }
      const fixed={...state,required:power.edges.map(e=>e.key)};
-     const scoreUpper=bound(fixed,{edges:power.edges},power,()=>draftFromPairing(input,leader,power.edges));
+     const scoreUpper=bound(fixed,{...nodeModel,edges:power.edges},power,()=>draftFromPairing(input,leader,power.edges));
      const actual=power.edges.reduce((sum,e)=>{const b=pairBonus(e);return {rewardBP:sum.rewardBP+b.rewardBP,eventPointBP:sum.eventPointBP+b.eventPointBP};},{rewardBP:0,eventPointBP:0});
      const candidateUpper=upperCandidate({...actual,scoreUpper,tieScoreUpper:scoreUpper});
      // The representative is removed by Lawler partitioning, so either score

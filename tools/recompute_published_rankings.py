@@ -167,15 +167,14 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
         data = json.loads((output/(locale + '.json')).read_bytes())
         validate_rankings(data, catalog, model)
         replacements[records['supplemental/song-rankings.json']['path']] = canonical(data)
-        if scoring_rules is not None:
-            compatibility = json.loads((output/(locale+'-compatibility.json')).read_bytes())
-            if (compatibility.get('sourceReleaseId') != catalog['release']['id']
-                    or compatibility.get('status') not in ('compatible','partial')
-                    or not isinstance(compatibility.get('issues'), list)
-                    or type(compatibility.get('checks')) is not int or compatibility['checks'] <= 0):
-                raise ValueError('repaired skill coverage is invalid')
-            replacements[records['supplemental/scoring-compatibility.json']['path']] = canonical(compatibility)
-            coverage[locale] = {'status':compatibility['status'],'issues':len(compatibility['issues'])}
+        compatibility = json.loads((output/(locale+'-compatibility.json')).read_bytes())
+        if (compatibility.get('sourceReleaseId') != catalog['release']['id']
+                or compatibility.get('status') not in ('compatible','partial')
+                or not isinstance(compatibility.get('issues'), list)
+                or type(compatibility.get('checks')) is not int or compatibility['checks'] <= 0):
+            raise ValueError('recomputed skill coverage is invalid')
+        replacements[records['supplemental/scoring-compatibility.json']['path']] = canonical(compatibility)
+        coverage[locale] = {'status':compatibility['status'],'issues':len(compatibility['issues'])}
         counts[locale] = {mode:len(data[mode]) for mode in ('ordinary', 'gekisou')}
     identifier = digest(canonical({'parent':pointer['sha256'], 'model':model,
                                   'rankings':{k:digest(v) for k,v in replacements.items()}}))[:24]
@@ -205,7 +204,7 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     # Library vectors are assembled by the renderer from the active edition pointers.
     new_pointer.pop('libraryPointers', None)
     report = {'region':region,'model':model,'counts':counts,'previousPointer':pointer,
-              'nextPointer':new_pointer,'sourcePointerSha256':expected}
+              'nextPointer':new_pointer,'sourcePointerSha256':expected, 'scoringCoverage':coverage}
     if scoring_rules is not None:
         report['scoringRepair'] = {'reviewedSha256':expected_rules_sha256,'coverage':coverage}
     (work/'verification.json').write_bytes(canonical(report))

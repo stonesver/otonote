@@ -31,11 +31,11 @@ export function compareScoredFormations(candidate, baseline) {
       totalScore: s.totalScore - baseline.sections[i].totalScore })) ?? null };
 }
 
-/** Fixed leader makes the current ordinary power model additive over pairs.
- * Use the SAME native arithmetic as the calculator to obtain edge weights. */
+/** Pair weights use identical native arithmetic. Formation-dependent leaders
+ * use capped cumulative bonuses as a relaxation, then score actual teams. */
 function reweightModels(models, weight) {
   const changed = new WeakMap();
-  return models.map(model => ({ leader: model.leader, edges: model.edges.map(edge => {
+  return models.map(model => ({ ...model, edges: model.edges.map(edge => {
     if (!changed.has(edge)) changed.set(edge, { ...edge, weight: weight(edge) });
     return changed.get(edge);
   }) }));
@@ -61,7 +61,7 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
     const slots = emptySlots(), index = member === leader ? 2 : 0;
     if (leader) slots[2].memberCardId = leader;
     slots[index] = { memberCardId: member, supportCardId: support };
-    return calculator.calculateSlot({ ...input.draft, slots }, index);
+    return calculator.calculateSlotUpperBound({ ...input.draft, slots }, index);
   };
   const cacheKey = pairCacheKey == null ? null : JSON.stringify([pairCacheKey, leaderIds]);
   const cached=cacheKey==null?null:pairCache?.get(cacheKey);
@@ -106,7 +106,7 @@ export async function compilePairingModels(rules, input, { signal, yieldControl,
       if(!variant)byWeight.set(weight,variant={...edge,weight});
       edges.push(variant);
     }
-    models.push({leader,edges});
+    models.push({leader,edges,powerIsUpperBound:calculator.leaderDependsOnFormation(leader)});
     onProgress?.({ phase: "leader_weights", completed: i + 1, total: leaders.length });
     await yieldControl?.();
   }
@@ -241,7 +241,7 @@ export async function optimizeInventory({ rules, draft, scope = "selected", inve
       const value = values[i];
       // Every uncompleted subspace survives cancellation and can be resumed.
       if (!value) { if (!signal?.aborted) throw new Error("Candidate batch did not complete"); push(state); continue; }
-      if (value.power !== state.solution.weight) throw new Error("Pairing model disagrees with native power calculator");
+      if (modelById.get(state.leader).powerIsUpperBound ? value.power > state.solution.weight : value.power !== state.solution.weight) throw new Error("Pairing model disagrees with native power calculator");
       if (value.value > state.upperBound) throw new Error("Search bound below evaluated candidate");
       const id = `${state.leader}:${state.solution.edges.map(e=>e.key).join(",")}`;
       results.push({id,...withComparison(value),delta:baseline==null?null:value.value-baseline});

@@ -45,6 +45,10 @@ test('challenge controls remain functional after moving outside the result panel
  assert.equal(progress.dataset.state,'stopped');
  node('[data-challenge-opt-rewards]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
  node('[data-challenge-opt-reward-growth]').value='maximum';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowth,'maximum');assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
+ const bandField=node('[data-challenge-opt-support-band]');bandField.multiple=true;bandField.selectedOptions=[{value:'2'},{value:'3'}];
+ const beforeBands=workers.at(-1);bandField.listeners.change();assert.equal(beforeBands.terminated,true);
+ assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();
+ assert.deepEqual(workers.at(-1).payload.constraints,{supportBandId:[2,3]});
  ui.destroy();
  tool.dataset.task='team';ui.sync();assert.equal(node('challenge-optimizer').hidden,true);assert.equal(node('[data-challenge-opt-run]').disabled,true);
  tool.dataset.task='challenge';ui.sync();assert.equal(node('challenge-optimizer').hidden,false);assert.equal(node('[data-challenge-opt-run]').disabled,false);

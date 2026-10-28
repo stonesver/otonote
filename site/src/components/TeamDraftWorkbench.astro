@@ -115,6 +115,11 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
       <option value="theoretical">全部卡库（卡片满养成）</option>
     </select></label>
 <TeamPlanningScenario part="cards" />
+    <div class="selection-filter-rows" data-search-card-bands>
+    <label class="selection-filter-row"><span>成员乐队</span><select data-search-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(band => <option value={band.masterId} data-icon={filterVisual('band',band.id).icon} data-icon-only={filterVisual('band',band.id).iconOnly}>{band.displayName}</option>)}</select></label>
+    <label class="selection-filter-row"><span>留影关联乐队</span><select data-search-support-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(band => <option value={band.masterId} data-icon={filterVisual('band',band.id).icon} data-icon-only={filterVisual('band',band.id).iconOnly}>{band.displayName}</option>)}</select></label>
+    <p class="calculator-scope-note">成员与留影分别筛选；留影包含所选乐队任一角色即可入选。</p>
+    </div>
       <p class="calculator-scope-note" data-inventory-scope-note></p>
     <div class="calculator-links"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div>
     <p data-team-workspace-status role="status"></p><div class="tool-team-strip" data-team-workspace-summary></div>
@@ -222,7 +227,6 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
       <option value="formation_power">综合能力</option>
     </select></label>    <div data-search-filters><FilterPanel title="限定乐队、属性（可选）"><div class="optimizer-filter-fields selection-filter-rows">
     <label hidden class="selection-filter-row"><span>旧版计算组数</span><input type="number" min="1" max="100000" value="20" data-search-budget disabled /></label>
-    <label class="selection-filter-row"><span>成员乐队</span><select data-search-band multiple data-inline-filter data-filter-kind="band"><option value="">不限</option>{catalog.bands.map(band => <option value={band.masterId}>{band.displayName}</option>)}</select></label>
     <label class="selection-filter-row"><span>成员属性</span><select data-search-attribute multiple data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
     <label class="selection-filter-row"><span>留影属性</span><select data-search-support-attribute multiple data-inline-filter data-filter-kind="attribute"><option value="">不限</option>{attributes.map(attribute => <option value={attribute}>{getCardAttribute(attribute)?.names[catalog.release.locale] ?? attribute}</option>)}</select></label>
     </div></FilterPanel></div>

@@ -20,12 +20,12 @@ export {compareEventPlans} from './event-yield-goals.mjs';
 // This cache belongs to one calculation job. Music identity/difficulty affects
 // scoring, but candidate preparation only reads effective type and favorite tags.
 // Keep all other inputs in the key so growth, inventory or event changes miss.
-export function eventCandidateKey(rules,draft,inventory,scope,eventAdapters,includeMusic=true){
+export function eventCandidateKey(rules,draft,inventory,scope,eventAdapters,includeMusic=true,constraints={}){
  const music=createEventPipeline(rules,draft.modifiers.event,eventAdapters).apply('song_context',
    rules.tables.LiveMusic.find(m=>`music-${m._id}`===draft.selectedSongId),{draft});
  if(!music)throw Error('缺少歌曲资料');
  return JSON.stringify({source:rules.sourceReleaseId,version:rules.ruleSetVersion,native:rules.nativeSha256,
-   scope,inventory,slots:draft.slots,modifiers:draft.modifiers,...(includeMusic?{type:music._musicType,tags:music._bestMusicTagIDs}:{})});
+   scope,inventory,constraints,slots:draft.slots,modifiers:draft.modifiers,...(includeMusic?{type:music._musicType,tags:music._bestMusicTagIDs}:{})});
 }
 
 /** Choose the best evaluated challenge team/song for each consumption tier,
@@ -67,7 +67,7 @@ export function createEventYieldRewardTransform({model,candidate,basis,mode,live
  };
 }
 
-export async function optimizeEventYield({rules,eventId,draft,chart,candidate,scope='owned',inventory,mode='ordinary',
+export async function optimizeEventYield({rules,eventId,draft,chart,candidate,scope='owned',inventory,constraints={},mode='ordinary',
  liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='expectedScore',challengeRows=[],includeChallenge=true,
  onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,challengePlanCache,
  searchMethod='certified',maxEvaluations=24,refineScoreTies=false,witnessOnly=false,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}){
@@ -76,7 +76,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  if(typeof refineScoreTies!=='boolean')throw Error('Invalid score tie refinement option');
  if(typeof witnessOnly!=='boolean'||witnessOnly&&(searchMethod!=='certified'||refineScoreTies||draft.modifiers?.performanceScenario))throw Error('Invalid reward witness option');
  if(!['ordinary','challenge'].includes(mode))throw Error('收益配队仅支持普通与挑战；激奏需要团队结算档位');
- if(!['owned','selected'].includes(scope)||!['badges','eventPoints','grade'].includes(goal))throw Error('Invalid event search options');
+ if(!['owned','selected','reference'].includes(scope)||!['badges','eventPoints','grade'].includes(goal))throw Error('Invalid event search options');
  if(!Number.isInteger(budget)||budget<1||budget>10000||!Number.isInteger(startingCP)||startingCP<0||startingCP>1000000)throw Error('Invalid farming budget');
  if(candidateCache){
    const {LiveMusicScore,...preparationTables}=rules.tables;
@@ -87,7 +87,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  if(mode==='ordinary'&&(!Number.isInteger(liveBoost)||liveBoost<1||liveBoost>10||budget<liveBoost))throw Error('普通收益配队需消耗至少 1 火，预算不少于单次耗火');
  const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
  model.challengeCosts=rules.tables.ChallengeMusicBoostBonus.map(r=>r._consumedChallengePointCount);
- const next=structuredClone(draft);next.selectedSongId=candidate.trackId;next.selectedDifficulty=candidate.difficulty;next.modifiers??={};delete next.modifiers.event;
+ let next=structuredClone(draft);next.selectedSongId=candidate.trackId;next.selectedDifficulty=candidate.difficulty;next.modifiers??={};delete next.modifiers.event;
  if(mode==='challenge')next.modifiers.event={id:eventId,sourceReleaseId:rules.sourceReleaseId};
  if(scope==='owned'){
    if(!inventory)throw Error('请先导入已保存卡库与实际养成');
@@ -95,6 +95,9 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
    // snapshot, not an explicit override of actual card levels or ranks.
    next.modifiers.growth=structuredClone(inventory.growth??{});
  }
+ // Resolve the filtered domain before scoring bonuses, including maximum reference growth.
+ const resolved=resolveSearchInput(rules,next,{scope,inventory,constraints});
+ next=resolved.draft;
  const metric=goal==='eventPoints'?'eventPoints':'badges',bonusCache=new Map();
  const cardBonus=(kind,id)=>{
    if(!bonusCache.has(id))bonusCache.set(id,model.cardBonus(kind,Number(id.split('-').at(-1)),next.modifiers.growth?.[id]?.rank??1));
@@ -153,8 +156,8 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
    compareEventPlans({...a,expectedScore:0},{...b,expectedScore:0},goal);
  let result,exact,bonusCeiling,witnessReport;
  if(searchMethod==='certified'&&!refineScoreTies&&!next.modifiers.performanceScenario){
-   const input=resolveSearchInput(rules,next,{scope,inventory});
-   const witnessKey=candidateCache?eventCandidateKey(rules,next,inventory,scope,eventAdapters)+':ceiling-witness-event='+eventId:null;
+   const input=resolved;
+   const witnessKey=candidateCache?eventCandidateKey(rules,next,inventory,scope,eventAdapters,true,constraints)+':ceiling-witness-event='+eventId:null;
    let prepared=witnessKey?candidateCache.get(witnessKey):null;
    witnessReport={attempted:true,candidateCacheHit:Boolean(prepared),fullScoreCalculations:0,scoreCacheHits:0,success:false};
    if(prepared){
@@ -178,7 +181,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
        const ceiling={rewardBP:rewards.weight,eventPointBP:points.weight};
        let models;
        try { models=await compilePairingModels(rules,input,{eventAdapters,signal,yieldControl,modelCache,pairCache:candidateCache,
-         pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null}); }
+         pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false,constraints):null}); }
        catch (error) { witnessReport.unsupported=skillMechanismIssue(error); models=[]; }
        // A failed witness proves nothing. The practical fallback reports the
        // precise unsupported leaders and retains fully supported teams.
@@ -192,7 +195,8 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
          const largest=Math.max(...model.edges.map(e=>Math.abs(weight(e))));
          // maximumPairing's own mandatory-vertex reward must also stay exact.
          if(!Number.isSafeInteger((10*largest+1)*11))continue;
-         const matching=maximumPairing({edges:model.edges,requiredMembers:[model.leader],weight});
+           const matching=maximumPairing({edges:model.edges,required:input.constraints.lockedPairs.map(p=>`${p.memberCardId}|${p.supportCardId}`),
+             requiredMembers:[model.leader,...input.constraints.requiredMemberIds],requiredSupports:input.constraints.requiredSupportIds,weight});
          if(matching&&(!best||matching.weight>best.matching.weight))best={model,matching};
          onProgress?.({phase:'event-witness',stage:'尝试全局收益上界见证',completed:(models??[]).indexOf(model)+1,total:models.length});
          await yieldControl();if(signal?.aborted)break;
@@ -231,10 +235,10 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
    status:signal?.aborted?'cancelled':'witness_only',optimality:'incomplete',searchMethod:'certified',objective:'event_yield',mode,goal,basis,
    certifiedSearch:{searchStatus:signal?.aborted?'cancelled':'witness_only',bestProven:false,topNComplete:false,fullScoreCalculations:0,
      boundScoreCalculations:0,expanded:0,globalUpperCandidate,objective:'reward_tuple',scoreTieOptimality:'not_proven'}};
- result??=await optimizePractical({rules,draft:next,chart,scope,inventory,objective:'expected_song_score',performanceScenario:next.modifiers.performanceScenario,
+ result??=await optimizePractical({rules,draft:next,chart,scope,inventory,constraints,objective:'expected_song_score',performanceScenario:next.modifiers.performanceScenario,
    eventAdapters,extraProfiles,transformScore,candidateCache,scoreCache,modelCache,pairCache:candidateCache,
-   pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null,
-   candidateCacheKey:candidateCache?eventCandidateKey(rules,next,inventory,scope,eventAdapters)+':reward-event='+eventId:null,
+   pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false,constraints):null,
+   candidateCacheKey:candidateCache?eventCandidateKey(rules,next,inventory,scope,eventAdapters,true,constraints)+':reward-event='+eventId:null,
    compareCandidates:(a,b)=>compareEventPlans(a,b,goal),finalistLimit:12,retainedOrigins:['bonus-items','bonus-points','bonus-both','mixed-items','mixed-points'],onProgress,yieldControl,signal});
  if(witnessReport&&!witnessReport.success){
    result.practical.ceilingWitness=witnessReport;
@@ -254,9 +258,9 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  }
  let rootBoundCalculations=0;
  if(!exact&&maxEvaluations===0&&bonusCeiling&&!refineScoreTies&&!next.modifiers.performanceScenario&&result.results.length){
-   const proof=await certifyRewardRoots({rules,draft:next,chart,scope,inventory,eventAdapters,basis,model,mode,goal,metric,budget,liveBoost,challengeCost,startingCP,
+   const proof=await certifyRewardRoots({rules,draft:next,chart,scope,inventory,constraints,eventAdapters,basis,model,mode,goal,metric,budget,liveBoost,challengeCost,startingCP,
      includeChallenge,continuationFor,pairBonus,cardBonus,bonusCeiling,result,transformScore,compare,scoreCache,modelCache,candidateCache,
-     pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null,upperCandidate,partitionSearch:maxEvaluations===0,yieldControl,onProgress,signal});
+     pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false,constraints):null,upperCandidate,partitionSearch:maxEvaluations===0,yieldControl,onProgress,signal});
    rootBoundCalculations=proof.boundScoreCalculations;
    result.practical.rewardRootCertificate=proof;
    if(proof.proven){const first=result.results[0];exact={results:result.results,evaluated:0,expanded:proof.expanded,candidateBoundPruned:proof.candidateBoundPruned,
@@ -264,11 +268,11 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
      upperBound:first.value,optimalityGap:0,upperCandidate:{value:first.value,total:first.total,scoreRank:first.reward.scoreRank},
      bestProven:true,proofTarget:'best',certifiedCount:1,topNComplete:false,frontier:0,proof:'grade_and_bonus_constrained_score_ceiling'};}
  }
- exact??=await searchEventFormations({rules,draft:next,chart,scope,inventory,eventAdapters,boundMetric:basis,
+ exact??=await searchEventFormations({rules,draft:next,chart,scope,inventory,constraints,eventAdapters,boundMetric:basis,
    seeds:result.results,bonusFor:{metric:metric==='badges'?'rewardBP':'eventPointBP',pair:pairBonus,card:cardBonus},
    upperCandidate,transformScore,compareCandidates:compare,rankCandidates:(a,b)=>compareEventPlans(a,b,goal),bonusCeiling,
    maxEvaluations,proofCount:1,includeTieScoreBound:refineScoreTies,signal,yieldControl,onProgress,scoreCache,scoreCounters:result.practical,baselineResult:result.baselineResult,
-   modelCache,pairCache:candidateCache,pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false):null});
+   modelCache,pairCache:candidateCache,pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false,constraints):null});
  exact.boundScoreCalculations=(exact.boundScoreCalculations??0)+rootBoundCalculations;
  const {results:exactResults,...certificate}=exact;
  exactResults.sort((a,b)=>compareEventPlans(a,b,goal));
@@ -290,10 +294,10 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
 /** Exclude every strictly better reward tuple at every grade in every leader
  * root. Minimum bonus requirements are necessary conditions, not a narrowed
  * library. Failure to certify always leaves the exhaustive search available. */
-async function certifyRewardRoots({rules,draft,chart,scope,inventory,eventAdapters,basis,model,mode,goal,metric,budget,liveBoost,challengeCost,startingCP,
+async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints,eventAdapters,basis,model,mode,goal,metric,budget,liveBoost,challengeCost,startingCP,
  includeChallenge,continuationFor,pairBonus,cardBonus,bonusCeiling,result,transformScore,compare,scoreCache,modelCache,candidateCache,pairCacheKey,upperCandidate,partitionSearch,yieldControl,onProgress,signal}){
  const report={proven:false,leaders:0,expanded:0,cardPartitions:0,prunedPartitions:0,candidateBoundPruned:0,matchingCalls:0,boundScoreCalculations:0,witnessFullScoreCalculations:0,partitionFullScoreCalculations:0,witnessScoreCacheHits:0};
- const input=resolveSearchInput(rules,draft,{scope,inventory});
+ const input=resolveSearchInput(rules,draft,{scope,inventory,constraints});
  const models=await compilePairingModels(rules,input,{eventAdapters,modelCache,pairCache:candidateCache,pairCacheKey,signal,yieldControl});
  if(!models||signal?.aborted)return report;
  const pairSkills=new Map(),resolver=createFormalSkillResolver(rules);
@@ -345,7 +349,9 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,eventAdapte
  const characterFor=new Map(rules.tables.MemberCard.map(r=>[`member-card-${r._id}`,r._characterID]));
  for(const modelRow of models){
    if(signal?.aborted)return done();
-   const leader=modelRow.leader,states=[{leader,required:[],forbidden:[],memberRequired:[leader],supportRequired:[],memberExcluded:[],supportExcluded:[]}];
+   const leader=modelRow.leader,c=input.constraints,states=[{leader,required:c.lockedPairs.map(p=>`${p.memberCardId}|${p.supportCardId}`),forbidden:[],
+     memberRequired:[...new Set([leader,...c.requiredMemberIds,...c.lockedPairs.map(p=>p.memberCardId)])],
+     supportRequired:[...new Set([...c.requiredSupportIds,...c.lockedPairs.map(p=>p.supportCardId)])],memberExcluded:[],supportExcluded:[]}];
    while(states.length){
    if(signal?.aborted)return done();
    const state=states.pop();

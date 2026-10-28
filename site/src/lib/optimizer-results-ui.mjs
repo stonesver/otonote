@@ -81,8 +81,8 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
         const table=el('table'),head=el('tr');for(const label of ['激奏段','任务累计','音符分','平均名次','奖励','占整曲']){const th=el('th',label);th.scope='col';head.append(th);}table.append(head);
         for(const s of result.sections){const tr=el('tr');for(const value of [`${s.index} ${['','COMBO','LUCK','JUST'][s.missionType]}`,number(s.missionType===1?s.combo:s.missionType===2?s.luckPoints:s.just),number(s.noteScore),number(s.rank),number(s.rankingBonus),`${number(s.share*100)}%`])tr.append(el('td',value));table.append(tr);}const wrap=el('div',null,'calculator-table-scroll');wrap.tabIndex=0;wrap.setAttribute('aria-label','激奏分段得分，可横向滚动');wrap.append(table);detail.append(wrap);
       }
-      const names={member:'成员',support:'留影',typeLink:'属性连携',musicType:'歌曲属性',musicTag:'擅长歌曲',leader:'队长',bandItem:'乐器',bandItems:'乐器',characterRank:'角色评级',characterTotalRank:'总评级',tgw:'TGW',memory:'回忆'},dl=el('dl',null,'recommendation-power');
-      for(const [key,value] of Object.entries(result.breakdown??{})){const item=el('div');item.append(el('dt',names[key]??key),el('dd',number(value.total)));dl.append(item);}detail.append(dl);
+      const names={member:'成员',support:'留影',typeLink:'属性连携',musicType:'歌曲属性',musicTag:'擅长歌曲',leader:'队长',bandItem:'乐器',bandItems:'乐器',characterRank:'角色评级',characterTotalRank:'总评级',tgw:'TGW'},dl=el('dl',null,'recommendation-power');
+      for(const [key,value] of Object.entries(result.breakdown??{})){if(key==='memory')continue;const item=el('div');item.append(el('dt',names[key]??key),el('dd',number(value.total)));dl.append(item);}detail.append(dl);
     });
     row.append(detail);root.append(row);rows.push(row);row.hidden=i!==0;const tab=el('button',direction?.label??(i?'另一种配对':'推荐方案'));tab.type='button';tab.setAttribute('aria-pressed',String(i===0));tab.addEventListener('click',()=>{rows.forEach((r,j)=>r.hidden=j!==i);buttons.forEach((b,j)=>b.setAttribute('aria-pressed',String(j===i)));});buttons.push(tab);tabs.append(tab);
   }

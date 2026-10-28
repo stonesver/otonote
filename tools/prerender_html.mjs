@@ -106,7 +106,13 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
   const config = {schemaVersion:1, pointer, codeRoot, loadingArt, app:{schemaVersion:app.schemaVersion, routes:app.routes, endpoints:app.endpoints, scripts:app.scripts,workspacePreloads:app.workspacePreloads??[]}};
   const initializer = fragment(`<script>globalThis[Symbol.for('ournotes.prerender.v1')]=${safeJson(config)};${bootstrap.replace(/<\/script/gi, '<\\/script')};${navigationScript.replace(/<\/script/gi, '<\\/script')}</script>`)[0];
   initializer.parentNode = head; head.childNodes.unshift(initializer);
-  if (stylesheet !== undefined) {
+  // These workbenches share a large style stack. Keep it in the immutable code
+  // release so returning to a tool can reuse CSS without retransmitting it in HTML.
+  const cacheToolStyles=css&&['tools/deck-builder','tools/song-calculator','tools/event-efficiency'].includes(route);
+  if (cacheToolStyles) {
+    const link=fragment(`<link rel="stylesheet" href="${codeRoot + css}">`)[0];
+    link.parentNode=head;head.childNodes.unshift(link);
+  } else if (stylesheet !== undefined) {
     const normalized = stylesheet.replace(/url\(("[^"]*"|'[^']*'|[^)]*)\)/g, (original, raw) => {
       const url = raw.trim().replace(/^(["'])(.*)\1$/, '$2');
       if (!url || /^(?:[a-z]+:|\/|#)/i.test(url)) return original;

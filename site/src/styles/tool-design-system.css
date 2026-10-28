@@ -639,3 +639,54 @@ html[data-shell=sidebar] .task-studio.task-studio.tool-design-system[data-tool-k
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] > div {display:none}
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] small {display:block;margin:0;color:#a23d4b;font-size:12px;line-height:1.5}
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock .calculation-progress[data-state=error] small::before {content:'!';display:inline-grid;place-items:center;width:15px;height:15px;margin-right:7px;border:1px solid currentColor;border-radius:50%;font-size:11px;vertical-align:1px}
+
+/* Account rows reserve room for the number itself, without clipping the stepper buttons. */
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row {
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:2px 12px; padding:6px 0;
+}
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row > strong { grid-column:1/-1; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-account-field { min-width:0; flex-wrap:wrap; gap:4px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row .task-account-field { flex-direction:column; align-items:flex-start; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-number-stepper { flex:0 0 auto; width:132px; max-width:100%; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-account-dialog .task-number-stepper > input { flex:1 1 64px; width:64px!important; min-width:64px; padding:4px; font-size:13px; font-variant-numeric:tabular-nums; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-account-dialog .task-number-stepper > button { flex:0 0 32px; width:32px; min-width:32px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .team-default-fields > .task-condition-group { min-width:0; padding:10px 0 0; margin:0; border-top:1px solid var(--tool-line); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .team-default-fields > .task-condition-group h3 { font-size:13px; margin:0 0 8px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .team-default-fields .task-account-entry { width:100%; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .team-primary-goals .tool-options { display:flex; flex-wrap:wrap; gap:4px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .team-primary-goals .tool-options button { width:auto; flex:0 0 auto; min-height:28px; padding:3px 3px; font-size:12px; line-height:1.4; white-space:nowrap; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .team-primary-growth .task-account-entry { min-height:40px; padding:5px 8px!important; gap:1px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .team-primary-growth .planning-panel { margin:0 0 8px; gap:8px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .team-primary-growth .calculator-scope-note { margin:4px 0; padding:0; border:0; background:none; font-size:12px; line-height:1.5; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-inline-settings > summary { display:none!important; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-settings-heading { margin:8px 0 12px; font-size:13px; color:var(--tool-ink); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-inline-settings > .calculator-extra-body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-inline-settings > .calculator-extra-body > p { grid-column:1/-1; }
+@media(min-width:901px) {
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .ds-condition-rail { max-height:calc(100dvh - var(--header-height,68px) - var(--event-dock-height,80px) - 32px); overflow-y:auto; scrollbar-width:thin; }
+}
+@media(max-width:380px) {
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row { grid-template-columns:minmax(0,1fr); }
+}
+
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-character-filters { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; margin:10px 0 6px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-character-filters > :is(select,input) { width:100%; min-width:0; padding:6px 8px; font-size:12px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-character-pagination { display:flex; align-items:center; gap:6px; margin-top:10px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-character-pagination > span { margin-right:auto; font-size:12px; color:var(--tool-muted); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-character-pagination > button { min-height:30px; padding:4px 8px; font-size:12px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-account-dialog .task-character-row .task-number-stepper > :is(button,input) { min-height:32px; }
+@media(pointer:coarse) {
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench :is(.team-primary-goals .tool-options button,.task-character-pagination > button) { min-height:36px; }
+}
+
+/* Column headings avoid repeating field labels for every character. */
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-character-columns { display:grid; grid-template-columns:minmax(0,1fr) 132px; gap:8px; margin-top:12px; color:var(--tool-muted); font-size:12px; }
+@media(min-width:381px) {
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row { grid-template-columns:minmax(0,1fr) 132px; gap:8px; }
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row > strong { grid-column:auto; font-size:12px; overflow-wrap:anywhere; }
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row .task-account-field { margin:0; }
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-account-dialog .task-character-row .task-account-field > span:not(.task-number-stepper) { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+}
+@media(max-width:380px) {
+  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-character-columns { display:none; }
+}

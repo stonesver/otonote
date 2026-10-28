@@ -1,6 +1,6 @@
 import {toolRoute, toolNavigationHref} from './tool-route.mjs';
 import {createAccountEditor} from './workbench-account-ui.mjs';
-import {createWorkbenchDialog,modalizeDetails,showWorkbenchToast,enhanceNumericInputs} from './workbench-dialog.mjs';
+import {createWorkbenchDialog,modalizeDetails,showWorkbenchToast,enhanceNumericInputs,expandWorkbenchSettings} from './workbench-dialog.mjs';
 import {createWorkbenchTeamView} from './workbench-team-view.mjs';
 import {destroySkillPopover} from './calculator-card-ui.mjs';
 import {setupScoreWorkbenchView} from './score-workbench-view.mjs';
@@ -108,7 +108,8 @@ export function setupTaskWorkbench(host,kind) {
   const view=kind==='team'?setupTeamWorkbenchView(host,{main,shell,aside,conditionBody,current,context,songRow,songLabel,songButton,tags,adjust}):kind==='score'?setupScoreWorkbenchView(host,{main,aside,conditionBody,current,context,accountButton,tags,adjust}):kind==='event'?setupEventWorkbenchView(host,{main,aside,adjust,conditionBody,current,context,songRow,songLabel,songButton,accountButton,tags}):null;if(kind==='score')host.scoreView=view;
   const designControls=setupWorkbenchControls(host);
   const conditionSelector='select,input:not([type=file]):not([type=search]),textarea',conditionFields=new Set([...conditionBody.querySelectorAll(conditionSelector),...(kind==='event'?[...context.querySelectorAll(conditionSelector),q('[data-yield-basis]')]:[])]);
-  for(const details of host.querySelectorAll('[data-performance-settings],[data-performance-panel] > details,[data-gekisou-scenario],[data-gekisou-settings],.tool-help,.scoring-snapshot-details,.journey-help,.calculator-notes'))modalizeDetails(host,details);
+  expandWorkbenchSettings(conditionBody);
+  for(const details of host.querySelectorAll('[data-performance-settings],[data-performance-panel] > details,[data-gekisou-scenario],[data-gekisou-settings],.tool-help,.scoring-snapshot-details,.journey-help,.calculator-notes'))if(!conditionBody.contains(details))modalizeDetails(host,details);
   enhanceNumericInputs(conditionBody);
   function refresh() {
     const draft=host.draft,track=host.data.tracks?.find(t=>t.id===draft.selectedSongId);songLabel.textContent=track?`${track.title} · ${draft.selectedDifficulty?.toUpperCase()??'未选难度'}`:'未选谱面';songButton.textContent=track?'更换谱面':'选择歌曲 / 谱面';songRow.querySelector('.task-song-cover')?.remove();const jacket=track&&picker?.querySelector(`[data-song-row="${track.id}"] .song-picker-jacket`);if(jacket){const cover=jacket.cloneNode();cover.className='task-song-cover';cover.alt='';songRow.prepend(cover);}
@@ -149,7 +150,7 @@ export function setupTaskWorkbench(host,kind) {
       if(field.matches('[data-score-performance-profile]')){name='发挥';if(field.value==='saved')value=({steady:'参考发挥',practice:'练习中的发挥',ideal:'理想发挥'})[savedPerformance?.profile]??(savedPerformance?'保存的发挥情景':'全 Perfect、满生命参考');}
       if(name){let group=field.matches('[data-gekisou-rank]')?'激奏名次':field.matches('[data-opponent-field],[data-opponent-enabled]')?'对手条件':field.matches('[data-gekisou-batches],[data-gekisou-seed],[data-gekisou-fps]')?'激奏抽样':field.matches('[data-performance-bias],[data-performance-spread],[data-performance-miss],[data-performance-start],[data-performance-end],[data-performance-explicit]')?'精细发挥':field.matches('[data-planning-variant-limit],[data-planning-window-limit]')?'搜索设置':field.closest('[data-planning-card-locks]')?'固定卡片':'';entries.push([name,value,group]);}
     }
-    const mods=draft.modifiers??{};const accountSummary=`乐器 ${Object.keys(mods.bandItems??{}).length} 件 · 评级 ${Object.keys(mods.characterRanks??{}).length} 位 · TGW ${mods.tgwCardRank??1}`;accountButton.replaceChildren(el('span','账号加成'),el('small',accountSummary));const server=document.querySelector('.context-switcher summary')?.textContent.trim().replace(/\s+/g,' ');if(server)entries.unshift(['区服与语言',server]);if(track&&(kind!=='score'||host.dataset.scoreView!=='songs')&&(kind!=='event'||host.dataset.task!=='quick'))entries.unshift(['歌曲',track.title],['谱面',draft.selectedDifficulty?.toUpperCase()??'未选难度']);if((kind!=='event'||host.dataset.task!=='quick')&&mods.planningScenario?.scope==='reference')entries.push(['养成','满养成参考']);if(kind!=='event'||host.dataset.task!=='quick')entries.push(['TGW',`Lv.${mods.tgwCardRank??1}`],['乐器',`${Object.keys(mods.bandItemTotals??{}).length? '总等级 / ':''}${Object.keys(mods.bandItems??{}).length} 件记录`],['角色评级',`${Object.keys(mods.characterRanks??{}).length} 位`],['回忆',`${Object.keys(mods.memoryPoints??{}).length} 位`]);
+    const mods=draft.modifiers??{};const accountSummary=`乐器 ${Object.keys(mods.bandItems??{}).length} 件 · 评级 ${Object.keys(mods.characterRanks??{}).length} 位 · TGW ${mods.tgwCardRank??1}`;accountButton.replaceChildren(el('span','账号加成'),el('small',accountSummary));const server=document.querySelector('.context-switcher summary')?.textContent.trim().replace(/\s+/g,' ');if(server)entries.unshift(['区服与语言',server]);if(track&&(kind!=='score'||host.dataset.scoreView!=='songs')&&(kind!=='event'||host.dataset.task!=='quick'))entries.unshift(['歌曲',track.title],['谱面',draft.selectedDifficulty?.toUpperCase()??'未选难度']);if((kind!=='event'||host.dataset.task!=='quick')&&mods.planningScenario?.scope==='reference')entries.push(['养成','满养成参考']);if(kind!=='event'||host.dataset.task!=='quick')entries.push(['TGW',`Lv.${mods.tgwCardRank??1}`],['乐器',`${Object.keys(mods.bandItemTotals??{}).length? '总等级 / ':''}${Object.keys(mods.bandItems??{}).length} 件记录`],['角色评级',`${Object.keys(mods.characterRanks??{}).length} 位`]);
     const mode=q('[data-pairing-mode],[data-scoring-mode]');if(mode)entries.unshift(['演出',kind==='score'&&host.dataset.scoreView==='songs'?'普通 · AP':mode.value==='gekisou'?'激奏':'普通']);
     const short=(value,max)=>String(value).length>max?String(value).slice(0,max-1)+'…':String(value);
     if(kind==='event'){
@@ -157,7 +158,7 @@ export function setupTaskWorkbench(host,kind) {
       const add=(group,name,value)=>{if(!groups.has(group))groups.set(group,[]);groups.get(group).push(`${name}：${value}`);};
       for(const [name,value] of entries){
         if(['区服与语言','歌曲','谱面'].includes(name))continue;
-        const group=name==='活动'||name==='演出类型'||name==='每次耗火'||name==='每次挑战消耗'?'活动':/加成|稳定|评分/.test(name)?'加成与评分':/预算|已有挑战/.test(name)?'预算':/从哪里选卡|搜索范围|养成/.test(name)?'队伍':/目标|档位估算|计算阶段/.test(name)?'计算目标':/歌曲|乐队|属性|难度|等级/.test(name)?'选曲条件':/TGW|乐器|角色评级|回忆/.test(name)?'账号加成':'搜索设置';
+        const group=name==='活动'||name==='演出类型'||name==='每次耗火'||name==='每次挑战消耗'?'活动':/加成|稳定|评分/.test(name)?'加成与评分':/预算|已有挑战/.test(name)?'预算':/从哪里选卡|搜索范围|养成/.test(name)?'队伍':/目标|档位估算|计算阶段/.test(name)?'计算目标':/歌曲|乐队|属性|难度|等级/.test(name)?'选曲条件':/TGW|乐器|角色评级/.test(name)?'账号加成':'搜索设置';
         add(group,name,value);
       }
       const selected=s=>selectedOptionText(q(s));
@@ -169,12 +170,12 @@ export function setupTaskWorkbench(host,kind) {
         '计算目标':host.dataset.task==='challenge'?selected('[data-challenge-opt-objective]'):selected('[data-yield-goal]'),
         '预算':`${q('[data-yield-budget]').value} 火 · CP ${q('[data-yield-starting]').value}`,
         '选曲条件':q('[data-yield-songs]').value==='selected'?`指定谱面 · ${(draft.selectedDifficulty??'expert').toUpperCase()}`:`自动选曲 · ${selected('[data-yield-difficulty]')}`,
-        '账号加成':Object.keys(mods.bandItems??{}).length||Object.keys(mods.characterRanks??{}).length||Object.keys(mods.memoryPoints??{}).length||(mods.tgwCardRank??1)>1?'账号加成':'账号默认',
+        '账号加成':Object.keys(mods.bandItems??{}).length||Object.keys(mods.characterRanks??{}).length||(mods.tgwCardRank??1)>1?'账号加成':'账号默认',
       };
       for(const [name,values] of groups)appendConditionTag(short(summaries[name]??name,22),values,name);
       return;
     }
-    const grouped=new Map();for(const [name,value,group] of entries){if(group){if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(`${name}：${value}`);}else {const shortValue=name==='游戏显示的道具加成（%）'?`道具 +${value}%`:name==='游戏显示的活动 pt 加成（%）'?`活动 pt +${value}%`:name==='方案耗火预算'?`预算 ${value} 火`:name==='已有挑战 pt'?`已有 CP ${value}`:name==='TGW'?`TGW ${value}`:name==='乐器'?`乐器 ${value}`:name==='角色评级'?`评级 ${value}`:name==='回忆'?`回忆 ${value}`:name==='搜索约束'&&value==='默认'?'无额外约束':name==='优化目标'?({'expected_song_score':'平均分','minimum_song_score':'最低分','maximum_song_score':'最高分','formation_power':'综合力'}[q('[data-pairing-objective]')?.value]??value):value;appendConditionTag(short(shortValue,16),`${name}：${value}`,name);}}for(const [name,values] of grouped)appendConditionTag(name==='激奏名次'?values.map(v=>v.split('：').at(-1)).join('/')+' 名':name==='精细发挥'?'精细发挥':name,values,name);
+    const grouped=new Map();for(const [name,value,group] of entries){if(group){if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(`${name}：${value}`);}else {const shortValue=name==='游戏显示的道具加成（%）'?`道具 +${value}%`:name==='游戏显示的活动 pt 加成（%）'?`活动 pt +${value}%`:name==='方案耗火预算'?`预算 ${value} 火`:name==='已有挑战 pt'?`已有 CP ${value}`:name==='TGW'?`TGW ${value}`:name==='乐器'?`乐器 ${value}`:name==='角色评级'?`评级 ${value}`:name==='搜索约束'&&value==='默认'?'无额外约束':name==='优化目标'?({'expected_song_score':'平均分','minimum_song_score':'最低分','maximum_song_score':'最高分','formation_power':'综合力'}[q('[data-pairing-objective]')?.value]??value):value;appendConditionTag(short(shortValue,16),`${name}：${value}`,name);}}for(const [name,values] of grouped)appendConditionTag(name==='激奏名次'?values.map(v=>v.split('：').at(-1)).join('/')+' 名':name==='精细发挥'?'精细发挥':name,values,name);
   }
   const statusObserver=new MutationObserver(records=>{for(const record of records){const status=record.target.nodeType===1?record.target:record.target.parentElement;if(kind==='event'&&status?.matches('[data-yield-status],[data-team-status]'))continue;if(status?.matches('[data-team-workspace-status],[data-performance-status],[data-manual-growth-status]')||status?.matches('[data-yield-status],[data-pairing-progress],[data-team-status]')&&/完成|失败|已停止/.test(status.textContent))showWorkbenchToast(status.textContent);}});
   statusObserver.observe(host,{subtree:true,childList:true,characterData:true});

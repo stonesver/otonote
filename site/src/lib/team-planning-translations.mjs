@@ -159,7 +159,6 @@ export const teamPlanningEnglish = {
   '留影突破阶数（1 = 初始阶段）':'Memory breakthrough stage (1 = initial stage)',
   '成员突破（特训）阶数（1 = 未突破）':'Member breakthrough (training) stage (1 = no breakthrough)',
   '该角色评级':'Character rank',
-  '该角色回忆固定值（每维）':'Character memory bonus (per stat)',
   '留影的两项技能等级随突破阶数变化，按正式表自动计算。':'Both memory skill levels follow breakthrough stages and are calculated from the game tables.',
   '输入已更新，可重新比较。':'Inputs changed. Run the comparison again.',
   '在相同发挥样本中，这队出现过的最高分较高。':'This team achieved a higher maximum score in the same performance samples.',

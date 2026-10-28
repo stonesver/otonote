@@ -105,12 +105,14 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
     for (let frame = 0; frame <= lastFrame; frame++) {
       const nowMs = clock.at(frame).timeMs;
       let changed = false;
+      const frameNotes = [];
       for (const inputNote of arrivals.get(frame) ?? []) {
         const originalJudgement = resolveTimingJudgement(rules, inputNote);
         const { judgement, convertedBy } = lifecycle.convert(originalJudgement);
         if (convertedBy) conversionCounts.set(convertedBy.effectId, (conversionCounts.get(convertedBy.effectId) ?? 0) + 1);
         if (convertedBy) convertedCount++;
         counts[judgement]++;
+        frameNotes.push({ timeMs: inputNote.timeMs, judgement });
         combo.add(inputNote.timeMs, judgement);
         const damage = judgementRows.get(judgement)?._damage;
         if (!Number.isInteger(damage) || damage < 0) throw new Error(`缺少判定 ${judgement} 的生命参数`);
@@ -123,7 +125,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
         changed = true;
       }
       replay.calculate(nowMs);
-      changed = lifecycle.advance(frame) || changed;
+      changed = lifecycle.advance(frame, frameNotes) || changed;
       lastFrame = Math.max(lastFrame, lifecycle.lastFrame);
       const currentLife = life.at(nowMs);
       lowestLife = Math.min(lowestLife, currentLife);

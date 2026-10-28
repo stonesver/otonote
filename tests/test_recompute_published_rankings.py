@@ -10,7 +10,7 @@ from tests.test_r2_content import fixture
 from tests.test_r2_shared_media import TrackedBucket, reseal
 
 
-MODEL = 'ournotes-native-score-v9'
+MODEL = 'ournotes-native-score-v10'
 
 
 def reference_rules():
@@ -30,6 +30,7 @@ def computed(source, output, model):
                 'fingerprint': 'ranking-hash', 'rulesFingerprint': 'rules-hash',
                 'ordinary': [row], 'gekisou': [row]}
         (output / (locale + '.json')).write_bytes(content.canonical(data))
+        (output / (locale + '-compatibility.json')).write_bytes(content.canonical({'sourceReleaseId':'sample','status':'compatible','checks':10,'issues':[]}))
 
 
 class RecomputePublishedRankingsTests(unittest.TestCase):
@@ -91,6 +92,7 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
                 self.seed(region)
                 result = self.run_refresh(publish=True, compute=computed)
                 self.assertEqual(result['status'], 'published')
+                self.assertEqual(result['scoringCoverage'],{locale:{'status':'compatible','issues':0} for locale in ('en','zh-CN')})
                 pointer = json.loads(self.bucket.objects[self.key])
                 root = pointer['manifest'].removesuffix('manifest.json').lstrip('/')
                 manifest_raw = self.bucket.objects[root+'manifest.json']
@@ -102,6 +104,8 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
                     self.assertEqual(catalog['cover'], '/'+root+'public/media/sample.webp')
                     data = json.loads(self.bucket.objects[root+records['supplemental/song-rankings.json']['path']])
                     refresh.validate_rankings(data, catalog, MODEL)
+                    coverage=json.loads(self.bucket.objects[root+records['supplemental/scoring-compatibility.json']['path']])
+                    self.assertEqual(coverage['status'],'compatible')
                 self.assertEqual(self.bucket.objects[root+'recognition/extra.json'], b'{"keep":true}')
                 for key, value in self.before.items():
                     if key != self.key:

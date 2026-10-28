@@ -2,7 +2,8 @@ import { skillOrdersFor } from './skill-order-sampling.mjs';
 import { createEventPipeline } from "./event-rules.mjs";
 import { createFormationCalculator } from "./formation-power.mjs";
 import { calculateFormalNoteCore } from "./formal-note-core.mjs";
-import { createFormalSkillResolver } from "./formal-skills.mjs";
+import { createFormalSkillResolver, requiresOrdinarySkillReplay } from "./formal-skills.mjs";
+import { ordinaryIdealSkillCommands } from './ordinary-ideal-skills.mjs';
 import { createFormalTickConverter } from "./formal-time.mjs";
 import { reconstructFormalChart, FORMAL_CHART_MODEL_VERSION } from "./formal-chart.mjs";
 import { stableSnapshotHash } from "../scoring-engine.mjs";
@@ -92,6 +93,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
   const replayTimeline = createScoreTimelineReplay(timeline.events, frameRate);
   const formation = createFormationCalculator(rules, { eventAdapters });
   const resolveSkills = createFormalSkillResolver(rules);
+  const resolveDynamicSkills = createFormalSkillResolver(rules, { dynamic: true });
   const setting = (key) => Number(rules.tables.LiveSettings.find((r) => r._key === key)?._value);
   const judgement = rules.tables.LiveJudgementParameter.find((r) => r._noteSimulateJudgement === 5)._scorePercent;
   // The ideal factor history depends on the chart and effective skill commands,
@@ -106,6 +108,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
     const eventPipeline = createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
     const scoreAdapters = eventPipeline.context.effects.some(e => e.phase === 'note_score' || e.phase === 'fixed_score');
     const skills = resolveSkills(draft);
+    const replaySkills = requiresOrdinarySkillReplay(skills) ? resolveDynamicSkills(draft) : null;
     const common = { totalPower: power.total.total, scoreAdjustmentFactor: setting("note_score_adjustment_factor"),
       musicScoreLevelFactor: timeline.difficultyFactor, judgementFactorPercent: judgement,
       luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
@@ -132,7 +135,8 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
     // factor, but retain that history across all 120 complete order sweeps.
     const orderCache = new Map();
     const scoreOrder = (order, trace = false) => {
-      const commands = liveSkillCommands(order, skills, timeline.skillTimes, frameRate);
+      const commands = replaySkills ? ordinaryIdealSkillCommands(replaySkills, timeline, order, frameRate, setting("life_base"))
+        : liveSkillCommands(order, skills, timeline.skillTimes, frameRate);
       // Key the effective command order, keeping duplicate order probability.
       const cacheKey = !trace && !scoreAdapters
         ? JSON.stringify(commands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c)) : null;

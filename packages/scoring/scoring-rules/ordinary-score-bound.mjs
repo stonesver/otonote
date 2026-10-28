@@ -42,7 +42,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   for (const [key, skill] of pairSkills) {
     const effects = skill.liveEffects.filter(e => e.active).map(e => ({ type: e.type,
       value: Math.fround(Math.floor(Math.fround(Math.fround(e.rate) * 100000)) / 100000),
-      durationRawMs: e.durationRawMs ?? e.durationMs }));
+      durationRawMs: e.durationRawMs ?? e.durationMs, dynamic: Boolean(e.cumulative) }));
     const signature = JSON.stringify(effects);
     if(!canonical.has(signature))canonical.set(signature,{signature,effects,absolute:effects.reduce((n,e)=>n+Math.abs(e.value),0)});
     profiles.set(key,canonical.get(signature));
@@ -140,7 +140,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     // All legal teams in this subspace have exactly the same command stream at
     // a given power. Positive native multiplications/floors are monotone in
     // power; the maximum-power feasible team therefore supplies an exact bound.
-    if (types.size === 1 && [...types.values()][0].effects.every(e => e.value >= 0)) {
+    if (!model.powerIsUpperBound && types.size === 1 && [...types.values()][0].effects.every(e => e.value >= 0 && !e.dynamic)) {
       const key = `exact:${[...types.keys()][0]}:${solution.weight}`;
       const value=remember(key, () => { bound.stats.fullScoreCalculations++; return song.calculate(draftForSolution())[metric]; });
       return includePriority?{upper:value,priority:value}:value;
@@ -158,7 +158,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     const absolute = fixedAbsolute + [...maxima.values()].sort((a,b) => b-a).slice(0,remaining).reduce((a,b) => a+b,0);
     const factor = Math.min(legacyFactor, upward((1 + 2 * absolute) * 1.0001));
     const signatures = [...types.keys()].sort(), envelopeKey = JSON.stringify([absolute, signatures]);
-    const options = [...types.values()], commands = 10 * Math.max(0, ...options.map(p => p.effects.length));
+    const options = [...types.values()], commands = 10 * Math.max(0, ...options.map(p => p.effects.reduce((n,e) => n + (e.dynamic ? song.timeline.events.length + 2 : 1), 0)));
     const active = () => remember(`active:${JSON.stringify(signatures)}`, () => {
       const intervals = song.timeline.skillTimes.map(start => options.map(p => p.effects.map(e => ({
         start, end: skillEndFrame(clock, start, e.durationRawMs).timeMs, value: e.value

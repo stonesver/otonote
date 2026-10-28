@@ -178,7 +178,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
       // can be much weaker. Bound THIS complete team before paying for 120
       // native order replays. Still partition the state when it cannot win.
       const candidateUpper = !bonusFor && scoreBoundOptions.jointPowerBound && worst
-        ? scoreBound.withCutoff({...state,required:state.solution.edges.map(e=>e.key)},{edges:state.solution.edges},state.solution,()=>candidate,worst.value)
+        ? scoreBound.withCutoff({...state,required:state.solution.edges.map(e=>e.key)},{...models.find(m=>m.leader===state.leader),edges:state.solution.edges},state.solution,()=>candidate,worst.value)
         : Infinity;
       if (worst && candidateUpper <= worst.value) candidateBoundPruned++;
       else {

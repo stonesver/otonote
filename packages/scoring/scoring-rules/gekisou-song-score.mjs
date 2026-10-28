@@ -5,7 +5,7 @@ import { SCORE_MODEL_VERSION } from './model-version.mjs';
 import { skillOrdersFor } from './skill-order-sampling.mjs';
 import { createFormationCalculator, requireInteger } from './formation-power.mjs';
 import { prepareFormalChart } from './formal-song-score.mjs';
-import { createFormalSkillResolver } from './formal-skills.mjs';
+import { requiresOrdinarySkillReplay, createFormalSkillResolver } from './formal-skills.mjs';
 import { calculateFormalNoteCore } from './formal-note-core.mjs';
 import { gekisouTimingCombo, gekisouScoreSection } from './gekisou-timing.mjs';
 import { normalizeGekisouOpponents, rankGekisouSection } from './gekisou-ranking.mjs';
@@ -80,7 +80,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
   const setting = key => Number(rules.tables.LiveSettings.find(r => r._key === key)?._value);
   const powerCalculator = createFormationCalculator(rules, { eventAdapters });
   const perfectSkills = createFormalSkillResolver(rules), justSkills = createFormalSkillResolver(rules, { judgement: 6 });
-  const dynamicSkills = performanceInput ? createFormalSkillResolver(rules, { dynamic: true }) : null;
+  const dynamicSkills = createFormalSkillResolver(rules, { dynamic: true });
   const judgementPercent = new Map(rules.tables.LiveJudgementParameter.map(r => [r._noteSimulateJudgement, r._scorePercent]));
   const warnings = [...timeline.warnings,
     '激奏按判定、技能、激奏更新的顺序逐帧重放；输入帧与同刻判定顺序为显式理想条件，分数与推荐是条件模拟。',
@@ -103,7 +103,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     const formation = referenceProfile ? { total: { total: referenceProfile.power } } : powerCalculator.calculate(draft);
     const perfect = referenceSkills || perfectSkills(draft), just = referenceSkills || justSkills(draft);
     const effects = referenceProfile ? [] : compileGekisouEffects(rules, draft, Boolean(performanceInput), missions);
-    const ordinarySkills = dynamicSkills?.(draft);
+    const ordinarySkills = performanceInput || requiresOrdinarySkillReplay(perfect) ? dynamicSkills(draft) : null;
     const randomSampling = missions.includes(2) || effects.some(e => e.active && e.random);
     // Ordinary skill order changes score commands, not the Gekisou frame
     // machine. Reuse deterministic history across all 120 order sweeps.
@@ -115,7 +115,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     const orderCache = new Map(), referenceCache = new Map();
     const ownerSensitive = effects.some(e => e.active && e.operator.score);
     function run(order, seed, trace = false) {
-      const replay = !trace && deterministicReplay || replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace, performanceInput, ordinarySkills, skillOrder: order });
+      const replay = !trace && !ordinarySkills && deterministicReplay || replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace, performanceInput, ordinarySkills, skillOrder: order });
       const states = replay.states.map(s => ({ ...s, noteScore: 0, finalNoteScore: 0 }));
       const comboViews = states.map(() => ({ history: [], length: 0 }));
       const ordinaryCommands = replay.ordinaryCommands ?? liveSkillCommands(order, perfect, timeline.skillTimes, scenario.frameRate, just, replay.clock);

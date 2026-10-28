@@ -31,7 +31,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
   const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
   const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
   const maximumLife = setting('life_base'), musicLengthMs = Math.max(...timeline.events.map(e => e.timeMs), ...(timeline.skillTimes ?? []));
-  const life = performanceInput ? createLifeReplay(maximumLife, musicLengthMs) : null;
+  const life = performanceInput || ordinarySkills ? createLifeReplay(maximumLife, musicLengthMs) : null;
   const combo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
   const ordinary = ordinarySkills ? createOrdinarySkillLifecycle({ skills: ordinarySkills, skillTimes: timeline.skillTimes, skillOrder,
     clock, life, skillEndFrame }) : null;
@@ -148,7 +148,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
   }));
   const lastFrame = Math.max(...frames.keys(), ordinary?.lastFrame ?? 0);
   for (let frame = 0; frame <= Math.max(lastFrame, ordinary?.lastFrame ?? 0); frame++) {
-    if (!performanceInput && !frames.has(frame)) continue;
+    if (!performanceInput && !ordinary && !frames.has(frame)) continue;
     const frameNotes = frames.get(frame) ?? [];
     currentFrame = frame;
     const timeMs = clock.at(frame).timeMs;
@@ -191,7 +191,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         note.lifeAtInput = life.at(note.timeMs); lowestLife = Math.min(lowestLife, note.lifeAtInput);
       }
     }
-    ordinary?.advance(frame);
+    ordinary?.advance(frame, frameNotes);
     if (performanceInput) {
       lowestLife = Math.min(lowestLife, life.at(timeMs));
       if (trace && (frameNotes.length || ordinary?.skillTrace.at(-1)?.frame === frame)) stateTrace.push({ frame, timeMs, life: life.at(timeMs), combo: combo.state.combo, maxCombo: combo.state.maxCombo });

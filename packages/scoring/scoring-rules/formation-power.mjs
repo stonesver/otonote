@@ -130,22 +130,50 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
     return true;
   }
 
-  function effectRates(member, effects) {
+  function formationTargetCount(condition, formation) {
+    if (!condition || condition._skillCumulativeConditionType !== 3000
+      || condition._conditionValues.length !== 1 || condition._conditionValues[0] !== 1
+      || !condition._conditionTargetIDs.length || !Number.isInteger(condition._maxCumulativeCount) || condition._maxCumulativeCount < 1) {
+      throw new UnsupportedSkillMechanismError('Unsupported leader cumulative condition');
+    }
+    return Math.min(condition._maxCumulativeCount, formation.filter(row => row &&
+      condition._conditionTargetIDs.some(id => matchesTarget(row.member, id))).length);
+  }
+  function leaderCondition(group, formation) {
+    const sets = t.SkillConditionSet.filter(row => row._group === group);
+    if (sets.length !== 1 || sets[0]._conditionIds.length !== 1) throw new UnsupportedSkillMechanismError(`Unsupported conditional power condition ${group}`);
+    const condition = t.SkillCondition.find(row => row._id === sets[0]._conditionIds[0]);
+    if (condition?._conditionType !== 3000 || condition._conditionValues.length || !condition._conditionTargetIDs.length) throw new UnsupportedSkillMechanismError(`Unsupported conditional power condition ${group}`);
+    const match = formation.some(row => row && condition._conditionTargetIDs.some(id => matchesTarget(row.member, id)));
+    return match === Boolean(condition._isPositive);
+  }
+  function effectRates(member, effects, formation = [], leaderUpperBound = false) {
     const values = [0, 0, 0];
     for (const effect of effects) {
-      if (effect._skillConditionGroup || effect._skillCumulativeConditionID) {
-        throw new UnsupportedSkillMechanismError(`Unsupported conditional power effect ${effect._id}`, { effectId: effect._id });
+      const conditional = effect._skillEffectType >= 1500 && effect._skillEffectType <= 1503;
+      if (!conditional && effect._skillCumulativeConditionID) throw new UnsupportedSkillMechanismError(`Unsupported conditional power effect ${effect._id}`, { effectId: effect._id });
+      const cumulative = conditional ? t.SkillCumulativeCondition.find(row => row._id === effect._skillCumulativeConditionID) : null;
+      let count, active;
+      try {
+        count = conditional ? formationTargetCount(cumulative, formation) : 1;
+        active = !effect._skillConditionGroup || leaderCondition(effect._skillConditionGroup, formation);
+      } catch (error) {
+        if (error instanceof UnsupportedSkillMechanismError) error.detail.effectId = effect._id;
+        throw error;
       }
+      if (!active && !leaderUpperBound) continue;
       if (effect._skillTargetIDs.length && !effect._skillTargetIDs.some((n) => matchesTarget(member, n))) continue;
-      const component = { 1001: 1, 1002: 2, 1003: 0 }[effect._skillEffectType];
-      if (effect._skillEffectType === 1000) values.forEach((_, i) => { values[i] += effect._effectValue; });
-      else if (component !== undefined) values[component] += effect._effectValue;
+      const type = conditional ? effect._skillEffectType - 500 : effect._skillEffectType;
+      const value = effect._effectValue * (conditional && leaderUpperBound ? cumulative._maxCumulativeCount : count);
+      const component = { 1001: 1, 1002: 2, 1003: 0 }[type];
+      if (type === 1000) values.forEach((_, i) => { values[i] += value; });
+      else if (component !== undefined) values[component] += value;
       else throw new Error(`Unsupported power effect ${effect._skillEffectType}`);
     }
     return values;
   }
 
-  function calculate(draft, { sourceReleaseId = rules.sourceReleaseId, slotOnly } = {}) {
+  function calculate(draft, { sourceReleaseId = rules.sourceReleaseId, slotOnly, leaderUpperBound = false } = {}) {
     if (sourceReleaseId !== rules.sourceReleaseId) throw new Error("release_mismatch");
     if (!Array.isArray(draft?.slots) || draft.slots.length !== 5) throw new Error("Exactly five slots required");
     const modifiers = draft.modifiers ?? {};
@@ -224,7 +252,7 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
         support: supportRates,
         typeLink: [linkRate, linkRate, linkRate],
         bandItems: effectRates(member, bandEffects),
-        leader: effectRates(member, leaderEffects),
+        leader: effectRates(member, leaderEffects, resolved, leaderUpperBound),
         musicType: [musicRate, musicRate, musicRate],
         musicTag: [tagRate, tagRate, tagRate],
         tgw: [vipValue ?? 0, vipValue ?? 0, vipValue ?? 0]
@@ -258,5 +286,9 @@ export function createFormationCalculator(rules, { eventAdapters = [] } = {}) {
   // Pair matrices need one slot, not a second leader slot and a formation-wide
   // report. Use the identical validated arithmetic, without those allocations.
   const calculateSlot = (draft, slotIndex) => calculate(draft, { slotOnly: requireInteger(slotIndex, 'slot index', 0, 4) });
-  return { calculate, calculateSlot, resolveGrowth, card, matchesTarget, effectRates };
+  // Conditional formation bonuses couple all five pairs. Only the search model
+  // uses this relaxation; displayed and scored teams always use actual counts.
+  const calculateSlotUpperBound = (draft, slotIndex) => calculate(draft, { slotOnly: requireInteger(slotIndex, 'slot index', 0, 4), leaderUpperBound: true });
+  const leaderDependsOnFormation = value => t.LeaderSkillEffect.some(row => row._leaderSkillID === card(value, 'member')._leaderSkillID && (row._skillConditionGroup || row._skillCumulativeConditionID));
+  return { calculate, calculateSlot, calculateSlotUpperBound, leaderDependsOnFormation, resolveGrowth, card, matchesTarget, effectRates };
 }

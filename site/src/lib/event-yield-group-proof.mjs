@@ -281,7 +281,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
     }else {
      const entry=state.charts[0],team=draftFromPairing(entry.resolved,leader,power.edges),fixed={...state,required:power.edges.map(e=>e.key)};
      boundFor(entry);const before=entry.bound.stats.fullScoreCalculations;
-     const upper=entry.bound(fixed,{edges:power.edges},power,()=>team);stats.boundScoreCalculations+=entry.bound.stats.fullScoreCalculations-before;
+     const upper=entry.bound(fixed,{...modelRow,edges:power.edges},power,()=>team);stats.boundScoreCalculations+=entry.bound.stats.fullScoreCalculations-before;
      const maxRank=model.scoreRank(Number(entry.candidate.trackId.split('-').at(-1)),upper===Infinity?Number.MAX_VALUE:upper);
      const bonus=power.edges.reduce((s,e)=>{const b=pairBonus(e);return {rewardBP:s.rewardBP+b.rewardBP,eventPointBP:s.eventPointBP+b.eventPointBP};},{rewardBP:0,eventPointBP:0});
      let canWin=false;

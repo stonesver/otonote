@@ -23,12 +23,12 @@ CLIENT_SHA = '514a5b73d038c264b60cc91fd4a747cf178190c6b2096e6d7007c2020e2b1bca'
 DECODED_SHA = '393a166e12f1886597709aa82e93bc58283631d629238e10e22fa10efc3f24eb'
 
 class NativeHarness:
-    def __init__(self):
-        if hashlib.sha256(CLIENT.read_bytes()).hexdigest() != CLIENT_SHA:
+    def __init__(self, *, client=CLIENT, decoded=DECODED, client_sha=CLIENT_SHA, decoded_sha=DECODED_SHA):
+        if hashlib.sha256(client.read_bytes()).hexdigest() != client_sha:
             raise ValueError('client identity differs from the audited build')
-        if hashlib.sha256(DECODED.read_bytes()).hexdigest() != DECODED_SHA:
+        if hashlib.sha256(decoded.read_bytes()).hexdigest() != decoded_sha:
             raise ValueError('decoded client identity differs from the audited build')
-        self.memory = ElfMemory(DECODED)
+        self.memory = ElfMemory(decoded)
         self.relocation_addresses = sorted(self.memory.relative_relocations)
         self.uc = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
         self.mapped = set()

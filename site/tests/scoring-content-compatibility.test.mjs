@@ -237,3 +237,15 @@ test('homogeneous ordinary scores never turn relaxed leader weights into an exac
   assert.equal(bound.stats.fullScoreCalculations,0);
   assert.ok(upper>=song.calculate(candidate()).expectedScore);
 });
+
+test('normalized cumulative search envelopes cover repeated handle magnitudes as well as command counts',()=>{
+  const {r,c,d}=ordinaryFixture(), song=createFormalSongCalculator(r,c);
+  const skill={liveEffects:[{type:2001,active:true,rate:1.2,durationRawMs:5000,cumulative:{}}]};
+  const envelope=dynamic=>createOrdinaryScoreBound({song,pairSkills:new Map([['member-card-1|support-card-1',{
+    liveEffects:skill.liveEffects.map(e=>({...e,cumulative:dynamic?{}:null}))}]]),legacyFactor:20,
+    input:{draft:d},metric:'expectedScore',bonusConstraintBound:true}).normalizedPowerEnvelope(1);
+  const cumulative=envelope(true), fixed=envelope(false);
+  assert.ok(cumulative&&fixed);
+  assert.ok(cumulative.baseCoefficient>fixed.baseCoefficient*2,
+    'a long replacement stream cannot inherit the fixed-handle rounding budget');
+});

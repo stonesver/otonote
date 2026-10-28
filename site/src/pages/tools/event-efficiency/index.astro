@@ -46,7 +46,12 @@ const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1
   <div class="event-layout"><div class="event-main">
    <section class="event-panel" id="event-team" aria-labelledby="event-team-title"><header class="event-panel-heading"><span class="event-step-number">1</span><div><h2 id="event-team-title">准备活动队伍</h2><p>从实际卡库比较能力、技能、活动加成与谱面，先估算档位，再计算奖励；也可手动搭配。</p></div></header>
     <div class="event-controls"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div><p data-team-workspace-status role="status"></p><div class="tool-team-strip" data-team-workspace-summary></div>
-    <div class="event-controls event-pool-controls"><label class="event-grow">使用卡片<select data-quick-native data-pool><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><button class="event-primary" type="button" data-suggest>推荐队伍＋歌曲收益</button></div>
+    <div class="event-controls event-pool-controls"><label class="event-grow">使用卡片<select data-quick-native data-pool><option value="owned">我的卡库</option><option value="reference">全卡库参考</option><option value="selected">当前队伍</option></select></label><button class="event-primary" type="button" data-suggest>推荐队伍＋歌曲收益</button></div>
+    <div data-yield-card-bands>
+     <label>成员乐队<select data-yield-member-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(b=>{const visual=filterVisual('band',b.id);return <option value={b.masterId} data-icon={visual.icon} data-icon-only={visual.iconOnly}>{b.displayName}</option>;})}</select></label>
+     <label>留影关联乐队<select data-yield-support-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(b=>{const visual=filterVisual('band',b.id);return <option value={b.masterId} data-icon={visual.icon} data-icon-only={visual.iconOnly}>{b.displayName}</option>;})}</select></label>
+     <p class="event-hint" data-yield-card-band-hint>成员与留影分别筛选；留影包含所选乐队任一角色即可入选。后续挑战默认不限乐队，可在后续挑战设置中选择沿用。</p>
+    </div>
     <p class="event-hint" data-pool-hint></p><p data-team-status role="status"></p>
     <section class="event-recommendations" data-yield-optimizer aria-labelledby="event-yield-title">
      <h3 id="event-yield-title">队伍＋歌曲收益推荐</h3><p class="event-hint" data-yield-hint></p>
@@ -64,7 +69,11 @@ const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1
      <details class="tool-help"><summary>后续挑战与搜索范围设置</summary><section class="event-recommendations" data-yield-challenge-settings>
       <h4>后续挑战 · 独立配队与判档</h4>
       <p class="event-hint">普通与挑战分别配队、估算档位。</p>
-      <div class="event-controls event-option-row"><label>挑战卡片范围<select data-yield-challenge-scope><option value="same">沿用范围</option><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><label>挑战档位估算<select data-yield-challenge-basis><option value="expectedScore">平均分</option><option value="minimumScore">最低分</option><option value="maximumScore">最高分</option></select></label><label>挑战可打难度<select data-yield-challenge-difficulty multiple data-quick data-quick-all="all" data-quick-required><option data-difficulty="expert" value="expert" selected>EXPERT</option><option data-difficulty="hard" value="hard">HARD</option><option data-difficulty="normal" value="normal">NORMAL</option><option data-difficulty="easy" value="easy">EASY</option><option value="all">全部</option></select></label><label>挑战最高谱面等级<select data-yield-challenge-level>{Array.from({length:33},(_,i)=>i+8).map(n=><option value={n} selected={n===40}>{n===40?'不限':n}</option>)}</select></label></div>
+      <div class="event-controls event-option-row"><div class="event-challenge-card-scope" data-yield-challenge-card-scope>
+       <div class="event-challenge-scope-heading"><span>挑战卡片范围</span><label class="event-challenge-band-switch" title="后续挑战沿用普通阶段的成员和留影乐队筛选"><input type="checkbox" role="switch" data-yield-challenge-band-scope aria-describedby="event-challenge-band-note" /><span>沿用乐队筛选</span></label></div>
+       <label class="event-challenge-source"><select data-yield-challenge-scope aria-label="挑战卡片范围"><option value="same">沿用卡库来源</option><option value="owned">我的卡库</option><option value="reference">全卡库参考</option><option value="selected">当前队伍</option></select></label>
+       <p class="event-hint" id="event-challenge-band-note" data-yield-challenge-band-note>后续挑战默认不限乐队，不受普通阶段的成员和留影乐队筛选限制。</p>
+      </div><label>挑战档位估算<select data-yield-challenge-basis><option value="expectedScore">平均分</option><option value="minimumScore">最低分</option><option value="maximumScore">最高分</option></select></label><label>挑战可打难度<select data-yield-challenge-difficulty multiple data-quick data-quick-all="all" data-quick-required><option data-difficulty="expert" value="expert" selected>EXPERT</option><option data-difficulty="hard" value="hard">HARD</option><option data-difficulty="normal" value="normal">NORMAL</option><option data-difficulty="easy" value="easy">EASY</option><option value="all">全部</option></select></label><label>挑战最高谱面等级<select data-yield-challenge-level>{Array.from({length:33},(_,i)=>i+8).map(n=><option value={n} selected={n===40}>{n===40?'不限':n}</option>)}</select></label></div>
      </section>
      <label>搜索范围<select data-yield-depth><option value="quick">快速推荐</option><option value="full">完整比较</option></select></label>
      <label class="event-eco"><input type="checkbox" data-yield-eco />节能计算</label>
@@ -83,6 +92,11 @@ const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1
      <h3 id="challenge-optimizer-title">挑战冲榜配队</h3><p data-challenge-opt-song class="event-feedback"></p>
      <p>针对这首挑战歌曲比较成员、留影配对与队长。挑战的卡片能力加成已计入；道具和活动 pt 加成不直接乘入歌曲分数。</p>
      <div class="event-controls event-option-row"><label>搜索范围<select data-quick-native data-challenge-opt-scope><option value="reference">全卡库参考</option><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><label>出分目标<select data-quick-native data-challenge-opt-objective><option value="maximum_song_score">最高分</option><option value="expected_song_score">平均分</option></select></label></div>
+     <div data-challenge-opt-card-bands>
+      <label>成员乐队<select data-challenge-opt-member-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(b=>{const visual=filterVisual('band',b.id);return <option value={b.masterId} data-icon={visual.icon} data-icon-only={visual.iconOnly}>{b.displayName}</option>;})}</select></label>
+      <label>留影关联乐队<select data-challenge-opt-support-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(b=>{const visual=filterVisual('band',b.id);return <option value={b.masterId} data-icon={visual.icon} data-icon-only={visual.iconOnly}>{b.displayName}</option>;})}</select></label>
+      <p class="event-hint">成员与留影分别筛选；留影包含所选乐队任一角色即可入选。</p>
+     </div>
      <p class="event-hint">理想 AP 估算，最高分对应最有利的随机技能顺序，不是每次都能达到。搜索持续比较所选卡库内的合法配队，直至证明第一名在当前条件与模型内最优；备选仅供参考。可暂停并在当前页面继续。当前十张卡未填写养成时沿用计算器默认值，突破不等于满练。</p>
      <div class="event-controls"><button type="button" class="event-primary" data-challenge-opt-run>推荐挑战出分队伍</button><button type="button" data-challenge-opt-cancel hidden>暂停配队搜索</button></div><p data-challenge-opt-status role="status"></p><div data-challenge-opt-results></div>
     </section>

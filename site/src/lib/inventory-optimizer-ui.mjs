@@ -74,7 +74,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
       }catch(error){state.ready=false;state.message=error.message;}
     }
     q('[data-search-space]').textContent=ui(space
-      ?`本次候选：${space.members} 张成员（${space.characters} 个角色）＋ ${space.supports} 张留影。包含配对与队长选择，组合规模最多 ${formatCombinationCount(space.combinations)} 种；筛选成员乐队不会同时筛掉其他留影。${q('[data-pairing-mode]').value==='gekisou'?'激奏还会比较站位。':''}`
+      ?`本次候选：${space.members} 张成员（${space.characters} 个角色）＋ ${space.supports} 张留影。包含配对与队长选择，组合规模最多 ${formatCombinationCount(space.combinations)} 种；成员与留影的乐队限制分别生效。${q('[data-pairing-mode]').value==='gekisou'?'激奏还会比较站位。':''}`
       :'选好歌曲和卡片范围后，这里会说明本次比较哪些卡。');
     q('[data-calculator-guidance]').textContent=ui(state.message);
     q('[data-calculator-guidance]').dataset.ready=String(state.ready);
@@ -87,7 +87,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
   function invalidate() {stop();feedback.reset();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent=ui('等待开始');guide();}
 
   q('[data-pairing-mode]').addEventListener('change',()=>{q('[data-gekisou-settings]').hidden=q('[data-pairing-mode]').value!=='gekisou';if(q('[data-gekisou-rank-note]'))q('[data-gekisou-rank-note]').hidden=q('[data-pairing-mode]').value!=='gekisou';});
-  for(const selector of ['[data-search-scope]','[data-pairing-objective]','[data-search-constraints]','[data-search-band]','[data-search-attribute]','[data-search-support-attribute]','[data-pairing-mode]','[data-gekisou-settings]','[data-planning-window-limit]','[data-planning-variant-limit]'])q(selector).addEventListener('change',()=>{invalidate();q('[data-pairing-results]').replaceChildren();progress.textContent=ui('输入已更新，请重新搜索。');});
+  for(const selector of ['[data-search-scope]','[data-pairing-objective]','[data-search-constraints]','[data-search-band]','[data-search-support-band]','[data-search-attribute]','[data-search-support-attribute]','[data-pairing-mode]','[data-gekisou-settings]','[data-planning-window-limit]','[data-planning-variant-limit]'])q(selector).addEventListener('change',()=>{invalidate();q('[data-pairing-results]').replaceChildren();progress.textContent=ui('输入已更新，请重新搜索。');});
   q('[data-cancel-pairing]').addEventListener('click',()=>{if(!worker){stop();feedback.finish(ui('已停止'),ui('可调整条件后重新计算'),'stopped');progress.textContent=ui('已停止。可调整条件后重新计算。');guide();return;}feedback.update({label:ui('正在停止'),detail:ui('保留已经完成的方案')});worker?.postMessage({type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent=ui('正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。');});
   q('[data-export-pairing]').addEventListener('click',()=>{if(lastResult)download('otonote-pairing-result.json',lastResult);});
   async function run() {

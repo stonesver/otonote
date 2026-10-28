@@ -34,11 +34,12 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  const primary=metric==='badges'?'rewardBP':'eventPointBP',secondary=primary==='rewardBP'?'eventPointBP':'rewardBP';
  const options=withEventRewardCandidates({rules,draft:input.draft,scope:input.scope,inventory:input.inventory,
   rewardCards:input.rewardCards??[],rewardGrowth:input.rewardGrowth??'level',rewardGrowthOverride:input.rewardGrowthOverride??false});
- const draft=structuredClone(options.draft);draft.modifiers??={};delete draft.modifiers.event;
+ let draft=structuredClone(options.draft);draft.modifiers??={};delete draft.modifiers.event;
  if(options.scope==='owned'){
   if(!options.inventory)return finish(false,'missing_owned_inventory');
   draft.modifiers.growth=structuredClone(options.inventory.growth??{});
  }
+ draft=resolveSearchInput(rules,draft,{scope:options.scope,inventory:options.inventory,constraints:input.constraints??{}}).draft;
  const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
  model.challengeCosts=rules.tables.ChallengeMusicBoostBonus.map(r=>r._consumedChallengePointCount);
  const cardBonuses=new Map(),cardBonus=(kind,id)=>{
@@ -64,7 +65,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   if(signal?.aborted)return finish(false,'cancelled');
   const next={...structuredClone(draft),selectedSongId:candidate.trackId,selectedDifficulty:candidate.difficulty};
   const resolved=resolveSearchInput(rules,next,{scope:options.scope,inventory:options.inventory,constraints:input.constraints??{}});
-  const key=eventCandidateKey(rules,next,options.inventory,options.scope,[],true);
+  const key=eventCandidateKey(rules,next,options.inventory,options.scope,[],true,input.constraints??{});
   let group=groups.get(key);
   if(!group){
    const pairSkills=new Map(),resolver=createFormalSkillResolver(rules);

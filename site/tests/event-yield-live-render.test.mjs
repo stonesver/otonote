@@ -34,12 +34,25 @@ function harness(t){
  for(const [k,v] of Object.entries({budget:'100',starting:'0',depth:'full',goal:'badges',basis:'expectedScore',stages:'direct',songs:'all',difficulty:'all',level:'40','challenge-difficulty':'all','challenge-level':'40'}))q(k).value=v;
  q('goal').querySelector=node;
  const tool={q:node,querySelector:node,draft:{slots:[],modifiers:{}},data:{rules:{tables:{ChallengeMusic:[],LiveMusic:[]}},tracks:[{id:'music-1'}],charts:[{id:'chart-1',trackId:'music-1',difficulty:'hard',level:10,analysisDataUrl:'/chart'}]}};
- const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:eventScopeControls});optimizer.sync();optimizer.run();t.after(()=>optimizer.destroy());
+ const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:eventScopeControls,validateCardPool:()=>{}});optimizer.sync();optimizer.run();t.after(()=>optimizer.destroy());
  assert.equal(workers.length,1);
  const send=data=>workers.at(-1).listeners.message({data});
  const partial=(value,type='partial')=>({type,done:1,total:360,available:360,rows:['one','two'].map((id,i)=>({id,song:{id,title:id,difficulty:'hard',seconds:100},total:{badges:value-i,eventPoints:100},reward:{mode:'ordinary',scoreRank:5,badges:1,eventPoints:1,challengePoints:1},draft:{slots:[]},bonuses:{rewardBP:0,eventPointBP:0},normalPlays:33,spentFire:99,remainingFire:1,earnedCP:1,expectedScore:1000,estimatedScore:1000,minimumRank:5,maximumRank:5,power:1})),failures:[],coverageComplete:true});
- return {q,optimizer,send,partial,workers};
+ return {q,optimizer,send,partial,workers,tool};
 }
+
+test('cycle results explain whether challenge bands are unrestricted or inherited',t=>{
+ const {q,optimizer,send,partial,tool}=harness(t);
+ tool.data.rules.tables.ChallengeMusic=[{_eventId:3,_liveMusicId:1}];
+ const member=q('member-band');member.multiple=true;member.options=[{value:'1',textContent:'MyGO!!!!!'}];member.selectedOptions=member.options;
+ q('stages').value='cycle';optimizer.sync();optimizer.run();send(partial(1000,'result'));
+ assert.ok(q('results').children.some(node=>/后续挑战：不限乐队/.test(node.textContent)));
+ assert.match(q('card-band-hint').textContent,/不受普通阶段/);
+ q('challenge-band-scope').checked=true;q('challenge-band-scope').listeners.change();assert.equal(q('results').children.length,0);
+ optimizer.run();send(partial(1000,'result'));
+ assert.ok(q('results').children.some(node=>/后续挑战：沿用普通阶段.*MyGO/.test(node.textContent)));
+ assert.match(q('challenge-band-note').textContent,/沿用普通阶段.*MyGO/);
+});
 
 test('new candidates publish automatically, reuse unchanged teams and preserve the selected plan',async t=>{
  const {q,send,partial}=harness(t);

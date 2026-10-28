@@ -4,7 +4,7 @@ import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
 import {searchEventFormations} from './event-formation-search.mjs';
 
 /** Challenge scoring and its certified bound share the event power/song context. */
-export async function optimizeChallenge({rules,eventId,draft,chart,scope='owned',inventory,
+export async function optimizeChallenge({rules,eventId,draft,chart,scope='owned',inventory,constraints={},
  objective='maximum_song_score',signal,onProgress,yieldControl,searchMethod='certified',maxEvaluations=24,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false,
  shouldPause,onContinuation}) {
  if(!['practical','certified'].includes(searchMethod))throw Error('Invalid challenge search method');
@@ -27,11 +27,11 @@ export async function optimizeChallenge({rules,eventId,draft,chart,scope='owned'
     ? {...result,mode:'challenge',eventId,baseline:null,baselineResult:null,
       results:result.results.map(row=>({...row,delta:null,comparison:null}))}
     : {...result,mode:'challenge',eventId};
-  const result=await optimizePractical({rules,draft:next,chart,scope,inventory,objective,performanceScenario:next.modifiers.performanceScenario,
+  const result=await optimizePractical({rules,draft:next,chart,scope,inventory,constraints,objective,performanceScenario:next.modifiers.performanceScenario,
     eventAdapters,modelCache,scoreCache,signal,onProgress,yieldControl});
  if(searchMethod==='practical'||signal?.aborted||result.scoringCoverage?.complete===false)return finalize(result);
  let resumeExact;
- const exact=await searchEventFormations({rules,draft:next,chart,scope,inventory,objective,
+ const exact=await searchEventFormations({rules,draft:next,chart,scope,inventory,constraints,objective,
    eventAdapters,modelCache,seeds:result.results,maxEvaluations,signal,onProgress,yieldControl,baselineResult:result.baselineResult,
    scoreCache,scoreCounters:result.practical,proofCount:1,scoreBoundOptions:{jointPowerBound:true},partitionCards:true,shouldPause,
    onContinuation:resume=>{resumeExact=resume;}});

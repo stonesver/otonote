@@ -41,7 +41,7 @@ test('deck HTML already contains the current layout and no dormant legacy panels
   const html=await container.renderToString(Component),nodes=walk(parse(html));
   assert.equal(nodes.filter(n=>hasClass(n,'calculator-journey')).length,1);
   assert.equal(nodes.filter(n=>attr(n,'data-journey-step')!==undefined).length,4);
-  for(const [field,step] of [['data-song-select','0'],['data-team-slots','1'],['data-instrument-controls','1'],['data-search-scope','1'],['data-pairing-mode','2'],['data-optimize-pairing','2'],['data-pairing-results','3']]) {
+  for(const [field,step] of [['data-song-select','0'],['data-team-slots','1'],['data-instrument-controls','1'],['data-search-scope','1'],['data-search-band','1'],['data-search-support-band','1'],['data-pairing-mode','2'],['data-optimize-pairing','2'],['data-pairing-results','3']]) {
     const controls=nodes.filter(n=>attr(n,field)!==undefined);
     assert.equal(controls.length,1,`${field} must have one owner`);
     assert.ok(within(controls[0],step),`${field} must render in its final panel`);

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {selectEventYieldRows,eventYieldGoals,orderEventYieldRows,eventYieldGaps} from '../src/lib/event-yield-goals.mjs';
-import {eventYieldStageInput} from '../src/lib/event-yield-stage.mjs';
+import {eventYieldStageInput,eventYieldChallengeBandNote} from '../src/lib/event-yield-stage.mjs';
 import {setupEventYieldOptimizer,eventYieldCompletionText,eventYieldStopText,eventYieldProgressText} from '../src/lib/event-yield-ui.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
 test('global proof status distinguishes covered charts, alternatives and expected-score ties',()=>{
@@ -50,6 +50,18 @@ test('cycle stages choose independent collection and AP basis without inheriting
  assert.equal(input.scope,'selected');
  assert.equal(eventYieldStageInput({...input,challengeScope:'same'},'challenge').scope,'selected');
  assert.equal(eventYieldStageInput({...input,mode:'challenge'},'challenge').scope,'selected');
+});
+test('challenge defaults to unrestricted bands while retaining other constraints and direct challenge filters',()=>{
+ const constraints={bandId:[1],supportBandId:[2],requiredMemberIds:[1],excludedSupportIds:[6]},input={mode:'ordinary',includeChallenge:true,scope:'owned',constraints};
+ const original=structuredClone(input),challenge=eventYieldStageInput(input,'challenge');
+ assert.deepEqual(challenge.constraints,{requiredMemberIds:[1],excludedSupportIds:[6]});
+ assert.deepEqual(eventYieldStageInput({...input,challengeBandScope:'same'},'challenge').constraints,constraints);
+ assert.deepEqual(eventYieldStageInput({...input,mode:'challenge'},'challenge').constraints,constraints);
+ assert.deepEqual(input,original);
+ assert.match(eventYieldChallengeBandNote(input),/不限乐队.*不受普通阶段/);
+ assert.match(eventYieldChallengeBandNote({...input,challengeBandScope:'same'},'成员乐队：MyGO!!!!!'),/沿用普通阶段.*MyGO/);
+ assert.equal(eventYieldChallengeBandNote({...input,includeChallenge:false}),'');
+ assert.throws(()=>eventYieldStageInput({...input,challengeBandScope:'invalid'},'challenge'),/无效/);
 });
 test('joint event recommendation exposes both item and event-point objectives',()=>{
  const page=readFileSync(new URL('../src/pages/tools/event-efficiency/index.astro',import.meta.url),'utf8');
@@ -140,7 +152,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  // The workbench moves conditions/results into sibling columns under the tool.
  node('yield-optimizer').querySelector=()=>{throw new Error('Do not assume filters remain in the legacy panel');};
  installProgressDom(t,q('status'));
- let scopes;const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:(...args)=>(scopes=eventScopeControls(...args))});
+ let scopes,invalidPool=false;const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:(...args)=>(scopes=eventScopeControls(...args)),validateCardPool:()=>{if(invalidPool)throw Error('筛选后需要至少五位不同角色及五张留影');}});
  optimizer.sync();optimizer.run();
  assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['1-e']);
  const progress=q('status').progressNode;workers[0].listeners.message({data:{type:'progress',stage:'普通',title:'歌曲',done:1,total:9,detail:'完整复算 2 / 12'}});assert.equal(progress.children[1].value,1/9);
@@ -164,6 +176,16 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
   field.multiple=true;field.options=options.map(value=>({value,selected:values.includes(value)}));
   Object.defineProperty(field,'selectedOptions',{configurable:true,get(){return this.options.filter(o=>o.selected);}});
  };
+ multi(q('member-band'),['1'],['1','2']);multi(q('support-band'),['2'],['1','2']);
+ const previousBandsWorker=workers.at(-1);q('support-band').listeners.change();
+ assert.equal(previousBandsWorker.stopped,true);assert.deepEqual(q('results').children,[]);
+ optimizer.run();assert.deepEqual(workers.at(-1).data.input.constraints,{bandId:[1],supportBandId:[2]});
+ multi(q('member-band'),['1','2'],['1','2']);q('member-band').listeners.change();optimizer.run();
+ assert.deepEqual(workers.at(-1).data.input.constraints,{bandId:[1,2],supportBandId:[2]});
+ assert.equal(workers.at(-1).data.input.challengeBandScope,'all');
+ q('challenge-band-scope').checked=true;q('challenge-band-scope').listeners.change();optimizer.run();assert.equal(workers.at(-1).data.input.challengeBandScope,'same');
+ q('challenge-band-scope').checked=false;q('challenge-band-scope').listeners.change();assert.equal(workers.at(-1).stopped,true);
+ multi(q('member-band'),[],['1','2']);multi(q('support-band'),[],['1','2']);
  tool.data.charts.push({id:'1-h',trackId:'music-1',difficulty:'hard',level:15,analysisDataUrl:'/1-h'},
   {id:'2-n',trackId:'music-2',difficulty:'normal',level:10,analysisDataUrl:'/2-n'},
   {id:'2-easy',trackId:'music-2',difficulty:'easy',level:8,analysisDataUrl:'/2-easy'});
@@ -210,5 +232,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  optimizer.sync();assert.ok(!last.stopped);optimizer.run();assert.equal(workers.length,before);assert.deepEqual(workers.at(-1).data.challengeCandidates.map(c=>c.id),['2-h']);
  q('stages').value='direct';q('songs').value='selected';scopes.main.setSelection({kind:'temporary',entries:[]});optimizer.sync();optimizer.run();assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);assert.equal(workers.at(-1).data.input.calculationScopes.main.source.kind,'fixed');
  scopes.main.setSelection({kind:'all'});optimizer.sync();optimizer.run();assert.equal(workers.at(-1).data.input.calculationScopes.main.chartCount,1);
+ invalidPool=true;optimizer.invalidate();const beforeInvalidPool=workers.length;optimizer.run();
+ assert.equal(workers.length,beforeInvalidPool);assert.match(q('status').textContent,/当前阶段卡片范围.*至少五位不同角色及五张留影/);
  optimizer.destroy();
 });

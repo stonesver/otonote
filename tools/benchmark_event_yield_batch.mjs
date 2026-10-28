@@ -13,7 +13,7 @@ const {values}=parseArgs({allowNegative:true,options:{root:{type:'string',defaul
  difficulty:{type:'string',default:'expert'},'max-level':{type:'string',default:'40'},
  'challenge-difficulty':{type:'string',default:'expert'},'challenge-max-level':{type:'string',default:'40'},
  'include-challenge':{type:'boolean',default:false},eco:{type:'boolean',default:true},'time-limit-ms':{type:'string',default:'120000'},
- evaluations:{type:'string',default:'0'},'preflight-only':{type:'boolean',default:false}
+ evaluations:{type:'string',default:'0'},'preflight-only':{type:'boolean',default:false},'individual-proofs':{type:'boolean',default:false}
  ,'cpu-limit-ms':{type:'string',default:'0'}
 }});
 for(const key of ['data','catalog','event','output'])if(!values[key])throw Error(`Missing --${key}`);
@@ -64,7 +64,7 @@ for(const {candidate:c} of jobs){
   releaseBinding:chart.sourceReleaseId?'payload_and_catalog':'catalog_sourceReleaseIds_and_immutable_analysisDataUrl'};
 }
 const preflight={sourceReleaseId:rules.sourceReleaseId,mode:input.mode,goal:input.goal,basis:input.basis,eco:input.eco,searchDepth:'full',
- fullCandidateSet:true,ordinaryCandidates:input.mode==='ordinary'?selected.length:0,challengeCandidates:cycle?challenges.length:input.mode==='challenge'?selected.length:0,
+ fullCandidateSet:true,proofTarget:values['individual-proofs']?'every_chart':'global_objective',ordinaryCandidates:input.mode==='ordinary'?selected.length:0,challengeCandidates:cycle?challenges.length:input.mode==='challenge'?selected.length:0,
  plannedCharts:jobs.length,plannedInvocations:jobs.reduce((n,j)=>n+eventYieldGoals(input.goal,j.mode).length,0),availableLocalCharts:charts.size,missing};
 if(values['preflight-only']||missing.length){writeFileSync(values.output,JSON.stringify(preflight,null,2)+'\n');console.log(JSON.stringify({...preflight,missing:missing.length}));
  if(missing.length)process.exitCode=2;process.exit();}
@@ -99,6 +99,7 @@ const record=({candidate,mode,goal,witnessOnly=false,practicalSeed=false,result,
 let completedCharts=0,batchResult,reportedProgressAt=0,firstResultMs=null;
 if(productionRunner){
  batchResult=await productionRunner({rules,eventId:Number(values.event),candidates,challengeCandidates:challenges,input,candidateCache,challengePlanCache,
+  ...(values['individual-proofs']?{globalPruning:false,witnessPrepass:false}:{}),
   loadChart:async c=>charts.get(c.id),yieldControl,signal:controller.signal,proveGroup,
   onJobComplete:record,onGroupComplete:({goal,proof})=>{groupSamples.push({goal,...proof});checkBudget();console.log(JSON.stringify({groupGoal:goal,proven:proof.proven,error:proof.error,
     best:proof.results?.[0]?{song:proof.results[0].song.id,total:proof.results[0].total,scoreRank:proof.results[0].reward.scoreRank}:null,stats:proof.stats,elapsedMs:performance.now()-start}));},
@@ -138,3 +139,4 @@ const summary={...preflight,node:process.version,environment:{platform:platform(
  winners:selectEventYieldRows(rows,input.goal).map(r=>({song:r.song.id,total:r.total,scoreRank:r.reward.scoreRank,recommendationGoals:r.recommendationGoals,search:r.search}))};
 writeFileSync(values.output,JSON.stringify(summary,null,2)+'\n');
 console.log(JSON.stringify({output:values.output,complete,allProven:summary.allProven,wallMs:summary.wallMs,cpuMs:summary.cpuMs}));
+if(values['individual-proofs']&&!summary.allProven)process.exitCode=1;

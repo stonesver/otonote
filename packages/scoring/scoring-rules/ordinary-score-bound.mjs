@@ -43,10 +43,12 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     const effects = skill.liveEffects.filter(e => e.active).map(e => ({ type: e.type,
       value: Math.fround(Math.floor(Math.fround(Math.fround(e.rate) * 100000)) / 100000),
       durationRawMs: e.durationRawMs ?? e.durationMs, dynamic: Boolean(e.cumulative),
-      ...(e.cumulative ? {updates:Number.isInteger(e.cumulative.maximum)&&e.cumulative.maximum>=0
+      ...(e.cumulative ? {cumulative:e.cumulative,updates:Number.isInteger(e.cumulative.maximum)&&e.cumulative.maximum>=0
         ? Math.min(song.timeline.events.length,e.cumulative.maximum) : song.timeline.events.length} : {}) }));
     const signature = JSON.stringify(effects);
-    if(!canonical.has(signature))canonical.set(signature,{signature,effects,absolute:effects.reduce((n,e)=>n+Math.abs(e.value),0)});
+    if(!canonical.has(signature))canonical.set(signature,{signature,effects,absolute:effects.reduce((n,e)=>n+Math.abs(e.value),0),
+      commands:2*effects.reduce((n,e)=>n+(e.dynamic?e.updates+1:1),0),
+      magnitude:2*effects.reduce((n,e)=>n+Math.abs(e.value)*(e.dynamic?e.updates+1:1),0)});
     profiles.set(key,canonical.get(signature));
   }
   const edgeProfiles=new WeakMap();
@@ -57,15 +59,25 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   };
   const uniqueProfiles = [...canonical.values()];
   const applicationLimit = localRewinds ? ordinaryReplayApplicationLimit(song.timeline, uniqueProfiles, frameRate) : Infinity;
-  const replayError = (absolute, options, limit) => {
+  const supportBudget=entries=>{
+    const counts=new Map(),magnitudes=new Map();
+    for(const [support,p] of entries){counts.set(support,Math.max(counts.get(support)??0,p.commands));magnitudes.set(support,Math.max(magnitudes.get(support)??0,p.magnitude));}
+    const top=map=>[...map.values()].sort((a,b)=>b-a).slice(0,5).reduce((a,b)=>a+b,0);
+    // Every legal team uses each support at most once. Independent per-support
+    // maxima relax all member/pair constraints without cloning a rare dynamic
+    // support into every slot. Magnitudes keep a binary64 outward allowance.
+    return {commands:top(counts),magnitude:top(magnitudes)*(1+1e-12)};
+  };
+  const globalBudget=supportBudget([...profiles].map(([key,p])=>[key.split('|')[1]??key,p]));
+  const replayError = (absolute, options, limit, budget) => {
     // A cumulative handle can be replaced once per judgement frame. Both its
     // old-value removal and new-value insertion contribute to the absolute
     // command sum; bounding command COUNT alone does not bound that sum.
     // Ideal AP counts only increase. A capped counter can change its handle
     // at most maximum times, regardless of the number of later judgements.
-    const commands = 10 * Math.max(0, ...options.map(p => p.effects.reduce((n,e) => n + (e.dynamic ? e.updates+1 : 1), 0)));
+    const commands = budget?.commands??10 * Math.max(0, ...options.map(p => p.effects.reduce((n,e) => n + (e.dynamic ? e.updates+1 : 1), 0)));
     const variation = Math.max(1,...options.flatMap(p=>p.effects.map(e=>e.dynamic?e.updates+1:1)));
-    const magnitude = 2 * absolute * variation;
+    const magnitude = budget?.magnitude??2 * absolute * variation;
     const calls = Math.min(limit, 4 * (song.timeline.events.length + commands + 1)), undo = commands * calls;
     const stateError = gamma(2 * undo + 1) * (1 + 2 * magnitude)
       // Sum bucket-delta errors over their command magnitudes, then replay
@@ -80,9 +92,32 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     while(lo<hi){const mid=(lo+hi)>>>1;if(events[mid].timeMs<time)lo=mid+1;else hi=mid;}
     return lo;
   };
-  const spans = new Map(uniqueProfiles.map(p => [p.signature, song.timeline.skillTimes.map(start => p.effects.map(e => ({
-    first:indexAt(start),last:indexAt(skillEndFrame(clock,start,e.durationRawMs).timeMs),value:Math.max(0,e.value)
-  })))]));
+  const arrivals=new Map();
+  for(const event of events){const frame=clock.indexAt(event.timeMs);arrivals.set(frame,(arrivals.get(frame)??0)+1);}
+  const noteFrames=[...arrivals].sort((a,b)=>a[0]-b[0]);
+  const effectSpans=(start,e)=>{
+    const end=skillEndFrame(clock,start,e.durationRawMs),last=indexAt(end.timeMs),c=e.cumulative;
+    const rectangle=()=>[{first:indexAt(start),last,value:Math.max(0,e.value)}];
+    if(!c||!Number.isInteger(c.unit)||c.unit<1||!Number.isInteger(c.maximum)||c.maximum<1
+      ||!Number.isFinite(c.stepBP)||c.stepBP<0||!Number.isFinite(c.maximumBP)||c.maximumBP<=0
+      ||c.stepBP*c.maximum>0x7fffffff||!Array.isArray(c.targets)||events.some(n=>n.inputFrame!=null))return rectangle();
+    if(!c.targets.includes(5))return [];
+    const spans=[];let count=0,previous=0;
+    // AP lifecycles are independent of order/power. Count all matching notes
+    // in the activation frame, exactly as UpdateStay/UpdateExecuteFrame do.
+    // Each monotone increase contributes only until the authored end command.
+    for(const [frame,notes] of noteFrames){
+      if(frame<end.startFrame)continue;if(frame>=end.frame)break;
+      count+=notes;
+      const level=Math.min(c.maximum,Math.floor(Math.fround(Math.fround(count)/Math.fround(c.unit))));
+      const raw=Math.fround(Math.min(c.maximumBP,Math.imul(level,c.stepBP))/10000);
+      const rate=Math.fround(Math.floor(Math.fround(raw*100000))/100000),first=indexAt(clock.at(frame).timeMs);
+      if(rate>previous&&first<last)spans.push({first,last,value:rate-previous});
+      previous=rate;
+    }
+    return spans;
+  };
+  const spans = new Map(uniqueProfiles.map(p => [p.signature, song.timeline.skillTimes.map(start => p.effects.flatMap(e=>effectSpans(start,e)))]));
   const jointBound = jointPowerBound ? createJointPowerScoreBound({
     coefficients:song.powerLinearUpperBound?.({eventContext:input.draft.modifiers?.event}),spans,profileFor,metric
   }) : null;
@@ -176,7 +211,8 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     if (!members.has(state.leader)) { fixedAbsolute += leaderBest; remaining--; maxima.delete(leaderCharacter); }
     const absolute = fixedAbsolute + [...maxima.values()].sort((a,b) => b-a).slice(0,remaining).reduce((a,b) => a+b,0);
     const factor = Math.min(legacyFactor, upward((1 + 2 * absolute) * 1.0001));
-    const signatures = [...types.keys()].sort(), envelopeKey = JSON.stringify([absolute, signatures]);
+    const budget=supportBudget(available.map(e=>[e.support,profileFor(e)]));
+    const signatures = [...types.keys()].sort(), envelopeKey = JSON.stringify([absolute, signatures,budget.commands,budget.magnitude]);
     const options = [...types.values()];
     const active = () => remember(`active:${JSON.stringify(signatures)}`, () => {
       const intervals = song.timeline.skillTimes.map(start => options.map(p => p.effects.map(e => ({
@@ -191,7 +227,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
       // applies at most C commands and undoes at most C nonempty factor buckets.
       // Delta accumulation has at most C additions before every undo. Bound
       // both errors without assuming start/end cancellation is exact.
-      const { error } = replayError(absolute, options, limit);
+      const { error } = replayError(absolute, options, limit,budget);
       if (!Number.isFinite(error)) return null;
       // The old 1+2*A bound is safe only while its extra A also dominates
       // accumulated rewind error. Huge future charts must keep the wider bound.
@@ -204,7 +240,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     const envelope=getEnvelope('',applicationLimit);
     const timedBound=(prefix,envelope)=>envelope===null?Infinity:remember(`${prefix}score:${envelopeKey}:${solution.weight}`, () => { const factors=envelope.factors; return song.upperBound(solution.weight, (_, index) => factors[index], { eventContext: input.draft.modifiers?.event }); });
     if(envelope===null)return includePriority?{upper:Infinity,priority:Infinity}:Infinity;
-    if(minimumBonus)return bonusBound?bonusBound(available,forced,state.leader,solution,envelope.error,minimumBonus.forEdge,minimumBonus.value,state):Infinity;
+    if(minimumBonus)return bonusBound?bonusBound(available,forced,state.leader,solution,envelope.error,minimumBonus.forEdge,minimumBonus.value,state,cutoff):Infinity;
     const joint=jointBound ? jointBound(available,forced,state.leader,solution,envelope.error,!state.forbidden.length,cutoff) : Infinity;
     if (!includePriority && joint <= cutoff) return joint;
     const timed=timedBound('',envelope);
@@ -219,9 +255,9 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   // A cutoff only skips additional SAFE bounds after one already proves
   // this partition cannot improve the incumbent. It never changes the domain.
   bound.withCutoff=(state,model,solution,draftForSolution,cutoff)=>bound(state,model,solution,draftForSolution,false,cutoff);
-  bound.withMinimumBonus=(state,model,solution,draftForSolution,forEdge,value)=>{
+  bound.withMinimumBonus=(state,model,solution,draftForSolution,forEdge,value,cutoff=-Infinity)=>{
     if(bonusBound)bonusBound.witnesses=[];
-    return bound(state,model,solution,draftForSolution,false,-Infinity,{forEdge,value});
+    return bound(state,model,solution,draftForSolution,false,cutoff,{forEdge,value});
   };
   Object.defineProperty(bound,'bonusConstraintWitnesses',{get:()=>bonusBound?.witnesses??[]});
   bound.bonusConstraintStats=bonusBound?.stats??{matchingCalls:0};
@@ -271,7 +307,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   bound.normalizedPowerEnvelope=(threshold,requiredMembers=[])=>{
     if(!bonusBound||!Number.isFinite(threshold)||threshold<=0)return null;
     const absolute=5*Math.max(0,...uniqueProfiles.map(p=>p.absolute));
-    const {error}=replayError(absolute,uniqueProfiles,applicationLimit);
+    const {error}=replayError(absolute,uniqueProfiles,applicationLimit,globalBudget);
     const baseCoefficient=bonusBound.envelope.baseCoefficient*(1+error)/threshold*(1+1e-10);
     if(!Number.isFinite(baseCoefficient))return null;
     const gainFor=metric==='minimumScore'?minimumGainFor(requiredMembers):bonusBound.envelope.gainFor;

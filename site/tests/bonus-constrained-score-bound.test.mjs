@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createBonusConstrainedScoreBound,createBonusConstrainedScoreEnvelopeBound} from '../../packages/scoring/scoring-rules/bonus-constrained-score-bound.mjs';
 import {maximumPairing,partitionPairing} from '../../packages/scoring/scoring-rules/maximum-pairing.mjs';
+import {constrainBonusCards} from '../src/lib/event-yield-optimizer.mjs';
 
 function* orders(values,n=values.length){
  if(!n){yield [];return;}
@@ -103,4 +104,38 @@ test('normalized proof stops refining once a conservative bound already excludes
  const args=[edges,[],'m0',solution,0,e=>e.bonus,1000];
  for(const upper of [full(...args),early(...args)])assert.ok(upper>=exact&&upper<1);
  assert.ok(early.stats.matchingCalls<full.stats.matchingCalls,`${early.stats.matchingCalls} >= ${full.stats.matchingCalls}`);
+});
+
+test('a per-call grade cutoff stops matching once its safe envelope already excludes that grade',()=>{
+ const edges=Array.from({length:5},(_,i)=>({key:`m${i}|s${i}`,member:`m${i}`,support:`s${i}`,character:i,weight:100,bonus:0}));
+ edges.push({key:'weak|s4',member:'weak',support:'s4',character:4,weight:1,bonus:1000});
+ const solution=maximumPairing({edges,requiredMembers:['m0']});
+ const make=()=>createBonusConstrainedScoreEnvelopeBound({baseCoefficient:1,gainFor:()=>0});
+ const full=make(),early=make(),args=[edges,[],'m0',solution,0,e=>e.bonus,1000,{}];
+ const expected=full(...args),actual=early(...args,450);
+ assert.ok(expected>=401&&expected<450);assert.ok(actual>=401&&actual<450);
+ assert.ok(early.stats.matchingCalls<full.stats.matchingCalls);
+ // The next stricter grade must still be refined independently.
+ assert.equal(early(...args,400),expected);
+});
+
+test('conditional card envelopes equal independent card-subset enumeration under mandatory characters',()=>{
+ const choose=(rows,n)=>n===0?[[]]:rows.flatMap((row,i)=>choose(rows.slice(i+1),n-1).map(tail=>[row,...tail]));
+ for(let seed=1;seed<=12;seed++){
+  const members=Array.from({length:7},(_,i)=>({id:`m${i}`,group:i===6?0:i,value:(i*17+seed*13)%59}));
+  const supports=Array.from({length:7},(_,i)=>({id:`s${i}`,value:(i*23+seed*7)%71}));
+  const edges=members.flatMap(m=>supports.map(s=>({key:m.id+'|'+s.id,member:m.id,support:s.id,character:m.group})));
+  const value=(kind,id)=>(kind==='member'?members:supports).find(r=>r.id===id).value;
+  for(const state of [{memberRequired:[],supportRequired:[]},{memberRequired:['m0','m3'],supportRequired:['s2']},
+    {memberRequired:['m0','m6'],supportRequired:[]},{memberRequired:['absent'],supportRequired:[]},
+    {memberRequired:['m0','m1','m2','m3','m4'],supportRequired:['s0','s1','s2','s3','s4']}]){
+   const allowed=(rows,required)=>choose(rows,5).filter(team=>required.every(id=>team.some(r=>r.id===id))&&new Set(team.map(r=>r.group??r.id)).size===5);
+   const ms=allowed(members,state.memberRequired),ss=allowed(supports,state.supportRequired),sum=team=>team.reduce((n,r)=>n+r.value,0);
+   const maximum=(sets,id)=>Math.max(-Infinity,...sets.filter(team=>!id||team.some(r=>r.id===id)).map(sum));
+   for(const threshold of [0,150,300,500]){
+    const expected=edges.filter(e=>maximum(ms,e.member)+maximum(ss)>=threshold&&maximum(ss,e.support)+maximum(ms)>=threshold);
+    assert.deepEqual(constrainBonusCards(edges,state,value,threshold).map(e=>e.key),expected.map(e=>e.key));
+   }
+  }
+ }
 });

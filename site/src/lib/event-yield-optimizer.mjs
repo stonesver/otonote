@@ -382,7 +382,7 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,eventAdapte
          if(!constrainedPower){excluded=true;break;}
          const upper=bound.withMinimumBonus(state,constrained,constrainedPower,()=>draftFromPairing(input,leader,constrainedPower.edges),edge=>{
            const bonus=pairBonus(edge);return a*bonus[primary]+b*bonus[secondary];
-         },min);
+         },min,grade._requiredScore);
          const witnesses=bound.bonusConstraintWitnesses.filter(w=>w.bonus>=min).sort((x,y)=>y.weight-x.weight);
          if(witnesses[0])await updateWitness(leader,witnesses[0],required);
          if(upper<grade._requiredScore){excluded=true;break;}
@@ -483,20 +483,32 @@ export function constrainBonusCards(edges,state,valueFor,min){
    if(!supportRows.has(edge.support))supportRows.set(edge.support,{id:edge.support,group:edge.support,value:valueFor('support',edge.support)});
  }
  const supportGroups=new Map([...supportRows].map(([id,row])=>[id,row.value]));
- const maximum=(rows,groups,required,extra)=>{
+ const prepare=(rows,groups,required)=>{
    const chosen=new Map();let total=0;
-   for(const id of [...required,...(extra?[extra]:[])]){
-     const row=rows.get(id);if(!row)return -Infinity;
-     if(chosen.has(row.group)){if(chosen.get(row.group)!==id)return -Infinity;continue;}
+   const impossible={maximum:-Infinity,withCard:()=>-Infinity};
+   for(const id of required){
+     const row=rows.get(id);if(!row)return impossible;
+     if(chosen.has(row.group)){if(chosen.get(row.group)!==id)return impossible;continue;}
      chosen.set(row.group,id);total+=row.value;
    }
-   if(chosen.size>5)return -Infinity;
-   const optional=[...groups].filter(([group])=>!chosen.has(group)).map(([,value])=>value).sort((x,y)=>y-x);
-   if(optional.length<5-chosen.size)return -Infinity;
-   return total+optional.slice(0,5-chosen.size).reduce((x,y)=>x+y,0);
+   if(chosen.size>5)return impossible;
+   const remaining=5-chosen.size,optional=[...groups].filter(([group])=>!chosen.has(group)).sort((a,b)=>b[1]-a[1]);
+   if(optional.length<remaining)return impossible;
+   const positions=new Map(optional.map(([group],index)=>[group,index])),prefix=[0];
+   for(const [,value] of optional)prefix.push(prefix.at(-1)+value);
+   const maximum=total+prefix[remaining];
+   // Forcing one optional card only removes its group from the top-k sum.
+   // Rank once for the domain instead of sorting again for every card.
+   return {maximum,withCard:id=>{
+     const row=rows.get(id);if(!row)return -Infinity;
+     if(chosen.has(row.group))return chosen.get(row.group)===id?maximum:-Infinity;
+     if(!remaining)return -Infinity;
+     const count=remaining-1,index=positions.get(row.group);
+     return total+row.value+(index<count?prefix[count+1]-optional[index][1]:prefix[count]);
+   }};
  };
- const members=maximum(memberRows,memberGroups,state.memberRequired),supports=maximum(supportRows,supportGroups,state.supportRequired);
- const allowedMembers=new Set([...memberRows.keys()].filter(id=>maximum(memberRows,memberGroups,state.memberRequired,id)+supports>=min));
- const allowedSupports=new Set([...supportRows.keys()].filter(id=>maximum(supportRows,supportGroups,state.supportRequired,id)+members>=min));
+ const members=prepare(memberRows,memberGroups,state.memberRequired),supports=prepare(supportRows,supportGroups,state.supportRequired);
+ const allowedMembers=new Set([...memberRows.keys()].filter(id=>members.withCard(id)+supports.maximum>=min));
+ const allowedSupports=new Set([...supportRows.keys()].filter(id=>supports.withCard(id)+members.maximum>=min));
  return edges.filter(edge=>allowedMembers.has(edge.member)&&allowedSupports.has(edge.support));
 }

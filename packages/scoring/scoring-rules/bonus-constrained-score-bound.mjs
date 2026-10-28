@@ -36,7 +36,7 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
     return gainCache.get(edge);
   };
   const stats={matchingCalls:0};
-  const bound=function(available,forced,leader,solution,error,bonusFor,minBonus,constraints={}){
+  const bound=function(available,forced,leader,solution,error,bonusFor,minBonus,constraints={},scoreCutoff=cutoff){
     const witnesses=new Map();bound.witnesses=[];
     if(!Number.isSafeInteger(minBonus)||minBonus<0||!Number.isFinite(error)||error<0||solution.weight<=0)return Infinity;
     const bonuses=new Map();let largestPower=0,largestGain=0,largestBonus=0;
@@ -92,17 +92,17 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       return {...row,gain:result.edges.reduce((s,e)=>s+gainFor(e),0)};
     };
     for(let iteration=0;iteration<3;iteration++){
-      const initial=probe(lambda,0);if(upper<cutoff)return upper;if(!initial)break;
+      const initial=probe(lambda,0);if(upper<scoreCutoff)return upper;if(!initial)break;
       let chosen=initial;
       if(initial.bonus<minBonus){
         let lo=0,hi=(base+lambda*solution.weight)/Math.max(1,minBonus),high;
         for(let i=0;i<12;i++){
-          high=probe(lambda,hi);if(upper<cutoff)return upper;if(!high)break;
+          high=probe(lambda,hi);if(upper<scoreCutoff)return upper;if(!high)break;
           chosen=high;if(high.bonus>=minBonus)break;
           lo=hi;hi*=2;
         }
         if(high?.bonus>=minBonus)for(let i=0;i<12;i++){
-          const mid=(lo+hi)/2,row=probe(lambda,mid);if(upper<cutoff)return upper;if(!row)break;
+          const mid=(lo+hi)/2,row=probe(lambda,mid);if(upper<scoreCutoff)return upper;if(!row)break;
           chosen=row;if(row.bonus<minBonus)lo=mid;else hi=mid;
         }
       }

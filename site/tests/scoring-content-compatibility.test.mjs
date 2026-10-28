@@ -206,6 +206,7 @@ import { searchEventFormations } from '../src/lib/event-formation-search.mjs';
 import { ordinaryIdealSkillCommands } from '../../packages/scoring/scoring-rules/ordinary-ideal-skills.mjs';
 import { compareScoreFactors } from '../../packages/scoring/scoring-rules/formal-score-replay.mjs';
 import { skillOrdersFor } from '../../packages/scoring/scoring-rules/skill-order-sampling.mjs';
+import { createEventEfficiency } from '../../packages/scoring/scoring-rules/event-efficiency.mjs';
 
 test('proof envelopes may exceed native int32 notes without breaking a legal cumulative search',async()=>{
   const {r,c,d,effect}=ordinaryFixture();
@@ -287,4 +288,48 @@ test('normalized cumulative search envelopes cover repeated handle magnitudes as
   assert.ok(cumulative&&fixed);
   assert.ok(cumulative.baseCoefficient>fixed.baseCoefficient,
     'a long replacement stream cannot inherit the fixed-handle rounding budget');
+});
+
+test('cumulative proof gains follow judgement arrivals instead of assuming the cap at activation',()=>{
+  const {r,c,d,effect}=ordinaryFixture();
+  Object.assign(effect,{_skillEffectType:2001,_effectValue:1750,_maxEffectValue:21000,_skillCumulativeConditionID:990});
+  r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[4],_conditionTargetIDs:[41,46],_maxCumulativeCount:12});
+  const song=createFormalSongCalculator(r,c),resolved=createFormalSkillResolver(r)(d),key='member-card-1|support-card-1';
+  const envelope=skill=>createOrdinaryScoreBound({song,pairSkills:new Map([[key,skill]]),legacyFactor:Infinity,
+    input:{draft:d},metric:'expectedScore',bonusConstraintBound:true}).normalizedPowerEnvelope(1);
+  const ramp=envelope(resolved[0]),instant=envelope({...resolved[0],liveEffects:resolved[0].liveEffects.map(e=>({...e,cumulative:null}))});
+  assert.ok(ramp.gainFor({key})<instant.gainFor({key})*.8,'a slow ramp cannot receive the instantaneous-cap proof gain');
+  const fast={...resolved[0],liveEffects:resolved[0].liveEffects.map(e=>({...e,cumulative:e.cumulative?{...e.cumulative,unit:1}:null}))};
+  const other='member-card-2|support-card-1';
+  const mixed=createOrdinaryScoreBound({song,pairSkills:new Map([[key,resolved[0]],[other,fast]]),legacyFactor:Infinity,
+    input:{draft:d},metric:'expectedScore',bonusConstraintBound:true}).normalizedPowerEnvelope(1);
+  assert.ok(mixed.gainFor({key})<mixed.gainFor({key:other}),'equal caps with different units must have distinct profile keys');
+});
+
+test('ramped proof envelopes dominate native 120-order scores for every support pairing and frame rate',()=>{
+  const {r,c,d,effect}=ordinaryFixture();
+  Object.assign(effect,{_skillEffectType:2001,_effectValue:1750,_maxEffectValue:21000,_skillCumulativeConditionID:990});
+  r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[4],_conditionTargetIDs:[41,46],_maxCumulativeCount:12});
+  const model=createEventEfficiency({tables:r.tables,sourceReleaseId:r.sourceReleaseId,eventId:1});
+  d.modifiers.event={id:1,sourceReleaseId:r.sourceReleaseId};
+  const eventAdapters=[model.challengeAdapter(r)],resolver=createFormalSkillResolver(r),pairSkills=new Map();
+  for(const m of d.slots.map(s=>s.memberCardId))for(const s of d.slots.map(s=>s.supportCardId))
+    pairSkills.set(m+'|'+s,resolver({...d,slots:[{memberCardId:m,supportCardId:s}]})[0]);
+  const permutations=values=>values.length?values.flatMap((v,i)=>permutations(values.filter((_,j)=>i!==j)).map(tail=>[v,...tail])):[[]];
+  for(const frameRate of [30,60,120]){
+    const song=createFormalSongCalculator(r,c,{frameRate,eventAdapters}),input={draft:d};
+    for(const metric of ['expectedScore','maximumScore','minimumScore']){
+      const bound=createOrdinaryScoreBound({song,pairSkills,legacyFactor:Infinity,input,metric,frameRate,bonusConstraintBound:true});
+      for(const supports of permutations(d.slots.map(s=>s.supportCardId))){
+        const team={...d,slots:d.slots.map((s,i)=>({...s,supportCardId:supports[i]}))},score=song.calculate(team);
+        const powers=createFormationCalculator(r,{eventAdapters}).calculate(team).slots;
+        const edges=team.slots.map((s,i)=>({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId,support:s.supportCardId,
+          character:r.tables.MemberCard.find(m=>s.memberCardId===`member-card-${m._id}`)._characterID,weight:powers[i].total.total}));
+        const state={leader:team.slots[2].memberCardId,required:edges.map(e=>e.key),forbidden:[]};
+        const solution={edges,weight:score.power},node={edges,powerIsUpperBound:true};
+        const upper=bound.withMinimumBonus(state,node,solution,()=>team,()=>0,0);
+        assert.ok(upper>=score[metric],`${frameRate} ${metric}: ${upper} < ${score[metric]}`);
+      }
+    }
+  }
 });

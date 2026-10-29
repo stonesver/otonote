@@ -8,6 +8,7 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
  const originalYield=planning.querySelector('.task-event-yield-conditions');if(originalYield)originalYield.replaceWith(...originalYield.childNodes);
  const primary=el('section',null,'task-condition-group task-event-primary');primary.append(el('h3','卡片与预算'));conditionBody.insertBefore(primary,planning);
  for(const s of ['[data-pool]','[data-yield-goal]','[data-yield-stages]','[data-yield-budget]','[data-yield-starting]'])primary.append(q(s).closest('label'));
+ primary.insertBefore(q('[data-yield-card-bands]'),q('[data-pool]').closest('label').nextSibling);
  primary.append(accountButton);bonus.remove();
  const yieldRewards=eventRewardOptions(host,'yield');primary.append(yieldRewards.root);
  const range=q('[data-yield-songs]'),autoFilters=el('div',null,'task-event-auto-filters'),songBasis=q('[data-yield-basis]').closest('label');
@@ -20,6 +21,7 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
  for(const n of [...planning.children])if(n!==planning.firstElementChild&&!n.contains(range)&&n!==songBasis&&!n.contains(q('[data-yield-depth]'))&&!n.contains(q('[data-yield-eco]'))&&!n.contains(q('[data-open-team-workspace="inventory"]')))advanced.append(n);
  planning.append(advanced);modalizeDetails(host,advanced);
  const challengeConditions=el('section',null,'task-condition-group task-challenge-conditions');challengeConditions.append(el('h3','冲榜配队条件'),q('[data-challenge-opt-scope]').closest('label'),q('[data-challenge-opt-objective]').closest('label'),el('p','活动能力加成计入出分；奖励加成不乘入歌曲分数。','task-input-note'));conditionBody.append(challengeConditions);
+ challengeConditions.insertBefore(q('[data-challenge-opt-card-bands]'),q('[data-challenge-opt-objective]').closest('label'));
  const rushRewards=eventRewardOptions(host,'challengeOpt');challengeConditions.append(rushRewards.root);
  const challengeNotes=el('details',null,'task-event-advanced');challengeNotes.append(el('summary','冲榜计算范围与说明'));for(const n of [...challenge.children])if(n.tagName==='P'&&!n.hasAttribute('data-challenge-opt-song')&&!n.hasAttribute('data-challenge-opt-status'))challengeNotes.append(n);challengeConditions.append(challengeNotes);modalizeDetails(host,challengeNotes);
  challenge.classList.add('task-challenge-result');main.append(challenge);challenge.querySelector('h3').textContent='活动曲冲榜';const challengeAction=q('[data-challenge-opt-run]').parentElement;challengeAction.classList.add('task-challenge-toolbar');main.insertBefore(challengeAction,tags);

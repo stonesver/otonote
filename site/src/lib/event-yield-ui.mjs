@@ -1,3 +1,6 @@
+import {readCardBandConstraints,cardBandFilterSummary} from './card-band-constraints.mjs';
+import {validateEventCardPool} from './event-reward-candidates.mjs';
+import {eventYieldStageInput,eventYieldChallengeBandNote} from './event-yield-stage.mjs';
 import {eventSongHeading,eventYieldBreakdown,eventChallengeBreakdown} from './event-result-presentation.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
@@ -42,7 +45,7 @@ export function eventYieldProgressText(data){
  return {stage,detail:raw?detail.split(raw).join(stage):detail};
 }
 
-export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventScopeControls}={}){
+export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventScopeControls,validateCardPool=validateEventCardPool}={}){
  const root=tool.q('yield-optimizer'),q=s=>tool.querySelector(`[data-yield-${s}]`);
  const feedback=createCalculationProgress(q('status'),'yield');
  q('continue').textContent='重新开始完整比较';
@@ -56,9 +59,9 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      q('status').textContent=`${progress.stage}：${data.title??'所有候选歌曲'}（${data.done} / ${data.total}）`;
    }});
  const stop=(publish=false)=>{worker?.terminate();worker=null;updates.stop({flushResult:publish});if(publish&&result)render();q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
- function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
+ function context(){const rewards=q('rewards')?.checked&&tool.q('pool').value!=='reference';return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,constraints:readCardBandConstraints(q('member-band'),q('support-band')),draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
-   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
+   rewardCards:rewards?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:rewards??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBandScope:q('challenge-band-scope')?.checked?'same':'all',challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
  function filters(c,challenge=false){
    const allowed=tool.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===c.eventId).map(r=>`music-${r._liveMusicId}`);
    if(challenge)return {allowedTrackIds:allowed,difficulty:c.challengeDifficulty,maxLevel:c.challengeMaxLevel};
@@ -72,6 +75,9 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    scopeControls?.refresh?.();
    const unsupported=c.mode==='gekisou',needsSong=c.mode==='challenge'&&c.songs==='selected'&&!c.draft.selectedSongId;q('run').disabled=!!worker||unsupported||needsSong;tool.q('suggest').disabled=!!worker||unsupported||needsSong;q('run').title=needsSong?'先点选本期活动曲与难度':'';
    q('challenge-settings').hidden=c.mode!=='ordinary'||!c.includeChallenge;
+   const challengeBandNote=eventYieldChallengeBandNote(c,cardBandFilterSummary(q('member-band'),q('support-band')));
+   q('challenge-band-note').textContent=challengeBandNote;
+   q('card-band-hint').textContent='成员与留影分别筛选；留影包含所选乐队任一角色即可入选。'+(challengeBandNote||'此处筛选限制当前阶段的配队。');
    q('normal-settings').hidden=c.mode==='challenge';q('stages').disabled=c.mode==='challenge';
    q('song-filters').hidden=c.mode!=='ordinary'||c.songs==='selected';
    q('goal').querySelector('[value="grade"]').disabled=c.mode==='challenge';
@@ -83,7 +89,10 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    const next=JSON.stringify([displaySort,displayGoal,page,Boolean(worker),resultKey(result)]);
    if(next===renderKey)return;renderKey=next;
    const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey;
-   if(q('rewards')?.checked)view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(q('rewards')?.checked&&tool.q('pool').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(tool.q('pool').value==='reference')view.push(el('p','当前阶段使用全卡库满养成参考；账号加成沿用页面设置，不代表实际持有。','event-hint'));
+   const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
+   const challengeBandNote=eventYieldChallengeBandNote(context(),cardBands);if(challengeBandNote)view.push(el('p',challengeBandNote,'event-hint'));
    if(result.calculationScopes){view.push(el('p',scopeSummary(result.calculationScopes.main)));if(result.calculationScopes.challenge)view.push(el('p','后续挑战 · '+scopeSummary(result.calculationScopes.challenge)));}
    const completion=eventYieldCompletionText(result);
    const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
@@ -169,6 +178,8 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      const profile=needsInventory||c.rewardCards.length?tool.personalGrowthStore.read():null;
      if(needsInventory&&!profile)throw Error('请先导入实际卡库与养成，或选择“当前十张卡”。');
      c.draft.modifiers={...profile?.account,...c.draft.modifiers};c.inventory=profile?.inventory;
+     try{validateCardPool({rules:tool.data.rules,...c});}catch(error){throw Error('当前阶段卡片范围：'+error.message);}
+     if(c.mode==='ordinary'&&c.includeChallenge)try{validateCardPool({rules:tool.data.rules,...eventYieldStageInput(c,'challenge')});}catch(error){throw Error('后续挑战卡片范围：'+error.message);}
      let main;try{main=mainScope.require(filters(c));}catch(error){throw Error('没有符合条件的可计算歌曲，请检查曲目、乐队、歌曲属性或难度范围。'+error.message);}let candidates=main.candidates;
      if(c.songs==='selected'){main=selectedChartScope(main,{...c.draft,selectedDifficulty:c.draft.selectedDifficulty??'expert'});candidates=main.candidates;}
      if(!candidates.length)throw Error('当前谱面不符合活动条件或资料暂缺，请重新选曲。');
@@ -199,5 +210,6 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
  mainScope=scopeControls.main;challengeScope=scopeControls.challenge;
  q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop(true);const summary=eventYieldStopText(Boolean(result));feedback.finish(summary.label,summary.detail,'stopped');q('continue').hidden=!result;q('status').textContent=scopeSummary(runScopes.main)+'。'+summary.status;});
  root.addEventListener('change',event=>{event.stopPropagation();sync();});
+ for(const field of [q('member-band'),q('support-band'),q('challenge-band-scope')])field?.addEventListener('change',()=>sync());
  return {sync,run,invalidate:()=>{key='';stop();sync();},destroy:()=>{stop();feedback.destroy();scopeControls.destroy();}};
 }

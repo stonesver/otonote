@@ -7,7 +7,7 @@ import {createOrdinaryScoreBound} from '../../../packages/scoring/scoring-rules/
 import {createBonusConstrainedScoreEnvelopeBound} from '../../../packages/scoring/scoring-rules/bonus-constrained-score-bound.mjs';
 import {createCandidateEvaluator} from './formation-candidate-evaluator.mjs';
 import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
-import {withEventRewardCandidates} from './event-reward-candidates.mjs';
+import {prepareEventSearchInput} from './event-search-input.mjs';
 import {bindEventScoreCache} from './event-search-cache.mjs';
 import {compareEventPlans} from './event-yield-goals.mjs';
 import {eventCandidateKey,createChallengeContinuationPlanner,createEventYieldRewardTransform,attainableBonusSums,constrainBonusCards} from './event-yield-optimizer.mjs';
@@ -32,13 +32,15 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   return finish(false,'group_bound_unavailable');
  const metric=goal==='eventPoints'?'eventPoints':'badges',other=metric==='badges'?'eventPoints':'badges';
  const primary=metric==='badges'?'rewardBP':'eventPointBP',secondary=primary==='rewardBP'?'eventPointBP':'rewardBP';
- const options=withEventRewardCandidates({rules,draft:input.draft,scope:input.scope,inventory:input.inventory,
+ if(input.scope==='owned'&&!input.inventory)return finish(false,'missing_owned_inventory');
+ const options=prepareEventSearchInput({rules,draft:input.draft,scope:input.scope,inventory:input.inventory,
   rewardCards:input.rewardCards??[],rewardGrowth:input.rewardGrowth??'level',rewardGrowthOverride:input.rewardGrowthOverride??false});
- const draft=structuredClone(options.draft);draft.modifiers??={};delete draft.modifiers.event;
+ let draft=structuredClone(options.draft);draft.modifiers??={};delete draft.modifiers.event;
  if(options.scope==='owned'){
   if(!options.inventory)return finish(false,'missing_owned_inventory');
   draft.modifiers.growth=structuredClone(options.inventory.growth??{});
  }
+ draft=resolveSearchInput(rules,draft,{scope:options.scope,inventory:options.inventory,constraints:input.constraints??{}}).draft;
  const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
  model.challengeCosts=rules.tables.ChallengeMusicBoostBonus.map(r=>r._consumedChallengePointCount);
  const cardBonuses=new Map(),cardBonus=(kind,id)=>{
@@ -64,7 +66,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   if(signal?.aborted)return finish(false,'cancelled');
   const next={...structuredClone(draft),selectedSongId:candidate.trackId,selectedDifficulty:candidate.difficulty};
   const resolved=resolveSearchInput(rules,next,{scope:options.scope,inventory:options.inventory,constraints:input.constraints??{}});
-  const key=eventCandidateKey(rules,next,options.inventory,options.scope,[],true);
+  const key=eventCandidateKey(rules,next,options.inventory,options.scope,[],true,input.constraints??{});
   let group=groups.get(key);
   if(!group){
    const pairSkills=new Map(),resolver=createFormalSkillResolver(rules);

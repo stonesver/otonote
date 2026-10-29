@@ -71,6 +71,22 @@ test('challenge cycle stages keep their independent constraints and shared score
  assert.equal(output.globalProofs.badges.scope,'all_selected_charts_given_challenge_rows');
 });
 
+test('serial and parallel cycle jobs use the selected challenge band policy',async()=>{
+ const challenge={id:'challenge',trackId:'music-0',seconds:5,level:20},constraints={bandId:[1],supportBandId:[2],excludedSupportIds:[6]};
+ for(const challengeBandScope of ['all','same'])for(const parallel of [false,true]){
+  const calls=[],expected=challengeBandScope==='same'?constraints:{excludedSupportIds:[6]};
+  await run({input:{...input,includeChallenge:true,constraints,challengeBandScope},challengeCandidates:[challenge],
+   optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:true});},
+   ...(parallel?{runChallengeJobs:async({input:stage,goals})=>{
+    assert.deepEqual(stage.constraints,expected);
+    return [{records:goals.map(goal=>({goal,result:result(challenge,goal,{proven:true})}))}];
+   }}:{})});
+  assert.ok(calls.filter(o=>o.mode==='ordinary').every(o=>JSON.stringify(o.constraints)===JSON.stringify(constraints)));
+  if(!parallel)assert.ok(calls.some(o=>o.mode==='challenge'));
+  assert.ok(calls.filter(o=>o.mode==='challenge').every(o=>JSON.stringify(o.constraints)===JSON.stringify(expected)));
+ }
+});
+
 test('parallel phase failures replay complete serial domains without claiming missing coverage',async()=>{
  const challenge={id:'challenge',trackId:'music-0',seconds:5,level:20},calls=[];let grouped=0;
  const output=await run({input:{...input,includeChallenge:true},challengeCandidates:[challenge],

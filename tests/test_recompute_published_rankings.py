@@ -284,5 +284,25 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
         self.assert_no_publication()
 
 
+class ArenaReviewBundleTests(unittest.TestCase):
+    def test_digest_and_closed_inventory_before_writing(self):
+        import base64
+        value={'review':{'tables':{'MasterArenaSeason':{}},'rankIcons':[]},
+               'files':{'MasterArenaSeason.json':base64.b64encode(b'{}').decode()}}
+        raw=content.canonical(value)
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'input'
+            with self.assertRaises(ValueError):refresh.unpack_arena_review_bundle(raw,'0'*64,target)
+            self.assertFalse(target.exists())
+            path,sha=refresh.unpack_arena_review_bundle(raw,content.digest(raw),target)
+            self.assertEqual(content.digest(path.read_bytes()),sha)
+            self.assertEqual((target/'MasterArenaSeason.json').read_bytes(),b'{}')
+            for name in ('../credentials','rank-icons/../../secret','MasterUnknown.json'):
+                value['files']={name:base64.b64encode(b'{}').decode()}
+                bad=content.canonical(value)
+                with self.assertRaises(ValueError):refresh.unpack_arena_review_bundle(bad,content.digest(bad),Path(directory)/'bad')
+            self.assertFalse((Path(directory)/'bad').exists())
+
+
 if __name__ == '__main__':
     unittest.main()

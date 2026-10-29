@@ -8,6 +8,7 @@ rules, skill coverage and rankings are published as one immutable snapshot.
 from __future__ import annotations
 
 import argparse
+import base64
 from copy import deepcopy
 import json
 import math
@@ -24,6 +25,33 @@ from tools.r2_shared_media import (SharedMediaResolver, _control, _immutable,
 from tools.materialize_r2_content import parse_pointer, parse_manifest, required_records
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def unpack_arena_review_bundle(raw, expected, target):
+    """Read a digest-pinned private input without extracting arbitrary paths."""
+    from tools.arena_content import TABLES
+    if not SHA256.fullmatch(expected) or len(raw)>16*1024**2 or digest(raw)!=expected:
+        raise ValueError('arena review bundle digest or size mismatch')
+    value=json.loads(raw)
+    if not isinstance(value,dict) or set(value)!={'review','files'} or not isinstance(value['files'],dict):
+        raise ValueError('invalid arena review bundle')
+    review=value['review']
+    if not isinstance(review,dict) or not isinstance(review.get('tables'),dict) or not set(review['tables'])<=set(TABLES):
+        raise ValueError('invalid arena review tables')
+    allowed={name+'.json' for name in review['tables']}
+    for icon in review.get('rankIcons',[]):
+        name=icon.get('path')
+        if not isinstance(name,str) or not re.fullmatch(r'rank-icons/rank-[1-7]\.webp',name):
+            raise ValueError('invalid arena review icon path')
+        allowed.add(name)
+    if set(value['files'])!=allowed:raise ValueError('arena review bundle inventory mismatch')
+    decoded={name:base64.b64decode(body,validate=True) for name,body in value['files'].items()}
+    if sum(map(len,decoded.values()))>12*1024**2:raise ValueError('arena review bundle exceeds bounds')
+    target=Path(target);target.mkdir(parents=True,exist_ok=False)
+    for name,body in decoded.items():
+        path=target/name;path.parent.mkdir(exist_ok=True);path.write_bytes(body)
+    review_raw=canonical(review);(target/'review.json').write_bytes(review_raw)
+    return target/'review.json',digest(review_raw)
 
 
 def verified_media(bucket, media):

@@ -115,3 +115,5 @@ python3 -m tools.collect_arena_rankings \
 共享媒体内容可使用 `tools.recompute_published_rankings` 的受审补充入口，在原有完整库存核验、媒体身份核对、不可变写入回读与指针 CAS 流程中同时加入 `projection/arena.json`。必须额外提供 `--arena-review`、`--arena-master-root`、`--expected-arena-review-sha256` 三项；缺一即停止。复核文件的游戏发布身份、区服及 `masterVersion` 必须精确匹配当前公开 manifest 的 `releaseRecord.masterVersion`，表与图标仍逐项核对摘要，不在现有发布目录覆盖文件。
 
 使用新的私有工作目录，先不加 `--publish` 完成本地验证；审查生成投影和回执后，再以相同固定基线执行正式发布。并发指针变化会中止，保留原指针与所有旧媒体。这个补充流程不把复核文件复制到公共资源，不为未核验的新 Master 自动沿用旧条件。正常内容候选仍通过 `arenaReview` 显式绑定同版复核材料。
+
+需要使用既有受保护发布环境时，手动工作流 `recompute-song-rankings.yml` 接受可选 `arena_bundle_sha256`。输入包存放于私有对象库的 `state/objects/<sha256>`，为 JSON 对象：`review` 是复核文件，`files` 是表文件名／图标相对路径到 Base64 内容的映射。仅允许复核中列出的已知 Master 表与 `rank-icons/rank-<1-7>.webp`，包摘要、大小和封闭库存先于落盘检查，随后继续执行表摘要和同版 Master 核验。复核文件、原始输入和凭据不上传到工作流构建产物；使用与正常内容同步相同的发布环境和区服并发锁，先 `verify`，再以同一指针和摘要 `promote`。

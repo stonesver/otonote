@@ -1,6 +1,7 @@
 export const NAVIGATION_GROUPS = Object.freeze([
-  { id: "events", labelKey: "events", href: "/events/", matchPrefixes:["/events/","/rankings/","/recruitment/","/missions/"], children: [
+  { id: "events", labelKey: "events", href: "/events/", matchPrefixes:["/events/","/arena/","/rankings/","/recruitment/","/missions/"], children: [
     {labelKey:"eventOverview",href:"/events/"},
+    {labelKey:"arenaStage",href:"/arena/"},
     {labelKey:"recruitment",href:"/recruitment/"},
     {labelKey:"missions",href:"/missions/"},
     {labelKey:"playerRankings",href:"/rankings/"}
@@ -37,6 +38,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
     children: [
       { labelKey: "live2dWorkbench", href: "/tools/live2d/" },
       { labelKey: "teamBuilder", href: "/tools/deck-builder/" },
+      { labelKey: "arenaTeam", href: "/tools/arena/" },
       { labelKey: "songCalculator", href: "/tools/song-calculator/" },
       { labelKey: "songRanking", href: "/tools/song-ranking/" },
       { labelKey: "apGrade", href: "/tools/ap-grade/" },

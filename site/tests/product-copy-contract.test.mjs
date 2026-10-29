@@ -229,8 +229,8 @@ test("tools directory exposes score estimates and pairing without an obsolete pe
   const toolPaths = [...page.matchAll(/\{path:'([^/][^']*)',mark:/g)].map((match) => match[1]);
   const renderedToolIndexes = [...(page.match(/\{\[items\[\d+\][^\n]+\.map\(item/)?.[0] ?? "").matchAll(/items\[(\d+)\]/g)]
     .map((match) => Number(match[1]));
-  assert.deepEqual(toolPaths.toSorted(), ["gacha-history", "live2d", "deck-builder", "song-ranking", "song-calculator", "ap-grade", "event-efficiency"].toSorted());
-  assert.deepEqual(renderedToolIndexes.toSorted((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(toolPaths.toSorted(), ["arena", "gacha-history", "live2d", "deck-builder", "song-ranking", "song-calculator", "ap-grade", "event-efficiency"].toSorted());
+  assert.deepEqual(renderedToolIndexes.toSorted((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7]);
   assert.match(page, /href=\{href\(`\/tools\/\$\{item.path\}\/`\)\}/);
   assert.deepEqual([...page.matchAll(/\{path:'(\/[^']*)',kind:/g)].map((match) => match[1]), ["/music/", "/stories/"]);
 

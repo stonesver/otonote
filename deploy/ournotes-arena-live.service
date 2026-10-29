@@ -1,0 +1,21 @@
+[Unit]
+Description=OurNotes demand-driven Arena rank windows
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/ournotes-rankings/capture.env
+ExecStart=/usr/bin/docker run --rm --name ournotes-arena-live --network host --read-only --cap-drop ALL --security-opt no-new-privileges --user 10001:10001 --memory 128m --memory-swap 128m --cpus 0.25 --pids-limit 64 --tmpfs /tmp:rw,noexec,nosuid,size=16m --mount type=bind,source=/etc/ournotes-rankings/credentials,target=/run/ranking-credentials,readonly --mount type=bind,source=${RANKING_SDK_RESOURCES},target=/run/ranking-sdk/resources.xml,readonly --mount type=bind,source=/var/lib/ournotes-rankings-capture,target=/state --mount type=bind,source=/var/lib/ournotes-rankings-lock,target=/lock --entrypoint python ${RANKING_CAPTURE_IMAGE} -m tools.arena_live --sdk-resources /run/ranking-sdk/resources.xml --state-dir /state --lock-dir /lock
+ExecStop=-/usr/bin/docker stop --time 15 ournotes-arena-live
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+TimeoutStopSec=25
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

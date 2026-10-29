@@ -106,3 +106,12 @@ test('band links and refresh preserve an empty band instead of selecting another
   assert.equal(rankingEventForBand(events,'missing','3'),'');
   assert.equal(rankingEventForBand(events,'','99'),'99');
 });
+
+test('configured total score boards remain selectable before capture without inventing results',async()=>{
+ const {availableRankingBoards}=await import('../src/lib/player-ranking-events.mjs');
+ assert.deepEqual(availableRankingBoards({rankingConfigured:{music:true,totalMusic:true}},['music'],'music'),['music','total-music']);
+ assert.deepEqual(availableRankingBoards({rankingConfigured:{totalMusic:false}},[]),[]);
+ assert.deepEqual(availableRankingBoards({},[],'total-music'),['total-music']);
+ const value=response();value.board='total-music';value.musicId='';value.boards=['total-music'];value.songs=[];
+ assert.equal(validateRankingResponse(value,'global-hmt','total-music','1',''),value);
+});

@@ -1,7 +1,7 @@
 import {currentServerContext} from './game-servers.mjs';
 import {createRankingRow, validateHighScoreDeck, validatePlayerProfile} from './player-ranking-decks.mjs';
 
-import {rankingEvents, rankingEventState, filterRankingEvents, rankingEventLabel, rankingEventForBand} from './player-ranking-events.mjs';
+import {rankingEvents, rankingEventState, filterRankingEvents, rankingEventLabel, rankingEventForBand, availableRankingBoards} from './player-ranking-events.mjs';
 import {rankingPicker} from './ranking-picker.mjs';
 import {rankingSongCover} from './ranking-song-cover.mjs';
 
@@ -12,7 +12,7 @@ const copy = {
   stale: ['数据已过期，以下为最后一次采集结果', 'Data has expired. Showing the last captured results.'],
   available: ['已加载最近采集的榜单', 'Latest captured rankings loaded.'],
 };
-const labels = {'event-points':['活动积分榜','Event points'], music:['单曲榜','Song'], 'total-music':['总歌曲榜','Total music']};
+const labels = {'event-points':['活动积分榜','Event points'], music:['单曲榜','Song'], 'total-music':['总分榜','Total score'],auto:['选择榜单','Choose a board']};
 
 export function validateRankingResponse(data, server, board, event, music) {
   if (data?.schemaVersion !== 1 || data.serverId !== server
@@ -173,18 +173,35 @@ export function installPlayerRankings(root) {
       requestedEvent = data.eventId || requestedEvent; requestedMusic = data.musicId || '';
       syncEvents();
       options(song, data.songs, data.musicId, en ? 'No song data' : '暂无歌曲数据');
-      const available = [...new Set([...(data.boards ?? rankingBoards), ...(rankingBoards.includes(data.board) ? [data.board] : [])])];
+      const available = availableRankingBoards(events.find(item=>item.id===requestedEvent),data.boards ?? [],data.board);
+      if(data.board==='auto')available.unshift('auto');
       options(board, available.map(id => ({id, name:labels[id][Number(en)]})), data.board, en ? 'No board data' : '暂无榜单数据');
       showHeading();showStatus();
       q('[data-rank-song-label]').hidden = data.board !== 'music';
       q('[data-rank-time]').textContent = data.observedAt ? `${en ? 'Captured' : '采集时间'} ${new Date(data.observedAt).toLocaleString(language)}` : '';
       if (data.observedAt) q('[data-rank-time]').setAttribute('datetime', data.observedAt);
       else q('[data-rank-time]').removeAttribute('datetime');
-      const scoreLabel = data.board === 'event-points' ? (en ? 'Points' : '活动积分') : (en ? 'Score' : '成绩');
+      const scoreLabel = data.board === 'event-points' ? (en ? 'Points' : '活动积分') : data.board === 'total-music' ? (en ? 'Total score' : '总分') : (en ? 'Score' : '成绩');
       q('[data-rank-score-label]').textContent = scoreLabel;
+      q('[data-rank-team-label]').textContent=data.board==='total-music' ? (en?'Ranking team':'榜单队伍') : (en?'High-score team':'最高分队伍');
+      q('[data-rank-footnote]').textContent=data.board==='total-music'
+        ? (en?'Total scores and ordering come from the official total-score board. The attached public team is not a separate team for every song. Captures may cover only part of the ranking.':'总分与排序来自官方总分榜；附带队伍不代表每首歌曲各自的队伍。当前采集结果可能仅覆盖部分排名。')
+        : (en?'Teams and power are saved with the highest score. Captured results may cover only part of the ranking.':'队伍与综合力为最高分成绩对应的游戏记录。当前采集结果可能仅覆盖部分排名。');
       for (const entry of data.entries) {
         if (seen.has(entry.playerId)) continue;
-        seen.add(entry.playerId);rows.append(createRankingRow(entry, {en, catalog:cardCatalog, server, scoreLabel}));
+        seen.add(entry.playerId);
+        const item=createRankingRow(entry, {en, catalog:cardCatalog, server, scoreLabel});
+        if(data.board==='total-music'){
+          item.querySelector('.pr-team-preview')?.setAttribute('aria-label',en?'Team attached to the total-score ranking':'总分榜附带队伍');
+          const details=item.querySelector('details');
+          details?.addEventListener('toggle',()=>{
+            if(!details.open)return;
+            const heading=details.querySelector('.pr-deck-heading');
+            if(heading){heading.querySelector('h3').textContent=en?'Team attached to this ranking':'榜单附带队伍';
+              heading.querySelector('p').textContent=en?'The official total-score board provides one public team, not a separate team for every song.':'官方总分榜附带的一支公开队伍，不代表每首歌曲各自的队伍。';}
+          });
+        }
+        rows.append(item);
       }
       empty.hidden = seen.size > 0;
       q('[data-rank-count]').textContent = seen.size ? (en ? `${seen.size} / ${data.totalEntries ?? seen.size} players` : `${seen.size} / ${data.totalEntries ?? seen.size} 名玩家`) : '';

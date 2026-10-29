@@ -15,15 +15,18 @@ on:
         type: choice
         options: [shadow, promote, auto]
   schedule:
-    # UTC: both editions at 09:00, 14:00 and 19:00 Beijing time, three runs/day.
-    - cron: '0 1,6,11 * * *'
+    # Beijing 03:00 replaces 09:00; retain the existing 14:00 and 19:00 checks.
+    - cron: '0 6,11,19 * * *'
+    # arena-activity-schedule:start
+    # No verified activity dates are currently registered.
+    # arena-activity-schedule:end
 
 permissions:
   contents: read
   packages: read
 
 jobs:
-  produce:
+  select:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (
@@ -33,10 +36,36 @@ jobs:
           ((inputs.region == 'global' && vars.CONTENT_R2_ENABLED_GLOBAL == 'true') ||
            (inputs.region == 'jp' && vars.CONTENT_R2_ENABLED_JP == 'true')))
       )
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    concurrency:
+      group: content-r2-selection
+      cancel-in-progress: false
+    outputs:
+      regions: ${{ steps.select.outputs.regions }}
+      run: ${{ steps.select.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select due editions
+        id: select
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_REGION: ${{ inputs.region }}
+          CONTENT_R2_ENABLED_GLOBAL: ${{ vars.CONTENT_R2_ENABLED_GLOBAL }}
+          CONTENT_R2_ENABLED_JP: ${{ vars.CONTENT_R2_ENABLED_JP }}
+        run: python -m tools.arena_sync
+  produce:
+    needs: select
+    if: needs.select.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
-        region: ${{ fromJSON((github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.region)) || ((vars.CONTENT_R2_ENABLED_GLOBAL == 'true' && vars.CONTENT_R2_ENABLED_JP == 'true') && '["global","jp"]') || (vars.CONTENT_R2_ENABLED_GLOBAL == 'true' && '["global"]') || '["jp"]') }}
+        region: ${{ fromJSON(needs.select.outputs.regions) }}
     runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 330
     environment: content-r2-production
@@ -82,10 +111,15 @@ jobs:
           set -euo pipefail
           region="$SELECTED_REGION"
           if [[ "$EVENT_NAME" == schedule ]]; then
-            [[ "$SCHEDULE" == '0 1,6,11 * * *' ]] || exit 1
+            python3 - "$SCHEDULE" <<'PY'
+          import json, sys
+          from tools.arena_sync import CALENDAR, FIXED_CRON, scheduled_crons
+          if sys.argv[1] != FIXED_CRON and sys.argv[1] not in scheduled_crons(json.loads(CALENDAR.read_text())):
+              raise SystemExit('Unregistered content schedule')
+          PY
             if [[ "$region" == global ]]; then auto="$AUTO_PROMOTE_GLOBAL"; else auto="$AUTO_PROMOTE_JP"; fi
             if [[ "$auto" == true ]]; then mode=promote; else mode=shadow; fi
-            printf 'Daily schedule (Beijing, UTC+8): `09:00, 14:00, 19:00` (three triggers/day; actual starts may be delayed).\n\n' >> "$GITHUB_STEP_SUMMARY"
+            printf 'Daily schedule (Beijing, UTC+8): `03:00, 14:00, 19:00` (three fixed triggers/day plus registered activity dates; actual starts may be delayed).\n\n' >> "$GITHUB_STEP_SUMMARY"
           else
             [[ "$region" == "$INPUT_REGION" ]] || exit 1
             mode="$INPUT_MODE"
@@ -544,7 +578,7 @@ jobs:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (
-        (github.event_name == 'schedule' &&
+        (github.event_name == 'schedule' && github.event.schedule == '0 6,11,19 * * *' &&
           (vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' || vars.CONTENT_ARCHIVE_ENABLED_JP == 'true')) ||
         (github.event_name == 'workflow_dispatch' &&
           ((inputs.region == 'global' && vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true') ||

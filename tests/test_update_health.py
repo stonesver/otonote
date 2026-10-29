@@ -104,14 +104,14 @@ class HealthTests(unittest.TestCase):
             return dt.datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
 
         for previous, check, stale in (
-                ('2026-10-18T11:02:00Z', '2026-10-19T01:59:59Z', False),
-                ('2026-10-18T11:02:00Z', '2026-10-19T02:00:01Z', True),
-                ('2026-10-19T01:02:00Z', '2026-10-19T06:59:59Z', False),
-                ('2026-10-19T01:02:00Z', '2026-10-19T07:00:01Z', True),
+                ('2026-10-18T19:02:00Z', '2026-10-19T06:59:59Z', False),
+                ('2026-10-18T19:02:00Z', '2026-10-19T07:00:01Z', True),
                 ('2026-10-19T06:02:00Z', '2026-10-19T11:59:59Z', False),
                 ('2026-10-19T06:02:00Z', '2026-10-19T12:00:01Z', True),
-                ('2026-10-19T11:02:00Z', '2026-10-20T01:59:59Z', False),
-                ('2026-10-19T06:02:00Z', '2026-10-20T01:59:59Z', True)):
+                ('2026-10-19T11:02:00Z', '2026-10-19T19:59:59Z', False),
+                ('2026-10-19T11:02:00Z', '2026-10-19T20:00:01Z', True),
+                ('2026-10-19T19:02:00Z', '2026-10-20T06:59:59Z', False),
+                ('2026-10-19T11:02:00Z', '2026-10-20T06:59:59Z', True)):
             with self.subTest(previous=previous, check=check):
                 bucket = MemoryBucket()
                 records.publish(bucket, 'jp', 1, 1, 'a' * 40, 'success', {},

@@ -1,8 +1,8 @@
 [Unit]
-Description=OurNotes JP update dispatch at 09:00, 14:00 and 19:00 Beijing time
+Description=OurNotes JP update dispatch at 03:00, 14:00 and 19:00 Beijing time
 
 [Timer]
-OnCalendar=*-*-* 01,06,11:00:00 UTC
+OnCalendar=*-*-* 06,11,19:00:00 UTC
 AccuracySec=30s
 RandomizedDelaySec=15s
 Persistent=true

@@ -91,7 +91,7 @@ python -m backend.update_archive.local --root /PRIVATE_ARCHIVE_LIBRARY analyze -
 
 ## 独立上线与验收
 
-工作流只追加独立 `archive` job：没有 `needs: produce`，GitHub 托管 runner、`content-archive-<region>` 锁，自己的环境和凭据。原 `produce` job 保持逐字一致，cron 仍只有 `0 1,6,11 * * *`。
+工作流使用独立 `archive` job：没有 `needs: produce`，GitHub 托管 runner、`content-archive-<region>` 锁，自己的环境和凭据。归档只响应[内容管线](../docs/runbooks/content-pipeline.md)的固定三档及显式手动调用，不响应舞台额外登记的活动定点任务。
 
 上线需具备对应授权并完成：
 

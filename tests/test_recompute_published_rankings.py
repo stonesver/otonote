@@ -85,6 +85,34 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
         self.assertEqual(self.bucket.objects[self.key], self.before[self.key])
         self.assertFalse(any('/refresh-' in key for key in self.bucket.objects))
 
+    def test_reviewed_arena_projection_joins_the_same_immutable_publication(self):
+        from unittest.mock import patch
+        self.seed()
+        arena={locale:content.canonical(dict(schemaVersion=1,region='global',sourceReleaseId='sample',marker=locale)) for locale in ('zh-CN','en')}
+        with patch.object(refresh,'reviewed_arena_projections',return_value=arena):
+            result=self.run_refresh(compute=computed,publish=True,arena_review='private-review',arena_master_root='private-master',expected_arena_review_sha256='b'*64)
+        current=json.loads(self.bucket.objects[self.key]);manifest=json.loads(self.bucket.objects[current['manifest'].lstrip('/')])
+        for locale in ('zh-CN','en'):
+            record=manifest['locales'][locale]['files']['projection/arena.json']
+            raw=self.bucket.objects[manifest['root'].lstrip('/')+record['path']]
+            self.assertEqual(content.digest(raw),record['sha256'])
+            self.assertEqual(json.loads(raw)['sourceReleaseId'],'sample')
+        self.assertEqual(result['arenaReviewSha256'],'b'*64)
+
+    def test_arena_review_requires_exact_bytes_and_published_master_before_compilation(self):
+        manifest={'region':'global','contentReleaseId':'sample','releaseRecord':{'masterVersion':'a'*32},'locales':{'zh-CN':{}}}
+        path=self.root/'review.json'
+        review={'region':'global','sourceReleaseId':'sample','masterVersion':'a'*32}
+        path.write_bytes(content.canonical(review));sha=content.digest(path.read_bytes())
+        from unittest.mock import patch
+        projection=dict(schemaVersion=1,region='global',sourceReleaseId='sample',serverScopes=[],seasons=[],leagues=[],regulations=[],ranks=[],basePoints=[],rewards=[])
+        with patch('tools.arena_content.build_arena_content',return_value=projection) as build:
+            self.assertIn('zh-CN',refresh.reviewed_arena_projections(manifest,self.root,path,sha))
+            with self.assertRaises(ValueError):refresh.reviewed_arena_projections(manifest,self.root,path,'b'*64)
+            changed={**manifest,'releaseRecord':{'masterVersion':'c'*32}}
+            with self.assertRaises(ValueError):refresh.reviewed_arena_projections(changed,self.root,path,sha)
+            self.assertEqual(build.call_count,1)
+
     def test_publish_both_regions_preserves_snapshot_media_and_rollback(self):
         for region in ('global', 'jp'):
             with self.subTest(region=region), tempfile.TemporaryDirectory() as directory:

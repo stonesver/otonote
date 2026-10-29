@@ -109,3 +109,9 @@ python3 -m tools.collect_arena_rankings \
 本人、公开排名与人口探测使用不同用途，不能拿采集小号的段位替代分布。`ArenaRewards` 的每团最大名次字段只有客户端证据，进行中赛季可用性尚未验证；当前实现只使用已核验的 `ArenaRanking`。真实人数汇总、榜尾变化时的稳定性与常驻负载均需独立验收；合成分布测试不代表实服已采集。
 
 验证：`python3 -m unittest tests.test_arena_population tests.test_arena_content tests.test_arena_rankings -q`、`node --test site/tests/arena-population.test.mjs`，并完成吸顶、禁用入口、缺失／过期和区服切换的浏览器回归。
+
+## 向现有公开快照加入舞台投影
+
+共享媒体内容可使用 `tools.recompute_published_rankings` 的受审补充入口，在原有完整库存核验、媒体身份核对、不可变写入回读与指针 CAS 流程中同时加入 `projection/arena.json`。必须额外提供 `--arena-review`、`--arena-master-root`、`--expected-arena-review-sha256` 三项；缺一即停止。复核文件的游戏发布身份、区服及 `masterVersion` 必须精确匹配当前公开 manifest 的 `releaseRecord.masterVersion`，表与图标仍逐项核对摘要，不在现有发布目录覆盖文件。
+
+使用新的私有工作目录，先不加 `--publish` 完成本地验证；审查生成投影和回执后，再以相同固定基线执行正式发布。并发指针变化会中止，保留原指针与所有旧媒体。这个补充流程不把复核文件复制到公共资源，不为未核验的新 Master 自动沿用旧条件。正常内容候选仍通过 `arenaReview` 显式绑定同版复核材料。

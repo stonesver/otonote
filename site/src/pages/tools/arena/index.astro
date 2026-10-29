@@ -1,0 +1,6 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ArenaPage from '../../../components/ArenaPage.astro';
+import {activeReleaseContext} from '../../../lib/release-context';
+---
+<BaseLayout title={activeReleaseContext.locale==='en'?'Arena team entry':'舞台配队'} personalWorkspaces={false}><div class="tool-studio" data-tool-kind="arena"><ArenaPage handoff /></div></BaseLayout>

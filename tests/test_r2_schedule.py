@@ -18,7 +18,7 @@ def expression(source, context):
     # Evaluate the comparisons, boolean operators, format and fromJSON used here.
     # Evaluate that restricted subset after replacing all context lookups; no
     # external input is executed and no workflow actions run in these tests.
-    source = re.sub(r'\b(?:github|inputs|vars|matrix)(?:\.[A-Za-z_][A-Za-z_0-9]*)+',
+    source = re.sub(r'\b(?:github|inputs|vars|matrix|needs)(?:\.[A-Za-z_][A-Za-z_0-9]*)+',
                     lambda match: repr(context.get(match[0], '')), source)
     source = source.replace('&&', ' and ').replace('||', ' or ')
     return eval(source, {'__builtins__': {}, 'format': lambda value, *args: value.format(*args),
@@ -30,7 +30,7 @@ class ScheduleTests(unittest.TestCase):
     def setUpClass(cls):
         cls.text = WORKFLOW.read_text()
         cls.crons = re.findall(r"- cron: '([^']+)'", cls.text)
-        cls.eligibility = ' '.join(cls.text.split('    if: >-\n', 1)[1].split('    strategy:', 1)[0].split())
+        cls.eligibility = ' '.join(cls.text.split('    if: >-\n', 1)[1].split('    runs-on:', 1)[0].split())
         cls.group = re.search(r'group: content-r2-\$\{\{ (.+) \}\}', cls.text)[1]
         cls.regions = re.search(r'        region: \$\{\{ (.+) \}\}', cls.text)[1]
         step = cls.text.split('      - name: Select region and publication mode\n', 1)[1]
@@ -41,6 +41,10 @@ class ScheduleTests(unittest.TestCase):
                   'github.event_name': 'schedule',
                   'vars.CONTENT_R2_ENABLED_GLOBAL': 'true', 'vars.CONTENT_R2_ENABLED_JP': 'true'}
         result.update(changes)
+        regions = [r for r in ('global','jp') if result.get('vars.CONTENT_R2_ENABLED_'+r.upper()) == 'true']
+        if result['github.event_name'] == 'workflow_dispatch':
+            regions = [result.get('inputs.region')] if result.get('inputs.region') in regions else []
+        result['needs.select.outputs.regions'] = json.dumps(regions or ['global'])
         return result
 
     def test_shared_schedule_selects_only_enabled_editions(self):
@@ -78,16 +82,20 @@ class ScheduleTests(unittest.TestCase):
         self.assertFalse(expression(self.eligibility, context))
         self.assertFalse(expression(self.eligibility, self.context(**{'github.event_name': 'push'})))
 
-    def test_exactly_three_daily_triggers_match_beijing_times_and_health_schedule(self):
-        self.assertEqual(self.crons, ['0 1,6,11 * * *'])
+    def test_three_daily_triggers_and_registered_dates_match_health_schedule(self):
+        self.assertEqual(self.crons, ['0 6,11,19 * * *'])
+        self.assertNotIn("*/5", self.text)
+        self.assertNotIn("Install boundary selector dependencies", self.text)
+        self.assertIn("needs: select", self.text)
+        self.assertIn("if: needs.select.outputs.run == 'true'", self.text)
         minute, hours, *days = self.crons[0].split()
         self.assertEqual(minute, '0')
         self.assertEqual(days, ['*', '*', '*'])
         self.assertEqual(tuple(map(int, hours.split(','))), UTC_HOURS)
-        self.assertEqual([(hour + 8) % 24 for hour in UTC_HOURS], [9, 14, 19])
+        self.assertEqual([(hour + 8) % 24 for hour in UTC_HOURS], [14, 19, 3])
         for region in ('global', 'jp'):
             timer = WORKFLOW.parents[2] / f'deploy/ournotes-update-trigger-{region}.timer'
-            self.assertIn('OnCalendar=*-*-* 01,06,11:00:00 UTC', timer.read_text())
+            self.assertIn('OnCalendar=*-*-* 06,11,19:00:00 UTC', timer.read_text())
 
     def select(self, event, cron='', region='', mode='', auto='true', global_workers='', jp_workers='',
                selected_region=None):
@@ -109,8 +117,8 @@ class ScheduleTests(unittest.TestCase):
                     self.assertEqual(status, 0)
                     self.assertIn('REGION=' + region, env)
                     self.assertIn('MODE=' + ('promote' if auto == 'true' else 'shadow'), env)
-                    self.assertIn('09:00, 14:00, 19:00', summary)
-                    self.assertIn('three triggers/day', summary)
+                    self.assertIn('03:00, 14:00, 19:00', summary)
+                    self.assertIn('three fixed triggers/day', summary)
                     self.assertIn('Selection started at (UTC)', summary)
         status, env, _ = self.select('workflow_dispatch', region='jp', mode='shadow')
         self.assertEqual((status, env), (0, 'REGION=jp\nMODE=shadow\nRESTORE_WORKERS=8\n'))
@@ -125,6 +133,13 @@ class ScheduleTests(unittest.TestCase):
                 status, env, _ = self.select('workflow_dispatch', region=region, mode='auto', auto=auto)
                 self.assertEqual(status, 0)
                 self.assertIn('MODE=' + ('promote' if auto == 'true' else 'shadow'), env)
+
+    def test_boundary_poll_does_not_start_archive_work(self):
+        block = self.text.split('  archive:\n', 1)[1]
+        condition = ' '.join(block.split('    if: >-\n', 1)[1].split('    strategy:', 1)[0].split())
+        for cron, expected in [('0 6,11,19 * * *', True), ('0 3 29 10 *', False)]:
+            context = self.context(**{'github.event.schedule': cron, 'vars.CONTENT_ARCHIVE_ENABLED_GLOBAL': 'true'})
+            self.assertEqual(bool(expression(condition, context)), expected)
 
     def test_restore_concurrency_is_bounded_per_region_before_expensive_work(self):
         for region in ('global', 'jp'):

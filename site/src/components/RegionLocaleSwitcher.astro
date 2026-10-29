@@ -129,7 +129,7 @@ const localeTargets = projections.filter(
       url.searchParams.set('view', 'page'); link.href = url.pathname + url.search + url.hash;
     }
     if (url.searchParams.has('server')) return;
-    const server = gameServer(context.serverId);
+    const server = gameServer(currentServerContext().serverId);
     if (server && url.pathname.startsWith(`/${server.region}/`)) link.href = withServer(url.pathname + url.search + url.hash, server.id);
   }, {capture:true});
 </script>

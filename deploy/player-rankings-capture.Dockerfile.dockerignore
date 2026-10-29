@@ -17,3 +17,17 @@
 !tools/resource_pipeline/localization.py
 !tools/resource_pipeline/models.py
 !tools/python-security-requirements.txt
+
+!backend/arena_rankings.py
+!tools/collect_arena_rankings.py
+!tools/import_arena_rankings.py
+!tools/arena_assets.py
+!tools/arena_content.py
+!tools/arena_trends.py
+!tools/collect_arena_trends.py
+
+!backend/arena_live.py
+!tools/arena_live.py
+
+!backend/arena_population.py
+!tools/arena_population.py

@@ -1,6 +1,6 @@
 """Shared content schedule for both editions; workflow/timer parity is tested."""
 
-UTC_HOURS = (1, 6, 11)  # Beijing 09:00, 14:00, 19:00.
+UTC_HOURS = (6, 11, 19)  # Beijing 14:00, 19:00, next-day 03:00.
 GRACE_SECONDS = 3600  # Allow Actions scheduling delay before raising an alert.
 
 

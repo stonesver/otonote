@@ -1,5 +1,5 @@
 /* Shared workbench language: quiet chrome, compact controls, artwork-led teams. */
-.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] { --ds-small:12px; --ds-text:13px; --ds-heading:16px; --ds-number:24px; --ds-control:34px; --ds-radius:8px; }
+.tool-design-tokens,.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] { --ds-small:12px; --ds-text:13px; --ds-heading:16px; --ds-number:24px; --ds-control:34px; --ds-radius:8px; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench { font:var(--ds-text)/1.5 var(--font-body); color:var(--tool-ink); gap:8px; max-width:1160px; margin-inline:auto; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench [hidden] { display:none!important; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench :is(button,select,input:not([type=checkbox]),summary) { font-size:var(--ds-text); min-height:var(--ds-control); }

@@ -5,6 +5,7 @@
 ## 什么可以进入仓库
 
 - 程序、测试、配置字段契约、仅含占位符的 `*.example.*` / `*.template.*` / `config/examples/` 模板。
+- 公共活动切换日历 `config/arena-sync-schedule.json`，只包含已核验日期及区服枚举，不含部署配置、账号或凭据；新增日期仍需正常审查。
 - 公共产品定义 `config/site-product.json` 与精确列举的性能门槛，它们不包含部署地址、账号、凭据或运行状态。
 - 共享计算包中的公开规则和小型合成测试数据。
 - 精确列举的 `catalog/evidence/arena-client.json`：旧仓库已审阅的静态客户端结构说明，仅含符号、资源名称和历史旗标观测，不含凭据或部署配置。其余 `catalog/evidence/` 文件继续排除；该例外仍接受全部内容扫描。

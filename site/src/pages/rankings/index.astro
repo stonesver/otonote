@@ -18,7 +18,7 @@ const cards = (kind: 'member' | 'support') => Object.fromEntries((kind === 'memb
 const image = (id: string | null | undefined) => {const asset=getAsset(id);return asset?.thumbnailUrl || asset?.previewUrl || null;};
 const eventData = JSON.stringify({region:activeReleaseContext.region,
   events:validatedEvents(gameModeDatabase.events,activeReleaseContext).map(event=>({id:String(event.id),name:event.name,
-    edition:event.edition,...event.schedule,
+    edition:event.edition,...event.schedule,rankingConfigured:event.ranking?.configured,
     bandIds:[...new Set([event.story.bandId,...event.effects.map(effect=>effect.constraints.bandId)].filter(Boolean))].map(String),
     attributes:[...new Set(event.effects.map(effect=>effect.constraints.cardType).filter(Boolean))]})),
   bands:catalog.bands.map(band=>({id:String(band.masterId),name:band.displayName,image:image(band.logoAssetId)})),
@@ -37,17 +37,17 @@ const cardData=JSON.stringify({region:activeReleaseContext.region,member:cards('
       <div class="pr-filters">
         <div><label for="rank-band">{en?'Band':'乐队'}</label><select id="rank-band" data-rank-band><option value="">{en?'All bands':'全部乐队'}</option></select></div>
         <div class="pr-event-filter"><label for="rank-event">{en?'Event':'活动'}</label><select id="rank-event" data-rank-event><option value="">{en?'No events yet':'暂无活动数据'}</option></select></div>
-        <div><label for="rank-board">{en?'Board':'榜单'}</label><select id="rank-board" data-rank-board><option value="auto">{en?'Available board':'已接入榜单'}</option><option value="event-points">{en?'Event points':'活动积分榜'}</option><option value="music">{en?'Song':'单曲榜'}</option><option value="total-music">{en?'Total music':'总歌曲榜'}</option></select></div>
+        <div><label for="rank-board">{en?'Board':'榜单'}</label><select id="rank-board" data-rank-board><option value="auto">{en?'Available board':'已接入榜单'}</option><option value="event-points">{en?'Event points':'活动积分榜'}</option><option value="music">{en?'Song':'单曲榜'}</option><option value="total-music">{en?'Total score':'总分榜'}</option></select></div>
         <div hidden data-rank-song-label><label for="rank-song">{en?'Song':'歌曲'}</label><select id="rank-song" data-rank-song></select></div>
       </div>
       <div class="pr-current-board"><span data-rank-cover hidden></span><div class="pr-board-title"><div class="pr-event-line"><span data-rank-event-name></span><span class="pr-event-state" data-rank-event-state hidden></span><span class="pr-bonuses" data-rank-bonuses></span></div><h2 data-rank-song-name>{en?'Choose a server to begin':'选择区服查看榜单'}</h2></div><button class="pr-refresh" type="button" data-rank-refresh><span aria-hidden="true">↻</span>{en?'Refresh':'刷新'}</button></div>
       <div class="pr-meta"><p data-rank-status role="status">{en?'Choose a server to view its rankings.':'选择区服，查看对应榜单。'}</p><time data-rank-time></time><span data-rank-count></span></div>
-      <div class="pr-column-labels" aria-hidden="true"><span>{en?'Rank':'名次'}</span><span>{en?'Player':'玩家'}</span><span>{en?'High-score team':'最高分队伍'}</span><span>{en?'Team power':'综合力'}</span><span data-rank-score-label>{en?'Score':'成绩'}</span><span></span></div>
+      <div class="pr-column-labels" aria-hidden="true"><span>{en?'Rank':'名次'}</span><span>{en?'Player':'玩家'}</span><span data-rank-team-label>{en?'High-score team':'最高分队伍'}</span><span>{en?'Team power':'综合力'}</span><span data-rank-score-label>{en?'Score':'成绩'}</span><span></span></div>
       <ol class="pr-rows" data-rank-rows aria-label={en?'Player rankings':'玩家排名'}></ol>
       <div class="pr-empty" data-rank-empty hidden><span aria-hidden="true">—</span><p>{en?'There are no results for this board yet. Try another song or server.':'这个榜单暂时没有排名记录，可以切换歌曲或区服查看。'}</p></div>
       <div class="pr-load-sentinel" data-rank-sentinel><span data-rank-load-note></span></div>
       <div class="pr-pagination"><button type="button" data-rank-next hidden>{en?'Load 50 more':'再看 50 名'}</button><button type="button" data-rank-retry hidden>{en?'Try again':'重新加载'}</button></div>
-      <p class="pr-footnote">{en?'Teams and power are saved with the highest score. Captured results may cover only part of the ranking.':'队伍与综合力为最高分成绩对应的游戏记录。当前采集结果可能仅覆盖部分排名。'}</p>
+      <p class="pr-footnote" data-rank-footnote>{en?'Teams and power are saved with the highest score. Captured results may cover only part of the ranking.':'队伍与综合力为最高分成绩对应的游戏记录。当前采集结果可能仅覆盖部分排名。'}</p>
     </section>
   </div>
 </BaseLayout>

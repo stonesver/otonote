@@ -9,7 +9,7 @@ test('tool directory and sidebar expose the same canonical tools without duplica
     .map(match=>match[1].startsWith('/')?match[1]:`/tools/${match[1]}/`)
     .filter(path=>path.startsWith('/tools/'));
   assert.deepEqual(links.sort(), NAVIGATION_GROUPS.find(group=>group.id==='tools').children.map(child=>child.href).sort());
-  assert.equal(new Set(links).size,7);
+  assert.equal(new Set(links).size,8);
   assert.ok(links.includes('/tools/gacha-history/'));
 });
 
@@ -31,6 +31,7 @@ test("nested data and tool routes retain their correct navigation context", () =
   assert.equal(activeNavigationGroup("/tools/deck-builder/"), "tools");
   assert.equal(activeNavigationGroup("/game-modes/gekisou/"), undefined);
   assert.equal(activeNavigationGroup("/events/"), "events");
+  assert.equal(activeNavigationGroup("/arena/"), "events");
   assert.equal(activeNavigationGroup("/missions/"), "events");
   assert.equal(activeNavigationGroup("/immersive/"), "immersive");
   assert.equal(activeNavigationGroup("/recruitment/1/"), "events");

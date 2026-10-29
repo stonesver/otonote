@@ -50,6 +50,7 @@ from tools.high_score_rating import (  # noqa: E402
     HighScoreRatingError,
     build_high_score_rating,
 )
+from tools.arena_content import build_arena_content
 from tools.arena_rank import (  # noqa: E402
     ArenaRankError,
     build_arena_rank,
@@ -255,6 +256,7 @@ class SiteProjectionArtifacts:
     character_media_projections: dict[str, Any] | None
     character_media_search_index: dict[str, Any] | None
     character_media_quality_report: dict[str, Any] | None
+    arena: dict[str, Any] | None = None
 
     def release_files(
         self,
@@ -268,6 +270,7 @@ class SiteProjectionArtifacts:
             "global-systems.json": self.global_systems,
             "high-score-rating.json": self.high_score_rating,
             "arena-rank.json": self.arena_rank,
+            "arena.json": self.arena,
             "unified-search-index.json": self.unified_search_index,
             "card-detail-projections.json": self.card_detail_projections,
             "band-items.json": self.band_item_database,
@@ -1016,6 +1019,7 @@ def build_catalog(
     published_music_data_root: Path | None = None,
     include_music: bool = True,
     bound_score_payloads: Mapping[str, bytes] | None = None,
+    arena_review: Mapping[str, Any] | None = None,
 ) -> SiteProjectionBuild:
     if build_context is None:
         raise CatalogError(
@@ -1793,6 +1797,8 @@ def build_catalog(
             global_systems=global_systems,
             high_score_rating=high_score_rating,
             arena_rank=arena_rank,
+            arena=build_arena_content(master_root, release_id, build_context.region, build_context.locale,
+                None if assets_only else arena_review),
             unified_search_index=unified_search_index,
             card_detail_projections=card_projections,
             band_item_database=band_item_database,

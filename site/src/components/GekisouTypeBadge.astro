@@ -1,4 +1,5 @@
 ---
+import {GEKISOU_ICON_IDS} from '../lib/gekisou-visuals.mjs';
 import { getAsset, type MusicTrack } from "../lib/catalog";
 
 interface Props {
@@ -6,12 +7,7 @@ interface Props {
 }
 const { mission } = Astro.props;
 // Reuse the matching skill-category artwork, with text identifying the mission.
-const iconIds = {
-  combo: "asset-6a80161fae",
-  just: "asset-5835e5faa0",
-  luck: "asset-85b415c14e"
-};
-const icon = getAsset(iconIds[mission.type]);
+const icon = getAsset(GEKISOU_ICON_IDS[mission.type]);
 ---
 <span class="gekisou-type-badge" data-type={mission.type} title={`第 ${mission.index} 激奏：${mission.label}`}>
   {icon && <img src={icon.previewUrl} alt="" loading="lazy" />}

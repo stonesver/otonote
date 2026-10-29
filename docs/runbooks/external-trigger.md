@@ -1,10 +1,10 @@
 # 可选外部更新触发器
 
-默认使用 Actions 原生三时点调度。此触发器是待单独启用的替代方案，不得与原生调度同时启用。凭据与启用按[未结事项](../BACKLOG.md)另行确认。
+默认使用 Actions 原生三时点调度及已登记活动的定点任务。此触发器是待单独启用的替代方案，不得与原生调度同时启用。凭据与启用按[未结事项](../BACKLOG.md)另行确认。当前外部适配器只覆盖三个固定档，不具备已登记活动的额外定点触发；需要舞台动态边界同步时继续使用原生工作流，切换外部调度前须补齐该能力并独立验收。
 
 ## Contract
 
-- Per-edition systemd timers use the shared 01:00, 06:00 and 11:00 UTC slots. The service has
+- Per-edition systemd timers use the shared 06:00, 11:00 and 19:00 UTC slots. The service has
   a 15-second network timeout, 45-second service timeout, 64 MiB memory limit and
   5% CPU quota. It stores only two bounded status files and lock files.
 - Each invocation sends at most one request to the fixed GitHub API host and
@@ -66,7 +66,7 @@ on GitHub's cron trigger, not on Actions availability or runner capacity.
    trigger while retaining `workflow_dispatch`. The retired fast-poll variables
    no longer switch scheduling modes. Enable only one scheduler.
 5. Roll back by stopping/disabling these two timers and restoring the reviewed
-   native three-slot schedule. Keep existing jobs running. Prior published
+   native three-slot schedule and registered activity dates. Keep existing jobs running. Prior published
    content and frontend are untouched.
 
 Validation covers request binding and auto policy, per-region/slot deduplication,

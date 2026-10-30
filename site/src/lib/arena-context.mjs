@@ -98,7 +98,7 @@ export function arenaIdentity(data, context) {
 }
 export function arenaParams(context, {pin = false} = {}) {
   const params = new URLSearchParams();
-  for (const key of ['server','season','band','regulation','view','music','rank','end']) if(context.params.has(key)) params.set(key,context.params.get(key));
+  for (const key of ['server','season','band','regulation','view','music','rank','end','date']) if(context.params.has(key)) params.set(key,context.params.get(key));
   if (context.serverId) params.set('server',context.serverId);
   if (context.league) params.set('band',context.league.bandId);
   if (pin && context.season) params.set('season',context.season.id);

@@ -147,39 +147,21 @@ class ArenaContentTests(unittest.TestCase):
             "observedAt": "2026-10-28T00:00:00Z", "response": {"leaders": [{"memberCardId": 1}],
             "members": [{"memberCardId": 2, "internalNote": "never-publish", "useRate": 0.8}], "supports": [{"supportCardId": 3}]}, "internalNote": "never-publish"}
 
-    def test_official_trend_is_scoped_whitelisted_and_separate_from_conditions(self):
+    def test_retired_trends_are_not_republished_from_legacy_reviews(self):
         base = self.build()
-        self.review["deckTrends"] = [self.trend()]
+        self.review['deckTrends'] = [self.trend()]
         data = self.build()
-        self.assertTrue(data["capabilities"]["deckTrends"])
-        self.assertEqual(data["deckTrends"][0]["leaders"], ["1"])
-        self.assertEqual(data["deckTrends"][0]["supports"], ["3"])
-        self.assertNotIn("internalNote", json.dumps(data)); self.assertNotIn("useRate", json.dumps(data))
-        self.assertEqual(base["sourceRevision"], data["sourceRevision"])
-        validate_arena_publication(data, "test", "global")
-        data["deckTrends"][0]["internalNote"] = "forbidden"
-        self.assertRaises(ValueError, validate_arena_publication, data, "test", "global")
+        self.assertEqual(data['deckTrends'], [])
+        self.assertFalse(data['capabilities']['deckTrends'])
+        self.assertEqual(base['sourceRevision'], data['sourceRevision'])
+        self.assertTrue(data['capabilities']['conditions'])
+        validate_arena_publication(data, 'test', 'global')
 
-    def test_trend_selects_latest_whole_response_and_preserves_official_order(self):
-        older = self.trend(); newer = copy.deepcopy(older)
-        newer["observedAt"] = "2026-10-28T01:00:00Z"; newer["response"]["members"] = [{"memberCardId": 4}, {"memberCardId": 2}]
-        self.review["deckTrends"] = [newer, older]
-        data = self.build(); self.assertEqual(len(data["deckTrends"]), 1)
-        self.assertEqual(data["deckTrends"][0]["members"], ["4", "2"])
-        validate_arena_publication(data, "test", "global")
-
-    def test_unverified_trend_does_not_break_other_information(self):
-        for field, value in (("source", "unknown"), ("serverId", "jp"), ("seasonId", "unknown"), ("observedAt", "2026-10-28 00:00:00")):
-            observation = self.trend(); observation[field] = value
-            self.review["deckTrends"] = [observation]; data = self.build()
-            self.assertFalse(data["capabilities"]["deckTrends"]); self.assertTrue(data["capabilities"]["conditions"])
-            self.assertTrue(data["capabilities"]["basePoints"])
-        observation = self.trend(); other = copy.deepcopy(observation); other["response"]["leaders"] = []
-        self.review["deckTrends"] = [observation, other]
-        self.assertFalse(self.build()["capabilities"]["deckTrends"])
-
-    def test_verified_empty_response_is_distinct_from_missing_observation(self):
-        observation = self.trend(); observation["response"] = {"leaders": [], "members": [], "supports": []}
-        self.review["deckTrends"] = [observation]
-        self.assertTrue(self.build()["capabilities"]["deckTrends"])
-        self.assertEqual(self.build()["deckTrends"][0]["members"], [])
+    def test_existing_immutable_trend_payload_remains_validated_for_readers(self):
+        from tools.arena_trends import project_deck_trends
+        data = self.build()
+        data['deckTrends'] = project_deck_trends([self.trend()], 'global', data['seasons'], data['leagues'])
+        data['capabilities']['deckTrends'] = True
+        validate_arena_publication(data, 'test', 'global')
+        data['deckTrends'][0]['privateNote'] = 'refused'
+        self.assertRaises(ValueError, validate_arena_publication, data, 'test', 'global')

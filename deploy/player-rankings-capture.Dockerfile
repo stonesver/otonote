@@ -14,7 +14,7 @@ RUN python -m pip install --require-hashes -r /tmp/python-security-requirements.
 COPY backend/__init__.py backend/player_rankings.py backend/arena_rankings.py backend/arena_live.py backend/arena_population.py /app/backend/
 COPY tools/collect_player_rankings.py tools/growth_login.py tools/game_service_status.py tools/global_game_config.py tools/growth_export.py tools/import_player_rankings.py /app/tools/
 COPY tools/ranking_regions.py tools/ranking_finalizations.py /app/tools/
-COPY tools/arena_live.py tools/arena_population.py tools/collect_arena_rankings.py tools/collect_arena_trends.py tools/import_arena_rankings.py tools/arena_assets.py tools/arena_content.py tools/arena_trends.py /app/tools/
+COPY tools/arena_live.py tools/arena_population.py tools/collect_arena_rankings.py tools/import_arena_rankings.py tools/arena_assets.py tools/arena_content.py tools/arena_trends.py /app/tools/
 COPY tools/resource_pipeline/__init__.py tools/resource_pipeline/localization.py tools/resource_pipeline/models.py /app/tools/resource_pipeline/
 # SDK resources and account credentials are supplied only as runtime read-only mounts.
 RUN mkdir -p /data/observations/global-hmt /state /run/ranking-credentials /run/ranking-sdk

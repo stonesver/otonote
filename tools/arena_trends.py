@@ -1,7 +1,7 @@
-"""Public whitelist for reviewed official ArenaService.DeckTrend observations.
+"""Read-only validation of legacy Arena trend projections. No collector remains.
 
-Only response card IDs and explicit query scope are published. No personal decks,
-credentials, invented counts, percentages or member/support pairing are exposed.
+Kept so immutable snapshots published before retirement still validate. New
+content builds ignore review trend records and leave this capability disabled.
 """
 import hashlib
 import json

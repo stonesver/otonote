@@ -105,3 +105,12 @@ test('rank range controls stay available without the removed tier filters',()=>{
  const state={status:'available',data:payload(),entries:payload().entries,scope};
  const view=arenaRankingsView({state,t:a=>a,time:s=>s});assert.match(view,/name="rank"/);assert.match(view,/每次最多 100 名/);assert.ok(!view.includes('rank-min'));assert.ok(!view.includes('rank-max'));
 });
+
+test('initial, appended and quiet pages request 50 records, with the official 100 cap retained',async()=>{
+ const urls=[];let index=0;
+ const client=createArenaRankingClient({fetcher:async url=>{urls.push(new URL(url,'https://example.test'));return response(payload(index++?{entries:[{playerId:'p2',name:'B',rank:2,point:0}],nextCursor:null}:{}));}});
+ client.select(scope);await tick();await client.more();await client.check();
+ assert.deepEqual(urls.map(u=>u.searchParams.get('limit')),['50','50','50']);
+ assert.equal(urls[1].searchParams.get('cursor'),'next');
+ assert.deepEqual(client.getState().entries.map(r=>r.playerId),['p1','p2']);
+});

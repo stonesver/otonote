@@ -53,7 +53,7 @@ export function createArenaRankingClient({fetcher=fetch,now=()=>Date.now(),onCha
   const previous=state;
   const stamp=++generation;abort?.abort();abort=new AbortController();
   state=quiet?{...state,refreshing:true,refreshError:false}:append?{...state,loadingMore:true,paginationError:false}:{status:'loading',data:null,entries:[],loadingMore:false};notify();
-  const params=new URLSearchParams({server:scope.serverId,season:scope.seasonId,band:scope.bandId,limit:String(quiet?Math.max(10,Math.min(previous.entries.length,100)):10)});
+  const params=new URLSearchParams({server:scope.serverId,season:scope.seasonId,band:scope.bandId,limit:String(quiet?Math.max(50,Math.min(previous.entries.length,100)):50)});
   if(scope.rank!==undefined)params.set('rank',String(scope.rank));
   if(scope.end!==undefined)params.set('end',String(scope.end));
   if(append&&state.data?.nextCursor)params.set('cursor',state.data.nextCursor);

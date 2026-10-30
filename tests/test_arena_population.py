@@ -133,3 +133,27 @@ class PopulationTests(unittest.TestCase):
   auth.append(('credential','synthetic-token'))
   with self.assertRaises(LoginError):Failed(plan).export(None,None,'synthetic-host')
   self.assertEqual(auth,[])
+
+ def test_one_moving_band_does_not_discard_other_verified_bands_or_trigger_retries(self):
+  from tools.growth_login import message,integer,single
+  auth=[('credential','synthetic-token')];calls=[]
+  plan=dict(serverId='global-hmt',seasonId='1',bandIds=['1','2','3'],limit=1000,contentReleaseId='test',masterVersion='a'*32,populationThresholds={str(b):THRESHOLDS for b in (1,2,3)})
+  class Client(ArenaPopulationClient):
+   population_master='a'*32
+   def authenticate(self,*args):return auth
+   def rpc(self,host,method,payload,credential):
+    if method=='app.masterdata.MasterdataService/Version':return message(1,'a'*32)
+    band=single(payload,2,wire=0);rank=single(payload,3,wire=0);calls.append(band)
+    total=11 if band==2 and calls.count(2)>1 else 10
+    raw=message(1,message(1,message(1,'synthetic')+message(2,'synthetic'))+integer(3,rank)+integer(4,4)) if rank<=total else b''
+    return raw+integer(2,total)
+  from contextlib import redirect_stdout
+  import io
+  with patch('tools.arena_population.probe_population',side_effect=lambda reader,thresholds:probe_population(reader,thresholds,spacing=0)),redirect_stdout(io.StringIO()):
+   result=Client(plan).export(None,None,'synthetic-host')
+  self.assertEqual([r['bandId'] for r in result],['1','3']);self.assertEqual(calls.count(2),2);self.assertEqual(auth,[])
+  with tempfile.TemporaryDirectory() as root:
+   old=observation();old['bandId']='2';publish_populations([old],root,'global-hmt')
+   before=population_path(root,'global-hmt','1','2').read_bytes()
+   publish_populations(result,root,'global-hmt')
+   self.assertEqual(population_path(root,'global-hmt','1','2').read_bytes(),before)

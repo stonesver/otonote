@@ -16,9 +16,3 @@ export function arenaFixture() {
 }
 
 // Synthetic official-response-shaped data, used only by tests.
-export function arenaTrendFixture() {
- const data=arenaFixture();data.capabilities.deckTrends=true;
- data.deckTrends=[{source:'ArenaService.DeckTrend',serverId:'global-hmt',seasonId:'s1',bandId:'1',musicId:'100001',
-  observedAt:'2026-10-28T01:00:00Z',sourceRevision:'c'.repeat(64),leaders:['1'],members:['2','1'],supports:['1']}];
- return data;
-}

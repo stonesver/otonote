@@ -1,6 +1,6 @@
 /** Scroll requests only the public snapshot API; failures require an explicit retry. */
 export function createArenaRankingScroll({root,getState,loadMore,isBlocked=()=>false,
- makeObserver=callback=>typeof IntersectionObserver==='function'?new IntersectionObserver(callback,{rootMargin:'160px 0px'}):null}) {
+ makeObserver=callback=>typeof IntersectionObserver==='function'?new IntersectionObserver(callback,{rootMargin:'480px 0px'}):null}) {
  let observer=null,stopped=false;
  function observe(){
   observer?.disconnect();

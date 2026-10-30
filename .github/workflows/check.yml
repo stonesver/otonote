@@ -72,7 +72,7 @@ jobs:
       - name: Admin content delivery gates
         run: |
           python3 -m pip install -r requirements-admin.txt
-          python3 -m unittest tests.test_player_ranking_collection tests.test_player_rankings tests.test_ranking_regions tests.test_ranking_finalizations tests.test_arena_rankings tests.test_arena_trend_collection tests.test_arena_assets tests.test_arena_content tests.test_arena_live tests.test_arena_population -q
+          python3 -m unittest tests.test_player_ranking_collection tests.test_player_rankings tests.test_ranking_regions tests.test_ranking_finalizations tests.test_arena_rankings tests.test_arena_assets tests.test_arena_content tests.test_arena_live tests.test_arena_population -q
           node --test site/tests/arena-*.test.mjs site/tests/player-rankings.test.mjs
           python3 -m unittest tests.test_admin_r2_delivery -q
           python3 -m unittest tests.test_site_notices tests.test_notice_delivery tests.test_preview_notices -q

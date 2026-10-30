@@ -6,6 +6,7 @@ import itemIndexData from '@projection-data/database-shards/items-index.json';
 import {validateArtifact} from '../lib/artifact-contracts';
 import type {ItemIndexRecord} from '../lib/game-database';
 import '../styles/arena.css';
+import '../styles/arena-calendar.css';
 import '../styles/tool-design-system.css';
 const {handoff=false}=Astro.props;
 const en=activeReleaseContext.locale==='en';
@@ -22,9 +23,9 @@ const visuals=JSON.stringify({band:filterVisualOptions.band.map(b=>({...b,color:
  <p class="arena-meta" data-arena-meta></p>
  <p class="arena-feedback" data-arena-feedback role="status" aria-live="polite"></p>
  <div data-arena-body><div class="arena-loading" role="status"><p>{en?'Loading stage conditions…':'正在读取舞台条件…'}</p><div class="arena-segments" aria-hidden="true"><span></span><span></span><span></span></div></div></div>
- <dialog class="arena-trend-dialog" data-arena-dialog aria-labelledby="arena-dialog-trends-title"><div class="arena-dialog-bar"><strong>{en?'Trend details':'趋势详情'}</strong><button type="button" data-action="dialog-close" aria-label={en?'Close trend details':'关闭趋势详情'}>{en?'Close':'关闭'} ×</button></div><div data-arena-dialog-body></div></dialog>
- <dialog class="arena-trend-dialog arena-reference-dialog" data-arena-reference-dialog aria-labelledby="arena-reference-title"><div class="arena-dialog-bar"><h2 id="arena-reference-title" data-arena-reference-title></h2><button type="button" data-action="reference-close" aria-label={en?'Close information':'关闭说明'}>{en?'Close':'关闭'} ×</button></div><div data-arena-reference-body></div></dialog>
- <dialog class="arena-trend-dialog arena-personal-dialog" data-arena-personal-dialog aria-labelledby="arena-personal-title"><div class="arena-dialog-bar"><h2 id="arena-personal-title">{en?'My arena rank':'我的舞台排名'}</h2><button type="button" data-personal-close>{en?'Close':'关闭'} ×</button></div><div data-arena-personal-body></div></dialog>
+
+ <dialog class="arena-dialog arena-reference-dialog" data-arena-reference-dialog aria-labelledby="arena-reference-title"><div class="arena-dialog-bar"><h2 id="arena-reference-title" data-arena-reference-title></h2><button type="button" data-action="reference-close" aria-label={en?'Close information':'关闭说明'}>{en?'Close':'关闭'} ×</button></div><div data-arena-reference-body></div></dialog>
+ <dialog class="arena-dialog arena-personal-dialog" data-arena-personal-dialog aria-labelledby="arena-personal-title"><div class="arena-dialog-bar"><h2 id="arena-personal-title">{en?'My arena rank':'我的舞台排名'}</h2><button type="button" data-personal-close>{en?'Close':'关闭'} ×</button></div><div data-arena-personal-body></div></dialog>
  <noscript>{en?'Enable JavaScript to query conditions. Teams are locked after song selection; arena calculation is not available.':'启用 JavaScript 后可查询舞台条件。抽歌后锁队，舞台计算尚未开放。'}</noscript>
  <script type="application/json" data-arena-visuals set:html={visuals}></script>
 </section>

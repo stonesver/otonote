@@ -12,18 +12,18 @@ const base = process.argv[2] || 'http://127.0.0.1:4398';
 const output = resolve(process.env.ARENA_BROWSER_OUTPUT || 'output/playwright/arena');
 const hash = value => createHash('sha256').update(value).digest('hex');
 (async()=>{
- const {arenaFixture,arenaTrendFixture,arenaNow} = await import(pathToFileURL(resolve(__dirname,'../site/tests/fixtures/arena.mjs')));
+ const {arenaFixture,arenaNow} = await import(pathToFileURL(resolve(__dirname,'../site/tests/fixtures/arena.mjs')));
  await mkdir(output,{recursive:true});
  const browser = await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE});
  const results=[];
  try {
- async function setup({region='global',locale='zh-CN',mutate,missing=false,corrupt=false,blockArtifact=false,scale=1,trends=false,rankings=false,autoRankings=false,rankingPages=2,dynamic=false,population=false}={}){
+ async function setup({region='global',locale='zh-CN',mutate,missing=false,corrupt=false,blockArtifact=false,scale=1,rankings=false,autoRankings=false,rankingPages=2,dynamic=false,population=false}={}){
   const context=await browser.newContext({viewport:{width:1280,height:1000},deviceScaleFactor:scale,reducedMotion:'reduce',permissions:['clipboard-read','clipboard-write']});
   const page=await context.newPage();if(!autoRankings)await page.addInitScript(()=>{window.IntersectionObserver=undefined;});await page.clock.install({time:new Date(arenaNow)});
   const pointerPath=region==='jp'?'/content/jp/current.json':'/content/current.json';
   const originalPointer=await (await context.request.get(base+pointerPath)).json();
   const manifest=await (await context.request.get(base+originalPointer.manifest)).json();
-  const data=trends?arenaTrendFixture():arenaFixture();data.region=region;data.sourceReleaseId=manifest.contentReleaseId;if(region==='jp')data.serverScopes=['jp'];
+  const data=arenaFixture();data.region=region;data.sourceReleaseId=manifest.contentReleaseId;if(region==='jp')data.serverScopes=['jp'];
   mutate?.(data);if(population){data.sourceMasterVersion='a'.repeat(32);data.completeRankBands=['1'];}
   const bytes=JSON.stringify(data);
   for(const loc of Object.keys(manifest.locales)){if(missing)delete manifest.locales[loc].files['projection/arena.json'];else manifest.locales[loc].files['projection/arena.json']={path:loc+'/arena-test.json',sha256:hash(bytes)};}
@@ -56,7 +56,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
     return route.fulfill({json:{schemaVersion:1,...sc,mode:'dynamic',status:'available',entries,observedAt:new Date(arenaNow).toISOString(),expiresAt:new Date(arenaNow+300000).toISOString(),snapshotId:(rankingChanged?'f':'e').repeat(64),sourceReleaseId:manifest.contentReleaseId,coverage:{startRank:start,endRank:end},maxRank:31279,totalEntries:total,nextCursor:offset+limit<total?'next-'+(offset+limit):null,nextRank:start+100}});
    }
    const available=rankings&&sc.serverId==='global-hmt'&&sc.seasonId==='s1'&&sc.bandId==='1';
-   const start=p.has('cursor')?Number(p.get('cursor').replace('next-','')):0;
+   const start=p.has('cursor')?Number(p.get('cursor').replace('next-','')):0;assert.equal(p.get('limit'),'50');
    const entries=available?Array.from({length:10},(_,n)=>({playerId:'synthetic-'+(start+n),name:start+n===0?'<script>escaped player</script>':'Synthetic player '+(start+n),rank:start+n===1?1:start+n+1,point:1000-start-n,deck:start+n===0?{totalPower:123456,cards:[{slot:0,performanceOrder:0,member:{masterId:72},support:{masterId:51}}]}:null})):[];
    return route.fulfill({json:{schemaVersion:1,...sc,status:available?'available':'unavailable',entries,
     observedAt:available?'2026-10-28T03:55:00Z':null,expiresAt:available?'2026-10-28T04:10:00Z':null,
@@ -78,9 +78,9 @@ const hash = value => createHash('sha256').update(value).digest('hex');
  await s.go('server=global-hmt');
  const band1=root.locator('[data-action="band"][data-value="1"]'),band2=root.locator('[data-action="band"][data-value="2"]');
  assert.match(await band1.getAttribute('aria-label'),/ALL.*LUCK \/ LUCK \/ LUCK/);assert.match(await band2.getAttribute('aria-label'),/JUST \/ (COMBO|LUCK|JUST) \/ COMBO/);assert.equal(await band1.locator('.arena-mini-mission').count(),3);
- assert.match(await root.innerText(),/官方配对趋势/);
+ assert.ok(!(await root.innerText()).includes('官方配对趋势'));assert.equal(await root.locator('.arena-calendar').count(),1);
  assert.match(await root.innerText(),/ALL／全属性/);
- assert.equal(await root.locator('.arena-segments').getAttribute('data-missions'),'2,2,2');assert.equal(await root.locator('[data-arena-body] [data-trend-state]').count(),1);assert.equal(await root.locator('[data-arena-reference-dialog]').getAttribute('open'),null);
+ assert.equal(await root.locator('.arena-segments').getAttribute('data-missions'),'2,2,2');assert.equal(await root.locator('[data-arena-dialog]').count(),0);assert.equal(await root.locator('[data-arena-reference-dialog]').getAttribute('open'),null);
  for(const width of [320,390,768,1280]){
   await page.setViewportSize({width,height:1000});
   assert.equal(await root.getByRole('tab').count(),0);
@@ -112,7 +112,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
  await page.clock.setFixedTime(new Date('2026-10-29T01:00:00Z'));await page.goto(base+href);await page.waitForFunction(()=>document.querySelector('[data-arena-root]')?.getAttribute('aria-busy')==='false');
  assert.match(await root.innerText(),/舞台条件已更新/);await root.getByRole('button',{name:'明确使用当前条件'}).click();assert.ok(!page.url().includes('regulation=r1'));
  assert.match(await root.innerText(),/当前条件/);
- await s.go('server=global-hmt&season=s1&band=1&regulation=r0');assert.equal(await root.locator('.arena-segments').getAttribute('data-missions'),'1,1,3');
+ await s.go('server=global-hmt&season=s1&band=1&regulation=r0');assert.match(await root.locator('.arena-calendar-detail').innerText(),/10\/27/);
  await page.clock.setFixedTime(new Date('2026-10-31T00:00:00Z'));await s.go('server=global-hmt');assert.match(await root.innerText(),/新条件尚未收录/);assert.match(await root.innerText(),/上一期（已过期）/);
  await s.go('',true);assert.match(await root.innerText(),/请选择乐队/);
  for(const [query,text] of [['season=unknown','该赛季资料未收录'],['band=unknown','该乐队资料未收录'],['regulation=unknown','该条件未收录']]){await s.go(query);assert.match(await root.innerText(),new RegExp(text));}
@@ -145,42 +145,9 @@ const hash = value => createHash('sha256').update(value).digest('hex');
   const text=await x.root.innerText();assert.ok(scenario.missing?/舞台资料暂未提供/.test(text):scenario.corrupt?/读取或校验失败/.test(text):scenario.region==='jp'?/Gekisou Arena/.test(text):/尚未核验|重叠冲突/.test(text),JSON.stringify(scenario)+' '+text.slice(0,800));
   assert.equal(x.errors.length,0,x.errors.join('\n'));await x.context.close();
  }
- const official=await setup({trends:true});await official.go('server=global-hmt&music=100001');
- const trend=official.root.locator('[data-trend-state]');
- assert.equal(await trend.getAttribute('data-trend-state'),'available');assert.equal(await trend.locator('.arena-trend-group').count(),1);
- await trend.locator('.arena-trend-notes>summary').click();assert.match(await trend.innerText(),/不表示一一配对/);assert.ok(!/\d+%/.test(await trend.innerText()));
- for(const width of [320,390,768,1280]){
-  await official.page.setViewportSize({width,height:1000});await official.page.clock.runFor(100);await official.page.waitForFunction(()=>{const rail=document.querySelector('.site-nav'),panel=document.querySelector('[data-arena-root]');return document.documentElement.scrollWidth<=innerWidth&&(!rail||getComputedStyle(rail).display==='none'||panel.getBoundingClientRect().left>=rail.getBoundingClientRect().right);});assert.ok(await official.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`official trends ${width} overflow`);
-  await official.page.clock.runFor(500);await official.page.screenshot({path:resolve(output,`official-trends-${width}.png`),fullPage:true});
- }
- await trend.getByRole('button',{name:'成员',exact:true}).click();assert.equal(await trend.locator('.arena-trend-group').count(),1);assert.equal(await trend.locator('ol li').count(),2);
- await official.root.locator('[data-action="copy-link"]').click();assert.equal(new URL(await official.page.evaluate(()=>navigator.clipboard.readText())).searchParams.get('music'),'100001');
- await official.go('server=global-kr&music=100001');assert.equal(await trend.getAttribute('data-trend-state'),'not-collected');assert.equal(await trend.locator('.arena-trend-card').count(),0);
- await official.go('server=global-hmt&band=2&music=100001');assert.equal(await trend.getAttribute('data-trend-state'),'not-collected');
- await official.go('server=global-hmt&music=100001');await official.root.locator('[data-action="band"][data-value="2"]').click();assert.equal(await official.root.locator('.arena-dependent-song select').count(),1);assert.ok(new URL(official.page.url()).searchParams.has('music'));
- assert.equal(official.errors.length,0,official.errors.join('\n'));await official.context.close();
- const empty=await setup({trends:true,mutate:d=>{d.deckTrends[0].leaders=[];d.deckTrends[0].members=[];d.deckTrends[0].supports=[];}});await empty.go('server=global-hmt&music=100001');assert.equal(await empty.root.locator('[data-trend-state]').getAttribute('data-trend-state'),'empty');assert.match(await empty.root.innerText(),/官方响应未返回这一组条目/);await empty.context.close();
- const invalid=await setup({trends:true,mutate:d=>d.deckTrends[0].source='unknown'});await invalid.go('server=global-hmt&music=100001');assert.equal(await invalid.root.locator('[data-trend-state]').getAttribute('data-trend-state'),'invalid');assert.match(await invalid.root.innerText(),/ALL／全属性/);assert.equal(invalid.errors.length,0);await invalid.context.close();
  const rail=await setup({mutate:d=>{for(let i=3;i<=5;i++){d.leagues.push({id:'league-'+i,bandId:String(i),name:'已公布乐队 '+i,openingSourceText:''});d.regulations.push({...d.regulations[1],id:'band-condition-'+i,leagueId:'league-'+i,attribute:i===5?0:99,missions:[1,2,3]});}}});
  await rail.page.setViewportSize({width:320,height:1000});await rail.go('server=global-hmt');await rail.root.locator('[data-action="band"][data-value="5"]').click();assert.equal(await rail.root.locator('[data-action="band"][data-value="5"]').getAttribute('aria-pressed'),'true');assert.ok(await rail.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await rail.context.close();
- results.push('rounded band summaries, official snapshots, card groups, exact server/band scope, missing/empty/invalid states, five-band mobile rail');
- const popup=await setup({trends:true,mutate:d=>d.deckTrends[0].members=['1','2','3','4','5','6','7','8','9','10']});
- await popup.go('server=global-hmt&music=100001');
- await popup.root.locator('[data-arena-body] [data-action="trend-kind"][data-value="members"]').click();
- const stageHeight=(await popup.root.locator('.arena-stage-wrap').boundingBox()).height;
- assert.equal(await popup.root.locator('[data-arena-body] .arena-trend-card:visible').count(),6);
- await popup.root.locator('[data-action="trend-more"]').click();
- const dialog=popup.root.locator('[data-arena-dialog]');assert.equal(await dialog.getAttribute('open')!==null,true);
- assert.equal(await dialog.locator('.arena-trend-card').count(),10);
- await dialog.locator('[data-action="trend-kind"][data-value="supports"]').click();
- assert.equal((await popup.root.locator('.arena-stage-wrap').boundingBox()).height,stageHeight);
- await popup.page.keyboard.press('Escape');await popup.page.clock.runFor(50);assert.equal(await dialog.getAttribute('open'),null);
- assert.ok(await popup.root.locator('[data-action="trend-more"]').evaluate(el=>el===document.activeElement));
- await popup.root.locator('[data-arena-body] [data-action="trend-kind"][data-value="members"]').click();await popup.page.setViewportSize({width:390,height:844});
- assert.equal(await popup.root.locator('[data-arena-body] .arena-trend-card:visible').count(),3);
- await popup.root.locator('[data-action="trend-more"]').click();assert.equal(await dialog.locator('.arena-trend-card:visible').count(),10);
- await dialog.locator('[data-action="dialog-close"]').click();assert.equal(await dialog.getAttribute('open'),null);
- await popup.context.close();results.push('full trend dialog, category switching, stable stage height, Escape focus return, three-card mobile preview');
+ results.push('compact band summaries and five-band mobile rail');
  const ranked=await setup({rankings:true});await ranked.go('server=global-hmt&season=s1&band=1');
  const leaderboard=ranked.root.locator('[data-arena-rankings]');await ranked.page.waitForFunction(()=>document.querySelector('[data-arena-rankings]')?.dataset.rankingState==='available');
  assert.equal(await ranked.root.locator('[data-field="rank-min"],[data-field="rank-max"]').count(),0);
@@ -218,6 +185,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
   const stats=counts.root.locator('[data-arena-population]');await counts.page.waitForFunction(()=>document.querySelector('[data-arena-population]')?.textContent.includes('探测时段')||document.querySelector('[data-arena-population]')?.textContent.includes('未匹配'));
   assert.match(await stats.innerText(),population==='mismatch'?/未匹配/:/≈ 2,000/);
   if(population==='stale')assert.match(await stats.innerText(),/已过期/);
+  if(population!=='mismatch'){assert.match(await stats.innerText(),/40.0%/);assert.equal(await stats.locator('[role=img]').count(),1);}else assert.equal(await stats.locator('[role=img]').count(),0);
   await counts.root.locator('[data-action="band"][data-value="2"]').click();await counts.page.waitForFunction(()=>document.querySelector('[data-arena-population]')?.textContent.includes('尚未完成服务器探测'));
   assert.ok(!(await stats.innerText()).includes('2,000'));assert.equal(counts.errors.length,0);await counts.context.close();
  }
@@ -225,8 +193,8 @@ const hash = value => createHash('sha256').update(value).digest('hex');
  const dynamicLookup=await setup({dynamic:true});await dynamicLookup.go('server=global-hmt&season=s1&band=1&rank=10001&end=10100');
  await dynamicLookup.page.waitForFunction(()=>document.querySelector('.arena-ranking-list>li')?.dataset.playerRank==='10001');
  assert.match(await dynamicLookup.root.innerText(),/官方最大名次 31,279/);assert.match(await dynamicLookup.root.innerText(),/5 分钟缓存/);
- await dynamicLookup.root.locator('[data-action="ranking-more"]').click();await dynamicLookup.page.waitForFunction(()=>document.querySelectorAll('.arena-ranking-list>li').length===20);
- dynamicLookup.rankingChanged();await dynamicLookup.page.clock.runFor(60050);await dynamicLookup.page.waitForFunction(()=>document.querySelector('.arena-player-name')?.textContent==='Updated player');assert.equal(await dynamicLookup.root.locator('.arena-ranking-list>li').count(),20);
+ await dynamicLookup.root.locator('[data-action="ranking-more"]').click();await dynamicLookup.page.waitForFunction(()=>document.querySelectorAll('.arena-ranking-list>li').length===100);
+ dynamicLookup.rankingChanged();await dynamicLookup.page.clock.runFor(60050);await dynamicLookup.page.waitForFunction(()=>document.querySelector('.arena-player-name')?.textContent==='Updated player');assert.equal(await dynamicLookup.root.locator('.arena-ranking-list>li').count(),100);
  await dynamicLookup.root.locator('[data-arena-rank-form] input[name=rank]').fill('15001');await dynamicLookup.root.locator('[data-arena-rank-form] input[name=end]').fill('15100');await dynamicLookup.root.locator('[data-arena-rank-form] button[type=submit]').click();await dynamicLookup.page.waitForFunction(()=>document.querySelector('.arena-ranking-list>li')?.dataset.playerRank==='15001');assert.equal(new URL(dynamicLookup.page.url()).searchParams.get('rank'),'15001');
  const rankRequestsBefore=dynamicLookup.requests.filter(url=>url.includes('arena-rankings-live')).length;
  await dynamicLookup.root.locator('[name=end]').fill('15101');await dynamicLookup.root.locator('[data-arena-rank-form] button[type=submit]').click();

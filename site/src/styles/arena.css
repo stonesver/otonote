@@ -96,3 +96,5 @@
 .arena-population-tiers>div{grid-template-columns:auto 1fr;border-top:2px solid var(--tier-color)}
 .arena-population-tiers strong{grid-column:1/-1;line-height:1.2}.arena-population-tiers small{grid-column:1/-1;color:var(--tier-color);font:600 12px var(--font-mono)}
 @media(max-width:600px){.arena-population-tiers{grid-template-columns:repeat(3,minmax(0,1fr))}.arena-population-tiers>div{grid-template-columns:auto 1fr;justify-items:start;padding:6px}.arena-population-tiers strong,.arena-population-tiers small{grid-column:1/-1}}
+
+.arena-population-tiers .arena-population-range{grid-column:1/-1;font-size:11px;line-height:1.45;color:var(--arena-muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}

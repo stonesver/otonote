@@ -31,7 +31,7 @@ test('counts require matching full rank data; missing values stay unknown, maxRa
  const context={serverId:'global-hmt',season:{id:'1',validFrom:'2026-10-01T00:00:00Z',validUntil:'2026-11-01T00:00:00Z'},league:{bandId:'1'}};
  const render=(state,data=rankData)=>populationView({state,rankData:data,context,t:a=>a,time:s=>s,ranking:{...scope,maxRank:1000,observedAt:observation.observedAt}});
  const view=render({status:'available',data:payload()});assert.match(view,/≈ 100/);assert.match(view,/90/);assert.match(view,/90.0%/);assert.match(view,/role="img"/);assert.match(view,/并非官方人数统计/);assert.ok(!view.includes('data-field="rank-min"'));
- assert.match(render({status:'unavailable',data:null}),/尚未完成服务器探测/);assert.doesNotMatch(render({status:'unavailable',data:null}),/role="img"/);assert.match(render({status:'available',data:payload()},{...rankData,sourceMasterVersion:'b'.repeat(32)}),/未匹配/);
+ assert.match(render({status:'unavailable',data:null}),/暂无可用的段位人数估算/);assert.doesNotMatch(render({status:'unavailable',data:null}),/role="img"/);assert.match(render({status:'available',data:payload()},{...rankData,sourceMasterVersion:'b'.repeat(32)}),/未匹配/);
  assert.match(render({status:'stale',data:payload()}),/已过期/);
 });
 
@@ -48,4 +48,16 @@ test('visible background checks reread saved summaries at most once per five min
  clock+=299999;await client.check();assert.equal(calls,1);
  clock++;await client.check();assert.equal(calls,2);client.destroy();
  assert.equal(populationShares({totalEstimate:10000,tiers:[{tier:1,count:45}]})[0].label,'0.5%');
+});
+
+const rangedPayload=()=>{const v=payload();Object.assign(v.observation,{schemaVersion:2,totalLower:99,totalUpper:102,rangeMethod:'observed_window_envelope'});Object.assign(v.observation.tiers[0],{lower:87,upper:93});Object.assign(v.observation.tiers[1],{lower:8,upper:12});return v;};
+test('range payload validates and share bounds use adverse total denominators',()=>{
+ const v=rangedPayload();validatePopulation(v,scope);
+ const shares=populationShares(v.observation);
+ assert.equal(shares[1].lowerPercent,8/102*100);assert.equal(shares[1].upperPercent,12/99*100);
+ for(const mutate of [o=>o.totalLower=101,o=>o.totalUpper=99,o=>o.rangeMethod='95%',o=>o.tiers[0].lower=91,o=>o.tiers[0].upper=89,o=>o.sampleReads=49]){const bad=rangedPayload();mutate(bad.observation);assert.throws(()=>validatePopulation(bad,scope));}
+ const data={serverScopes:['global-hmt'],sourceReleaseId:'test',sourceMasterVersion:'a'.repeat(32),completeRankBands:['1'],ranks:[{bandId:'1',tier:1,name:'新手1',threshold:0,openingSourceText:''},{bandId:'1',tier:2,name:'青铜1',threshold:190,openingSourceText:''}]};
+ const context={...scope,season:{id:'1',validFrom:'2026-10-01T00:00:00Z',validUntil:'2026-11-01T00:00:00Z'},league:{bandId:'1'}};
+ const html=populationView({state:{status:'available',data:v},rankData:data,context,t:a=>a,time:s=>s});
+ assert.match(html,/≈ 90/);assert.match(html,/87–93/);assert.match(html,/7.8–12.2%/);assert.match(html,/不是统计置信区间/);assert.match(html,/99–102/);assert.match(html,/role="img"/);
 });

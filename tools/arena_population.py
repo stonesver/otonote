@@ -60,73 +60,115 @@ def decode_population_response(raw):
 
 
 def probe_population(reader,thresholds,*,max_reads=MAX_BAND_READS,spacing=1,deadline=180,clock=time.monotonic,sleep=time.sleep):
-    """Search shared rank windows, then freshly verify boundary sides.
+    """Estimate moving score boundaries with bounded, fresh window corrections.
 
-    reader(start, end) returns at most 100 positions. Samples live only within
-    this band/run; an old snapshot cannot stand in for a current observation.
-    Every response must agree on maxRank. Counts remain multi-request estimates.
+    Old samples only guide the search. Fresh windows locate each final boundary;
+    their movement and search resolution form an empirical envelope, NOT a
+    statistical confidence interval or a bound on unobserved/future movement.
     """
+    import math
     if not thresholds or thresholds[0]['threshold']!=0 or len(thresholds)>7:
         raise ValueError('arena_population_thresholds_unverified')
     if len({r['tier'] for r in thresholds})!=len(thresholds) or any(thresholds[i]['threshold']>=thresholds[i+1]['threshold'] for i in range(len(thresholds)-1)):
         raise ValueError('arena_population_thresholds_unverified')
-    samples={};total=None;reads=0;began=clock();last=None
+    samples={};totals=[];reads=0;began=clock();last=None;last_window=None
     def read(start,end):
-        nonlocal total,reads,last
+        nonlocal reads,last,last_window
         if reads>=max_reads or clock()-began>deadline:raise ValueError('arena_population_budget_exceeded')
         if last is not None and spacing:sleep(max(0,spacing-(clock()-last)))
         if clock()-began>deadline:raise ValueError('arena_population_budget_exceeded')
         result=reader(start,end);reads+=1;last=clock();maximum=number(result['maxRank'])
         if maximum>=2147483647:raise ValueError('arena_population_rank_limit')
-        if total is None:total=maximum
-        if maximum!=total:raise ValueError('arena_population_changed')
+        totals.append(maximum);last_window=(start,end)
+        # A small board gets an absolute allowance; large boards use 0.5%.
+        if max(totals)-min(totals)>max(20,math.ceil(totals[0]*.005)):
+            raise ValueError('arena_population_changed')
         entries=result['entries']
-        expected=list(range(start,min(end,total)+1))
-        if [entry['rank'] for entry in entries]!=expected:
+        if [entry['rank'] for entry in entries]!=list(range(start,min(end,maximum)+1)):
             raise ValueError('arena_population_non_positional_ranks')
         fresh={entry['rank']:number(entry['point']) for entry in entries}
-        combined=samples|fresh
-        ordered=sorted(combined)
-        if any(combined[left]<combined[right] for left,right in zip(ordered,ordered[1:])):
+        ordered=list(fresh)
+        # Only values from ONE response must be monotone. Earlier windows may
+        # legitimately disagree with a newer snapshot of a moving leaderboard.
+        if any(fresh[a]<fresh[b] for a,b in zip(ordered,ordered[1:])):
             raise ValueError('arena_population_non_monotone')
+        for rank in list(samples):
+            if rank>maximum:del samples[rank]
         samples.update(fresh)
-        return fresh
+        return fresh,maximum
     read(1,WINDOW_SIZE)
-    if total:read(total,total+1)
-    at_least=[total]+[None]*(len(thresholds)-1)
+    brackets={}
+    def bounds(threshold):
+        maximum=totals[-1]
+        lo=max((r for r,p in samples.items() if p>=threshold and r<=maximum),default=0)
+        hi=min((r-1 for r,p in samples.items() if p<threshold and r<=maximum),default=maximum)
+        # Contradictory cross-time hints are discarded, never treated as corrupt
+        # official data. The request/deadline budgets still bound the new search.
+        return (lo,hi) if lo<=hi else (0,maximum)
     def solve(first,last_index):
         if first>last_index:return
         index=(first+last_index)//2;threshold=thresholds[index]['threshold']
-        while True:
-            lo=max((rank for rank,point in samples.items() if point>=threshold),default=0)
-            hi=min((rank for rank,point in samples.items() if point<threshold),default=total+1)
-            if lo+1==hi:break
-            mid=(lo+hi)//2
-            start=(mid-1)//WINDOW_SIZE*WINDOW_SIZE+1
-            read(start,min(start+WINDOW_SIZE-1,total))
-        at_least[index]=lo
-        # The middle threshold's samples also bound both neighbouring searches.
+        lo,hi=bounds(threshold)
+        while hi-lo>=WINDOW_SIZE:
+            mid=(lo+hi)//2;start=max(1,mid-WINDOW_SIZE//2+1)
+            fresh,maximum=read(start,start+WINDOW_SIZE-1)
+            above=[r for r,p in fresh.items() if p>=threshold]
+            below=[r-1 for r,p in fresh.items() if p<threshold]
+            new_lo=max(above,default=lo);new_hi=min(below,default=min(hi,maximum))
+            if new_lo>new_hi:
+                # A moving boundary crossed an old search bound. Trust this
+                # window and discard the stale side of the bracket.
+                new_lo=max(above,default=0);new_hi=min(below,default=maximum)
+            lo,hi=new_lo,new_hi
+        brackets[index]=(lo,hi)
         solve(first,index-1);solve(index+1,last_index)
     solve(1,len(thresholds)-1)
-    # Group nearby verification points into one fresh request, including boundaries
-    # that straddle a search window. Empty and one-player boards are also rechecked.
-    checks={1,total+1}
-    if total:checks.add(total)
-    for boundary in at_least[1:]:
-        if boundary:checks.add(boundary)
-        if boundary<total:checks.add(boundary+1)
-    checkpoints=sorted(checks);verified={};index=0
-    while index<len(checkpoints):
-        start=end=checkpoints[index];index+=1
-        while index<len(checkpoints) and checkpoints[index]-start<WINDOW_SIZE:
-            end=checkpoints[index];index+=1
-        verified.update(read(start,end))
+    located={}
     for index,row in enumerate(thresholds[1:],1):
-        boundary=at_least[index]
-        if boundary and verified[boundary]<row['threshold']:raise ValueError('arena_population_changed')
-        if boundary<total and verified[boundary+1]>=row['threshold']:raise ValueError('arena_population_changed')
-    return dict(totalEstimate=total,sampleReads=reads,
-                tiers=[dict(row,count=at_least[i]-(at_least[i+1] if i+1<len(at_least) else 0)) for i,row in enumerate(thresholds)])
+        if index in located:continue
+        lo,hi=brackets[index];center=(lo+hi)//2
+        # The first window covers the whole search bracket. Up to two adjacent
+        # corrections tolerate drift without restarting a search or a login.
+        start=max(1,center-WINDOW_SIZE//2+1)
+        for correction in range(3):
+            fresh,maximum=read(start,start+WINDOW_SIZE-1)
+            for candidate,threshold in enumerate(thresholds[1:],1):
+                if candidate in located:continue
+                above=[r for r,p in fresh.items() if p>=threshold['threshold']]
+                below=[r for r,p in fresh.items() if p<threshold['threshold']]
+                lower=max(above,default=0 if start==1 or maximum==0 else None)
+                upper=min(below)-1 if below else maximum if start+WINDOW_SIZE-1>=maximum else None
+                if lower is not None and lower==upper:located[candidate]=lower
+            if index in located:break
+            # All below (or beyond the shrunken tail) => move toward the head.
+            toward_head=not fresh or any(p<row['threshold'] for p in fresh.values())
+            start=max(1,start-WINDOW_SIZE) if toward_head else start+WINDOW_SIZE
+        else:raise ValueError('arena_population_changed')
+    # Latest official total, including the empty-board case. This also validates
+    # a tail window, but a changing maxRank no longer invalidates prior windows.
+    total=totals[-1]
+    if not (last_window[0]<=max(1,total) and last_window[1]>total):
+        read(max(1,total-WINDOW_SIZE+2),max(1,total+1))
+    total=totals[-1];lower_total=min(totals);upper_total=max(totals);drift=upper_total-lower_total
+    boundaries=[total];envelopes=[(lower_total,upper_total)]
+    for index in range(1,len(thresholds)):
+        lo,hi=brackets[index];observed=located[index]
+        # Project asynchronous cumulative counts onto a non-increasing sequence.
+        # Any correction remains visible inside the resulting interval.
+        estimate=min(boundaries[-1],observed)
+        boundaries.append(estimate)
+        envelopes.append((max(0,min(lo,observed,estimate)-drift),min(upper_total,max(hi,observed,estimate)+drift)))
+    boundaries.append(0);envelopes.append((0,0))
+    tiers=[]
+    for i,row in enumerate(thresholds):
+        count=boundaries[i]-boundaries[i+1]
+        lower=max(0,envelopes[i][0]-envelopes[i+1][1])
+        upper=min(upper_total,max(0,envelopes[i][1]-envelopes[i+1][0]))
+        if not lower<=count<=upper or upper-lower>max(200,math.ceil(upper_total*.03)):
+            raise ValueError('arena_population_changed')
+        tiers.append(dict(row,count=count,lower=lower,upper=upper))
+    return dict(totalEstimate=total,totalLower=lower_total,totalUpper=upper_total,
+                rangeMethod='observed_window_envelope',sampleReads=reads,tiers=tiers)
 
 
 class ArenaPopulationClient(ArenaRankingClient):
@@ -168,7 +210,7 @@ class ArenaPopulationClient(ArenaRankingClient):
                     continue
                 observed=datetime.now(timezone.utc)
                 if self.plan.get('populationValidUntil') and observed>=absolute(self.plan['populationValidUntil']):raise LoginError('arena_population_season_ended')
-                observations.append(dict(schemaVersion=1,serverId=self.server_id,seasonId=self.plan['seasonId'],bandId=band,
+                observations.append(dict(schemaVersion=2,serverId=self.server_id,seasonId=self.plan['seasonId'],bandId=band,
                     method='rank_boundary_probe',accuracy='estimate',sourceReleaseId=self.plan['contentReleaseId'],masterVersion=self.population_master,
                     startedAt=started.isoformat(),observedAt=observed.isoformat(),expiresAt=(observed+timedelta(hours=6)).isoformat(),**counts))
             if string(self.rpc(host,'app.masterdata.MasterdataService/Version',b'',()),1,optional=True)!=self.population_master:

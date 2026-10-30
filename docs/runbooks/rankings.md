@@ -78,6 +78,8 @@ python3 -m tools.collect_arena_rankings \
 
 EN／韩服使用 `ournotes-arena-rankings-capture@.service`，配套两份具体区服 timer 分别在每小时第 4／6 分开始、每 10 分钟刷新，错开港澳台的第 2 分。观察挂载和 state 按 `%i` 分隔，沿用同一只读 credentials、SDK 与共用 `capture.lock`。动态入口仍是一个共享限流服务，同时检查根目录和所选 EN／韩服子目录的既有暂停状态。不可只扩充公开 `serverScopes`，还必须逐服核验已有角色、实际接口和 Master 表；若有原生 Master 绑定，发现版本不符时在提交凭据前停止。
 
+遇到 `arena_master_version_mismatch` 时，先读取各服公共版本与对应 Master，按[输入核验闸门](../reference/arena-stage.md#当前生产输入与核验闸门)复核受审表、已发布记录、文本和图标依赖，再更新摘要固定的私有复核包。表内容未变也必须重新绑定各服真实版本；资源目录同时升级时，由正常内容管线生成对应的新内容身份，不能仅把旧投影的版本字符串替换为新值。确认正式内容指针、投影摘要和三服绑定后再探测；此前的失败不能当作人数为零，也不解除认证暂停或自动绕过人数探测冷却。
+
 采集镜像增加相应模块及 Docker 构建白名单；已有镜像需正常构建、固定并验收，不能仅更换网页宣称线上接口已可用。公开编成复用已有卡牌字段白名单；采集失败不会替换上次完整快照。只读 Query 服务提供 `/api/v1/arena-rankings`，沿用 `/api/v1/` 代理。部署模板 `ournotes-arena-rankings-capture.service/.timer` 以北京时间每小时第 2、12、22、32、42、52 分低频刷新前 1000 名，错开原活动榜整十分任务，仍由共享锁避免同时登录。安装与启用前核对固定镜像、现有挂载和暂停状态；源码合并不会自动安装服务。当前页面刷新只读取已发布观察，不触发登录。
 
 离线验证：`python3 -m unittest tests.test_arena_rankings tests.test_player_rankings tests.test_player_ranking_collection -q`，以及 `node --test site/tests/arena-rankings.test.mjs`。

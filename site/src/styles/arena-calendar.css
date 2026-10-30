@@ -41,6 +41,6 @@
 .arena-calendar-detail{margin-top:6px;padding-top:6px}.arena-calendar-detail>header{display:none}
 .arena-calendar-note{font-size:10px}.arena-calendar{padding:10px 12px}
 .arena-stage-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-.arena-stage-grid .arena-condition{padding:8px 14px;gap:6px}.arena-stage-grid .arena-entry{padding:8px 14px;gap:5px}
+.arena-stage-grid .arena-condition{grid-template-columns:1fr;padding:8px 14px;gap:6px}.arena-stage-grid .arena-entry{padding:8px 14px;gap:5px}
 @media(max-width:900px){.arena-stage-grid{grid-template-columns:1fr}.arena-stage-grid .arena-condition{grid-template-columns:minmax(0,1fr) auto}}
 @media(max-width:600px){.arena-stage-grid .arena-condition{grid-template-columns:1fr}.arena-calendar{padding:8px 10px}}

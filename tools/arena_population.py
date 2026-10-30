@@ -9,8 +9,9 @@ from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from backend.arena_rankings import RPC,number,absolute
 from backend.arena_population import validate_population,population_path
-from tools.collect_arena_rankings import ArenaRankingClient,decode_response
-from tools.growth_login import LoginError,integer,string
+from tools.collect_arena_rankings import ArenaRankingClient
+from tools.growth_login import LoginError,integer,string,single
+from tools.growth_export import fields
 from tools.arena_content import arena_master_version
 
 
@@ -42,58 +43,88 @@ def population_plan(data,plan,now=None):
     return dict(plan,populationThresholds=groups,masterVersion=master,populationValidUntil=season['validUntil'])
 
 
-def probe_population(reader,thresholds,*,max_reads=96,spacing=1,deadline=180,clock=time.monotonic,sleep=time.sleep):
-    """reader(rank) returns one official position. Publish estimates, never a census.
+WINDOW_SIZE = 100
+MAX_BAND_READS = 48
+MAX_RUN_READS = 160
 
-    Every sampled maxRank must match; endpoints and each threshold boundary are
-    checked again. Remaining movement between probes is why counts are estimates.
+
+def decode_population_response(raw):
+    """Discard player profiles/decks; only positions and scores enter the probe."""
+    entries=[]
+    for field,wire,value in fields(raw):
+        if field!=1:continue
+        if wire!=2 or len(entries)>=WINDOW_SIZE:
+            raise LoginError('invalid_arena_population_response')
+        entries.append(dict(rank=single(value,3,wire=0),point=single(value,4,wire=0,required=False) or 0))
+    return dict(maxRank=single(raw,2,wire=0,required=False) or 0,entries=entries)
+
+
+def probe_population(reader,thresholds,*,max_reads=MAX_BAND_READS,spacing=1,deadline=180,clock=time.monotonic,sleep=time.sleep):
+    """Search shared rank windows, then freshly verify boundary sides.
+
+    reader(start, end) returns at most 100 positions. Samples live only within
+    this band/run; an old snapshot cannot stand in for a current observation.
+    Every response must agree on maxRank. Counts remain multi-request estimates.
     """
     if not thresholds or thresholds[0]['threshold']!=0 or len(thresholds)>7:
         raise ValueError('arena_population_thresholds_unverified')
     if len({r['tier'] for r in thresholds})!=len(thresholds) or any(thresholds[i]['threshold']>=thresholds[i+1]['threshold'] for i in range(len(thresholds)-1)):
         raise ValueError('arena_population_thresholds_unverified')
     samples={};total=None;reads=0;began=clock();last=None
-    def read(rank,force=False):
+    def read(start,end):
         nonlocal total,reads,last
-        if rank in samples and not force:return samples[rank]
         if reads>=max_reads or clock()-began>deadline:raise ValueError('arena_population_budget_exceeded')
         if last is not None and spacing:sleep(max(0,spacing-(clock()-last)))
         if clock()-began>deadline:raise ValueError('arena_population_budget_exceeded')
-        result=reader(rank);reads+=1;last=clock();maximum=number(result['maxRank'])
+        result=reader(start,end);reads+=1;last=clock();maximum=number(result['maxRank'])
         if maximum>=2147483647:raise ValueError('arena_population_rank_limit')
         if total is None:total=maximum
         if maximum!=total:raise ValueError('arena_population_changed')
         entries=result['entries']
-        if rank>total:
-            if entries:raise ValueError('arena_population_inconsistent_tail')
-            value=None
-        else:
-            if len(entries)!=1 or entries[0]['rank']!=rank:
-                raise ValueError('arena_population_non_positional_ranks')
-            value=number(entries[0]['point'])
-        for position,point in samples.items():
-            if position==rank or point is None or value is None:continue
-            if (position<rank and point<value) or (position>rank and point>value):
-                raise ValueError('arena_population_non_monotone')
-        samples[rank]=value;return value
-    read(1)
-    if total:
-        read(total);read(total+1)
-    at_least=[total];previous=total
-    for row in thresholds[1:]:
-        threshold=row['threshold'];lo=0;hi=previous+1
-        while lo+1<hi:
+        expected=list(range(start,min(end,total)+1))
+        if [entry['rank'] for entry in entries]!=expected:
+            raise ValueError('arena_population_non_positional_ranks')
+        fresh={entry['rank']:number(entry['point']) for entry in entries}
+        combined=samples|fresh
+        ordered=sorted(combined)
+        if any(combined[left]<combined[right] for left,right in zip(ordered,ordered[1:])):
+            raise ValueError('arena_population_non_monotone')
+        samples.update(fresh)
+        return fresh
+    read(1,WINDOW_SIZE)
+    if total:read(total,total+1)
+    at_least=[total]+[None]*(len(thresholds)-1)
+    def solve(first,last_index):
+        if first>last_index:return
+        index=(first+last_index)//2;threshold=thresholds[index]['threshold']
+        while True:
+            lo=max((rank for rank,point in samples.items() if point>=threshold),default=0)
+            hi=min((rank for rank,point in samples.items() if point<threshold),default=total+1)
+            if lo+1==hi:break
             mid=(lo+hi)//2
-            if read(mid)>=threshold:lo=mid
-            else:hi=mid
-        at_least.append(lo);previous=lo
-    # Verify the side of every inferred boundary, not just the head and tail.
-    for i,row in enumerate(thresholds[1:],1):
-        boundary=at_least[i]
-        if boundary and read(boundary,True)<row['threshold']:raise ValueError('arena_population_changed')
-        if boundary<total and read(boundary+1,True)>=row['threshold']:raise ValueError('arena_population_changed')
-    read(1,True)
-    if total:read(total,True);read(total+1,True)
+            start=(mid-1)//WINDOW_SIZE*WINDOW_SIZE+1
+            read(start,min(start+WINDOW_SIZE-1,total))
+        at_least[index]=lo
+        # The middle threshold's samples also bound both neighbouring searches.
+        solve(first,index-1);solve(index+1,last_index)
+    solve(1,len(thresholds)-1)
+    # Group nearby verification points into one fresh request, including boundaries
+    # that straddle a search window. Empty and one-player boards are also rechecked.
+    checks={1,total+1}
+    if total:checks.add(total)
+    for boundary in at_least[1:]:
+        if boundary:checks.add(boundary)
+        if boundary<total:checks.add(boundary+1)
+    checkpoints=sorted(checks);verified={};index=0
+    while index<len(checkpoints):
+        start=end=checkpoints[index];index+=1
+        while index<len(checkpoints) and checkpoints[index]-start<WINDOW_SIZE:
+            end=checkpoints[index];index+=1
+        verified.update(read(start,end))
+    for index,row in enumerate(thresholds[1:],1):
+        boundary=at_least[index]
+        if boundary and verified[boundary]<row['threshold']:raise ValueError('arena_population_changed')
+        if boundary<total and verified[boundary+1]>=row['threshold']:raise ValueError('arena_population_changed')
     return dict(totalEstimate=total,sampleReads=reads,
                 tiers=[dict(row,count=at_least[i]-(at_least[i+1] if i+1<len(at_least) else 0)) for i,row in enumerate(thresholds)])
 
@@ -114,20 +145,26 @@ class ArenaPopulationClient(ArenaRankingClient):
         if getattr(self,'population_master',None)!=self.plan['masterVersion']:
             raise LoginError('arena_population_master_mismatch')
         auth=self.authenticate(identity,device_id,host,progress)
-        observations=[]
+        observations=[];remaining=MAX_RUN_READS;last_rpc=None
         try:
             for band in self.plan['bandIds']:
+                if remaining==0:break
                 started=datetime.now(timezone.utc)
-                def reader(rank):
-                    payload=b''.join(integer(n,v) for n,v in enumerate([int(self.plan['seasonId']),int(band),rank,rank],1))
-                    return decode_response(self.rpc(host,RPC,payload,auth),dict(self.plan,rangeStart=rank,rangeEnd=rank),band)
+                def reader(start,end):
+                    nonlocal remaining,last_rpc
+                    if remaining==0:raise ValueError('arena_population_budget_exceeded')
+                    if last_rpc is not None:time.sleep(max(0,1-(time.monotonic()-last_rpc)))
+                    remaining-=1
+                    payload=b''.join(integer(n,v) for n,v in enumerate([int(self.plan['seasonId']),int(band),start,end],1))
+                    raw=self.rpc(host,RPC,payload,auth);last_rpc=time.monotonic()
+                    return decode_population_response(raw)
                 try:
                     counts=probe_population(reader,self.plan['populationThresholds'][band])
                 except ValueError as exc:
-                    if str(exc)!='arena_population_changed':raise
-                    # A moving band must not discard another band's verified estimate.
-                    # No retry: the normal server cooldown still applies to this run.
-                    print(json.dumps(dict(bandId=band,status='unstable',reason='arena_population_changed')),flush=True)
+                    if str(exc) not in ('arena_population_changed','arena_population_budget_exceeded'):raise
+                    # Preserve independently verified bands. Neither movement nor
+                    # exhausted budgets trigger retries or bypass the server cooldown.
+                    print(json.dumps(dict(bandId=band,status='skipped',reason=str(exc))),flush=True)
                     continue
                 observed=datetime.now(timezone.utc)
                 if self.plan.get('populationValidUntil') and observed>=absolute(self.plan['populationValidUntil']):raise LoginError('arena_population_season_ended')

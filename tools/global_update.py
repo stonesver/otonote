@@ -28,6 +28,7 @@ CHART_PROJECTION_SOURCES = (
     'tools/project_formal_charts.mjs', 'packages/scoring/scoring-rules/formal-chart.mjs',
     'packages/scoring/scoring-rules/formal-time.mjs', 'packages/scoring/scoring-rules/model-version.mjs',
     'tools/arena_rank.py', 'tools/build_site_catalog.py', 'catalog/evidence/arena-client.json',
+    'tools/arena_content.py', 'tools/arena_assets.py', 'tools/arena_trends.py',
     'tools/conversion_cache.py', 'tools/media_parallel.py', 'tools/media_derivatives.py',
 )
 
@@ -35,6 +36,10 @@ CHART_PROJECTION_SOURCES = (
 def chart_projection_fingerprint():
     """Rebuild sealed candidates when projections or reviewed evidence change."""
     files = {name: file_hash(ROOT/name) for name in CHART_PROJECTION_SOURCES}
+    arena=os.environ.get('OURNOTES_ARENA_REVIEW_BUNDLE_SHA256','')
+    if arena:
+        if len(arena)!=64 or any(c not in '0123456789abcdef' for c in arena):raise ValueError('invalid Arena review bundle digest')
+        files['arenaReviewBundleSha256']=arena
     return hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
 
 

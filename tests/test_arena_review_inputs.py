@@ -13,6 +13,7 @@ from tools.arena_content import read_arena_review,build_arena_content
 from tools.arena_review_inputs import prepare,LIMIT
 from tools.r2_content import canonical,digest
 from tools import r2_production_gate as gate
+from tools import global_update
 
 
 class ArenaReviewInputTests(unittest.TestCase):
@@ -44,6 +45,9 @@ class ArenaReviewInputTests(unittest.TestCase):
             with patch.dict(os.environ,{'OURNOTES_ARENA_REVIEW_BUNDLE_SHA256':'b'*64}):first=gate.code_fingerprints(gate.ROOT)
             with patch.dict(os.environ,{'OURNOTES_ARENA_REVIEW_BUNDLE_SHA256':'c'*64}):second=gate.code_fingerprints(gate.ROOT)
             self.assertEqual(first[0],second[0]);self.assertNotEqual(first[1],second[1])
+        with patch.dict(os.environ,{'OURNOTES_ARENA_REVIEW_BUNDLE_SHA256':'b'*64}):first=global_update.chart_projection_fingerprint()
+        with patch.dict(os.environ,{'OURNOTES_ARENA_REVIEW_BUNDLE_SHA256':'c'*64}):second=global_update.chart_projection_fingerprint()
+        self.assertNotEqual(first,second,'review changes must not reuse an older sealed candidate')
         class Body:
             def read(self,*args):raise AssertionError('oversized input must not be read')
             def close(self):pass

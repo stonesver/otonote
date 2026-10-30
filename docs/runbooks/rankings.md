@@ -74,6 +74,8 @@ python3 -m tools.collect_arena_rankings \
 
 认证与限流错误写入固定错误码并暂停本入口；同时尊重同一 state 目录中活动采集、归档任务已有的暂停状态。`--resume` 只解除本入口经人工处理后的暂停，不解除其他采集任务的暂停。不会因下一轮或赛季切换自动重试认证。
 
+EN／韩服使用 `ournotes-arena-rankings-capture@.service`，配套两份具体区服 timer 分别在每小时第 4／6 分开始、每 10 分钟刷新，错开港澳台的第 2 分。观察挂载和 state 按 `%i` 分隔，沿用同一只读 credentials、SDK 与共用 `capture.lock`。动态入口仍是一个共享限流服务，同时检查根目录和所选 EN／韩服子目录的既有暂停状态。不可只扩充公开 `serverScopes`，还必须逐服核验已有角色、实际接口和 Master 表；若有原生 Master 绑定，发现版本不符时在提交凭据前停止。
+
 采集镜像增加相应模块及 Docker 构建白名单；已有镜像需正常构建、固定并验收，不能仅更换网页宣称线上接口已可用。公开编成复用已有卡牌字段白名单；采集失败不会替换上次完整快照。只读 Query 服务提供 `/api/v1/arena-rankings`，沿用 `/api/v1/` 代理。部署模板 `ournotes-arena-rankings-capture.service/.timer` 以北京时间每小时第 2、12、22、32、42、52 分低频刷新前 1000 名，错开原活动榜整十分任务，仍由共享锁避免同时登录。安装与启用前核对固定镜像、现有挂载和暂停状态；源码合并不会自动安装服务。当前页面刷新只读取已发布观察，不触发登录。
 
 离线验证：`python3 -m unittest tests.test_arena_rankings tests.test_player_rankings tests.test_player_ranking_collection -q`，以及 `node --test site/tests/arena-rankings.test.mjs`。
@@ -108,6 +110,8 @@ python3 -m tools.collect_arena_rankings \
 
 镜像须包含 `tools/arena_population.py` 与 `backend/arena_population.py`。输入投影须有已核验的 `sourceMasterVersion` 与完整源段位覆盖；缺少时在提交凭据之前停止。公开文件为 `observations/<serverId>/arena/season-<seasonId>/population-band-<bandId>.json`，仅含白名单汇总；与 `band-<bandId>.json` 排名条目分开保存。Query 的 `/api/v1/arena-population` 只读这些文件，不持有账号，不接受浏览器触发探测。失败不替换旧汇总，不重写旧时间，认证／限流继续按既有暂停约定处理。
 
+多服输入优先选用 `sourceMasterVersions[serverId]`。EN 与韩服的 `ournotes-arena-population-capture@.service` 使用同样的分服挂载；配套 timer 每 6 小时分别在第 17／27 分触发，捕获器的持久冷却仍优先，未满 6 小时不会查询。首次失败或未获得一致结果时继续显示未知，不因其他区服已有汇总而复制人数。
+
 本人、公开排名与人口探测使用不同用途，不能拿采集小号的段位替代分布。`ArenaRewards` 的每团最大名次字段只有客户端证据，进行中赛季可用性尚未验证；当前实现只使用已核验的 `ArenaRanking`。真实人数汇总、榜尾变化时的稳定性与常驻负载均需独立验收；合成分布测试不代表实服已采集。
 
 验证：`python3 -m unittest tests.test_arena_population tests.test_arena_content tests.test_arena_rankings -q`、`node --test site/tests/arena-population.test.mjs`，并完成吸顶、禁用入口、缺失／过期和区服切换的浏览器回归。
@@ -119,3 +123,5 @@ python3 -m tools.collect_arena_rankings \
 使用新的私有工作目录，先不加 `--publish` 完成本地验证；审查生成投影和回执后，再以相同固定基线执行正式发布。并发指针变化会中止，保留原指针与所有旧媒体。这个补充流程不把复核文件复制到公共资源，不为未核验的新 Master 自动沿用旧条件。正常内容候选仍通过 `arenaReview` 显式绑定同版复核材料。
 
 需要使用既有受保护发布环境时，手动工作流 `recompute-song-rankings.yml` 接受可选 `arena_bundle_sha256`。输入包存放于私有对象库的 `state/objects/<sha256>`，为 JSON 对象：`review` 是复核文件，`files` 是表文件名／图标相对路径到 Base64 内容的映射。仅允许复核中列出的已知 Master 表与 `rank-icons/rank-<1-7>.webp`，包摘要、大小和封闭库存先于落盘检查，随后继续执行表摘要和同版 Master 核验。复核文件、原始输入和凭据不上传到工作流构建产物；使用与正常内容同步相同的发布环境和区服并发锁，先 `verify`，再以同一指针和摘要 `promote`。
+
+正常内容同步可在受保护环境设置变量 `OURNOTES_ARENA_REVIEW_BUNDLE_SHA256`，绑定同一私有输入包。完整生产前由 `tools.arena_review_inputs` 有界下载、校验并解包到临时私有输入目录，向生产容器传递摘要固定的复核路径。这个可选包的摘要参与生产闸门身份，更新摘要不会误命中“内容未变”跳过；未设置时维持原行为。复核与当前游戏发布身份不同则生成未知舞台能力，不能让旧复核阻断其他资料更新或沿用旧条件。图标在读取复核时校验并转为白名单内嵌数据，无需修改下载的 Master 目录。这样常规同步不会将同版已复核条件覆盖为空，未知新 Master 仍须续审。

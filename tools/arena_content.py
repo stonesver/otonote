@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +20,12 @@ TABLES = ("MasterArenaSeason", "MasterArenaLeague", "MasterArenaLeagueRegulation
           "MasterArenaRank", "MasterBattleLivePlace", "MasterLiveArenaReward",
           "MasterLiveArenaRankReward", "MasterArenaSeasonReward", "MasterText", "MasterItem", "MasterEvent")
 SERVERS = {"global": {"global-hmt", "global-kr", "global-en"}, "jp": {"jp"}}
+
+
+def arena_master_version(data, server):
+    if server not in data.get('serverScopes',[]):return None
+    versions=data.get('sourceMasterVersions')
+    return versions.get(server) if versions is not None else data.get('sourceMasterVersion')
 
 
 def build_arena_content(master_root, release_id, region, locale="zh-CN", review=None):
@@ -76,6 +83,17 @@ def build_arena_content(master_root, release_id, region, locale="zh-CN", review=
     out.update(observedAt=observed, serverScopes=scopes,
                sourceRevision=hashlib.sha256(json.dumps({"hashes": hashes, "review": {k: v for k, v in review.items() if k not in ("deckTrends", "rankIcons")}}, sort_keys=True).encode()).hexdigest(),
                limitations=[])
+    bindings=review.get('serverMasters')
+    if bindings is not None:
+        if not isinstance(bindings,dict) or set(bindings)!=set(scopes):raise ValueError('arena server Master coverage mismatch')
+        versions={}
+        for server,binding in bindings.items():
+            if (not isinstance(binding,dict) or set(binding)!={'version','tables'}
+                    or not isinstance(binding['version'],str) or not re.fullmatch(r'[a-f0-9]{32}',binding['version'])
+                    or binding['tables']!=hashes):raise ValueError('arena server Master tables differ')
+            versions[server]=binding['version']
+        if master_version not in versions.values():raise ValueError('arena primary Master missing')
+        out['sourceMasterVersions']=versions
     texts = {r["_id"]: r for r in tables["MasterText"]}
     def name(row):
         return resolve_localized_text(texts.get(row.get("_nameTextId")), locale, str(row["_id"])).text
@@ -210,6 +228,11 @@ def validate_arena_publication(value, release_id, region):
             raise ValueError("arena projection list missing: " + key)
     if not set(value["serverScopes"]) <= SERVERS[region]:
         raise ValueError("arena projection server mismatch")
+    versions=value.get('sourceMasterVersions')
+    if versions is not None and (not isinstance(versions,dict) or set(versions)!=set(value['serverScopes'])
+            or any(not isinstance(v,str) or not re.fullmatch(r'[a-f0-9]{32}',v) for v in versions.values())
+            or value.get('sourceMasterVersion') not in versions.values()):
+        raise ValueError('invalid arena server Master versions')
     complete=value.get('completeRankBands',[])
     if not isinstance(complete,list) or len(set(complete))!=len(complete) or any(not isinstance(b,str) or b not in {l['bandId'] for l in value['leagues']} for b in complete):
         raise ValueError('invalid arena rank coverage')
@@ -242,6 +265,10 @@ def validate_arena_publication(value, release_id, region):
 def read_arena_review(source, root):
     """Read a pinned private review once, without copying it into public outputs."""
     binding = source.get("arenaReview")
+    registry=False
+    if binding is None and (os.environ.get('OURNOTES_ARENA_REVIEW_PATH') or os.environ.get('OURNOTES_ARENA_REVIEW_SHA256')):
+        binding=dict(path=os.environ.get('OURNOTES_ARENA_REVIEW_PATH'),sha256=os.environ.get('OURNOTES_ARENA_REVIEW_SHA256'))
+        registry=True
     if binding is None:
         return None
     if not isinstance(binding, dict) or not isinstance(binding.get("path"), str):
@@ -254,6 +281,9 @@ def read_arena_review(source, root):
     if hashlib.sha256(raw).hexdigest() != binding.get("sha256"):
         raise ValueError("arena review digest mismatch")
     value = json.loads(raw)
+    if registry and isinstance(value,dict) and value.get('schemaVersion')==1 and value.get('region')==source['region'] and value.get('sourceReleaseId')!=source['contentReleaseId']:
+        return None
     if not isinstance(value, dict) or value.get("schemaVersion") != 1 or value.get("region") != source["region"] or value.get("sourceReleaseId") != source["contentReleaseId"]:
         raise ValueError("arena review identity mismatch")
+    if registry:value['rankIcons']=project_rank_icons(path.parent,value.get('rankIcons',[]))
     return value

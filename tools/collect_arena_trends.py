@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tools.arena_trends import project_deck_trends
-from tools.collect_arena_rankings import read_plan, run_capture
+from tools.collect_arena_rankings import read_plan, run_capture, ArenaRankingClient
 from tools.collect_player_rankings import pause_required
 from tools.growth_export import fields
 from tools.growth_login import GameClient, LoginError, Profile, integer, single
@@ -66,12 +66,11 @@ def decode_trend(raw):
     return result
 
 
-class ArenaTrendClient(GameClient):
+class ArenaTrendClient(ArenaRankingClient):
     read_methods = GameClient.read_methods | {RPC}
 
     def __init__(self, plan):
-        super().__init__(server_id=plan['serverId'])
-        self.plan = plan
+        super().__init__(plan)
 
     def export(self, identity, device_id, host, progress=lambda stage: None):
         auth = self.authenticate(identity, device_id, host, progress)

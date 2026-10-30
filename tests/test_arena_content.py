@@ -41,6 +41,19 @@ class ArenaContentTests(unittest.TestCase):
         self.review["tables"]["MasterArenaLeagueRegulation"]["publishedIds"] = []
         self.assertEqual(self.build()["regulations"], [])
 
+    def test_server_masters_can_share_only_identical_reviewed_tables(self):
+        self.review['masterVersion']='a'*32
+        self.review['serverScopes']=['global-hmt','global-en','global-kr']
+        hashes={name:row['sha256'] for name,row in self.review['tables'].items()}
+        self.review['serverMasters']={server:dict(version=version*32,tables=copy.deepcopy(hashes))
+            for server,version in [('global-hmt','a'),('global-en','b'),('global-kr','c')]}
+        value=self.build();validate_arena_publication(value,'test','global')
+        self.assertEqual(value['sourceMasterVersions']['global-en'],'b'*32)
+        self.review['serverMasters']['global-en']['tables']['MasterArenaRank']='d'*64
+        with self.assertRaisesRegex(ValueError,'tables differ'):self.build()
+        value['sourceMasterVersions'].pop('global-kr')
+        with self.assertRaises(ValueError):validate_arena_publication(value,'test','global')
+
     def test_whitelist_mapping_and_inclusive_seconds(self):
         d = self.build()
         self.assertEqual(d["leagues"][0]["id"], "7"); self.assertEqual(d["leagues"][0]["bandId"], "2")

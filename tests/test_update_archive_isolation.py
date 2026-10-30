@@ -38,6 +38,13 @@ class ProductionIsolationTests(unittest.TestCase):
         for expected, original in replacements:
             self.assertEqual(job.count(expected), 1, 'reviewed schedule fragment changed')
             job = job.replace(expected, original, 1)
+        arena_env = "      OURNOTES_ARENA_REVIEW_BUNDLE_SHA256: ${{ matrix.region == 'global' && vars.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 || '' }}\n"
+        arena_step = '      - name: Load optional digest-pinned Arena review\n        if: matrix.region == \'global\' && steps.light_gate.outputs.skip != \'true\' && steps.production_gate.outputs.skip != \'true\' && env.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 != \'\'\n        run: |\n          python -m tools.arena_review_inputs --root "$STABLE_ROOT" \\\n            --bundle-sha256 "$OURNOTES_ARENA_REVIEW_BUNDLE_SHA256" --github-env "$GITHUB_ENV"\n'
+        arena_flags = ' --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256'
+        self.assertEqual(job.count(arena_env),1)
+        self.assertEqual(job.count(arena_step),1)
+        self.assertEqual(job.count(arena_flags),3)
+        job=job.replace(arena_env,'').replace(arena_step,'').replace(arena_flags,'')
         self.assertEqual(hashlib.sha256(job.encode()).hexdigest(),
                          'c85ee3a1709f1f87c5ede4be596782e245e39813767bba42e851de3e284bdb3f')
 

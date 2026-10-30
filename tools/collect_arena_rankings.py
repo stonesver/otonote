@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from backend.arena_rankings import RPC, absolute, validate_observation
-from tools.arena_content import validate_arena_publication
+from tools.arena_content import validate_arena_publication, arena_master_version
 from tools.collect_player_rankings import pause_required, high_score_deck
 from tools.global_game_config import GLOBAL_SERVERS
 from tools.growth_export import fields
@@ -94,7 +94,8 @@ def read_plan(data, digest, server, season=None, bands=None, limit=1000, now=Non
             or any(b not in league_bands or not re.fullmatch(r'[1-9][0-9]{0,15}', b) for b in selected)):
         raise ValueError('invalid_arena_band_selection')
     return dict(serverId=server, seasonId=candidates[0]['id'], bandIds=selected, limit=limit,
-                contentReleaseId=data['sourceReleaseId'], projectionSha256=digest)
+                contentReleaseId=data['sourceReleaseId'], projectionSha256=digest,
+                masterVersion=arena_master_version(data,server))
 
 
 def decode_response(raw, plan, band):
@@ -119,6 +120,17 @@ class ArenaRankingClient(GameClient):
     def __init__(self, plan):
         super().__init__(server_id=plan['serverId'])
         self.plan = plan
+
+    def _public_rpc(self,host,method):
+        raw=super()._public_rpc(host,method)
+        if method=='app.masterdata.MasterdataService/Version':self.arena_master=string(raw,1,optional=True)
+        return raw
+
+    def discover(self):
+        host=super().discover()
+        if self.plan.get('masterVersion') and getattr(self,'arena_master',None)!=self.plan['masterVersion']:
+            raise LoginError('arena_master_version_mismatch')
+        return host
 
     def export(self, identity, device_id, host, progress=lambda stage: None):
         auth = self.authenticate(identity, device_id, host, progress)

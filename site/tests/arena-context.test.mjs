@@ -1,8 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {arenaContext,arenaIdentity,arenaParams,baseAP,validateArena} from '../src/lib/arena-context.mjs';
+import {arenaContext,arenaIdentity,arenaParams,baseAP,validateArena,arenaMasterVersion} from '../src/lib/arena-context.mjs';
 import {arenaFixture,arenaNow as now} from './fixtures/arena.mjs';
 const resolve=(data,query='',opts={})=>arenaContext(data,query,{now,...opts});
+test('native Master versions require complete reviewed server coverage',()=>{
+ const data=arenaFixture();data.serverScopes=['global-hmt','global-en','global-kr'];data.sourceMasterVersion='a'.repeat(32);
+ data.sourceMasterVersions={'global-hmt':'a'.repeat(32),'global-en':'b'.repeat(32),'global-kr':'c'.repeat(32)};
+ assert.equal(validateArena(data,{region:data.region,sourceReleaseId:data.sourceReleaseId}),data);
+ for(const server of data.serverScopes)assert.equal(arenaMasterVersion(data,server),data.sourceMasterVersions[server]);
+ assert.equal(arenaMasterVersion(data,'jp'),null);
+ delete data.sourceMasterVersions['global-kr'];assert.throws(()=>validateArena(data,{region:data.region,sourceReleaseId:data.sourceReleaseId}));
+});
 test('edition, server, IDs and optional old snapshots fail closed',()=>{
  const d=arenaFixture();assert.equal(resolve(null).status,'missing');
  assert.throws(()=>validateArena(d,{region:'jp',sourceReleaseId:d.sourceReleaseId}));

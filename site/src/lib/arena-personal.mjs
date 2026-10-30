@@ -1,6 +1,7 @@
 import {accountServer,accountCapabilitiesUrl,snapshotServer} from './account-servers.mjs';
 import {arenaRankingTier} from './arena-rankings.mjs';
 import {arenaRankIcon} from './arena-ranking-decks.mjs';
+import {arenaMasterVersion} from './arena-context.mjs';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const absolute=v=>typeof v==='string'&&/(Z|[+-]\d{2}:\d{2})$/.test(v)&&Number.isFinite(Date.parse(v));
 export function validateArenaPersonal(value,scope){
@@ -16,7 +17,7 @@ export function validateArenaPersonal(value,scope){
  return value;
 }
 export function arenaPersonalTier(value,rankData,context){
- if(value?.status==='unavailable'||!value?.source.masterVersion||value.source.masterVersion!==rankData?.sourceMasterVersion)return null;
+ if(value?.status==='unavailable'||!value?.source.masterVersion||value.source.masterVersion!==arenaMasterVersion(rankData,context?.serverId))return null;
  return arenaRankingTier(value.point,{rankData,context,observation:{serverId:value.source.serverId,
   seasonId:value.seasonId,bandId:value.bandId,observedAt:value.queriedAt,sourceReleaseId:rankData.sourceReleaseId}});
 }

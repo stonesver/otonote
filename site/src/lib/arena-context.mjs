@@ -1,6 +1,10 @@
 import {gameServer} from './game-servers.mjs';
 
 const arrays = ['seasons','leagues','regulations','ranks','basePoints','rewards','serverScopes'];
+export function arenaMasterVersion(data,server){
+  if(!data?.serverScopes?.includes(server))return null;
+  return data.sourceMasterVersions==null?data.sourceMasterVersion??null:data.sourceMasterVersions[server]??null;
+}
 export function validateArena(data, {region, sourceReleaseId}) {
   if (data === null) return null;
   if (data?.schemaVersion !== 1 || data.region !== region || data.sourceReleaseId !== sourceReleaseId
@@ -12,6 +16,10 @@ export function validateArena(data, {region, sourceReleaseId}) {
   const unique = rows => rows.every(row => typeof row?.id === 'string') && new Set(rows.map(row=>row.id)).size===rows.length;
   if (['seasons','leagues','regulations','ranks'].some(key=>!unique(data[key]))
       || data.serverScopes.some(id=>gameServer(id)?.region!==region)) throw new Error('舞台资料标识无效');
+  const versions=data.sourceMasterVersions;
+  if(versions!=null&&(typeof versions!=='object'||Array.isArray(versions)
+      ||Object.keys(versions).length!==data.serverScopes.length||data.serverScopes.some(id=>typeof versions[id]!=='string'||!/^[a-f0-9]{32}$/.test(versions[id]))
+      ||!Object.values(versions).includes(data.sourceMasterVersion)))throw Error('舞台区服版本标识无效');
   const absolute = value => typeof value==='string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
   if (data.activityPeriods!==undefined && (!Array.isArray(data.activityPeriods) || !unique(data.activityPeriods)
       || data.activityPeriods.some(r=>!absolute(r.validFrom)||!absolute(r.validUntil)||Date.parse(r.validFrom)>=Date.parse(r.validUntil))))

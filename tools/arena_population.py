@@ -11,11 +11,12 @@ from backend.arena_rankings import RPC,number,absolute
 from backend.arena_population import validate_population,population_path
 from tools.collect_arena_rankings import ArenaRankingClient,decode_response
 from tools.growth_login import LoginError,integer,string
+from tools.arena_content import arena_master_version
 
 
 def population_plan(data,plan,now=None):
     now=now or datetime.now(timezone.utc)
-    master=data.get('sourceMasterVersion')
+    master=arena_master_version(data,plan['serverId'])
     if (not isinstance(master,str) or not re.fullmatch(r'[a-f0-9]{32}',master) or not data.get('capabilities',{}).get('ranks')):
         raise ValueError('arena_population_master_unverified')
     season=next(s for s in data['seasons'] if s['id']==plan['seasonId'])

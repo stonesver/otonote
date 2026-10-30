@@ -83,6 +83,7 @@ jobs:
       OURNOTES_MASTER_KEY_HEX: ${{ secrets.OURNOTES_MASTER_KEY_HEX }}
       OURNOTES_MASTER_IV_HEX: ${{ secrets.OURNOTES_MASTER_IV_HEX }}
       OURNOTES_UPDATE_IMAGE: ${{ vars.OURNOTES_UPDATE_IMAGE }}
+      OURNOTES_ARENA_REVIEW_BUNDLE_SHA256: ${{ matrix.region == 'global' && vars.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 || '' }}
       GLOBAL_STATE_PATHS: ${{ vars.R2_GLOBAL_STATE_PATHS }}
       GLOBAL_CONFIG_PATH: ${{ vars.R2_GLOBAL_CONFIG_PATH }}
       GLOBAL_DECODER_PROFILE_PATH: ${{ vars.R2_GLOBAL_DECODER_PROFILE_PATH }}
@@ -270,7 +271,7 @@ jobs:
           cd "$STABLE_ROOT"
           common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
                   --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
-                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp)
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256)
           probe=(python3 -m tools.r2_production_gate light-probe --root "$STABLE_ROOT"
                  --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE"
                  --prepared "$STABLE_ROOT/output/tmp/r2-light/proof.json")
@@ -374,7 +375,7 @@ jobs:
           cd "$STABLE_ROOT"
           common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
                   --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
-                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256
                   --env OURNOTES_CRI_KEY
                   --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
                   --env OURNOTES_MASTER_IV_HEX)
@@ -418,6 +419,11 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('skip=' + str(result['skip']).lower() + '\n')
           PY
+      - name: Load optional digest-pinned Arena review
+        if: matrix.region == 'global' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true' && env.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 != ''
+        run: |
+          python -m tools.arena_review_inputs --root "$STABLE_ROOT" \
+            --bundle-sha256 "$OURNOTES_ARENA_REVIEW_BUNDLE_SHA256" --github-env "$GITHUB_ENV"
       - name: Produce and seal local content
         id: produce
         if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
@@ -433,7 +439,7 @@ jobs:
           # The image and the private inputs are provisioned separately; neither is fabricated in CI.
           common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
                   --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
-                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env GITHUB_SHA
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256 --env GITHUB_SHA
                   --env OURNOTES_CRI_KEY
                   --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
                   --env OURNOTES_MASTER_IV_HEX)

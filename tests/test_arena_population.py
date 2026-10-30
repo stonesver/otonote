@@ -58,7 +58,7 @@ class PopulationTests(unittest.TestCase):
   with self.assertRaises(ValueError):probe_population(read,THRESHOLDS,spacing=0)
 
  def test_plan_requires_complete_published_thresholds_current_season_and_master_binding(self):
-  data=dict(sourceMasterVersion='a'*32,completeRankBands=['1'],capabilities=dict(ranks=True),
+  data=dict(sourceMasterVersion='a'*32,serverScopes=['global-hmt'],completeRankBands=['1'],capabilities=dict(ranks=True),
    seasons=[dict(id='1',validFrom=(NOW-timedelta(days=1)).isoformat(),validUntil=(NOW+timedelta(days=1)).isoformat())],
    ranks=[dict(r,bandId='1',division=1,openingSourceText='') for r in THRESHOLDS])
   plan=dict(serverId='global-hmt',seasonId='1',bandIds=['1'])

@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh global-kr Arena rankings
+
+[Timer]
+OnCalendar=*-*-* *:06,16,26,36,46,56:00 Asia/Shanghai
+RandomizedDelaySec=20s
+Persistent=true
+Unit=ournotes-arena-rankings-capture@global-kr.service
+
+[Install]
+WantedBy=timers.target

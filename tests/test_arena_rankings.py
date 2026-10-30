@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.arena_rankings import RPC, RankingCursorChanged, query_arena_rankings, validate_observation
-from tools.collect_arena_rankings import ArenaRankingClient, decode_response, read_plan, read_public_projection
+from tools.collect_arena_rankings import ArenaRankingClient, decode_response, read_plan, read_public_projection, run_capture
 from tools.growth_login import LoginError, integer, message, single
 from tools.import_arena_rankings import publish_observations
 
@@ -133,6 +133,23 @@ class ArenaRankingTests(unittest.TestCase):
         self.assertEqual(decode_response(b'', plan, '2')['entries'], [])
         self.assertNotIn('ArenaTop', ArenaRankingClient.read_methods)
         self.assertEqual(ArenaRankingClient.read_methods - __import__('tools.growth_login', fromlist=['GameClient']).GameClient.read_methods, {RPC})
+
+    def test_native_master_is_selected_per_server_and_mismatch_stops_before_sdk(self):
+        from unittest.mock import patch,Mock
+        from tools.growth_login import GameClient,Profile
+        data=projection();data.update(sourceMasterVersion='a'*32,serverScopes=['global-hmt','global-en','global-kr'],
+            sourceMasterVersions={'global-hmt':'a'*32,'global-en':'b'*32,'global-kr':'c'*32})
+        sdk=Mock()
+        with patch.object(GameClient,'discover',return_value='synthetic-host'):
+            for server,version in data['sourceMasterVersions'].items():
+                plan=read_plan(data,'d'*64,server,now=NOW)
+                self.assertEqual(plan['masterVersion'],version)
+                game=ArenaRankingClient(plan);game.arena_master=version
+                self.assertEqual(game.discover(),'synthetic-host')
+                game.arena_master='e'*32
+                with self.assertRaisesRegex(LoginError,'master_version_mismatch'):
+                    run_capture(plan,Profile('FAKE'),'synthetic','synthetic',Path('/unused'),game_factory=lambda p:game,sdk_factory=sdk)
+        sdk.assert_not_called()
 
     def test_capture_auth_cleared_and_failed_read_never_published(self):
         plan = dict(serverId='global-hmt', seasonId='1', bandIds=['1','2'], limit=100,

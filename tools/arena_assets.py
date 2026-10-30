@@ -24,6 +24,8 @@ def project_rank_icons(root, review):
     records = []
     root = Path(root).resolve()
     for spec in review:
+        if 'image' in spec:
+            validate_rank_icons([spec]);records.append(spec);continue
         path = (root / spec['path']).resolve()
         if root not in path.parents or path.stat().st_size > 65536:
             raise ValueError('invalid_arena_rank_icon_path')

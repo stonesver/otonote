@@ -16,6 +16,7 @@ from backend.arena_rankings import RPC,RankingCursorChanged
 from tools.collect_arena_rankings import read_public_projection,read_plan,ArenaRankingClient,decode_response
 from tools.collect_player_rankings import pause_required
 from tools.growth_login import Profile,SdkClient,LoginError,integer
+from tools.global_game_config import GLOBAL_SERVERS
 
 class CaptureRange:
     def __init__(self,*,projection=None,digest=None,content_base=None,sdk_resources,state_dir,lock_dir,credentials,
@@ -28,15 +29,22 @@ class CaptureRange:
         self.status=self.state_dir/'arena-live-status.json'
 
     def __call__(self,server,season,band,start,end):
+        if server not in GLOBAL_SERVERS:raise ValueError('invalid_arena_live_server')
         if type(start) is not int or type(end) is not int or not 1 <= start <= end <= 2147483647 or end-start >= 100:
             raise ValueError('invalid_arena_live_range')
         self.lock_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
         with (self.lock_dir/'capture.lock').open('a') as lock:
             try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
             except BlockingIOError:raise LiveQueryError('arena_live_busy',429,30) from None
-            for name in ('status.json','finalize-status.json','arena-'+server+'-status.json','arena-live-status.json'):
-                p=self.state_dir/name
-                if p.exists() and json.loads(p.read_text()).get('paused'):raise LiveQueryError('arena_live_paused')
+            # Existing EN/KR event jobs keep their pause state in server subdirectories.
+            # The legacy root also holds the shared live gateway's account pause.
+            states=[self.state_dir]
+            if server!='global-hmt':states.append(self.state_dir/server)
+            for directory in states:
+                for name in ('status.json','finalize-status.json','arena-'+server+'-status.json',
+                             'arena-trends-'+server+'-status.json','arena-live-status.json'):
+                    p=directory/name
+                    if p.exists() and json.loads(p.read_text()).get('paused'):raise LiveQueryError('arena_live_paused')
             if self.projection:
                 raw=Path(self.projection).read_bytes();digest=hashlib.sha256(raw).hexdigest()
                 if digest!=self.digest:raise ValueError('arena_projection_hash_mismatch')

@@ -6,6 +6,17 @@ const value=overrides=>({format:'otonote-arena-personal',schemaVersion:1,source:
 const response=result=>({ok:true,status:200,text:async()=>JSON.stringify(result)});
 const capabilities={enabled:true,serverId:'global-hmt',arenaPersonal:true,nonce:'synthetic-nonce'};
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
+test('EN and Korea use their own reviewed Master when converting personal ranks',()=>{
+ const versions={'global-hmt':'a'.repeat(32),'global-en':'b'.repeat(32),'global-kr':'c'.repeat(32)};
+ const data={sourceMasterVersion:versions['global-hmt'],sourceMasterVersions:versions,sourceReleaseId:'release',serverScopes:Object.keys(versions),capabilities:{ranks:true},
+  ranks:[{id:'1',bandId:'1',name:'新手 1',tier:1,division:1,threshold:0,openingSourceText:''}]};
+ for(const serverId of ['global-en','global-kr']){
+  const context={serverId,season:{id:'1',validFrom:'2026-10-01T00:00:00Z',validUntil:'2026-11-01T00:00:00Z'},league:{bandId:'1'}};
+  const own=value({source:{...value().source,serverId,masterVersion:versions[serverId]}});
+  assert.equal(arenaPersonalTier(own,data,context).name,'新手 1');
+  assert.equal(arenaPersonalTier({...own,source:{...own.source,masterVersion:versions['global-hmt']}},data,context),null);
+ }
+});
 test('own response rejects cross-server, cross-season, false unranked and master mismatches',()=>{
  assert.equal(validateArenaPersonal(value(),scope).rank,10001);
  for(const bad of [value({bandId:'2'}),value({source:{serverId:'global-en'}}),value({status:'unranked'}),value({status:'unavailable'}),value({point:-1}),value({rank:0}),value({queriedAt:'2026-10-29'})])assert.throws(()=>validateArenaPersonal(bad,scope));

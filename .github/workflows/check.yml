@@ -58,7 +58,7 @@ jobs:
           tests.test_jp_version_egress tests.test_jp_phone_remote
           tests.test_jp_phone_inputs tests.test_jp_remote_snapshot tests.test_read_spine_animations
           tests.test_export_immersive_scenes tests.test_r2_diagnostics tests.test_arena_rank
-          tests.test_r2_production_gate tests.test_r2_schedule tests.test_r2_dispatch tests.test_arena_sync -q
+          tests.test_r2_production_gate tests.test_r2_schedule tests.test_r2_dispatch tests.test_arena_sync tests.test_arena_review_inputs -q
       - name: R2 gateway compatibility
         run: node --test site/tests/r2-content-gateway.test.mjs
       - name: Calculation algorithm and certificate regression gates

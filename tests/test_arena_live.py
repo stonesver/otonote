@@ -10,6 +10,19 @@ from backend.arena_rankings import RankingCursorChanged
 from tests.test_arena_rankings import observation
 
 class ArenaLiveTests(unittest.TestCase):
+ def test_same_window_never_shares_rows_or_cursor_between_servers(self):
+  now=[datetime(2026,10,29,1,5,tzinfo=timezone.utc).timestamp()];calls=[]
+  def reader(server,season,band,start,end):
+   calls.append(server);return observation(server,season,band)
+  live=ArenaLiveQueries(reader,clock=lambda:now[0]);pages={}
+  for server in ('global-hmt','global-en','global-kr'):
+   pages[server]=live.query(server=server,season='1',band='1',limit=1);now[0]+=61
+  self.assertEqual(calls,['global-hmt','global-en','global-kr'])
+  with self.assertRaises(RankingCursorChanged):
+   live.query(server='global-en',season='1',band='1',limit=1,cursor=pages['global-hmt']['nextCursor'])
+  self.assertEqual(live.query(server='global-kr',season='1',band='1',limit=1)['serverId'],'global-kr')
+  self.assertEqual(len(calls),3)
+
  def test_any_verified_window_is_cached_and_cursor_cannot_cross_range_or_time(self):
   now=[datetime(2026,10,29,6,tzinfo=timezone.utc).timestamp()];calls=[]
   def reader(server,season,band,start,end):
@@ -106,3 +119,20 @@ class ArenaLiveTests(unittest.TestCase):
    handler.path=path;handler.do_GET();self.assertEqual(responses[-1][0],400)
   self.assertEqual(queries.calls,0)
   handler.path='/api/v1/arena-rankings-live?server=global-hmt&season=1&band=1';handler.do_GET();self.assertEqual(responses[-1],(429,dict(error='arena_live_busy',retryAfter=30),30))
+
+ def test_en_and_kr_respect_the_existing_server_event_pause_before_discovery(self):
+  from unittest.mock import patch,Mock
+  from tools.arena_live import CaptureRange
+  from tools.growth_login import Profile
+  with tempfile.TemporaryDirectory() as folder:
+   root=Path(folder);game=Mock()
+   with patch('tools.arena_live.Profile.from_resources',return_value=Profile('FAKE')):
+    reader=CaptureRange(sdk_resources=root/'unused',state_dir=root/'state',lock_dir=root/'lock',credentials=root/'absent',game_factory=game)
+    for server in ('global-en','global-kr'):
+     state=root/'state'/server;state.mkdir()
+     for name in ('status.json','finalize-status.json'):
+      p=state/name;p.write_text(json.dumps(dict(paused=True)))
+      with self.assertRaisesRegex(LiveQueryError,'paused'):reader(server,'1','1',1,100)
+      p.unlink()
+    with self.assertRaises(ValueError):reader('../unverified','1','1',1,100)
+   game.assert_not_called()

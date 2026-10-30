@@ -262,6 +262,7 @@ Global 1.1.0 客户端已核对 `app.arena.ArenaService/ArenaMyRank`：请求字
 | 核验输入 | 当前契约 |
 | --- | --- |
 | 身份和资料范围 | `schemaVersion: 1`、`region`、`sourceReleaseId`；可选绝对时间 `observedAt`；`serverScopes` 只列已确认账号区服 |
+| 多服 Master 身份 | 不从客户端版本相同推断 Master 相同。可选 `serverMasters` 按 `serverScopes` 的每个区服绑定 `version` 和完整受审 `tables` 摘要；只有各服涉及的表逐字节相同，才允许共用这份投影，否则拒绝发布。公开投影输出 `sourceMasterVersions`，本人段位、人数匹配及采集前校验均使用所选区服的 Master；旧单服 `sourceMasterVersion` 保持兼容 |
 | 源表白名单 | `tables` 按 Master 表名保存 `sha256` 与 `publishedIds`；摘要绑定完整源文件，只有明确列出的行进入投影。缺少表绑定时该表为空，不能据此推断功能已开放 |
 | 时间 | 可选 `time: {timeZone, semanticsVersion}`。当前适配器仅支持经核验的 `inclusive-second-v1`：无时区源文本精确到秒，起点包含，`_endAt` 与 `_rankingCountEndAt` 包含末秒；转换为 IANA 区服时区的绝对 `[start, end + 1 秒)`。歧义／不存在的本地时刻拒绝对应时间数据，未知语义不套用此适配器 |
 | 活动边界 | `MasterEvent` 同样绑定源表摘要及 `publishedIds`；可选 `activityTime: {timeZone, semanticsVersion}` 独立核验活动时间，当前支持 `inclusive-second-v1`。只投影 `activityPeriods: [{id, validFrom, validUntil}]` 绝对区间，供同步检查使用，不从活动加成推算舞台属性；缺少核验时不生成边界。旧投影没有此字段仍兼容 |

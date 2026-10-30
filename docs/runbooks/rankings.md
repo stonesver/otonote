@@ -112,7 +112,7 @@ EN／韩服使用 `ournotes-arena-rankings-capture@.service`，配套两份具�
 
 镜像须包含 `tools/arena_population.py` 与 `backend/arena_population.py`。输入投影须有已核验的 `sourceMasterVersion` 与完整源段位覆盖；缺少时在提交凭据之前停止。公开文件为 `observations/<serverId>/arena/season-<seasonId>/population-band-<bandId>.json`，仅含白名单汇总；与 `band-<bandId>.json` 排名条目分开保存。Query 的 `/api/v1/arena-population` 只读这些文件，不持有账号，不接受浏览器触发探测。失败不替换旧汇总，不重写旧时间，认证／限流继续按既有暂停约定处理。
 
-多服输入优先选用 `sourceMasterVersions[serverId]`。EN 与韩服的 `ournotes-arena-population-capture@.service` 使用同样的分服挂载；配套 timer 每 6 小时分别在第 17／27 分触发，捕获器的持久冷却仍优先，未满 6 小时不会查询。首次失败或未获得一致结果时继续显示未知，不因其他区服已有汇总而复制人数。
+多服输入优先选用 `sourceMasterVersions[serverId]`。EN 与韩服的 `ournotes-arena-population-capture@.service` 使用同样的分服挂载；配套 timer 每 6 小时分别在第 17／27 分触发，捕获器的持久冷却仍优先，未满 6 小时不会查询。首次失败或未获得一致结果时继续显示未知，不因其他区服已有汇总而复制人数。 人数一致性尚未通过时可先只启用榜单 timer，人数 timer 保持未启用；不能把已安装模板当作已开启探测。
 
 本人、公开排名与人口探测使用不同用途，不能拿采集小号的段位替代分布。`ArenaRewards` 的每团最大名次字段只有客户端证据，进行中赛季可用性尚未验证；当前实现只使用已核验的 `ArenaRanking`。真实人数汇总、榜尾变化时的稳定性与常驻负载均需独立验收；合成分布测试不代表实服已采集。
 

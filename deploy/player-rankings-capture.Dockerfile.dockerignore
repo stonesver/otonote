@@ -24,7 +24,6 @@
 !tools/arena_assets.py
 !tools/arena_content.py
 !tools/arena_trends.py
-!tools/collect_arena_trends.py
 
 !backend/arena_live.py
 !tools/arena_live.py

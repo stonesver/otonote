@@ -17,12 +17,12 @@ export function validatePopulation(value,scope){
  if(o.tiers[0].threshold!==0||total!==o.totalEstimate)throw Error('Invalid population');return value;
 }
 export function createPopulationClient({fetcher=fetch,now=()=>Date.now(),onChange=()=>{}}={}){
- let scope={},key='',generation=0,abort,state={status:'idle',data:null};
+ let scope={},key='',generation=0,abort,checkedAt=-Infinity,state={status:'idle',data:null};
  const getState=()=>({...state,scope,status:state.data?.observation&&Date.parse(state.data.observation.expiresAt)<=now()?'stale':state.status});
  const notify=()=>onChange(getState());
  async function reload(){
   if(!scope.serverId||!scope.seasonId||!scope.bandId)return;
-  const stamp=++generation;abort?.abort();const controller=abort=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+  checkedAt=now();const stamp=++generation;abort?.abort();const controller=abort=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
   state={status:'loading',data:null};notify();
   try{const params=new URLSearchParams({server:scope.serverId,season:scope.seasonId,band:scope.bandId});
    const response=await fetcher('/api/v1/arena-population?'+params,{signal:controller.signal,cache:'no-store',credentials:'omit'});
@@ -31,7 +31,13 @@ export function createPopulationClient({fetcher=fetch,now=()=>Date.now(),onChang
   }catch(e){if(stamp===generation){state={status:'error',data:null};notify();}}
   finally{clearTimeout(timer);}
  }
- return {getState,reload,select(next){const identity=JSON.stringify(next);if(identity===key){notify();return;}scope=next;key=identity;generation++;abort?.abort();state={status:'idle',data:null};notify();void reload();},destroy(){generation++;abort?.abort();state={status:'idle',data:null};}};
+ return {getState,reload,check(){if(now()-checkedAt>=300000)return reload();},select(next){const identity=JSON.stringify(next);if(identity===key){notify();return;}scope=next;key=identity;generation++;abort?.abort();state={status:'idle',data:null};notify();void reload();},destroy(){generation++;abort?.abort();state={status:'idle',data:null};}};
+}
+export function populationShares(observation){
+ const total=observation.totalEstimate;
+ return observation.tiers.map(row=>{const percent=total>0?row.count/total*100:0;
+  return {...row,percent,label:total===0?'—':percent>0&&percent<.1?'<0.1%':(Math.round(row.count/total*1000)/10).toFixed(1)+'%'};
+ });
 }
 export function populationView({state,rankData,context,ranking,t,time}){
  const observedTime=Date.parse(state.data?.observation?.observedAt??'')||Date.now();
@@ -47,8 +53,13 @@ export function populationView({state,rankData,context,ranking,t,time}){
   :state.status==='loading'?t('正在读取服务器探测汇总…','Loading server probe summary…'):state.status==='error'?t('探测统计暂时无法读取。','The probe summary could not be loaded.')
   :!observed?t('各段位人数尚未完成服务器探测。','Tier counts have not been probed yet.'):state.status==='stale'?t('探测已过期，以下为上次估算。','This probe has expired. Showing the previous estimate.'):t('后台低频探测 · 榜内人数估算','Low-frequency background probe · Ranked population estimate');
  const label=tier=>rows.find(r=>r.tier===tier)?.name.replace(/\s*[1-4１-４]+$/,'')??t(`段位 ${tier}`,`Tier ${tier}`);
- return `<div class="arena-population-heading"><h2>${t('段位人数','Tier population')}</h2><p>${observed?t('榜内总人数估算','Estimated ranked total'):t('榜单最大名次','Maximum ranking position')} <strong>${total===undefined?'—':(observed?'≈ ':'')+esc(total.toLocaleString())}</strong></p></div>
- <p class="arena-meta" role="status">${esc(message)}</p><div class="arena-population-tiers">${tiers.map(tier=>{const row=observed?.tiers.find(r=>r.tier===tier);return `<div>${arenaRankIcon(rankData,tier)}<span>${esc(label(tier))}</span><strong>${row?esc(row.count.toLocaleString()):'—'}</strong></div>`;}).join('')}</div>
+ const shares=observed?populationShares(observed):[],share=tier=>shares.find(r=>r.tier===tier);
+ const chartLabel=shares.map(r=>`${label(r.tier)} ${r.count.toLocaleString()} · ${r.label}`).join('；');
+ return `<div class="arena-population-heading"><h2>${t('段位分布','Tier distribution')}</h2><p>${observed?t('榜内总人数估算','Estimated ranked total'):t('榜单最大名次','Maximum ranking position')} <strong>${total===undefined?'—':(observed?'≈ ':'')+esc(total.toLocaleString())}</strong></p></div>
+ <p class="arena-meta" role="status">${esc(message)}</p>
+ ${observed&&total>0?`<div class="arena-population-chart" role="img" aria-label="${esc(t('段位人数占比：','Share of ranked players: ')+chartLabel)}">${shares.filter(r=>r.count>0).map(r=>`<span data-tier="${r.tier}" style="flex-basis:${r.percent}%" title="${esc(label(r.tier)+' · '+r.count.toLocaleString()+' · '+r.label)}"></span>`).join('')}</div>`:''}
+ ${observed&&total===0?`<p class="arena-meta">${t('本次探测未发现榜内玩家，暂无占比分布。','No ranked players were found in this probe. No share is available.')}</p>`:''}
+ <div class="arena-population-tiers">${tiers.map(tier=>{const row=share(tier);return `<div data-tier="${tier}">${arenaRankIcon(rankData,tier)}<span>${esc(label(tier))}</span><strong>${row?esc(row.count.toLocaleString()):'—'}</strong><small>${row?esc(row.label):'—'}</small></div>`;}).join('')}</div>
  <p class="arena-meta">${esc(observed?t('探测时段：','Probe interval: ')+time(observed.startedAt)+' → '+time(observed.observedAt):publicTotal?t('榜单快照时间：','Ranking captured: ')+time(publicTotal.observedAt):t('选择已收录赛季和乐队后查询。','Choose a recorded season and band.'))}</p>
- <details class="arena-population-note"><summary>${t('人数说明','About these counts')}</summary><p>${t('人数按该乐队榜内名次估算，不含未上榜玩家；各乐队可能包含同一玩家，不能相加作为全服独立人数。段位人数来自积分边界探测，并非官方人数统计。浏览页面不会启动探测。','Counts are estimated from this band’s ranking positions and exclude unranked players. Players may appear in multiple bands; totals cannot be summed into unique server users. Tier counts are probed from score boundaries, not official population statistics. Browsing does not trigger a probe.')}</p></details>`;
+ <details class="arena-population-note"><summary>${t('人数说明','About these counts')}</summary><p>${t('人数按该乐队榜内名次估算，不含未上榜玩家；各乐队可能包含同一玩家，不能相加作为全服独立人数。段位人数来自积分边界探测，并非官方人数统计。浏览页面不会启动探测。占比以该团榜内人数估算为分母，四舍五入后合计可能不等于 100%。','Counts are estimated from this band’s ranking positions and exclude unranked players. Players may appear in multiple bands; totals cannot be summed into unique server users. Tier counts are probed from score boundaries, not official population statistics. Browsing does not trigger a probe. Shares use this band’s estimated ranked total and may not sum to 100% after rounding.')}</p></details>`;
 }

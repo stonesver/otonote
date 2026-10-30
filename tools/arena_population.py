@@ -121,7 +121,14 @@ class ArenaPopulationClient(ArenaRankingClient):
                 def reader(rank):
                     payload=b''.join(integer(n,v) for n,v in enumerate([int(self.plan['seasonId']),int(band),rank,rank],1))
                     return decode_response(self.rpc(host,RPC,payload,auth),dict(self.plan,rangeStart=rank,rangeEnd=rank),band)
-                counts=probe_population(reader,self.plan['populationThresholds'][band])
+                try:
+                    counts=probe_population(reader,self.plan['populationThresholds'][band])
+                except ValueError as exc:
+                    if str(exc)!='arena_population_changed':raise
+                    # A moving band must not discard another band's verified estimate.
+                    # No retry: the normal server cooldown still applies to this run.
+                    print(json.dumps(dict(bandId=band,status='unstable',reason='arena_population_changed')),flush=True)
+                    continue
                 observed=datetime.now(timezone.utc)
                 if self.plan.get('populationValidUntil') and observed>=absolute(self.plan['populationValidUntil']):raise LoginError('arena_population_season_ended')
                 observations.append(dict(schemaVersion=1,serverId=self.server_id,seasonId=self.plan['seasonId'],bandId=band,
@@ -129,6 +136,7 @@ class ArenaPopulationClient(ArenaRankingClient):
                     startedAt=started.isoformat(),observedAt=observed.isoformat(),expiresAt=(observed+timedelta(hours=6)).isoformat(),**counts))
             if string(self.rpc(host,'app.masterdata.MasterdataService/Version',b'',()),1,optional=True)!=self.population_master:
                 raise LoginError('arena_population_master_mismatch')
+            if not observations:raise LoginError('arena_population_no_consistent_bands')
         finally:auth.clear()
         return observations
 

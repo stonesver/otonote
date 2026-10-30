@@ -7,9 +7,9 @@ import {installArenaPersonal} from './arena-personal.mjs';
 import {arenaRankGroups} from './arena-reference.mjs';
 import {createArenaRankingScroll,patchArenaRankings} from './arena-ranking-scroll.mjs';
 import {resolveArenaCondition} from './arena-presentation.mjs';
-import {arenaTrendView} from './arena-trend-view.mjs';
+import {arenaCalendar,arenaCalendarWeek,arenaDateKey} from './arena-calendar.mjs';
 import {createArenaRankingClient,arenaRankingsView} from './arena-rankings.mjs';
-import {createContentUpdateCheck,installArenaUpdates,nextArenaDailyCheck} from './arena-updates.mjs';
+import {createContentUpdateCheck,installArenaUpdates} from './arena-updates.mjs';
 
 const escape = value => String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const option=(value,label,selected)=>`<option value="${escape(value)}"${selected?' selected':''}>${escape(label)}</option>`;
@@ -21,11 +21,7 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
  const body=root.querySelector('[data-arena-body]'),meta=root.querySelector('[data-arena-meta]'),feedback=root.querySelector('[data-arena-feedback]');
  root.addEventListener('error',event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true;},true);
  const visuals=JSON.parse(root.querySelector('[data-arena-visuals]').textContent);
- let data=null,context=null,all=false,loading=true,error=null,check=null,freshness='unknown',tier=null,players=5,generation=0,updateNotice='',clockNotice='',trendKind=handoff?'all':'leaders',trendExpanded=false;
- const dialog=root.querySelector('[data-arena-dialog]'),dialogBody=root.querySelector('[data-arena-dialog-body]');
- dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
- let restoreTrendFocus=true;
- dialog.addEventListener('close',()=>{if(restoreTrendFocus)root.querySelector('[data-action="trend-more"]')?.focus();restoreTrendFocus=true;rankingScroll?.observe();});
+ let data=null,context=null,all=false,loading=true,error=null,check=null,freshness='unknown',tier=null,players=5,generation=0,updateNotice='',clockNotice='',calendarMonth=null,calendarExpanded=false;
  const referenceDialog=root.querySelector('[data-arena-reference-dialog]'),referenceBody=root.querySelector('[data-arena-reference-body]');
  let referenceKind=null,restoreReferenceFocus=true,initialViewHandled=false,rankingScroll=null;
  referenceDialog.addEventListener('click',event=>{if(event.target===referenceDialog)referenceDialog.close();});
@@ -46,7 +42,7 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   const markup=arenaRankingsView({state,t,time,now:clock(),rankData:data,context,visuals,base,scopeLabel:[server?.[en?'englishLabel':'label'],context?.season?.name,context?.league?.name].filter(Boolean).join(' · ')});
   patchArenaRankings(section,markup,state.data?.snapshotId);rankingScroll?.observe();renderPopulation();
  }
- rankingScroll=createArenaRankingScroll({root,getState:rankingClient.getState,loadMore:rankingClient.more,isBlocked:()=>dialog.open||referenceDialog.open||personal.isOpen()});
+ rankingScroll=createArenaRankingScroll({root,getState:rankingClient.getState,loadMore:rankingClient.more,isBlocked:()=>referenceDialog.open||personal.isOpen()});
  function referenceNav(){return `<nav class="arena-reference-nav" aria-label="${t('舞台说明','Arena information')}">${[['schedule',t('条件安排','Schedule')],['ranks',t('段位与 AP','Ranks & AP')],['rules',t('奖励与规则','Rewards & rules')]].map(([key,label])=>button('reference',label,`data-value="${key}" aria-haspopup="dialog"`)).join('')}</nav>`;}
  function renderReference(preserve=false){
   if(!referenceKind)return;
@@ -105,7 +101,7 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
  }
  function attributeMark(code,mini=false) {
   const v=visuals.attribute.find(v=>Number(v.value)===code);
-  const short=code===0?t('选歌','Song'):code===99?'ALL':v?.label??String(code);
+  const short=code==null||code===0?t('选歌','Song'):code===99?'ALL':v?.label??String(code);
   return `<span class="${mini?'arena-mini-attribute':'arena-attribute-mark'}" title="${escape(attr(code))}" aria-hidden="true">${v?.icon?`<img src="${escape(v.icon)}" alt=""><b>${escape(short)}</b>`:`<b>${escape(short)}</b>`}</span>`;
  }
  function songsFor(bandId=context?.league?.bandId) {return (visuals.songs??[]).filter(s=>s.bandIds.includes(bandId));}
@@ -125,7 +121,6 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   return button('band',`<span class="arena-band-top">${visual?.icon?`<img class="arena-band-logo" src="${escape(visual.icon)}" alt="">`:''}<span class="arena-band-name">${escape(l.name)}</span></span><span class="arena-band-bottom"><span class="arena-band-conditions" aria-hidden="true">${value?`${attributeMark(value.attribute,true)}<span class="arena-mini-segments">${missionMarks(condition,l.bandId,true)}</span>`:'<span class="arena-mini-unavailable">—</span>'}</span><span class="arena-band-state">${escape(state)}</span></span>`,
    `class="arena-band" data-value="${escape(l.bandId)}" aria-label="${escape(l.name+' · '+state+' · '+description)}" aria-pressed="${context?.league?.id===l.id}"`);
  }
- function trends(modal=false) {return arenaTrendView({data,context,musicId:query().get('music'),visuals,t,base,time,kind:trendKind,compact:!handoff,expanded:modal||trendExpanded,modal,now:clock()});}
  function shortTime(value) {return new Intl.DateTimeFormat(en?'en-GB':'zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));}
  function card(c=context,title=null) {
   const row=c?.condition;if(!row)return '';
@@ -142,15 +137,35 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
  }
  function link(route,params) {return base+route+'?'+params.toString();}
  function query(){return new URLSearchParams(location.search);}
- function select(params,replace=false){if(referenceDialog.open){restoreReferenceFocus=false;referenceDialog.close();}if(dialog.open){restoreTrendFocus=false;dialog.close();}generation++;updateNotice='';clockNotice='';history[replace?'replaceState':'pushState']({},'',location.pathname+'?'+params);render();}
- function update(key,value){if(key==='server'){try{if(value)localStorage.setItem(`ournotes:server:${region}`,value);else localStorage.removeItem(`ournotes:server:${region}`);}catch{}}const p=query();if(value)p.set(key,value);else p.delete(key);if(['server','season','band'].includes(key)){p.delete('rank');p.delete('end');p.delete('regulation');p.delete('context');p.delete('music');trendKind=handoff?'all':'leaders';trendExpanded=false;}if(key==='music')trendExpanded=false;select(p);}
+ function select(params,replace=false){if(referenceDialog.open){restoreReferenceFocus=false;referenceDialog.close();}generation++;updateNotice='';clockNotice='';history[replace?'replaceState':'pushState']({},'',location.pathname+'?'+params);render();}
+ function update(key,value){if(key==='server'){try{if(value)localStorage.setItem(`ournotes:server:${region}`,value);else localStorage.removeItem(`ournotes:server:${region}`);}catch{}}const p=query();if(value)p.set(key,value);else p.delete(key);if(['server','season','band'].includes(key)){p.delete('rank');p.delete('end');p.delete('regulation');p.delete('context');p.delete('music');calendarMonth=null;if(key==='season')p.delete('date');}if(key==='regulation'){p.delete('date');calendarMonth=null;}select(p);}
  function selectors() {
   const p=query(),sid=p.get('server')??'',season=p.get('season')??'current',servers=GAME_SERVERS.filter(s=>s.region===region);
-  return `<div class="arena-context-bar"><div class="arena-context-title"><span class="arena-live-dot" aria-hidden="true"></span><strong>${escape(context?.season?.name??t('舞台资料','Arena information'))}</strong><small>${t('每日 03:00 核验激奏配置 · 属性随活动切换','Daily check 03:00 UTC+8 · attributes follow events')}</small></div>${referenceNav()}<div class="arena-selectors"><label><span>${t('账号区服','Server')}</span><select data-field="server">${option('',t('选择区服','Choose server'),!sid)}${!servers.some(s=>s.id===sid)&&sid?option(sid,t('无效区服','Invalid server'),true):''}${servers.map(s=>option(s.id,s[en?'englishLabel':'label'],sid===s.id)).join('')}</select></label><label><span>${t('赛季','Season')}</span><select data-field="season">${option('current',t('当前赛季','Current season'),season==='current')}${season!=='current'&&!data?.seasons.some(s=>s.id===season)?option(season,t('未收录赛季','Unrecorded season'),true):''}${[...(data?.seasons??[])].map(s=>option(s.id,s.name+' · '+(labels[data.capabilities.conditions?intervalState(s,clock()):'unverified']??''),season===s.id)).join('')}</select></label></div></div>
+  return `<div class="arena-context-bar"><div class="arena-context-title"><span class="arena-live-dot" aria-hidden="true"></span><strong>${escape(context?.season?.name??t('舞台资料','Arena information'))}</strong><small>${t('已公布配置按有效时段自动切换','Published conditions follow their effective periods')}</small></div>${referenceNav()}<div class="arena-selectors"><label><span>${t('账号区服','Server')}</span><select data-field="server">${option('',t('选择区服','Choose server'),!sid)}${!servers.some(s=>s.id===sid)&&sid?option(sid,t('无效区服','Invalid server'),true):''}${servers.map(s=>option(s.id,s[en?'englishLabel':'label'],sid===s.id)).join('')}</select></label><label><span>${t('赛季','Season')}</span><select data-field="season">${option('current',t('当前赛季','Current season'),season==='current')}${season!=='current'&&!data?.seasons.some(s=>s.id===season)?option(season,t('未收录赛季','Unrecorded season'),true):''}${[...(data?.seasons??[])].map(s=>option(s.id,s.name+' · '+(labels[data.capabilities.conditions?intervalState(s,clock()):'unverified']??''),season===s.id)).join('')}</select></label></div></div>
    <div class="arena-band-rail"><div class="arena-bands" role="group" aria-label="${t('选择乐队','Choose band')}">${arenaBandPreviews(data,location.search,{now:clock(),region}).map(bandButton).join('')}</div></div>`;
  }
  function entry() {
   return `<aside class="arena-entry"><p>${t('成员限本团 · 留影不限团','Band members · Any support')}<strong>${t('抽歌后不能换队','Team locked after draw')}</strong></p><div class="arena-entry-action"><small id="arena-calculator-state">${t('计算暂未开放','Calculator unavailable')}</small><button class="arena-primary" type="button" disabled aria-describedby="arena-calculator-state">${t('舞台配队','Build arena team')}</button></div></aside>`;
+ }
+ function calendar() {
+  const model=arenaCalendar(context,{now:clock(),month:calendarMonth,day:query().get('date')});
+  if(!model)return `<section class="arena-calendar"><h2>${t('条件日历','Condition calendar')}</h2><p class="arena-meta">${t('已核验的条件安排暂未收录。','Verified condition periods have not been recorded.')}</p></section>`;
+  const selected=model.selected,week=arenaCalendarWeek(context,model),cells=calendarExpanded?model.cells:week.cells;
+  const state=cell=>cell.conflict?t('条件冲突','Conflicting conditions'):!cell.primary?t('未收录','Not recorded'):cell.gap?t('时段未收全','Partial coverage'):'';
+  const period=row=>`<li><div class="arena-calendar-period-heading"><span class="arena-time">${escape(shortTime(row.validFrom)+' → '+shortTime(row.validUntil))}</span><small>${escape(labels[intervalState(row,clock())])}</small></div><div class="arena-calendar-period-types">${attributeMark(resolved(row)?.attribute,true)}<span>${escape(attr(resolved(row)?.attribute))}</span><span class="arena-mini-segments">${missionMarks(row,context.league.bandId,true)}</span></div></li>`;
+  return `<section class="arena-calendar" aria-label="${t('条件日历','Condition calendar')}"><header class="arena-calendar-heading"><div><h2>${t('条件日历','Condition calendar')}</h2><small>${t('北京时间 · 已公布安排','UTC+8 · Published periods')}</small></div>${button('calendar-today',t('今天','Today'))}</header>
+   <div class="arena-calendar-month">${button(calendarExpanded?'calendar-month':'calendar-day','‹',`data-value="${(calendarExpanded?model.previous:week.previous)??''}" data-direction="previous" aria-label="${calendarExpanded?t('上个月','Previous month'):t('上一周','Previous week')}"${!(calendarExpanded?model.previous:week.previous)?' disabled':''}`)}<strong>${escape(model.month)}</strong>${button('calendar-expand',calendarExpanded?t('收起整月','Collapse month'):t('展开整月','Full month'),`aria-expanded="${calendarExpanded}"`)}${button(calendarExpanded?'calendar-month':'calendar-day','›',`data-value="${(calendarExpanded?model.next:week.next)??''}" data-direction="next" aria-label="${calendarExpanded?t('下个月','Next month'):t('下一周','Next week')}"${!(calendarExpanded?model.next:week.next)?' disabled':''}`)}</div>
+   <div class="arena-calendar-week" aria-hidden="true">${(en?['M','T','W','T','F','S','S']:['一','二','三','四','五','六','日']).map(d=>`<span>${d}</span>`).join('')}</div>
+   <div class="arena-calendar-days" role="group" aria-label="${t('选择日期','Choose date')}">${cells.map(cell=>button('calendar-day',`<span class="arena-calendar-date">${cell.date}${cell.today?'<i aria-hidden="true"></i>':''}</span>${cell.inSeason&&(!calendarExpanded||cell.inMonth)?cell.primary&&!cell.conflict?`<span class="arena-calendar-markers">${attributeMark(resolved(cell.primary)?.attribute,true)}<span class="arena-mini-segments">${missionMarks(cell.primary,context.league.bandId,true)}</span></span>${cell.gap?'<small>…</small>':''}`:`<small>${escape(state(cell))}</small>`:''}`,`class="arena-calendar-day" data-value="${cell.key}" data-outside="${calendarExpanded&&!cell.inMonth}" data-coverage="${cell.conflict?'conflict':cell.gap?'partial':'known'}" aria-label="${escape(cell.key+(cell.today?' · '+t('今天','Today'):'')+(cell.primary?' · '+attr(resolved(cell.primary)?.attribute)+' · '+resolved(cell.primary)?.missions.map(mission).join(' / '):'')+(state(cell)?' · '+state(cell):''))}" aria-pressed="${selected?.key===cell.key}"${cell.today?' aria-current="date"':''}${!cell.inSeason||(calendarExpanded&&!cell.inMonth)?' disabled':''}`)).join('')}</div>
+   ${model.invalidDay||model.outsideSeason?`<p class="arena-calendar-note" role="status">${model.invalidDay?t('链接日期无效，以下显示已收录日期。','The linked date is invalid. A recorded date is shown below.'):t('所选日期不在本赛季，以下显示赛季内日期。','The selected date is outside this season. A date within the season is shown below.')}</p>`:''}<div class="arena-calendar-detail" aria-live="polite"><header><strong>${escape(selected?.key??'')}</strong><small>${selected?.conflict?t('时间重叠，无法确认条件','Overlapping periods; conditions unverified'):selected?.gap?t('仅有部分时段资料','Some periods are not recorded'):t('已收录时段','Recorded periods')}</small></header>${selected?.conflict?`<p>${t('所选日期存在冲突，请等待配置核验。','Conditions conflict on this date and require verification.')}</p>`:selected?.rows.length?`<ul>${selected.rows.map(period).join('')}</ul>`:`<p>${t('这一天尚无已收录条件，不沿用上一期。','No conditions are recorded for this date. Earlier conditions are not reused.')}</p>`}</div>
+   <p class="arena-calendar-note">${t('按已公布时段切换，非每日重新下发。','Periods switch as published; this is not a daily delivery.')}</p></section>`;
+ }
+ function selectCalendarDay(day){
+  calendarMonth=day.slice(0,7);
+  const p=query();p.set('date',day);p.delete('regulation');p.delete('context');
+  history.pushState({},'',location.pathname+'?'+p);
+  context=arenaContext(data,p,{now:clock(),region,requireBand:handoff});
+  const panel=body.querySelector('.arena-calendar');if(panel)panel.outerHTML=calendar();
  }
  function schedule() {
   const rows=(context?.schedule??[]).filter(r=>all||intervalState(r,clock())!=='history').slice(0,all?undefined:7);
@@ -196,20 +211,20 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   context=arenaContext(data,location.search,{now:clock(),region,requireBand:handoff});
   meta.textContent=`${t('资料观察时间：','Observed at: ')}${data?.observedAt?time(data.observedAt):t('未记录','Not recorded')} · ${t('北京时间','UTC+8')}`;
   const notice=error??messages[context.status]??(context.status==='current'&&!context.scopeConfirmed?t('账号区服未选或适用范围尚未确认，以下条件仅供资料查阅。','Account server is unselected or its coverage is unverified. Conditions below are for reference.'):null);
-  const recordedSongs=(Array.isArray(data?.deckTrends)?data.deckTrends:[]).filter(r=>r?.serverId===context.serverId&&r.seasonId===context.season?.id&&r.bandId===context.league?.bandId);
-  const recordedSong=recordedSongs.find(r=>['leaders','members','supports'].some(k=>r[k]?.length))??recordedSongs[0];
-  if(context.condition&&(context.condition.attribute===0||context.condition.missions.includes(0)||recordedSong)&&!query().has('music')) {
-   const song=recordedSong?{id:recordedSong.musicId}:songFor();if(song){const p=query();p.set('music',song.id);history.replaceState({},'',location.pathname+'?'+p);context=arenaContext(data,p,{now:clock(),region,requireBand:handoff});}
+  if(context.condition&&(context.condition.attribute===0||context.condition.missions.includes(0))&&!query().has('music')) {
+   const song=songFor();if(song){const p=query();p.set('music',song.id);history.replaceState({},'',location.pathname+'?'+p);context=arenaContext(data,p,{now:clock(),region,requireBand:handoff});}
   }
-  const stage=card()||`<section class="arena-condition arena-condition-empty"><h2>${t('当前舞台条件','Current conditions')}</h2><p>${escape(notice??t('条件暂缺','Conditions unavailable'))}</p></section>`;
-  const tools=handoff?handoffBody()+trends():`<div class="arena-stage-wrap">${stage}${entry()}</div>${trends()}
+  const liveContext=context.current?{...context,condition:context.current}:null;
+  const seasonStatus=context.season?intervalState(context.season,clock()):null;
+  const emptyStage=seasonStatus==='history'?t('所选赛季已结束，可在条件日历查阅已收录安排。','This season has ended. Browse recorded periods in the calendar.'):seasonStatus==='preview'?t('所选赛季尚未开始，预告条件不能用于当前参赛。','This season has not started. Upcoming conditions cannot be used for current entry.'):notice??t('条件暂缺','Conditions unavailable');
+  const stage=card(liveContext)||`<section class="arena-condition arena-condition-empty"><h2>${t('当前舞台条件','Current conditions')}</h2><p>${escape(emptyStage)}</p></section>`;
+  const tools=handoff?handoffBody():`<div class="arena-stage-grid"><div class="arena-stage-wrap"><div class="arena-current-caption">${t('当前舞台','Current stage')}</div>${stage}${entry()}</div>${calendar()}</div>
    ${context.previous?`<details class="arena-previous"><summary>${t('上一期（已过期）','Previous period (expired)')}</summary><p>${escape(range(context.previous))}</p></details>`:''}
    <section class="arena-section arena-population" data-arena-population aria-label="${t('段位人数','Tier population')}"></section>
    <section class="arena-section arena-player-rankings" data-arena-rankings aria-label="${t('玩家排行榜','Player rankings')}"></section>
 `;
   body.innerHTML=`${selectors()}${notice?`<p class="arena-notice" role="status">${escape(notice)}</p>`:''}${context.condition&&context.status!=='current'?button('current',t('查看当前条件','View current conditions')):''}${tools}<details class="arena-source-details"><summary>${t('资料来源与时间说明','Source & timing')}</summary><p>${escape(data?.observedAt?t('官方配置核验时间：','Official configuration checked at: ')+time(data.observedAt):t('资料尚未提供','Data unavailable'))}</p><p>${escape(t('已核验账号区服：','Verified servers: ')+(data?.serverScopes.map(id=>GAME_SERVERS.find(s=>s.id===id)?.[en?'englishLabel':'label']??id).join(' / ')||t('待核验','Unverified')))}</p>${context?.season?`<p>${escape(t('赛季参赛时间：','Season entry: ')+range(context.season))}</p>`:''}<p>${t('页面时间为北京时间；有效时间不含结束时刻。','Displayed in UTC+8; the end of an interval is exclusive.')}</p></details>`;
   const bandRail=body.querySelector('.arena-bands');if(bandRail){bandRail.scrollLeft=bandScroll;const selected=bandRail.querySelector('[aria-pressed="true"]');if(selected){const box=selected.getBoundingClientRect(),frame=bandRail.getBoundingClientRect();bandRail.scrollLeft+=box.left<frame.left?box.left-frame.left:box.right>frame.right?box.right-frame.right:0;}}
-  if(dialog.open)dialogBody.innerHTML=trends(true);
   if(referenceDialog.open)renderReference(true);
   if(expanded)for(const details of body.querySelectorAll('details'))if(expanded.has(details.querySelector('summary')?.textContent))details.open=true;
   root.querySelector('[data-action="copy-link"]').disabled=!data;
@@ -221,6 +236,14 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
  }
  async function copy(text){try{await navigator.clipboard.writeText(text);feedback.textContent=t('已复制。','Copied.');}catch{feedback.textContent=t('复制失败，可选择下方文本复制。','Copy failed. Select the text below.');const textarea=document.createElement('textarea');textarea.readOnly=true;textarea.value=text;textarea.style.width='100%';body.append(textarea);textarea.focus();textarea.select();}}
  root.addEventListener('input',event=>{if(event.target.closest('[data-arena-rank-form]'))event.target.closest('form').elements.end.setCustomValidity('');});
+ root.addEventListener('keydown',event=>{
+  const cell=event.target.closest('[data-action="calendar-day"]'),step={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[event.key];
+  if(!cell||!step)return;
+  const instant=Date.parse(cell.dataset.value+'T00:00:00+08:00')+step*86400000;
+  if(instant>=arenaTime(context.season.validUntil)||instant+86400000<=arenaTime(context.season.validFrom))return;
+  event.preventDefault();const day=arenaDateKey(new Date(instant).toISOString());selectCalendarDay(day);
+  body.querySelector(`[data-action="calendar-day"][data-value="${day}"]`)?.focus({preventScroll:true});
+ });
  root.addEventListener('submit',event=>{
   if(!event.target.matches('[data-arena-rank-form]'))return;
   event.preventDefault();const form=event.target,from=form.elements.rank,to=form.elements.end;to.setCustomValidity('');
@@ -237,14 +260,15 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   if(action==='ranking-top'){const p=query();p.delete('rank');p.delete('end');select(p);return;}
   if(action==='ranking-refresh'){await rankingClient.reload();return;}
   if(action==='ranking-more'){await rankingClient.more();return;}
-  if(action==='dialog-close'){dialog.close();return;}
-  if(action==='trend-more'){dialogBody.innerHTML=trends(true);dialog.showModal();return;}
-  if(action==='trend-kind'){const inDialog=dialog.contains(target);trendKind=target.dataset.value;trendExpanded=false;render(true);if(inDialog)dialogBody.innerHTML=trends(true);(inDialog?dialog:body).querySelector(`[data-action="trend-kind"][data-value="${CSS.escape(trendKind)}"]`)?.focus();return;}
+  if(action==='calendar-expand'){calendarExpanded=!calendarExpanded;const panel=body.querySelector('.arena-calendar');if(panel)panel.outerHTML=calendar();body.querySelector('[data-action="calendar-expand"]')?.focus({preventScroll:true});return;}
+  if(action==='calendar-month'){const model=arenaCalendar(context,{now:clock(),month:target.dataset.value});if(model?.selected)selectCalendarDay(model.selected.key);body.querySelector(`[data-action="calendar-month"][data-direction="${target.dataset.direction}"]`)?.focus({preventScroll:true});return;}
+  if(action==='calendar-day'){selectCalendarDay(target.dataset.value);body.querySelector(`[data-action="calendar-day"][data-value="${target.dataset.value}"]`)?.focus({preventScroll:true});return;}
+  if(action==='calendar-today'){selectCalendarDay(arenaDateKey(new Date(clock()).toISOString()));return;}
   if(action==='refresh'){if(error){location.reload();return;}await refresh(true);return;}
   if(action==='copy-link'){const p=arenaParams(context,{pin:true});await copy(location.origin+link(handoff?'tools/arena/':'arena/',p));return;}
   if(action==='copy-summary'){if(context.condition)await copy(summary());return;}
   if(action==='reload'){location.reload();return;}
-  if(action==='current'){const p=query();p.set('season','current');p.delete('regulation');p.delete('context');select(p);return;}
+  if(action==='current'){const p=query();p.set('season','current');p.delete('regulation');p.delete('context');p.delete('date');calendarMonth=null;select(p);return;}
   if(action==='schedule'){all=!all;renderReference(true);referenceBody.querySelector('[data-action="schedule"]')?.focus();return;}
   if(action==='view'||action==='band'||action==='regulation'){const field=action==='view'?'view':action;update(field,target.dataset.value);root.querySelector(`[data-action="${action}"][data-value="${CSS.escape(target.dataset.value)}"]`)?.focus({preventScroll:true});}
  });
@@ -279,7 +303,7 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
  loading=false;render();
  installArenaUpdates({
   checkInterval:60000,
-  getNextBoundary:()=>Math.min(nextArenaDailyCheck(lastBoundary),...[arenaTime(rankingClient.getState().data?.expiresAt)].filter(n=>n>lastBoundary),...[...(data?.seasons??[]),...(data?.regulations??[]),...(data?.leagues??[]),...(data?.ranks??[]),...(data?.activityPeriods??[])].flatMap(r=>[arenaTime(r.validFrom),arenaTime(r.validUntil),arenaTime(r.opensAt)]).filter(n=>n>lastBoundary)),
+  getNextBoundary:()=>Math.min(...[arenaTime(rankingClient.getState().data?.expiresAt)].filter(n=>n>lastBoundary),...[...(data?.seasons??[]),...(data?.regulations??[]),...(data?.leagues??[]),...(data?.ranks??[]),...(data?.activityPeriods??[])].flatMap(r=>[arenaTime(r.validFrom),arenaTime(r.validUntil),arenaTime(r.opensAt)]).filter(n=>n>lastBoundary)),
   onBoundary:()=>{
    const before=context&&arenaIdentity(data,context),status=context?.status;
    lastBoundary=clock();render(true);
@@ -288,7 +312,7 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
     feedback.textContent=clockNotice+updateNotice;
    }
   },
-  onCheck:()=>{if(!personal.isOpen()&&!root.querySelector('.arena-ranking-player[open]')&&!document.activeElement?.closest?.('.arena-rank-search'))void rankingClient.check();return refresh();},
+  onCheck:()=>{void population.check();if(!personal.isOpen()&&!root.querySelector('.arena-ranking-player[open]')&&!document.activeElement?.closest?.('.arena-rank-search'))void rankingClient.check();return refresh();},
   onClockJump:()=>{clockNotice=t('设备时间发生变化，请检查时间设置。 ','Device time changed. Check your time settings. ');feedback.textContent=clockNotice+updateNotice;},clock
  });
  if(check)void refresh();

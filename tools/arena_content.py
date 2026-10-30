@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from tools.resource_pipeline.localization import resolve_localized_text
-from tools.arena_trends import project_deck_trends, validate_public_trends
+from tools.arena_trends import validate_public_trends
 from tools.arena_assets import project_rank_icons, validate_rank_icons
 
 TABLES = ("MasterArenaSeason", "MasterArenaLeague", "MasterArenaLeagueRegulation",
@@ -204,11 +204,7 @@ def build_arena_content(master_root, release_id, region, locale="zh-CN", review=
         out["dailyReward"] = dict(limit=daily["limit"], resetTime=daily["resetTime"])
     out["capabilities"].update(conditions=bool(zone and out["seasons"] and out["leagues"] and out["regulations"] and "league_conflict" not in out["limitations"]),
                                ranks=bool(out["ranks"]), basePoints=bool(out["basePoints"]), rewards=bool(out["rewards"]))
-    try:
-        out["deckTrends"] = project_deck_trends(review.get("deckTrends", []), region, out["seasons"], out["leagues"])
-    except (KeyError, ValueError, TypeError):
-        out["limitations"].append("deckTrends_invalid")
-    out["capabilities"]["deckTrends"] = bool(out["deckTrends"])
+    # Retired feature: old review inputs remain readable, but no new trends are published.
     try:
         out['rankIcons'] = project_rank_icons(master_root, review.get('rankIcons', []))
     except (OSError, KeyError, ValueError, TypeError):

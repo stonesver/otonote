@@ -98,19 +98,15 @@ EN／韩服使用 `ournotes-arena-rankings-capture@.service`，配套两份具�
 
 验证：`python3 -m unittest tests.test_arena_personal tests.test_growth_web tests.test_arena_live tests.test_arena_rankings -q` 和 `node --test site/tests/arena-*.test.mjs`。还需核验前后台恢复、名次范围、429、并发合并、过期游标及失败保留结果；测试回放不等于常驻服务上线。
 
-## 官方配对趋势
+## 已移除的趋势采集
 
-`tools.collect_arena_trends` 沿用上述 credentials、SDK 与共享锁；该入口只请求官方 `DeckTrend`，不读取账号卡库或操作队伍。以 `--projection <arena.json> --projection-sha256 <sha256> --catalog <catalog.json> --catalog-sha256 <sha256>` 绑定同版受审舞台投影及公开曲目目录；其余 `--server`、`--season`、`--band`、`--root`、`--state-dir`、`--lock-dir`、`--sdk-resources` 参数含义与舞台榜一致。认证前校验区服、赛季、开放状态及歌曲关系，最多顺序查询 200 组。
-
-输出 `arena-deck-trends-<serverId>.json` 是白名单复核输入，权限 0600；经同版复核的记录填入既有 `arenaReview.deckTrends`，由正常内容候选构建和校验后发布。输出文件不自动替换线上投影，不创建 timer；真实凭据、SDK、原始响应和现场日志留在仓库外。卡牌序号不代表使用率，空列表保持为空，不跨区服补齐。展示和字段契约见[官方配对趋势](../reference/arena-stage.md#官方配对趋势)。
-
-离线验证：`python3 -m unittest tests.test_arena_trend_collection tests.test_arena_content -q` 与 `node --test site/tests/arena-trends.test.mjs`。
+专用趋势采集器及页面展示已移除，采集镜像不再携带对应 CLI。不创建替代趋势 timer。清理部署时只停用明确属于该功能的任务；共用 SDK、凭据、登录锁、榜单服务和榜单刷新任务继续保留。旧不可变内容保留读取校验兼容，新构建忽略旧复核中的趋势记录。
 
 ## 舞台大段位人数探测
 
 复用上文的 `tools.collect_arena_rankings` 命令参数，加 `--population`，切换为大段位人数探测，不执行前 1000 名批量保存。一次选定所需乐队，在同一次认证内顺序探测；每团最多 96 次单条请求，请求间隔和墙钟预算见[人数契约](../reference/arena-stage.md#大段位人数与榜单规模)。同一区服每次尝试后冷却 6 小时；此模式不允许 `--resume` 绕过暂停或冷却。`ournotes-arena-population-capture.service/.timer` 为低频模板，任务结束后至少 6 小时才再次调度；启动抖动不绕过捕获器的持久冷却。模板不会自行安装或启用，正式排程需核对与现有采集的合计负载。
 
-镜像须包含 `tools/arena_population.py` 与 `backend/arena_population.py`。输入投影须有已核验的 `sourceMasterVersion` 与完整源段位覆盖；缺少时在提交凭据之前停止。公开文件为 `observations/<serverId>/arena/season-<seasonId>/population-band-<bandId>.json`，仅含白名单汇总；与 `band-<bandId>.json` 排名条目分开保存。Query 的 `/api/v1/arena-population` 只读这些文件，不持有账号，不接受浏览器触发探测。失败不替换旧汇总，不重写旧时间，认证／限流继续按既有暂停约定处理。
+镜像须包含 `tools/arena_population.py` 与 `backend/arena_population.py`。输入投影须有已核验的 `sourceMasterVersion` 与完整源段位覆盖；缺少时在提交凭据之前停止。公开文件为 `observations/<serverId>/arena/season-<seasonId>/population-band-<bandId>.json`，仅含白名单汇总；与 `band-<bandId>.json` 排名条目分开保存。Query 的 `/api/v1/arena-population` 只读这些文件，不持有账号，不接受浏览器触发探测。榜尾或边界变化只跳过该团且不立即重试，其他通过全部校验的乐队可发布；失败的乐队不替换旧汇总、不重写旧时间。其他错误仍停止整轮，认证／限流继续按既有暂停约定处理。
 
 多服输入优先选用 `sourceMasterVersions[serverId]`。EN 与韩服的 `ournotes-arena-population-capture@.service` 使用同样的分服挂载；配套 timer 每 6 小时分别在第 17／27 分触发，捕获器的持久冷却仍优先，未满 6 小时不会查询。首次失败或未获得一致结果时继续显示未知，不因其他区服已有汇总而复制人数。 人数一致性尚未通过时可先只启用榜单 timer，人数 timer 保持未启用；不能把已安装模板当作已开启探测。
 

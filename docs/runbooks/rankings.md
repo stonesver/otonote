@@ -108,7 +108,9 @@ EN／韩服使用 `ournotes-arena-rankings-capture@.service`，配套两份具�
 
 复用上文的 `tools.collect_arena_rankings` 命令参数，加 `--population`，切换为大段位人数探测，不执行前 1000 名批量保存。一次选定所需乐队，在同一次认证内顺序探测；每团最多 48 次、每服单轮合计最多 160 次榜单请求，每次至多 100 个连续名次并复用本轮窗口，请求间隔和墙钟预算见[人数契约](../reference/arena-stage.md#大段位人数与榜单规模)。同一区服每次尝试后冷却 6 小时；此模式不允许 `--resume` 绕过暂停或冷却。`ournotes-arena-population-capture.service/.timer` 为低频模板，任务结束后至少 6 小时才再次调度；启动抖动不绕过捕获器的持久冷却。模板不会自行安装或启用，正式排程需核对与现有采集的合计负载。
 
-镜像须包含 `tools/arena_population.py` 与 `backend/arena_population.py`。输入投影须有已核验的 `sourceMasterVersion` 与完整源段位覆盖；缺少时在提交凭据之前停止。公开文件为 `observations/<serverId>/arena/season-<seasonId>/population-band-<bandId>.json`，仅含白名单汇总；与 `band-<bandId>.json` 排名条目分开保存。Query 的 `/api/v1/arena-population` 只读这些文件，不持有账号，不接受浏览器触发探测。榜尾或边界变化、每团次数或时间预算耗尽只跳过该团且不立即重试，其他通过全部校验的乐队可发布；失败的乐队不替换旧汇总、不重写旧时间。全轮请求预算耗尽时停止新增探测并完成已有独立结果的最终版本核验；其他错误仍停止整轮，认证／限流继续按既有暂停约定处理。
+镜像须包含 `tools/arena_population.py` 与 `backend/arena_population.py`。输入投影须有已核验的 `sourceMasterVersion` 与完整源段位覆盖；缺少时在提交凭据之前停止。公开文件为 `observations/<serverId>/arena/season-<seasonId>/population-band-<bandId>.json`，仅含白名单汇总；与 `band-<bandId>.json` 排名条目分开保存。Query 的 `/api/v1/arena-population` 只读这些文件，不持有账号，不接受浏览器触发探测。轻微榜尾或边界变化通过有界邻近窗口修正并计入观测区间；超出容错阈值、无法定位、每团次数或时间预算耗尽只跳过该团且不立即重试，其他通过全部校验的乐队可发布；失败的乐队不替换旧汇总、不重写旧时间。全轮请求预算耗尽时停止新增探测并完成已有独立结果的最终版本核验；其他错误仍停止整轮，认证／限流继续按既有暂停约定处理。
+
+发布 schemaVersion 2 汇总前，先部署支持新旧格式的 Query 与前端，再切换采集镜像；旧版读取器不能读取新区间字段。界面必须同时说明估算和观测区间的经验性质，不能宣称统计置信度。人工验证若获明确授权，使用独立的一次性审计标记并保留共享锁、暂停、版本与请求预算；尝试仍推进正常持久冷却，不把临时验证变成常驻绕过入口。
 
 多服输入优先选用 `sourceMasterVersions[serverId]`。EN 与韩服的 `ournotes-arena-population-capture@.service` 使用同样的分服挂载；配套 timer 每 6 小时分别在第 17／27 分触发，捕获器的持久冷却仍优先，未满 6 小时不会查询。首次失败或未获得一致结果时继续显示未知，不因其他区服已有汇总而复制人数。 人数一致性尚未通过时可先只启用榜单 timer，人数 timer 保持未启用；不能把已安装模板当作已开启探测。
 

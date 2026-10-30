@@ -14,7 +14,7 @@ def population_path(root,server,season,band):
 
 def validate_population(value,server,season,band):
     scope(server,season,band)
-    if (not isinstance(value,dict) or value.get('schemaVersion')!=1
+    if (not isinstance(value,dict) or type(value.get('schemaVersion')) is not int or value.get('schemaVersion') not in (1,2)
             or any(value.get(k)!=v for k,v in [('serverId',server),('seasonId',season),('bandId',band)])
             or value.get('method')!='rank_boundary_probe' or value.get('accuracy')!='estimate'):
         raise ValueError('invalid_arena_population_identity')
@@ -28,18 +28,29 @@ def validate_population(value,server,season,band):
     rows=value.get('tiers')
     if not isinstance(rows,list) or not 1 <= len(rows) <= 7:
         raise ValueError('invalid_arena_population_tiers')
+    version=value['schemaVersion'];extra={}
+    if version==2:
+        low=number(value.get('totalLower'));high=number(value.get('totalUpper'))
+        if value.get('rangeMethod')!='observed_window_envelope' or not low<=total<=high or reads>48:
+            raise ValueError('invalid_arena_population_range')
+        extra=dict(totalLower=low,totalUpper=high,rangeMethod=value['rangeMethod'])
     checked=[];seen=set();previous=-1
     for row in rows:
         if not isinstance(row,dict):raise ValueError('invalid_arena_population_tiers')
         tier=number(row.get('tier'),1,7);threshold=number(row.get('threshold'));count=number(row.get('count'))
         if tier in seen or threshold<=previous:raise ValueError('invalid_arena_population_order')
-        seen.add(tier);previous=threshold;checked.append(dict(tier=tier,threshold=threshold,count=count))
+        item=dict(tier=tier,threshold=threshold,count=count)
+        if version==2:
+            lower=number(row.get('lower'));upper=number(row.get('upper'))
+            if not lower<=count<=upper<=high:raise ValueError('invalid_arena_population_range')
+            item.update(lower=lower,upper=upper)
+        seen.add(tier);previous=threshold;checked.append(item)
     if checked[0]['threshold']!=0 or sum(r['count'] for r in checked)!=total:
         raise ValueError('invalid_arena_population_counts')
-    return dict(schemaVersion=1,serverId=server,seasonId=season,bandId=band,
+    return dict(schemaVersion=version,serverId=server,seasonId=season,bandId=band,
                 method='rank_boundary_probe',accuracy='estimate',sourceReleaseId=value['sourceReleaseId'],
                 masterVersion=value['masterVersion'],startedAt=value['startedAt'],observedAt=value['observedAt'],
-                expiresAt=value['expiresAt'],totalEstimate=total,sampleReads=reads,tiers=checked)
+                expiresAt=value['expiresAt'],totalEstimate=total,sampleReads=reads,tiers=checked,**extra)
 
 
 def query_population(root,*,server,season,band,now=None):

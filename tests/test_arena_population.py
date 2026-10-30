@@ -40,16 +40,18 @@ class PopulationTests(unittest.TestCase):
  def test_changing_maximum_non_positional_rank_non_monotone_and_budget_fail_closed(self):
   points=[1000,900,800,700,600,500,400,300,200,100]
   def read(start,end):return dict(maxRank=10,entries=[dict(rank=r,point=points[r-1]) for r in range(start,min(end,10)+1)])
-  with self.assertRaisesRegex(ValueError,'budget'):probe_population(read,THRESHOLDS,max_reads=2,spacing=0)
+  with self.assertRaisesRegex(ValueError,'budget'):probe_population(read,THRESHOLDS,max_reads=1,spacing=0)
   calls=[0]
   def changing(start,end):
    calls[0]+=1;total=10 if calls[0]==1 else 11
    return dict(maxRank=total,entries=[dict(rank=r,point=100) for r in range(start,min(end,total)+1)])
-  with self.assertRaisesRegex(ValueError,'changed'):probe_population(changing,THRESHOLDS,spacing=0)
+  result=probe_population(changing,THRESHOLDS,spacing=0)
+  self.assertEqual((result['totalLower'],result['totalEstimate'],result['totalUpper']),(10,11,11))
+  self.assertEqual(sum(r['count'] for r in result['tiers']),11)
   with self.assertRaisesRegex(ValueError,'non_positional'):probe_population(lambda start,end:dict(maxRank=10,entries=[dict(rank=1,point=1)]),THRESHOLDS,spacing=0)
   with self.assertRaisesRegex(ValueError,'non_monotone'):probe_population(lambda start,end:dict(maxRank=10,entries=[dict(rank=r,point=r) for r in range(start,min(end,10)+1)]),THRESHOLDS,spacing=0)
 
- def test_boundary_recheck_detects_movement_even_when_maximum_is_unchanged(self):
+ def test_boundary_recheck_records_small_movement_even_when_maximum_is_unchanged(self):
   seen={}
   def read(start,end):
    entries=[]
@@ -59,7 +61,10 @@ class PopulationTests(unittest.TestCase):
     if rank==5 and seen[rank]>1:point=4
     entries.append(dict(rank=rank,point=point))
    return dict(maxRank=10,entries=entries)
-  with self.assertRaises(ValueError):probe_population(read,THRESHOLDS,spacing=0)
+  result=probe_population(read,THRESHOLDS,spacing=0)
+  self.assertEqual(result['tiers'][-1]['count'],4)
+  self.assertLessEqual(result['tiers'][-1]['lower'],4)
+  self.assertGreaterEqual(result['tiers'][-1]['upper'],5)
 
  def test_plan_requires_complete_published_thresholds_current_season_and_master_binding(self):
   data=dict(sourceMasterVersion='a'*32,serverScopes=['global-hmt'],completeRankBands=['1'],capabilities=dict(ranks=True),
@@ -148,7 +153,7 @@ class PopulationTests(unittest.TestCase):
    def rpc(self,host,method,payload,credential):
     if method=='app.masterdata.MasterdataService/Version':return message(1,'a'*32)
     band=single(payload,2,wire=0);start=single(payload,3,wire=0);end=single(payload,4,wire=0);calls.append(band)
-    total=11 if band==2 and calls.count(2)>1 else 10
+    total=100 if band==2 and calls.count(2)>1 else 10
     raw=b''.join(message(1,integer(3,r)+integer(4,4)) for r in range(start,min(end,total)+1))
     return raw+integer(2,total)
   from contextlib import redirect_stdout
@@ -225,3 +230,60 @@ class PopulationTests(unittest.TestCase):
   self.assertEqual(decoded,dict(maxRank=1,entries=[dict(rank=1,point=190)]))
   with self.assertRaisesRegex(LoginError,'invalid_arena_population_response'):
    decode_population_response(message(1,row)*101+integer(2,101))
+
+ def test_sustained_growth_and_score_movement_publish_ranges_with_bounded_reads(self):
+  calls=[];histories=[]
+  def read(start,end):
+   step=len(calls);total=34000+step
+   cuts=[1000+step,500+step,200+step,20+step]
+   def point(rank):return 5000 if rank<=cuts[3] else 1900 if rank<=cuts[2] else 745 if rank<=cuts[1] else 190 if rank<=cuts[0] else 4
+   calls.append((start,end));histories.append([total-cuts[0],cuts[0]-cuts[1],cuts[1]-cuts[2],cuts[2]-cuts[3],cuts[3]])
+   return dict(maxRank=total,entries=[dict(rank=r,point=point(r)) for r in range(start,min(end,total)+1)])
+  result=probe_population(read,THRESHOLDS,spacing=0)
+  self.assertLessEqual(len(calls),48);self.assertTrue(all(b-a<100 for a,b in calls))
+  self.assertEqual(sum(r['count'] for r in result['tiers']),result['totalEstimate'])
+  for i,row in enumerate(result['tiers']):
+   self.assertLessEqual(row['lower'],min(h[i] for h in histories))
+   self.assertGreaterEqual(row['upper'],max(h[i] for h in histories))
+  self.assertGreater(result['totalUpper'],result['totalLower'])
+
+ def test_adjacent_window_repairs_shift_and_excessive_drift_is_still_rejected(self):
+  calls=[];moved=[False]
+  def reader(start,end):
+   if (start,end)==(438,537):moved[0]=True
+   calls.append((start,end));boundary=560 if moved[0] else 500
+   return dict(maxRank=1000,entries=[dict(rank=r,point=5000 if r<=boundary else 4) for r in range(start,min(end,1000)+1)])
+  result=probe_population(reader,THRESHOLDS,spacing=0)
+  self.assertEqual(result['tiers'][-1]['count'],560)
+  self.assertTrue(moved[0]);self.assertIn((538,637),calls)
+  self.assertLessEqual(result['tiers'][-1]['lower'],500)
+  self.assertGreaterEqual(result['tiers'][-1]['upper'],560)
+  count=[0]
+  def volatile(start,end):
+   count[0]+=1;total=1000+count[0]*100
+   return dict(maxRank=total,entries=[dict(rank=r,point=4) for r in range(start,min(end,total)+1)])
+  with self.assertRaisesRegex(ValueError,'changed'):probe_population(volatile,THRESHOLDS,spacing=0)
+  self.assertEqual(count[0],2)
+
+ def test_v2_ranges_are_validated_and_preserved_through_http(self):
+  from backend.arena_population import validate_population
+  row=observation();row.update(schemaVersion=2,totalLower=9,totalUpper=11,rangeMethod='observed_window_envelope')
+  for tier in row['tiers']:tier.update(lower=1,upper=3)
+  clean=validate_population(row,'global-hmt','1','1')
+  self.assertEqual(clean['totalLower'],9);self.assertEqual(clean['tiers'][0]['upper'],3)
+  for mutate in (lambda r:r.update(totalLower=11),lambda r:r.update(totalUpper=9),lambda r:r.update(rangeMethod='95_percent'),lambda r:r['tiers'][0].update(upper=1),lambda r:r['tiers'][0].update(lower=3),lambda r:r.update(sampleReads=49)):
+   bad=copy.deepcopy(row);mutate(bad)
+   with self.assertRaises(ValueError):validate_population(bad,'global-hmt','1','1')
+  with tempfile.TemporaryDirectory() as root:
+   publish_populations([row],root,'global-hmt')
+   self.assertEqual(query_population(root,server='global-hmt',season='1',band='1')['observation'],clean)
+
+ def test_small_shrink_and_empty_board_remain_nonnegative(self):
+  calls=[0]
+  def read(start,end):
+   calls[0]+=1;total=10 if calls[0]==1 else 8
+   return dict(maxRank=total,entries=[dict(rank=r,point=5000 if r<=3 else 4) for r in range(start,min(end,total)+1)])
+  result=probe_population(read,THRESHOLDS,spacing=0)
+  self.assertEqual(result['totalEstimate'],8);self.assertEqual(result['totalUpper'],10)
+  self.assertEqual(sum(r['count'] for r in result['tiers']),8)
+  self.assertTrue(all(0<=r['lower']<=r['count']<=r['upper'] for r in result['tiers']))

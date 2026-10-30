@@ -98,6 +98,22 @@ def read_plan(data, digest, server, season=None, bands=None, limit=1000, now=Non
                 masterVersion=arena_master_version(data,server))
 
 
+def public_player_name(profile):
+    """Normalize public display whitespace without relaxing identity validation."""
+    raw = single(profile, 2, required=False)
+    if raw is None:
+        return ''
+    if len(raw) > 400:
+        raise LoginError('invalid_arena_player_name')
+    try:
+        name = raw.decode('utf-8')
+    except UnicodeError:
+        raise LoginError('invalid_arena_player_name') from None
+    if len(name) > 100:
+        raise LoginError('invalid_arena_player_name')
+    return ' '.join(''.join(' ' if ord(c) < 32 or ord(c) == 127 else c for c in name).split())
+
+
 def decode_response(raw, plan, band):
     maximum = single(raw, 2, wire=0, required=False) or 0
     entries = []
@@ -107,7 +123,7 @@ def decode_response(raw, plan, band):
         if wire != 2 or len(entries) >= 1000:
             raise LoginError('invalid_arena_ranking_response')
         profile = single(value, 1)
-        entries.append(dict(playerId=string(profile, 1), name=string(profile, 2, optional=True),
+        entries.append(dict(playerId=string(profile, 1), name=public_player_name(profile),
                             rank=single(value, 3, wire=0), point=single(value, 4, wire=0, required=False) or 0,
                             deck=high_score_deck(single(value, 2, required=False))))
     return dict(seasonId=plan['seasonId'], bandId=band, maxRank=maximum, entries=entries,

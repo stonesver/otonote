@@ -80,6 +80,8 @@ python3 -m tools.collect_arena_rankings \
 
 ## 舞台动态名次服务
 
+切换镜像前核对现有服务的全部只读源码挂载。已有积分历史覆盖文件可能覆盖新镜像的同名采集器；只更新已验证的新采集器，保留既有历史发布接口，并验收总榜快照和活动窗口内的历史写入兼容。只读 Query 服务同样保留已有路由；需要独立交付时，可在另一回环端口运行完整、未经拼接的已验证后端，仅将两个舞台观察 GET 路由代理到该端口。不要用未验证的新旧源码拼接替代产物验收。
+
 `python3 -m tools.arena_live` 是按访问触发的独立只读捕获入口，不是 timer。必须由现有受保护挂载提供 `--sdk-resources`、`--state-dir`、`--lock-dir`；credentials 仍只读挂载，不能来自浏览器。默认核对正常内容指针的受审舞台投影，也支持 `--projection <arena.json> --projection-sha256 <sha256>`，范围未核验时在认证前停止。
 
 服务只监听本机回环地址，默认端口 18766；缓存与并发预算见[查询契约](../reference/arena-stage.md#按需名次查询与低频更新)。`deploy/ournotes-arena-live.service` 和 `deploy/arena-live.locations.conf` 是待交付示例；先重建并固定已有采集镜像，再检查共享锁、state 权限、正常内容覆盖和回环监听，最后接入同源路径 `/api/v1/arena-rankings-live`。没有安装或启用这些文件时，网站继续明确展示保存榜单，不能声称动态官方查询已可用。

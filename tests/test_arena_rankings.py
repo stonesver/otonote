@@ -134,6 +134,22 @@ class ArenaRankingTests(unittest.TestCase):
         self.assertNotIn('ArenaTop', ArenaRankingClient.read_methods)
         self.assertEqual(ArenaRankingClient.read_methods - __import__('tools.growth_login', fromlist=['GameClient']).GameClient.read_methods, {RPC})
 
+    def test_public_name_whitespace_does_not_reject_a_ranking_page(self):
+        plan = dict(seasonId='1', limit=100)
+        def response(player, name):
+            profile = message(1, player) + message(2, name)
+            return message(1, message(1, profile) + integer(3, 1)) + integer(2, 1)
+        raw = response('public-id', 'A\tB\r\nC\x00D\x7f')
+        parsed = decode_response(raw, plan, '1')
+        self.assertEqual(parsed['entries'][0]['name'], 'A B C D')
+        value = observation()
+        value.update(entries=parsed['entries'], maxRank=1)
+        self.assertEqual(validate_observation(value, 'global-hmt', '1', '1')['entries'][0]['playerId'], 'public-id')
+        for invalid in ('private\tid', 'private\nid'):
+            with self.assertRaises(LoginError): decode_response(response(invalid, 'Name'), plan, '1')
+        for invalid in (b'\xff', 'x' * 101):
+            with self.assertRaises(LoginError): decode_response(response('public-id', invalid), plan, '1')
+
     def test_native_master_is_selected_per_server_and_mismatch_stops_before_sdk(self):
         from unittest.mock import patch,Mock
         from tools.growth_login import GameClient,Profile

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from datetime import datetime,timedelta,timezone
 from unittest.mock import patch
-from tools.arena_population import probe_population,population_plan,publish_populations,ArenaPopulationClient
+from tools.arena_population import probe_population,population_plan,publish_populations,ArenaPopulationClient,decode_population_response
 from backend.arena_population import validate_population,query_population,population_path
 from tools.collect_arena_rankings import ArenaRankingClient
 from tools.growth_login import LoginError
@@ -22,39 +22,43 @@ class PopulationTests(unittest.TestCase):
  def test_binary_probes_match_major_counts_without_enumeration_and_obey_spacing(self):
   points=[5000]*17+[4155]*3+[1900]*180+[745]*300+[190]*500+[4]*33000
   calls=[];waits=[]
-  def read(rank):
-   calls.append(rank);return dict(maxRank=len(points),entries=[dict(rank=rank,point=points[rank-1])] if rank<=len(points) else [])
+  def read(start,end):
+   calls.append((start,end));return dict(maxRank=len(points),entries=[dict(rank=r,point=points[r-1]) for r in range(start,min(end,len(points))+1)])
   result=probe_population(read,THRESHOLDS,clock=lambda:0,sleep=waits.append)
   self.assertEqual([r['count'] for r in result['tiers']],[33000,500,300,180,20]);self.assertEqual(result['totalEstimate'],34000)
-  self.assertLessEqual(len(calls),96);self.assertLess(len(calls),len(points)//100)
+  self.assertLessEqual(len(calls),24);self.assertTrue(all(1<=end-start+1<=100 for start,end in calls));self.assertLess(len(calls),len(points)//100)
   self.assertTrue(all(v==1 for v in waits));self.assertEqual(result['sampleReads'],len(calls))
   self.assertNotIn('entries',result)
 
  def test_empty_and_missing_tiers_are_real_zero_only_after_successful_probe(self):
-  def read(rank):return dict(maxRank=0,entries=[])
+  def read(start,end):return dict(maxRank=0,entries=[])
   result=probe_population(read,THRESHOLDS,spacing=0)
   self.assertEqual(result['totalEstimate'],0);self.assertTrue(all(r['count']==0 for r in result['tiers']))
-  result=probe_population(lambda rank:dict(maxRank=5,entries=[dict(rank=rank,point=4)] if rank<=5 else []),THRESHOLDS,spacing=0)
+  result=probe_population(lambda start,end:dict(maxRank=5,entries=[dict(rank=r,point=4) for r in range(start,min(end,5)+1)]),THRESHOLDS,spacing=0)
   self.assertEqual([r['count'] for r in result['tiers']],[5,0,0,0,0])
 
  def test_changing_maximum_non_positional_rank_non_monotone_and_budget_fail_closed(self):
   points=[1000,900,800,700,600,500,400,300,200,100]
-  def read(rank):return dict(maxRank=10,entries=[dict(rank=rank,point=points[rank-1])] if rank<=10 else [])
+  def read(start,end):return dict(maxRank=10,entries=[dict(rank=r,point=points[r-1]) for r in range(start,min(end,10)+1)])
   with self.assertRaisesRegex(ValueError,'budget'):probe_population(read,THRESHOLDS,max_reads=2,spacing=0)
   calls=[0]
-  def changing(rank):
-   calls[0]+=1;return dict(maxRank=10 if calls[0]==1 else 11,entries=[dict(rank=rank,point=100)])
+  def changing(start,end):
+   calls[0]+=1;total=10 if calls[0]==1 else 11
+   return dict(maxRank=total,entries=[dict(rank=r,point=100) for r in range(start,min(end,total)+1)])
   with self.assertRaisesRegex(ValueError,'changed'):probe_population(changing,THRESHOLDS,spacing=0)
-  with self.assertRaisesRegex(ValueError,'non_positional'):probe_population(lambda rank:dict(maxRank=10,entries=[dict(rank=1,point=1)]),THRESHOLDS,spacing=0)
-  with self.assertRaisesRegex(ValueError,'non_monotone'):probe_population(lambda rank:dict(maxRank=10,entries=[dict(rank=rank,point=rank)]),THRESHOLDS,spacing=0)
+  with self.assertRaisesRegex(ValueError,'non_positional'):probe_population(lambda start,end:dict(maxRank=10,entries=[dict(rank=1,point=1)]),THRESHOLDS,spacing=0)
+  with self.assertRaisesRegex(ValueError,'non_monotone'):probe_population(lambda start,end:dict(maxRank=10,entries=[dict(rank=r,point=r) for r in range(start,min(end,10)+1)]),THRESHOLDS,spacing=0)
 
  def test_boundary_recheck_detects_movement_even_when_maximum_is_unchanged(self):
   seen={}
-  def read(rank):
-   seen[rank]=seen.get(rank,0)+1
-   point=5000 if rank<=5 else 4
-   if rank==5 and seen[rank]>1:point=4
-   return dict(maxRank=10,entries=[dict(rank=rank,point=point)] if rank<=10 else [])
+  def read(start,end):
+   entries=[]
+   for rank in range(start,min(end,10)+1):
+    seen[rank]=seen.get(rank,0)+1
+    point=5000 if rank<=5 else 4
+    if rank==5 and seen[rank]>1:point=4
+    entries.append(dict(rank=rank,point=point))
+   return dict(maxRank=10,entries=entries)
   with self.assertRaises(ValueError):probe_population(read,THRESHOLDS,spacing=0)
 
  def test_plan_requires_complete_published_thresholds_current_season_and_master_binding(self):
@@ -109,7 +113,7 @@ class PopulationTests(unittest.TestCase):
     self.assertEqual(main(args),0);capture.assert_not_called();profile.assert_not_called()
    with redirect_stderr(io.StringIO()),self.assertRaises(SystemExit):main(args+['--resume'])
 
- def test_reader_uses_only_one_position_per_call_and_clears_auth_even_on_failure(self):
+ def test_reader_uses_at_most_100_positions_and_discards_profiles_and_clears_auth(self):
   from tools.growth_login import message,integer,single
   from backend.arena_rankings import RPC
   auth=[('credential','synthetic-token')];calls=[]
@@ -121,12 +125,12 @@ class PopulationTests(unittest.TestCase):
     calls.append(method)
     if method=='app.masterdata.MasterdataService/Version':return message(1,'a'*32)
     first,last=single(payload,3,wire=0),single(payload,4,wire=0)
-    if first!=last:raise AssertionError('not a point probe')
-    raw=message(1,message(1,message(1,'not-published')+message(2,'not-published'))+integer(3,first)+integer(4,4)) if first<=10 else b''
+    if not 1<=last-first+1<=100:raise AssertionError('unbounded window')
+    raw=b''.join(message(1,integer(3,r)+integer(4,4)+message(1,'not-decoded')) for r in range(first,min(last,10)+1))
     return raw+integer(2,10)
-  with patch('tools.arena_population.probe_population',side_effect=lambda reader,thresholds:probe_population(reader,thresholds,spacing=0)):
+  with patch('tools.arena_population.time.sleep'),patch('tools.arena_population.probe_population',side_effect=lambda reader,thresholds:probe_population(reader,thresholds,spacing=0)):
    result=Client(plan).export(None,None,'synthetic-host')
-  self.assertTrue(all(c in (RPC,'app.masterdata.MasterdataService/Version') for c in calls));self.assertNotIn('not-published',json.dumps(result));self.assertEqual(auth,[])
+  self.assertTrue(all(c in (RPC,'app.masterdata.MasterdataService/Version') for c in calls));self.assertNotIn('not-decoded',json.dumps(result));self.assertEqual(auth,[])
   with tempfile.TemporaryDirectory() as root:publish_populations(result,root,'global-hmt')
   class Failed(Client):
    def rpc(self,*args):raise LoginError('game_rpc_unavailable')
@@ -143,13 +147,13 @@ class PopulationTests(unittest.TestCase):
    def authenticate(self,*args):return auth
    def rpc(self,host,method,payload,credential):
     if method=='app.masterdata.MasterdataService/Version':return message(1,'a'*32)
-    band=single(payload,2,wire=0);rank=single(payload,3,wire=0);calls.append(band)
+    band=single(payload,2,wire=0);start=single(payload,3,wire=0);end=single(payload,4,wire=0);calls.append(band)
     total=11 if band==2 and calls.count(2)>1 else 10
-    raw=message(1,message(1,message(1,'synthetic')+message(2,'synthetic'))+integer(3,rank)+integer(4,4)) if rank<=total else b''
+    raw=b''.join(message(1,integer(3,r)+integer(4,4)) for r in range(start,min(end,total)+1))
     return raw+integer(2,total)
   from contextlib import redirect_stdout
   import io
-  with patch('tools.arena_population.probe_population',side_effect=lambda reader,thresholds:probe_population(reader,thresholds,spacing=0)),redirect_stdout(io.StringIO()):
+  with patch('tools.arena_population.time.sleep'),patch('tools.arena_population.probe_population',side_effect=lambda reader,thresholds:probe_population(reader,thresholds,spacing=0)),redirect_stdout(io.StringIO()):
    result=Client(plan).export(None,None,'synthetic-host')
   self.assertEqual([r['bandId'] for r in result],['1','3']);self.assertEqual(calls.count(2),2);self.assertEqual(auth,[])
   with tempfile.TemporaryDirectory() as root:
@@ -157,3 +161,67 @@ class PopulationTests(unittest.TestCase):
    before=population_path(root,'global-hmt','1','2').read_bytes()
    publish_populations(result,root,'global-hmt')
    self.assertEqual(population_path(root,'global-hmt','1','2').read_bytes(),before)
+
+ def test_plateaus_window_edges_and_extreme_distributions_match_full_local_counts(self):
+  import random
+  randomizer=random.Random(7)
+  distributions=[[0]*5,[1,99,100,101,1000],[100,0,100,0,100],[0,0,0,0,1]]
+  distributions += [[randomizer.randrange(800) for _ in THRESHOLDS] for _ in range(40)]
+  for counts in distributions:
+   points=sorted((threshold['threshold'] for count,threshold in zip(counts,THRESHOLDS) for _ in range(count)),reverse=True)
+   calls=[]
+   def read(start,end):
+    calls.append((start,end))
+    return dict(maxRank=len(points),entries=[dict(rank=r,point=points[r-1]) for r in range(start,min(end,len(points))+1)])
+   result=probe_population(read,THRESHOLDS,spacing=0)
+   self.assertEqual([r['count'] for r in result['tiers']],counts)
+   self.assertLessEqual(len(calls),48)
+   self.assertTrue(all(1<=end-start+1<=100 for start,end in calls))
+
+ def test_large_board_uses_bounded_windows_without_allocating_or_walking_full_board(self):
+  total=10_000_000;calls=[]
+  def point(rank):return 5000 if rank<=123 else 1900 if rank<=5000 else 745 if rank<=20000 else 190 if rank<=100000 else 4
+  def read(start,end):
+   calls.append((start,end));return dict(maxRank=total,entries=[dict(rank=r,point=point(r)) for r in range(start,min(end,total)+1)])
+  result=probe_population(read,THRESHOLDS,spacing=0)
+  self.assertEqual([r['count'] for r in result['tiers']],[9_900_000,80_000,15_000,4877,123])
+  self.assertLessEqual(len(calls),48)
+
+ def test_missing_middle_position_and_duplicate_ranks_never_become_zero_counts(self):
+  for entries in [[dict(rank=1,point=1000),dict(rank=3,point=0)],
+                  [dict(rank=1,point=1000),dict(rank=1,point=1000),dict(rank=3,point=0)]]:
+   with self.assertRaisesRegex(ValueError,'non_positional'):
+    probe_population(lambda start,end:dict(maxRank=3,entries=entries),THRESHOLDS,spacing=0)
+
+ def test_deadline_includes_spacing_and_stops_before_next_request(self):
+  clock=[0];calls=[]
+  def sleep(seconds):clock[0]+=seconds
+  def reader(start,end):
+   calls.append((start,end));return dict(maxRank=1,entries=[dict(rank=1,point=0)])
+  with self.assertRaisesRegex(ValueError,'budget'):
+   probe_population(reader,THRESHOLDS,spacing=1,deadline=.5,clock=lambda:clock[0],sleep=sleep)
+  self.assertEqual(len(calls),1)
+
+ def test_run_budget_spans_bands_preserves_completed_result_and_never_retries(self):
+  from tools.growth_login import message,integer,single
+  from contextlib import redirect_stdout
+  import io
+  calls=[];auth=[('credential','synthetic')]
+  plan=dict(serverId='global-hmt',seasonId='1',bandIds=['1','2','3'],contentReleaseId='test',masterVersion='a'*32,populationThresholds={str(b):THRESHOLDS for b in (1,2,3)})
+  class Client(ArenaPopulationClient):
+   population_master='a'*32
+   def authenticate(self,*args):return auth
+   def rpc(self,host,method,payload,credential):
+    if method=='app.masterdata.MasterdataService/Version':return message(1,'a'*32)
+    calls.append(single(payload,2,wire=0));return integer(2,0)
+  with patch('tools.arena_population.MAX_RUN_READS',3),patch('tools.arena_population.time.sleep'),redirect_stdout(io.StringIO()):
+   result=Client(plan).export(None,None,'synthetic-host')
+  self.assertEqual(calls,[1,1,2]);self.assertEqual([row['bandId'] for row in result],['1']);self.assertEqual(auth,[])
+
+ def test_aggregate_decoder_ignores_profiles_and_rejects_oversized_windows(self):
+  from tools.growth_login import message,integer
+  row=integer(3,1)+integer(4,190)+message(1,b'ignored-profile')+message(2,b'ignored-deck')
+  decoded=decode_population_response(message(1,row)+integer(2,1))
+  self.assertEqual(decoded,dict(maxRank=1,entries=[dict(rank=1,point=190)]))
+  with self.assertRaisesRegex(LoginError,'invalid_arena_population_response'):
+   decode_population_response(message(1,row)*101+integer(2,101))

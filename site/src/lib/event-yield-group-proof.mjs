@@ -12,12 +12,14 @@ import {createEventScoreCacheBinding,bindEventCandidateCache} from './event-sear
 import {compareEventPlans} from './event-yield-goals.mjs';
 import {eventCandidateKey,createChallengeContinuationPlanner,createEventYieldRewardTransform,attainableBonusSums,constrainBonusCards} from './event-yield-optimizer.mjs';
 
+const HEURISTIC_SCORES_PER_CHART=48;
+
 /** Prove the best reward tuple globally or independently for every chart. Chart envelopes
  * are normalized by each grade threshold before merging. A merged envelope
  * is a relaxation, never a synthetic score. Unknown coverage returns unproven
  * so the batch runner can retain its full individual-chart fallback. */
 export async function proveEventYieldGroups({rules,eventId,input,candidates,challengeRows=[],initialRows=[],goal,
- candidateCache=new Map(),challengePlanCache,loadChart,getScoreCache,yieldControl=async()=>{},onProgress=()=>{},signal,individualProofs=false}){
+ candidateCache=new Map(),challengePlanCache,loadChart,getScoreCache,yieldControl=async()=>{},onProgress=()=>{},signal,individualProofs=false,allowForeignSeeds=false}){
  await bindEventCandidateCache(candidateCache,rules);
  const stats={groups:0,groupsCompleted:0,leaders:0,visited:0,expanded:0,cardPartitions:0,chartPartitions:0,pairPartitions:0,prunedPartitions:0,
   fullScoreCalculations:0,boundScoreCalculations:0,scoreCacheHits:0,jointBoundMatchingCalls:0,powerMatchingCalls:0,
@@ -112,6 +114,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  const boundFor=entry=>entry.bound??=createOrdinaryScoreBound({song:songFor(entry),pairSkills:entry.group.pairSkills,legacyFactor:Infinity,input:entry.resolved,metric:input.basis,bonusConstraintBound:true});
  const releaseEntry=entry=>{entry.evaluator=null;entry.bound=null;entry.song=null;entry.envelopes.clear();};
  const byId=new Map(entries.map(e=>[e.candidate.id,e]));
+ const seedEntry=row=>byId.get(row.song?.id)??(allowForeignSeeds?entries[0]:null);
  const cacheFor=async entry=>{
   entry.scoreCache??=await getScoreCache(entry.candidate,'ordinary',input,entry.chart);
   entry.bindScoreCache??=await createEventScoreCacheBinding({rules,chart:entry.chart,draft:entry.cacheDraft});
@@ -126,17 +129,20 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
    &&(!c.leaderId||slots[2].memberCardId===c.leaderId)&&c.requiredMemberIds.every(id=>members.includes(id))&&c.requiredSupportIds.every(id=>supports.includes(id))
    &&c.lockedPairs.every(p=>slots.some(s=>s.memberCardId===p.memberCardId&&s.supportCardId===p.supportCardId));
  };
- rows=initialRows.filter(r=>byId.has(r.song?.id)
-  &&r.orderCount===120&&r.reward?.mode==='ordinary'&&legal(byId.get(r.song.id),r.draft)
+ rows=initialRows.filter(r=>seedEntry(r)
+  &&r.orderCount===120&&r.reward?.mode==='ordinary'&&legal(seedEntry(r),r.draft)
   &&Number.isSafeInteger(r.total?.badges)&&Number.isSafeInteger(r.total?.eventPoints)).sort(compare);
- if(individualProofs){const seen=new Set();rows=rows.filter(row=>{if(seen.has(row.song.id))return false;seen.add(row.song.id);return true;});}
- else rows=rows.slice(0,12);
+ // A shard may borrow formations from another chart. Rescore all of those
+ // before choosing an incumbent: their old rewards cannot rank destination
+ // seeds, and must not displace a better local seed before native scoring.
+ if(individualProofs&&!allowForeignSeeds){const seen=new Set();rows=rows.filter(row=>{if(seen.has(row.song.id))return false;seen.add(row.song.id);return true;});}
+ else if(!individualProofs)rows=rows.slice(0,12);
  if(!rows.length)return finish(false,'no_verified_initial_row');
  // Rebuild seeds with THIS run's growth, score basis, budget and CP planner.
  // Structural validity alone cannot make a stale result a safe incumbent.
  const seeds=rows;rows=[];
  for(const seed of seeds){
-  const entry=byId.get(seed.song.id),edges=seed.draft.slots.map(s=>({member:s.memberCardId,support:s.supportCardId,key:s.memberCardId+'|'+s.supportCardId})).sort((a,b)=>a.key.localeCompare(b.key));
+  const entry=seedEntry(seed),edges=seed.draft.slots.map(s=>({member:s.memberCardId,support:s.supportCardId,key:s.memberCardId+'|'+s.supportCardId})).sort((a,b)=>a.key.localeCompare(b.key));
   const team=draftFromPairing(entry.resolved,seed.draft.slots[2].memberCardId,edges);
   const cache=await cacheFor(entry);
   const id=team.slots.map(s=>s.memberCardId+'|'+s.supportCardId).join(';');let raw=cache.get('full:'+id);
@@ -165,7 +171,10 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   group.merged.set(key,bound);return bound;
  };
  const score=async(entry,leader,matching,representative=false,transfer=false)=>{
-  if(!representative&&!transfer&&stats.heuristicScores>=48)return;
+  // Each chart needs its own useful incumbent. A single run-wide budget
+  // starves later charts once early groups consume all optional scores,
+  // leaving the complete proof to discover improvements by enumeration.
+  if(!representative&&!transfer&&(entry.heuristicScores??0)>=HEURISTIC_SCORES_PER_CHART)return;
   // Bounds can suggest the same matching thousands of times. Its score and
   // reward are fixed within this chart/goal job; it has already updated the
   // incumbent, so even rebuilding its full growth draft is redundant.
@@ -181,6 +190,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
    entry.evaluator??=createCandidateEvaluator({rules,chart:entry.chart,objective:'expected_song_score'},{song:songFor(entry)});
    raw=entry.evaluator.score(team);cache.set('full:'+id,raw);stats.fullScoreCalculations++;
    stats[transfer?'transferScores':representative?'representativeScores':'heuristicScores']++;
+   if(!transfer&&!representative)entry.heuristicScores=(entry.heuristicScores??0)+1;
   }
   const row={...entry.transform(raw,team),draft:team,id,origins:['normalized-group-proof'],delta:null,comparison:null,recommendationGoals:[goal]};
   const old=individualProofs?perChart.get(entry.candidate.id):rows[0];retain(row);
@@ -200,12 +210,13 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   await yieldControl();
  };
  const scoreWitness=async(group,charts,leader,matching,required,rank)=>{
-  if(stats.heuristicScores>=48)return;
+  if(charts.every(entry=>(entry.heuristicScores??0)>=HEURISTIC_SCORES_PER_CHART))return;
   const bonus=matching.edges.reduce((s,e)=>{const b=pairBonus(e);return {rewardBP:s.rewardBP+b.rewardBP,eventPointBP:s.eventPointBP+b.eventPointBP};},{rewardBP:0,eventPointBP:0});
   if(bonus[primary]<required[0]||bonus[secondary]<required[1])return;
   const power=matching.edges.reduce((s,e)=>s+e.weight,0);
   const promising=charts.map(entry=>{const env=envelopeFor(entry,rank);return {entry,potential:env?power*(env.baseCoefficient+matching.edges.reduce((s,e)=>s+env.gainFor(e),0)):Infinity};})
-   .filter(r=>r.potential>=1).sort((a,b)=>(a.entry.candidate.seconds??Infinity)-(b.entry.candidate.seconds??Infinity)||b.potential-a.potential);
+   .filter(r=>r.potential>=1&&(r.entry.heuristicScores??0)<HEURISTIC_SCORES_PER_CHART)
+   .sort((a,b)=>(a.entry.candidate.seconds??Infinity)-(b.entry.candidate.seconds??Infinity)||b.potential-a.potential);
   for(const row of promising.slice(0,2))await score(row.entry,leader,matching);
  };
  // A formation proposed for one chart/goal can reach a different grade on
@@ -213,7 +224,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  // recomputed here. This is a bounded heuristic, never a coverage shortcut.
  const transferTeams=new Map();
  for(const target of [...new Set(['badges','eventPoints',goal])]){
-  const seed=initialRows.filter(r=>byId.has(r.song?.id)&&legal(byId.get(r.song.id),r.draft)&&r.orderCount===120)
+  const seed=initialRows.filter(r=>seedEntry(r)&&legal(seedEntry(r),r.draft)&&r.orderCount===120)
    .sort((a,b)=>compareEventPlans({...a,expectedScore:0},{...b,expectedScore:0},target))[0];
   if(!seed)continue;
   const leader=seed.draft.slots[2].memberCardId,edges=seed.draft.slots.map(s=>({member:s.memberCardId,support:s.supportCardId,key:s.memberCardId+'|'+s.supportCardId})).sort((a,b)=>a.key.localeCompare(b.key));
@@ -356,9 +367,18 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
     if(state.charts.length>1){
      const mid=Math.ceil(state.charts.length/2);states.push({...state,charts:state.charts.slice(mid)},{...state,charts:state.charts.slice(0,mid)});stats.chartPartitions++;
     }else if(kind){
-     const choices=[...new Set(edges.map(e=>e[kind]))].filter(id=>!state[kind+'Required'].includes(id));
-     choices.sort((a,b)=>{const x=cardBonus(kind,a),y=cardBonus(kind,b);return y[secondary]-x[secondary]||y[primary]-x[primary]||a.localeCompare(b);});
-     const id=choices[0];if(!id)return finish(false,'incomplete_card_partition');
+     // Resolve cards of a maximum-power matching first: excluding one
+     // tightens the grade bound, including it reduces the remaining domain.
+     // This only orders the complete include/exclude partition; both sides
+     // remain in the search, including low-power high-bonus cards.
+     domain.strengths??={};let strengths=domain.strengths[kind];
+     if(!strengths){
+      strengths=new Map();for(const edge of edges)strengths.set(edge[kind],Math.max(strengths.get(edge[kind])??-Infinity,edge.weight));
+      domain.strengths[kind]=strengths;
+     }
+     const choices=[...strengths.keys()].filter(id=>!state[kind+'Required'].includes(id)),matched=new Set(power.edges.map(e=>e[kind]));
+     const order=(a,b)=>Number(matched.has(b))-Number(matched.has(a))||strengths.get(b)-strengths.get(a)||a.localeCompare(b);
+     const id=choices.reduce((best,id)=>best===null||order(id,best)<0?id:best,null);if(!id)return finish(false,'incomplete_card_partition');
      states.push({...state,[kind+'Excluded']:[...state[kind+'Excluded'],id]},{...state,[kind+'Required']:[...state[kind+'Required'],id]});stats.cardPartitions++;
     }else {
      const entry=state.charts[0],team=draftFromPairing(entry.resolved,leader,power.edges),fixed={...state,required:power.edges.map(e=>e.key)};

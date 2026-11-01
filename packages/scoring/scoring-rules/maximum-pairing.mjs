@@ -35,14 +35,20 @@ export function createMaximumPairing({edges,count=5,required=[],forbidden=[],req
   // Reuse queue storage without retaining the previous solve's logical length.
   // Residual capacities, distances and queue membership are still reset.
   const forcedIndices=forced.map(e=>edges.indexOf(e)),queue=[];
+  // Linear probes can supply integer weights in the original edge order.
   return function solve(weight=e=>e.weight){
-    let max=0;
-    for(let i=0;i<edges.length;i++){weights[i]=weight(edges[i]);max=Math.max(max,Math.abs(weights[i]));}
+    let max=0,values=weights;
+    if(typeof weight==='function'){
+      for(let i=0;i<edges.length;i++){values[i]=weight(edges[i]);max=Math.max(max,Math.abs(values[i]));}
+    }else{
+      if(weight?.length!==edges.length)throw new Error('Matching weight vector has the wrong size');
+      values=weight;for(let i=0;i<edges.length;i++)max=Math.max(max,Math.abs(values[i]));
+    }
     const reward=2*count*max+1;
     if(!Number.isSafeInteger(reward*(2*count+1)))throw new Error('Matching weights exceed safe integer range');
     for(const arc of rewardArcs){cost[arc]=-reward;cost[arc^1]=reward;}
     for(let i=0;i<candidates.length;i++){
-      const value=weights[indices[i]];if(!Number.isSafeInteger(value))throw new Error('Pairing weight must be an integer');
+      const value=values[indices[i]];if(!Number.isSafeInteger(value))throw new Error('Pairing weight must be an integer');
       cost[arcs[i]]=-value;cost[arcs[i]^1]=value;
     }
     capacity.set(initialCapacity);
@@ -60,8 +66,8 @@ export function createMaximumPairing({edges,count=5,required=[],forbidden=[],req
       if(!Number.isFinite(distance[sink]))return null;
       for(let v=sink;v!==source;){const edge=previous[v];capacity[edge]--;capacity[edge^1]++;v=to[edge^1];}
     }
-    const selected=[...forced];let total=forcedIndices.reduce((sum,i)=>sum+weights[i],0);
-    for(let i=0;i<candidates.length;i++)if(!capacity[arcs[i]]){selected.push(candidates[i]);total+=weights[indices[i]];}
+    const selected=[...forced];let total=forcedIndices.reduce((sum,i)=>sum+values[i],0);
+    for(let i=0;i<candidates.length;i++)if(!capacity[arcs[i]]){selected.push(candidates[i]);total+=values[indices[i]];}
     if([...needM].some(id=>!selected.some(e=>e.member===id))||[...needS].some(id=>!selected.some(e=>e.support===id)))return null;
     return {edges:selected.sort((a,b)=>a.key.localeCompare(b.key)),weight:total};
   };

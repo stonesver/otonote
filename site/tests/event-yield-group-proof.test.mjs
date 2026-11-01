@@ -56,6 +56,15 @@ test('cross-chart first proof matches independent 7200-team native oracle includ
    assert.ok(row,`missing ${candidate.id}`);
    assert.equal(compare({rank:row.reward.scoreRank,total:row.total,seconds:row.song.seconds},expected,goal),0,`${basis} ${goal} ${candidate.id}`);
   }
+  // A parallel shard may receive only a formation scored on another chart.
+  // Even the deliberately inflated source totals above must be replaced by
+  // native destination scores before they can bound this one-chart domain.
+  const foreign=await proveEventYieldGroups({rules:f.rules,eventId:1,input,candidates:[candidates[1]],goal,
+   individualProofs:true,allowForeignSeeds:true,initialRows:seed.results,loadChart:async c=>charts.get(c.id),getScoreCache:async()=>new Map()});
+  const foreignExpected=exact.filter(r=>r.trackId===candidates[1].trackId).toSorted((a,b)=>compare(a,b,goal))[0];
+  assert.equal(foreign.proven,true);assert.deepEqual(foreign.certificate.coveredChartIds,[candidates[1].id]);
+  assert.equal(foreign.results.length,1);
+  assert.equal(compare({rank:foreign.results[0].reward.scoreRank,total:foreign.results[0].total,seconds:foreign.results[0].song.seconds},foreignExpected,goal),0);
   // Reuse preparation across a different constrained domain. Locked pairs,
   // leader and required supports must survive all chart/card cache reuse.
   const constraints={leaderId:'member-card-1',requiredSupportIds:['support-card-6'],

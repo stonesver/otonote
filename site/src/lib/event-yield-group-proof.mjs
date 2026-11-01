@@ -8,24 +8,40 @@ import {createBonusConstrainedScoreEnvelopeBound} from '../../../packages/scorin
 import {createCandidateEvaluator} from './formation-candidate-evaluator.mjs';
 import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
 import {prepareEventSearchInput} from './event-search-input.mjs';
-import {bindEventScoreCache} from './event-search-cache.mjs';
+import {createEventScoreCacheBinding,bindEventCandidateCache} from './event-search-cache.mjs';
 import {compareEventPlans} from './event-yield-goals.mjs';
 import {eventCandidateKey,createChallengeContinuationPlanner,createEventYieldRewardTransform,attainableBonusSums,constrainBonusCards} from './event-yield-optimizer.mjs';
 
-/** Prove the first reward tuple across ALL supplied charts. Chart envelopes
+/** Prove the best reward tuple globally or independently for every chart. Chart envelopes
  * are normalized by each grade threshold before merging. A merged envelope
  * is a relaxation, never a synthetic score. Unknown coverage returns unproven
  * so the batch runner can retain its full individual-chart fallback. */
 export async function proveEventYieldGroups({rules,eventId,input,candidates,challengeRows=[],initialRows=[],goal,
- candidateCache,challengePlanCache,loadChart,getScoreCache,yieldControl=async()=>{},onProgress=()=>{},signal}){
+ candidateCache=new Map(),challengePlanCache,loadChart,getScoreCache,yieldControl=async()=>{},onProgress=()=>{},signal,individualProofs=false}){
+ await bindEventCandidateCache(candidateCache,rules);
  const stats={groups:0,groupsCompleted:0,leaders:0,visited:0,expanded:0,cardPartitions:0,chartPartitions:0,pairPartitions:0,prunedPartitions:0,
   fullScoreCalculations:0,boundScoreCalculations:0,scoreCacheHits:0,jointBoundMatchingCalls:0,powerMatchingCalls:0,
-  heuristicScores:0,transferScores:0,representativeScores:0,candidateBoundPruned:0,normalizedEnvelopes:0};
+  heuristicScores:0,transferScores:0,representativeScores:0,candidateBoundPruned:0,normalizedEnvelopes:0,repeatedCandidatesSkipped:0,
+  cardDomainCacheHits:0,bonusDomainCacheHits:0};
  let rows=[],covered=[];
- const compare=(a,b)=>compareEventPlans({...a,expectedScore:0},{...b,expectedScore:0},goal);
- const finish=(proven,reason)=>({results:rows,proven,certificate:{bestProven:proven,proofTarget:'best_for_goal_over_selected_charts',
-  certifiedCount:proven?1:0,topNComplete:false,alternativesOptimality:'not_proven',scoreTieOptimality:'not_proven',
-  scope:'all_selected_charts_given_challenge_rows',objective:'reward_tuple_and_duration',
+ const compare=(a,b)=>compareEventPlans({...a,expectedScore:0,...(individualProofs?{song:{seconds:0}}:{})},{...b,expectedScore:0,...(individualProofs?{song:{seconds:0}}:{})},goal);
+ const perChart=new Map();
+ // A shared node can be excluded against the weakest incumbent among its
+ // charts: beating ANY chart's incumbent also beats this lower reward tuple.
+ // Splitting unresolved nodes retains every chart and every legal formation.
+ const firstFor=charts=>individualProofs?charts.reduce((worst,e)=>{const row=perChart.get(e.candidate.id);return !worst||compare(row,worst)>0?row:worst;},null):rows[0];
+ const retain=row=>{
+  if(individualProofs){
+   const old=perChart.get(row.song.id);
+   const comparison=old?compare(row,old):-1;
+   if(comparison>0||comparison===0&&row.expectedScore<=old.expectedScore)return;
+   perChart.set(row.song.id,row);
+   rows=[...perChart.values()].sort(compare);
+  }else rows=[row,...rows.filter(r=>r.id!==row.id||r.song.id!==row.song.id)].sort(compare).slice(0,12);
+ };
+ const finish=(proven,reason)=>({results:rows,proven,certificate:{bestProven:proven,perChartBestProven:proven&&individualProofs,proofTarget:individualProofs?'best_for_each_chart':'best_for_goal_over_selected_charts',
+  certifiedCount:proven?(individualProofs?candidates.length:1):0,topNComplete:false,alternativesOptimality:individualProofs?'each_chart_reward_proven':'not_proven',scoreTieOptimality:'not_proven',
+  scope:'all_selected_charts_given_challenge_rows',objective:individualProofs?'per_chart_reward_tuple':'reward_tuple_and_duration',
   proof:'normalized_chart_groups_and_complete_card_pair_partitions',coverageComplete:proven,
   coveredChartIds:[...covered],candidateChartIds:candidates.map(c=>c.id),...(reason?{reason}:{})},stats:{...stats}});
  if(!candidates.length||input.mode!=='ordinary'||input.refineScoreTies||input.draft.modifiers?.performanceScenario)
@@ -47,7 +63,11 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   if(!cardBonuses.has(id))cardBonuses.set(id,model.cardBonus(kind,Number(id.split('-').at(-1)),draft.modifiers.growth?.[id]?.rank??1));
   return cardBonuses.get(id);
  };
- const pairBonus=e=>{const a=cardBonus('member',e.member),b=cardBonus('support',e.support);return {rewardBP:a.rewardBP+b.rewardBP,eventPointBP:a.eventPointBP+b.eventPointBP};};
+ const pairBonuses=new WeakMap();
+ const pairBonus=e=>{
+  if(!pairBonuses.has(e)){const a=cardBonus('member',e.member),b=cardBonus('support',e.support);pairBonuses.set(e,{rewardBP:a.rewardBP+b.rewardBP,eventPointBP:a.eventPointBP+b.eventPointBP});}
+  return pairBonuses.get(e);
+ };
  const planners=new Map(),plans=new Map();
  const continuationFor=(cp,objective)=>{
   const key=objective+':'+cp;if(plans.has(key))return plans.get(key);
@@ -72,7 +92,8 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
    const pairSkills=new Map(),resolver=createFormalSkillResolver(rules);
    for(const memberCardId of resolved.inventory.memberCardIds)for(const supportCardId of resolved.inventory.supportCardIds)
     pairSkills.set(`${memberCardId}|${supportCardId}`,resolver({slots:[{memberCardId,supportCardId}],modifiers:resolved.draft.modifiers})[0]);
-   group={entries:[],models:null,pairSkills,resolved,merged:new Map()};groups.set(key,group);
+   group={entries:[],models:null,pairSkills,resolved,merged:new Map(),transferred:new Set(),
+    powerCacheKey:'group-power:'+JSON.stringify([eventCandidateKey(rules,next,options.inventory,options.scope,[],false),resolved.inventory,resolved.constraints])};groups.set(key,group);
   }
   const chart=await loadChart(candidate);
   if(chart.id!==candidate.id||chart.trackId!==candidate.trackId||chart.difficulty!==candidate.difficulty||chart.sourceReleaseId&&chart.sourceReleaseId!==rules.sourceReleaseId)
@@ -91,6 +112,11 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  const boundFor=entry=>entry.bound??=createOrdinaryScoreBound({song:songFor(entry),pairSkills:entry.group.pairSkills,legacyFactor:Infinity,input:entry.resolved,metric:input.basis,bonusConstraintBound:true});
  const releaseEntry=entry=>{entry.evaluator=null;entry.bound=null;entry.song=null;entry.envelopes.clear();};
  const byId=new Map(entries.map(e=>[e.candidate.id,e]));
+ const cacheFor=async entry=>{
+  entry.scoreCache??=await getScoreCache(entry.candidate,'ordinary',input,entry.chart);
+  entry.bindScoreCache??=await createEventScoreCacheBinding({rules,chart:entry.chart,draft:entry.cacheDraft});
+  entry.bindScoreCache(entry.scoreCache);return entry.scoreCache;
+ };
  const characterFor=new Map(rules.tables.MemberCard.map(r=>[`member-card-${r._id}`,r._characterID]));
  const legal=(entry,team)=>{
   const pool=entry.resolved.inventory,c=entry.resolved.constraints,slots=team.slots;
@@ -102,7 +128,9 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  };
  rows=initialRows.filter(r=>byId.has(r.song?.id)
   &&r.orderCount===120&&r.reward?.mode==='ordinary'&&legal(byId.get(r.song.id),r.draft)
-  &&Number.isSafeInteger(r.total?.badges)&&Number.isSafeInteger(r.total?.eventPoints)).sort(compare).slice(0,12);
+  &&Number.isSafeInteger(r.total?.badges)&&Number.isSafeInteger(r.total?.eventPoints)).sort(compare);
+ if(individualProofs){const seen=new Set();rows=rows.filter(row=>{if(seen.has(row.song.id))return false;seen.add(row.song.id);return true;});}
+ else rows=rows.slice(0,12);
  if(!rows.length)return finish(false,'no_verified_initial_row');
  // Rebuild seeds with THIS run's growth, score basis, budget and CP planner.
  // Structural validity alone cannot make a stale result a safe incumbent.
@@ -110,10 +138,10 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  for(const seed of seeds){
   const entry=byId.get(seed.song.id),edges=seed.draft.slots.map(s=>({member:s.memberCardId,support:s.supportCardId,key:s.memberCardId+'|'+s.supportCardId})).sort((a,b)=>a.key.localeCompare(b.key));
   const team=draftFromPairing(entry.resolved,seed.draft.slots[2].memberCardId,edges);
-  const cache=await getScoreCache(entry.candidate,'ordinary',input,entry.chart);await bindEventScoreCache(cache,{rules,chart:entry.chart,draft:entry.cacheDraft});
+  const cache=await cacheFor(entry);
   const id=team.slots.map(s=>s.memberCardId+'|'+s.supportCardId).join(';');let raw=cache.get('full:'+id);
   if(raw)stats.scoreCacheHits++;else{entry.evaluator??=createCandidateEvaluator({rules,chart:entry.chart,objective:'expected_song_score'},{song:songFor(entry)});raw=entry.evaluator.score(team);cache.set('full:'+id,raw);stats.fullScoreCalculations++;}
-  rows.push({...entry.transform(raw,team),draft:team,id,origins:['verified-current-group-seed'],recommendationGoals:[goal]});
+  retain({...entry.transform(raw,team),draft:team,id,origins:['verified-current-group-seed'],recommendationGoals:[goal]});
  }
  rows.sort(compare);
  const envelopeFor=(entry,rank,requiredMembers=[])=>{
@@ -138,10 +166,15 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  };
  const score=async(entry,leader,matching,representative=false,transfer=false)=>{
   if(!representative&&!transfer&&stats.heuristicScores>=48)return;
+  // Bounds can suggest the same matching thousands of times. Its score and
+  // reward are fixed within this chart/goal job; it has already updated the
+  // incumbent, so even rebuilding its full growth draft is redundant.
+  const signature=leader+':'+matching.edges.map(e=>e.key).join(';');
+  entry.scored??=new Set();
+  if(entry.scored.has(signature)){stats.repeatedCandidatesSkipped++;return;}
   const team=draftFromPairing(entry.resolved,leader,matching.edges);if(!legal(entry,team))return;
   const id=team.slots.map(s=>`${s.memberCardId}|${s.supportCardId}`).join(';');
-  const cache=await getScoreCache(entry.candidate,'ordinary',input,entry.chart);
-  await bindEventScoreCache(cache,{rules,chart:entry.chart,draft:entry.cacheDraft});
+  const cache=await cacheFor(entry);
   let raw=cache.get('full:'+id);
   if(raw)stats.scoreCacheHits++;
   else {
@@ -150,8 +183,20 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
    stats[transfer?'transferScores':representative?'representativeScores':'heuristicScores']++;
   }
   const row={...entry.transform(raw,team),draft:team,id,origins:['normalized-group-proof'],delta:null,comparison:null,recommendationGoals:[goal]};
-  const old=rows[0];rows=[row,...rows.filter(r=>r.id!==id||r.song.id!==entry.candidate.id)].sort(compare).slice(0,12);
-  if(compare(rows[0],old)<0)onProgress({phase:'event-group-proof',stage:'改进跨谱面收益第一名',completed:stats.expanded,bestCandidate:rows[0]});
+  const old=individualProofs?perChart.get(entry.candidate.id):rows[0];retain(row);
+  if(entry.scored.size>=4096)entry.scored.clear();
+  entry.scored.add(signature);
+  const best=individualProofs?perChart.get(entry.candidate.id):rows[0];
+  if(!old||compare(best,old)<0){
+   onProgress({phase:'event-group-proof',stage:individualProofs?'改进单曲收益方案':'改进跨谱面收益第一名',completed:stats.expanded,bestCandidate:best});
+   // A better formation often improves nearby charts too. Transfer only its
+   // cards, fully rescore on the destination, and cap this optional work.
+   const group=entry.group;
+   if(individualProofs&&!transfer&&group.transferred.size<8&&!group.transferred.has(id)){
+    group.transferred.add(id);
+    for(const other of group.entries){if(signal?.aborted)break;if(other!==entry)await score(other,leader,matching,false,true);}
+   }
+  }
   await yieldControl();
  };
  const scoreWitness=async(group,charts,leader,matching,required,rank)=>{
@@ -183,9 +228,10 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   }
   releaseEntry(entry);
  }
+ if(individualProofs&&entries.some(entry=>!perChart.has(entry.candidate.id)))return finish(false,'missing_chart_seed');
  for(const group of groups.values()){
   const baseInput=group.resolved;
-  group.models=await compilePairingModels(rules,baseInput,{signal,yieldControl,onProgress:p=>onProgress({...p,stage:'准备当前谱面组的配对能力'})});
+  group.models=await compilePairingModels(rules,baseInput,{signal,yieldControl,pairCache:candidateCache,pairCacheKey:group.powerCacheKey,onProgress:p=>onProgress({...p,stage:'准备当前谱面组的配对能力'})});
   if(!group.models)return finish(false,'cancelled');
   const allEdges=baseInput.inventory.memberCardIds.flatMap(member=>baseInput.inventory.supportCardIds.map(support=>({member,support,character:characterFor.get(member),key:member+'|'+support,weight:0})));
   if(!group.models.length)return finish(false,'missing_pair_models');
@@ -202,22 +248,47 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   };
   for(const [leaderIndex,modelRow] of group.models.entries()){
    const leader=modelRow.leader,c=baseInput.constraints;
+   // Chart partitions share exactly the same card/edge domain. Cache only
+   // chart-independent work, scoped to this immutable power model and leader.
+   const cardDomains=new Map();
    const initial={leader,required:c.lockedPairs.map(p=>`${p.memberCardId}|${p.supportCardId}`),forbidden:[],
     memberRequired:[...new Set([leader,...c.requiredMemberIds,...c.lockedPairs.map(p=>p.memberCardId)])],
     supportRequired:[...new Set([...c.requiredSupportIds,...c.lockedPairs.map(p=>p.supportCardId)])],memberExcluded:[],supportExcluded:[],charts:group.entries};
    const states=[initial];
    while(states.length){
     if(signal?.aborted)return finish(false,'cancelled');
-    stats.visited++;onProgress({phase:'event-group-proof',stage:'验证跨谱面收益上界',group:stats.groupsCompleted+1,groups:stats.groups,groupsCompleted:stats.groupsCompleted,leader:leaderIndex+1,leaderTotal:group.models.length,frontier:states.length,leaders:stats.leaders,visited:stats.visited,expanded:stats.expanded,completed:stats.visited,bestCandidate:rows[0]});await yieldControl();
+    stats.visited++;onProgress({phase:'event-group-proof',stage:individualProofs?'验证逐曲收益上界':'验证跨谱面收益上界',group:stats.groupsCompleted+1,groups:stats.groups,groupsCompleted:stats.groupsCompleted,leader:leaderIndex+1,leaderTotal:group.models.length,frontier:states.length,leaders:stats.leaders,visited:stats.visited,expanded:stats.expanded,completed:stats.visited,bestCandidate:rows[0]});await yieldControl();
     if(signal?.aborted)return finish(false,'cancelled');
-    const state=states.pop(),requiredCharacters=new Map(state.memberRequired.map(id=>[characterFor.get(id),id]));
-    const edges=modelRow.edges.filter(e=>!state.memberExcluded.includes(e.member)&&!state.supportExcluded.includes(e.support)
-     &&(!requiredCharacters.has(e.character)||requiredCharacters.get(e.character)===e.member)
-     &&(state.memberRequired.length<5||state.memberRequired.includes(e.member))&&(state.supportRequired.length<5||state.supportRequired.includes(e.support)));
-    stats.powerMatchingCalls++;
-    const power=maximumPairing({edges,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+    const state=states.pop();
+    if(individualProofs&&state.charts.length>1){
+     const buckets=new Map();
+     for(const entry of state.charts){
+      const row=perChart.get(entry.candidate.id),key=JSON.stringify([goal==='grade'?row.reward.scoreRank:null,row.total.badges,row.total.eventPoints]);
+      if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(entry);
+     }
+     if(buckets.size>1){
+      for(const charts of buckets.values())states.push({...state,charts});
+      stats.chartPartitions+=buckets.size-1;stats.expanded++;continue;
+     }
+    }
+    const domainKey=JSON.stringify([state.required,state.forbidden,state.memberRequired,state.supportRequired,state.memberExcluded,state.supportExcluded]);
+    let domain=cardDomains.get(domainKey);
+    if(domain)stats.cardDomainCacheHits++;
+    else {
+     const requiredCharacters=new Map(state.memberRequired.map(id=>[characterFor.get(id),id]));
+     const excludedM=new Set(state.memberExcluded),excludedS=new Set(state.supportExcluded),requiredM=new Set(state.memberRequired),requiredS=new Set(state.supportRequired);
+     const edges=modelRow.edges.filter(e=>!excludedM.has(e.member)&&!excludedS.has(e.support)
+      &&(!requiredCharacters.has(e.character)||requiredCharacters.get(e.character)===e.member)
+      &&(requiredM.size<5||requiredM.has(e.member))&&(requiredS.size<5||requiredS.has(e.support)));
+     stats.powerMatchingCalls++;
+     const power=maximumPairing({edges,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+     const attainable=power?Object.fromEntries([primary,secondary].map(kind=>[kind,attainableBonusSums(edges,state,kind,cardBonus)])):null;
+     domain={edges,power,attainable,constrained:new Map()};
+     if(cardDomains.size>=64)cardDomains.delete(cardDomains.keys().next().value);
+     cardDomains.set(domainKey,domain);
+    }
+    const {edges,power,attainable}=domain;
     if(!power)continue;
-    const attainable=Object.fromEntries([primary,secondary].map(kind=>[kind,attainableBonusSums(edges,state,kind,cardBonus)]));
     const maxBP=Object.fromEntries([primary,secondary].map(kind=>[kind,attainable[kind]?.at(-1)??ceiling[kind]]));
     const shortest=Math.min(...state.charts.map(e=>e.candidate.seconds??Infinity));
     // Independent bonus maxima and the shortest chart form a lexicographic
@@ -225,12 +296,12 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
     let cheapCanWin=false;
     for(let rank=2;rank<=7;rank++){
      const total={badges:totalAt(rank,'rewardBP',maxBP.rewardBP),eventPoints:totalAt(rank,'eventPointBP',maxBP.eventPointBP)};
-     if(compare({reward:{scoreRank:rank},total,song:{seconds:shortest}},rows[0])<0){cheapCanWin=true;break;}
+     if(compare({reward:{scoreRank:rank},total,song:{seconds:shortest}},firstFor(state.charts))<0){cheapCanWin=true;break;}
     }
     if(!cheapCanWin){stats.prunedPartitions++;continue;}
     let unresolved=false;
     for(let rank=7;rank>=2;rank--){
-     const first=rows[0];if(goal==='grade'&&rank<first.reward.scoreRank)continue;
+     const first=firstFor(state.charts);if(goal==='grade'&&rank<first.reward.scoreRank)continue;
      const domains=[];
      if(goal==='grade'&&rank>first.reward.scoreRank)domains.push({required:[0,0],charts:state.charts});
      else {
@@ -239,7 +310,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
       const same=minimumBonus(rank,primary,first.total[metric],attainable[primary]),more=minimumBonus(rank,secondary,first.total[other]+1,attainable[secondary]);
       if(same!=null&&more!=null)domains.push({required:[same,more],charts:state.charts});
       const tied=minimumBonus(rank,secondary,first.total[other],attainable[secondary]);
-      const faster=state.charts.filter(e=>(e.candidate.seconds??Infinity)<(first.song.seconds??Infinity));
+      const faster=individualProofs?[]:state.charts.filter(e=>(e.candidate.seconds??Infinity)<(first.song.seconds??Infinity));
       if(same!=null&&tied!=null&&faster.length)domains.push({required:[same,tied],charts:faster});
      }
      let retry=false;
@@ -249,9 +320,18 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
       for(const [a,b] of [[1,0],[0,1],[1,1],[ceiling[secondary]+1,1],[1,ceiling[primary]+1],[8,1],[1,8],[64,1],[1,64]]){
        if(!a&&!required[1]||!b&&!required[0])continue;
        const threshold=a*required[0]+b*required[1];if(!Number.isSafeInteger(threshold))continue;
-       const constrained=constrainBonusCards(edges,state,(kind,id)=>{const bp=cardBonus(kind,id);return a*bp[primary]+b*bp[secondary];},threshold);
-       stats.powerMatchingCalls++;
-       const constrainedPower=maximumPairing({edges:constrained,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+       const bonusKey=a+':'+b+':'+threshold;
+       let bonusDomain=domain.constrained.get(bonusKey);
+       if(bonusDomain)stats.bonusDomainCacheHits++;
+       else {
+        const constrained=constrainBonusCards(edges,state,(kind,id)=>{const bp=cardBonus(kind,id);return a*bp[primary]+b*bp[secondary];},threshold);
+        stats.powerMatchingCalls++;
+        const constrainedPower=maximumPairing({edges:constrained,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+        bonusDomain={constrained,constrainedPower};
+        if(domain.constrained.size>=8)domain.constrained.delete(domain.constrained.keys().next().value);
+        domain.constrained.set(bonusKey,bonusDomain);
+       }
+       const {constrained,constrainedPower}=bonusDomain;
        if(!constrainedPower){excluded=true;break;}
        if(relaxation){
         const banned=new Set(state.forbidden),fixed=new Set(state.required),available=constrained.filter(e=>!banned.has(e.key));
@@ -264,7 +344,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
        }
        if(signal?.aborted)return finish(false,'cancelled');
       }
-      if(!excluded){if(compare(rows[0],first)<0){retry=true;break;}unresolved=true;break;}
+      if(!excluded){if(compare(firstFor(state.charts),first)<0){retry=true;break;}unresolved=true;break;}
      }
      if(unresolved)break;if(retry)rank++;
     }
@@ -289,13 +369,13 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
      let canWin=false;
      for(let rank=2;rank<=maxRank;rank++){
       const total={badges:totalAt(rank,'rewardBP',bonus.rewardBP),eventPoints:totalAt(rank,'eventPointBP',bonus.eventPointBP)};
-      if(compare({reward:{scoreRank:rank},total,song:entry.candidate},rows[0])<0){canWin=true;break;}
+      if(compare({reward:{scoreRank:rank},total,song:entry.candidate},firstFor([entry]))<0){canWin=true;break;}
      }
      if(canWin)await score(entry,leader,power,true);else stats.candidateBoundPruned++;
      states.push(...partitionPairing(state,power));stats.pairPartitions++;
     }
     stats.expanded++;
-    onProgress({phase:'event-group-proof',stage:'验证跨谱面收益第一名',group:stats.groupsCompleted+1,groups:stats.groups,groupsCompleted:stats.groupsCompleted,leader:leaderIndex+1,leaderTotal:group.models.length,frontier:states.length,leaders:stats.leaders,visited:stats.visited,expanded:stats.expanded,completed:stats.visited,bestCandidate:rows[0]});await yieldControl();
+    onProgress({phase:'event-group-proof',stage:individualProofs?'验证逐曲最优收益':'验证跨谱面收益第一名',group:stats.groupsCompleted+1,groups:stats.groups,groupsCompleted:stats.groupsCompleted,leader:leaderIndex+1,leaderTotal:group.models.length,frontier:states.length,leaders:stats.leaders,visited:stats.visited,expanded:stats.expanded,completed:stats.visited,bestCandidate:rows[0]});await yieldControl();
    }
    stats.leaders++;await yieldControl();
   }

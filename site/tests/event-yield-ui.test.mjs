@@ -6,6 +6,15 @@ import {selectEventYieldRows,eventYieldGoals,orderEventYieldRows,eventYieldGaps}
 import {eventYieldStageInput,eventYieldChallengeBandNote} from '../src/lib/event-yield-stage.mjs';
 import {setupEventYieldOptimizer,eventYieldCompletionText,eventYieldStopText,eventYieldProgressText} from '../src/lib/event-yield-ui.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
+test('completed individual comparisons describe every song rather than provisional alternatives',()=>{
+ const summary=eventYieldCompletionText({coverageComplete:true,allProven:true,failures:[],rows:Array(93).fill({}),
+  fullyOptimizedCharts:97,available:97,done:97,prunedCharts:0,
+  globalProofs:{badges:{bestProven:true},eventPoints:{bestProven:true}}});
+ assert.equal(summary.individual,true);
+ assert.match(summary.status,/逐曲证明 97 \/ 97/);
+ assert.match(summary.status,/全部方案可分页查看/);
+ assert.doesNotMatch(summary.status,/备选供参考/);
+});
 test('global proof status distinguishes covered charts, alternatives and expected-score ties',()=>{
  const data={coverageComplete:true,complete:true,failures:[],rows:[],fullyOptimizedCharts:3,prunedCharts:88,
  globalProofs:{badges:{bestProven:true,scope:'all_selected_charts_given_challenge_rows'}}};

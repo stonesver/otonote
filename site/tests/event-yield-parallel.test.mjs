@@ -19,14 +19,15 @@ function fixture(){
  const input={draft:f.draft,inventory:f.inventory,scope:'owned',mode:'ordinary',basis:'expectedScore',goal:'both',searchDepth:'full',eco:false,liveBoost:1,budget:11,challengeCost:200,startingCP:0,includeChallenge:true,challengeScope:'same',challengeBasis:'expectedScore'};
  return {...f,input,candidates,charts};
 }
-const leaders=result=>Object.fromEntries(['badges','eventPoints'].map(goal=>[goal,result.rows.filter(r=>r.recommendationGoals.includes(goal)).map(r=>[r.song.id,r.total]).slice(0,1)]));
+const leaders=result=>Object.fromEntries(['badges','eventPoints'].map(goal=>[goal,result.rows.filter(r=>r.recommendationGoals.includes(goal)).map(r=>[r.song.id,r.total]).sort((a,b)=>a[0].localeCompare(b[0]))]));
 test('real CPU workers preserve complete cycle results for every score basis',async()=>{
  const f=fixture();
  for(const basis of ['expectedScore','minimumScore','maximumScore']){
   const input={...f.input,basis,challengeBasis:basis},options={rules:f.rules,eventId:1,input,candidates:f.candidates,challengeCandidates:f.candidates,loadChart:async c=>f.charts.get(c.id),yieldControl:async()=>{},proveGroup:proveEventYieldGroups};
   const serial=await runEventYieldBatch(options),parallel=createEventYieldParallel({...options,onMessage:()=>{},size:2,createWorker});
   try{const concurrent=await runEventYieldBatch({...options,...parallel});
-   assert.deepEqual(leaders(concurrent),leaders(serial),basis);assert.equal(concurrent.coverageComplete,true);assert.equal(concurrent.done,4);assert.deepEqual(concurrent.failures,[]);
+   assert.deepEqual(leaders(concurrent),leaders(serial),basis);assert.equal(concurrent.coverageComplete,true);assert.equal(concurrent.allProven,true);assert.equal(concurrent.done,4);assert.deepEqual(concurrent.failures,[]);
+   for(const rows of Object.values(leaders(concurrent)))assert.equal(rows.length,f.candidates.length);
   }finally{parallel.close();}
  }
 });
@@ -35,12 +36,14 @@ test('real parallel group proofs cover the identical complete chart domain',asyn
  for(const goal of ['badges','eventPoints'])initialRows.push(...(await optimizeEventYield({...f,...input,candidate:f.candidates[0],chart:f.chart,goal,witnessOnly:true})).results);
  const options={rules:f.rules,eventId:1,input,candidates:f.candidates,initialRows,challengeRows:[]},parallel=createEventYieldParallel({...options,onMessage:()=>{},size:2,createWorker});
  try{
-  const proofs=await parallel.runGroupProofs({...options,goals:['badges','eventPoints'],done:0,total:2});
+  const proofs=await parallel.runGroupProofs({...options,goals:['badges','eventPoints'],done:0,total:2,individualProofs:true});
   for(const goal of ['badges','eventPoints']){
-   const serial=await proveEventYieldGroups({...options,goal,loadChart:async c=>f.charts.get(c.id),getScoreCache:async()=>new Map()});
+   const serial=await proveEventYieldGroups({...options,goal,individualProofs:true,loadChart:async c=>f.charts.get(c.id),getScoreCache:async()=>new Map()});
    assert.equal(proofs.get(goal).proven,true);assert.deepEqual(proofs.get(goal).results[0].total,serial.results[0].total);
    assert.equal(proofs.get(goal).results[0].song.id,serial.results[0].song.id);
    assert.deepEqual(new Set(proofs.get(goal).certificate.coveredChartIds),new Set(f.candidates.map(c=>c.id)));
+   assert.equal(proofs.get(goal).certificate.perChartBestProven,true);
+   for(const c of f.candidates)assert.deepEqual(proofs.get(goal).results.find(r=>r.song.id===c.id).total,serial.results.find(r=>r.song.id===c.id).total);
   }
  }finally{parallel.close();}
 });

@@ -84,7 +84,7 @@ python -m backend.update_archive.migration --config /PRIVATE_CONFIG/archive.json
 python -m backend.update_archive.migration --config /PRIVATE_CONFIG/archive.json --apply --backup /PRIVATE_BACKUPS/archive-migration
 ```
 
-检查命令只读；迁移保存旧根索引以及已有分片快照的当前分片，逐页上传读回后才切换根索引。每次普通提交只上传变化的分片，失败上传在根索引中保持登记和计费；双服并发提交遇到修订变化时重新读取并重放修改。读取完整快照最长五分钟，不缺页返回部分历史。分片缓存有 32 MiB 上限。
+检查命令只读；迁移保存旧根索引以及已有分片快照的当前分片，逐页上传读回后才切换根索引。每次普通提交只上传变化的分片，失败上传在根索引中保持登记和计费；双服并发提交遇到修订变化时重新读取并重放修改。读取新分片前检查五分钟快照预算，超时或缺页时拒绝返回部分历史；在途请求仍受传输超时约束。分片缓存有 32 MiB 上限。
 
 已迁移的账本持续使用 schema 3，配置无需改版。旧程序拒绝 schema 3，不能混跑或直接回退；代码回退必须保留 schema 3 读取能力。数据回退前先停止写入，逐项核对备份后的新增历史及实际对象，不能盲目覆盖旧根索引；单独恢复旧账本不能恢复被 FIFO 删除的原件。本地原件库保持不动。
 

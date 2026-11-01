@@ -121,6 +121,10 @@ class Ledger:
             raise ArchiveError('invalid_ledger_index')
         state = {k: v for k, v in header.items() if k not in ('_storage', '_controlStorageBytes')}
         deadline = time.monotonic() + 300
+        def read(page):
+            if time.monotonic() > deadline:
+                raise ArchiveError('ledger_snapshot_expired')
+            return self.page(page)
         for field, pages in storage['maps'].items():
             rows = {}
             for page in pages:
@@ -129,7 +133,7 @@ class Ledger:
                         or registered.get('size') != page['size']):
                     raise ArchiveError('invalid_ledger_index')
             with ThreadPoolExecutor(max_workers=4) as pool:
-                for page, value in zip(pages, pool.map(self.page, pages)):
+                for page, value in zip(pages, pool.map(read, pages)):
                     if time.monotonic() > deadline:
                         raise ArchiveError('ledger_snapshot_expired')
                     if any(k in rows or not partition(k).startswith(page['prefix']) for k in value):

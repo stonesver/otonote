@@ -241,3 +241,26 @@ class ShardTests(unittest.TestCase):
                 return repo.summary()['storedBytes']
             with ThreadPoolExecutor(max_workers=4) as pool:
                 self.assertTrue(all(size <= 8 for size in pool.map(put, range(12))))
+
+    def test_page_collection_stops_at_maintenance_deadline_without_losing_charge(self):
+        with tempfile.TemporaryDirectory() as root:
+            bucket = LocalBucket(root)
+            now = [100]
+            repo = ArchiveRepository(bucket, clock=lambda: now[0])
+            repo.migrate()
+            for value in ('old', 'middle', 'current'):
+                repo.mutate(lambda s: s['modes'].update(jp=value))
+            now[0] += ledger.GRACE + 1
+            before = len(header(bucket)['_storage']['blobs'])
+            timer = [10]
+            original = bucket.delete
+            def delete(key):
+                original(key)
+                timer[0] = 20
+            with patch.object(ledger.time, 'monotonic', side_effect=lambda: timer[0]), \
+                    patch.object(bucket, 'delete', side_effect=delete):
+                self.assertTrue(repo.ledger.collect(deadline=11))
+            self.assertEqual(len(header(bucket)['_storage']['blobs']), before-1)
+            self.assertEqual(repo.state()[0]['modes']['jp'], 'current')
+            repo.ledger.collect()
+            self.assertEqual(len(header(bucket)['_storage']['blobs']), 1)

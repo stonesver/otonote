@@ -63,7 +63,7 @@ def observe(repo, snapshot, *, now, mode):
                         'status': 'waiting_manual', 'objects': [], 'attempts': 0,
                         'previousEntryId': None})
                 s['entries'].setdefault(eid, {'id': eid, 'region': selected, 'batch': batch_id,
-                    'source': source, 'key': row['key'], 'file': row, 'change': row['change'],
+                    'source': source, 'key': row['key'], 'file': file_record(row), 'change': row['change'],
                     'size': row['size'], 'observedAt': now,
                     'previousEntryId': previous_id,
                     'status': states[(source, row['key'])] if old else 'waiting_manual',
@@ -261,8 +261,12 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
             'recorded' if result['batches'] else 'previews_updated' if result.get('previewed') else 'unchanged')
     except (ValueError, OSError, KeyError, RuntimeError) as error:
         client_required = type(error).__name__ in ('ClientUpdateRequired', 'JpClientUpdateRequired')
+        # Only a fixed allowlisted reason is public; arbitrary source exception
+        # text can contain private URLs, local paths or credential material.
+        capacity_error = isinstance(error, ArchiveError) and str(error) == 'control_too_large'
         result.update(status='waiting_client' if client_required else 'failed',
-                      error='verified_client_material_required' if client_required else 'archive_run_failed')
+                      error='verified_client_material_required' if client_required else
+                      'control_too_large' if capacity_error else 'archive_run_failed')
     finally:
         result['finishedAt'] = clock()
         def release(s):

@@ -602,7 +602,7 @@ class ArchiveRepository:
         reservation merely because it has no committed references yet.
         """
         now = self.clock() if now is None else now
-        self.ledger.collect()
+        self.ledger.collect(deadline=deadline)
         for key, obj in self.state()[0]['objects'].items():
             if deadline is not None and time.monotonic() >= deadline:
                 break

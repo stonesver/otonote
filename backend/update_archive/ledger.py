@@ -258,7 +258,7 @@ class Ledger:
                 continue
         raise Conflict('archive_busy')
 
-    def collect(self):
+    def collect(self, *, deadline=None):
         """Retire physical generations, never logical history or active uploads."""
         item = self.bucket.get(ROOT)
         if not item:
@@ -280,15 +280,21 @@ class Ledger:
             self.write_root(header, item[1])
         except Conflict:
             return False  # A fresh root won; reconsider reachability next time.
+        deleted = []
         for key in doomed:
+            if deadline is not None and time.monotonic() >= deadline:
+                break
             self.bucket.delete(key)
             if self.bucket.exists(key):
                 raise ArchiveError('ledger_delete_unconfirmed')
+            deleted.append(key)
+        if not deleted:
+            return False
         for _ in range(32):
             item = self.bucket.get(ROOT)
             current = unpack(item[0], 128 * 1024 * 1024)
             storage = book(current)
-            for key in doomed:
+            for key in deleted:
                 if storage['blobs'].get(key, {}).get('deleting'):
                     storage['blobs'].pop(key)
             current['_storage'] = storage

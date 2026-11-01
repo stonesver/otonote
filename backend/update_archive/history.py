@@ -1,6 +1,6 @@
 """Stable version links, independent of physical object retention."""
 from .diff import same_content
-from .models import identity
+from .models import identity, file_record
 
 
 def prior_entry(entries, region, source, key, previous):
@@ -50,6 +50,14 @@ def upgrade(state):
                     'sourceId': baseline['id'], 'previousSourceId': None,
                     'observedAt': baseline.get('observedAt', 0), 'observation': baseline.get('observation', {}),
                     'entries': ids, 'group': None}
+    # v2 links are authoritative. Older writers also embedded a full copy of
+    # the prior file in every change, multiplying the bounded ledger size.
+    # Keep unmatched copies: they may be the only surviving version evidence.
+    for entry in state['entries'].values():
+        previous = entry.get('file', {}).get('previous')
+        prior = state['entries'].get(entry.get('previousEntryId'))
+        if previous and prior and file_record(previous) == file_record(prior.get('file', {})):
+            entry['file'].pop('previous')
     for obj in state['objects'].values():
         obj.setdefault('storedAt', min((state['entries'][eid].get('firstArchivedAt',
                                       state['entries'][eid]['observedAt'])

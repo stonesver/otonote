@@ -20,6 +20,33 @@ class Source:
 
 
 class WorkerTests(unittest.TestCase):
+    def test_version_history_does_not_duplicate_previous_file_records(self):
+        from backend.update_archive.worker import observe
+        with tempfile.TemporaryDirectory() as root:
+            repo = ArchiveRepository(LocalBucket(root), clock=lambda: 100)
+            source = Source()
+            for version in range(3):
+                source.files = [{'source': 'remote_asset', 'key': 'asset', 'size': 3,
+                                 'sha256': str(version) * 64}]
+                observe(repo, source.snapshot(), now=100 + version, mode='record')
+            entries = sorted(repo.state()[0]['entries'].values(), key=lambda e: e['observedAt'])
+            self.assertEqual(len(entries), 3)
+            self.assertEqual(entries[1]['previousEntryId'], entries[0]['id'])
+            self.assertEqual(entries[2]['previousEntryId'], entries[1]['id'])
+            self.assertTrue(all('previous' not in e['file'] for e in entries))
+
+    def test_control_limit_failure_is_visible_without_exposing_source_errors(self):
+        from backend.update_archive.models import ArchiveError
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            repo = ArchiveRepository(LocalBucket(root), clock=lambda: 100)
+            for error, expected in ((ArchiveError('control_too_large'), 'control_too_large'),
+                                    (OSError('private source URL'), 'archive_run_failed')):
+                with patch.object(Source, 'snapshot', side_effect=error):
+                    result = run_once(repo, Source(), clock=lambda: 100)
+                self.assertEqual(result['error'], expected)
+                self.assertNotIn('private', str(result))
+
     def test_manual_baseline_does_not_read_the_ledger_once_per_entry(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as root:

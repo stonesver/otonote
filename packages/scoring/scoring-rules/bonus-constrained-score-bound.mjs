@@ -39,10 +39,13 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
   const bound=function(available,forced,leader,solution,error,bonusFor,minBonus,constraints={},scoreCutoff=cutoff){
     const witnesses=new Map();bound.witnesses=[];
     if(!Number.isSafeInteger(minBonus)||minBonus<0||!Number.isFinite(error)||error<0||solution.weight<=0)return Infinity;
-    const bonuses=new Map();let largestPower=0,largestGain=0,largestBonus=0;
+    const bonuses=new Map(),powers=new Float64Array(available.length),gains=new Float64Array(available.length),
+      bonusValues=new Float64Array(available.length),probeWeights=new Float64Array(available.length);
+    let largestPower=0,largestGain=0,largestBonus=0,index=0;
     for(const edge of available){
       const bonus=bonusFor(edge),gain=gainFor(edge);
       if(!Number.isSafeInteger(bonus)||bonus<0||!Number.isFinite(gain)||gain<0)return Infinity;
+      powers[index]=edge.weight;gains[index]=gain;bonusValues[index++]=bonus;
       bonuses.set(edge,bonus);largestBonus=Math.max(largestBonus,bonus);
       largestPower=Math.max(largestPower,Math.abs(edge.weight));largestGain=Math.max(largestGain,gain);
     }
@@ -70,7 +73,7 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
     remember(bonusMaximum);
     if(bonusMaximum.weight<minBonus)return 0; // Exact infeasibility certificate.
     const base=baseCoefficient*(1+error);
-    let lambda=base/solution.weight,upper=Infinity;
+    let lambda=base/solution.weight,upper=Infinity,feasibleAtCutoff=false;
     if(!Number.isFinite(lambda)||lambda<=0)return Infinity;
     const probe=(lambda,mu)=>{
       const magnitude=lambda*largestPower+largestGain+mu*largestBonus;
@@ -79,7 +82,8 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       // and all five augmentations remain safely inside binary64 integers.
       const scale=2**30/Math.max(1,magnitude),allowance=magnitude*1e-10;
       if(!Number.isFinite(scale)||scale<=0)return null;
-      const result=match(e=>Math.ceil((lambda*e.weight+gainFor(e)+mu*bonuses.get(e)+allowance)*scale));
+      for(let i=0;i<available.length;i++)probeWeights[i]=Math.ceil((lambda*powers[i]+gains[i]+mu*bonusValues[i]+allowance)*scale);
+      const result=match(probeWeights);
       if(!result)return null;
       const row=remember(result);
       const sum=base+result.weight/scale-mu*minBonus;
@@ -89,20 +93,28 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       const rawUpper=outward*outward/(4*lambda)*(1+1e-10);
       const scoreUpper=integerScore?Math.ceil(rawUpper):rawUpper;
       if(Number.isFinite(scoreUpper))upper=Math.min(upper,scoreUpper);
-      return {...row,gain:result.edges.reduce((s,e)=>s+gainFor(e),0)};
+      const gain=result.edges.reduce((s,e)=>s+gainFor(e),0);
+      // A bonus-feasible matching reaching the cutoff in this relaxed
+      // envelope means no tighter dual bound can exclude that grade here.
+      // Keep the conservative upper already computed and let the caller
+      // refine its actual card/chart domain. This is not a score or a proof
+      // that the formation reaches the grade in the native calculator.
+      if(Number.isFinite(scoreCutoff)&&scoreCutoff>0&&row.bonus>=minBonus
+        &&row.weight*(base+gain)>=scoreCutoff)feasibleAtCutoff=true;
+      return {...row,gain};
     };
     for(let iteration=0;iteration<3;iteration++){
-      const initial=probe(lambda,0);if(upper<scoreCutoff)return upper;if(!initial)break;
+      const initial=probe(lambda,0);if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!initial)break;
       let chosen=initial;
       if(initial.bonus<minBonus){
         let lo=0,hi=(base+lambda*solution.weight)/Math.max(1,minBonus),high;
         for(let i=0;i<12;i++){
-          high=probe(lambda,hi);if(upper<scoreCutoff)return upper;if(!high)break;
+          high=probe(lambda,hi);if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!high)break;
           chosen=high;if(high.bonus>=minBonus)break;
           lo=hi;hi*=2;
         }
         if(high?.bonus>=minBonus)for(let i=0;i<12;i++){
-          const mid=(lo+hi)/2,row=probe(lambda,mid);if(upper<scoreCutoff)return upper;if(!row)break;
+          const mid=(lo+hi)/2,row=probe(lambda,mid);if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!row)break;
           chosen=row;if(row.bonus<minBonus)lo=mid;else hi=mid;
         }
       }

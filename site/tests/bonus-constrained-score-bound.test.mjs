@@ -119,6 +119,24 @@ test('a per-call grade cutoff stops matching once its safe envelope already excl
  assert.equal(early(...args,400),expected);
 });
 
+test('a bonus-feasible relaxed witness stops refinement when the grade cannot be excluded',()=>{
+ const edges=Array.from({length:5},(_,i)=>({key:`m${i}|s${i}`,member:`m${i}`,support:`s${i}`,character:i,weight:100,bonus:0}));
+ edges.push({key:'weak|s4',member:'weak',support:'s4',character:4,weight:1,bonus:1000});
+ const solution=maximumPairing({edges,requiredMembers:['m0']});
+ const make=()=>createBonusConstrainedScoreEnvelopeBound({baseCoefficient:1,gainFor:()=>0});
+ const full=make(),early=make(),args=[edges,[],'m0',solution,0,e=>e.bonus,1000,{}];
+ // The only bonus-feasible formation has power 401. Proving an upper bound
+ // below 400 is impossible; extra dual probes cannot reject this branch.
+ const expected=full(...args),actual=early(...args,400);
+ assert.ok(expected>=401&&actual>=401);
+ assert.ok(early.stats.matchingCalls<full.stats.matchingCalls,
+  `${early.stats.matchingCalls} redundant solves versus ${full.stats.matchingCalls}`);
+ assert.ok(early.witnesses.some(row=>row.bonus>=1000&&row.weight>=400));
+ // A stricter grade still needs a real exclusion certificate on the next call.
+ const stricter=early(...args,450);
+ assert.ok(stricter>=401&&stricter<450);
+});
+
 test('conditional card envelopes equal independent card-subset enumeration under mandatory characters',()=>{
  const choose=(rows,n)=>n===0?[[]]:rows.flatMap((row,i)=>choose(rows.slice(i+1),n-1).map(tail=>[row,...tail]));
  for(let seed=1;seed<=12;seed++){

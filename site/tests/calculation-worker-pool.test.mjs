@@ -11,6 +11,9 @@ class WorkerStub{
 test('full speed uses a bounded hardware budget while eco and quick stay serial',()=>{
  const full={eco:false,searchDepth:'full'};
  assert.equal(eventYieldParallelism(full,{cores:16,memory:8}),4);
+ assert.equal(eventYieldParallelism(full,{cores:10,memory:32}),8);
+ assert.equal(eventYieldParallelism(full,{cores:10,memory:16}),6);
+ assert.equal(eventYieldParallelism(full,{cores:4,memory:32}),3);
  assert.equal(eventYieldParallelism(full,{cores:16,memory:4}),2);
  assert.equal(eventYieldParallelism(full,{cores:16}),2);
  assert.equal(eventYieldParallelism(full,{cores:2,memory:8}),1);

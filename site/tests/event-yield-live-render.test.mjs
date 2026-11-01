@@ -107,19 +107,20 @@ test('default selection follows a new leader and invalidation discards queued re
  assert.equal(q('results').children.length,0);assert.equal(q('status').beforeNode.hidden,true);
 });
 
-test('ten recommendations expose an accurate eight-item page and keep the last two reachable',t=>{
+test('a complete 93-song comparison keeps every page and the final song reachable',t=>{
  const {q,send,partial}=harness(t),data=partial(1000,'result'),sample=data.rows[0];
- data.rows=Array.from({length:10},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,title:`Song ${i}`},total:{badges:1000-i,eventPoints:100}}));
+ data.rows=Array.from({length:93},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,title:`Song ${i}`},total:{badges:1000-i,eventPoints:100}}));
  send(data);
  const nodes=n=>[n,...n.children.flatMap(nodes)];
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,8);
  const comparison=q('results').querySelectorAll('.event-alternatives')[0],firstTeam=q('results').querySelectorAll('.task-event-plan-result')[0];
  assert.ok(q('results').children.indexOf(comparison)<q('results').children.indexOf(firstTeam),'switching plans is available before the full roster');
  assert.equal(comparison.open,true,'multiple candidates are visible without opening a disclosure');
- assert.ok(nodes(q('results')).some(n=>n.textContent==='1–8 / 10 套'));
- nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
- assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,2);
- assert.ok(nodes(q('results')).some(n=>n.textContent==='9–10 / 10 套'));
+ assert.ok(nodes(q('results')).some(n=>n.textContent==='1–8 / 93 套'));
+ for(let page=1;page<12;page++)nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,5);
+ assert.ok(nodes(q('results')).some(n=>n.textContent==='89–93 / 93 套'));
+ assert.ok(nodes(q('results')).some(n=>n.textContent==='Song 92'));
  const articles=q('results').querySelectorAll('.task-event-plan-result');assert.equal(articles.filter(n=>!n.hidden).length,1);
 });
 

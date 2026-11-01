@@ -34,7 +34,7 @@ self.addEventListener('message',async({data:{id,task}})=>{
    result={candidateId:candidate.id,records};
   }else if(kind==='group'){
    result=await proveEventYieldGroups({rules,eventId,input,candidates,goal:task.goal,challengeRows:task.challengeRows,initialRows:task.initialRows,
-    candidateCache,challengePlanCache,loadChart:loader.loadChart,getScoreCache,yieldControl,onProgress});
+    candidateCache,challengePlanCache,loadChart:loader.loadChart,getScoreCache,yieldControl,onProgress,individualProofs:task.individualProofs===true});
   }else throw Error('Unknown parallel calculation task');
   for(const [chartId,cache] of caches)await store.put(keys.get(chartId),[...cache]);
   await loader.close();self.postMessage({id,type:'result',result});

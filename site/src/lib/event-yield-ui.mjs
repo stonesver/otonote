@@ -20,11 +20,12 @@ const selectedDifficulties=field=>field.multiple?[...field.selectedOptions].map(
 export function eventYieldCompletionText(data){
  const complete=data.coverageComplete??data.complete,proofs=Object.values(data.globalProofs??{});
  const proven=complete&&!data.failures.length&&proofs.length>0&&proofs.every(p=>p.bestProven);
- const covered=data.prunedCharts?`已证明 ${data.fullyOptimizedCharts} 张谱面的单曲第一名，按全局上界覆盖 ${data.prunedCharts} 张谱面`:`已比较 ${data.done} / ${data.available} 张谱面`;
+ const individual=complete&&data.allProven===true;
+ const covered=individual?`已逐曲证明 ${data.fullyOptimizedCharts} / ${data.available} 张谱面的最优收益`:data.prunedCharts?`已证明 ${data.fullyOptimizedCharts} 张谱面的单曲第一名，按全局上界覆盖 ${data.prunedCharts} 张谱面`:`已比较 ${data.done} / ${data.available} 张谱面`;
  const ties=proofs.every(p=>p.scoreTieOptimality==='proven');
- const evidence=proven?`所选条件的收益第一名已证明；备选供参考${ties?'，同收益的期望分排序已证明':'，同收益的期望分排序未证明'}`:'当前结果尚未证明所选条件下的第一名';
+ const evidence=proven?`${individual?'所选歌曲的逐曲收益均已证明，全部方案可分页查看':'所选条件的收益第一名已证明；备选供参考'}${ties?'，同收益的期望分排序已证明':'，同收益的期望分排序未证明'}`:'当前结果尚未证明所选条件下的第一名';
  const continuation=proofs.some(p=>p.scope==='all_selected_charts_given_challenge_rows')?'；后续挑战以本次已计算方案为范围':'';
- return {complete,proven,label:complete?'活动收益比较完成':'活动收益推荐完成',detail:covered,
+ return {complete,proven,individual,label:complete?'活动收益比较完成':'活动收益推荐完成',detail:covered,
    status:`${covered}。${evidence}${continuation}。共找到 ${data.rows.length} 个队伍＋歌曲方案${data.cacheHits?`，复用 ${data.cacheHits} 次估分`:''}。${data.failures.length?'有计算失败，结果不完整。':complete?'':'可重新开始完整比较，已保存的估分缓存可复用。'}`};
 }
 
@@ -95,17 +96,17 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    const challengeBandNote=eventYieldChallengeBandNote(context(),cardBands);if(challengeBandNote)view.push(el('p',challengeBandNote,'event-hint'));
    if(result.calculationScopes){view.push(el('p',scopeSummary(result.calculationScopes.main)));if(result.calculationScopes.challenge)view.push(el('p','后续挑战 · '+scopeSummary(result.calculationScopes.challenge)));}
    const completion=eventYieldCompletionText(result);
-   const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
+   const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.individual?'逐曲收益已验证 · 全部歌曲方案':completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
    const ordered=orderEventYieldRows(eligible,displaySort,target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
    const alternatives=el('details',null,'event-alternatives'),comparisonHeading=el('summary');comparisonHeading.append(el('span',`比较方案 · ${ordered.length} 套`),boundary);alternatives.append(comparisonHeading);alternatives.open=ordered.length>1;
    view.push(alternatives);
    const toolbar=el('div',null,'task-event-plan-sort'),sort=el('div',null,'task-event-sort-options');sort.setAttribute('role','group');sort.setAttribute('aria-label','收益方案排序');
    if(q('goal').value==='both'){const goals=el('div',null,'task-event-result-tabs task-event-goal-tabs');goals.setAttribute('role','group');goals.setAttribute('aria-label','收益优先候选');for(const [goal,name] of [['badges','道具优先'],['eventPoints','pt 优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(target===goal));button.addEventListener('click',()=>{displayGoal=goal;page=0;selectedPlan=null;render();});goals.append(button);}toolbar.append(goals);}
-   for(const [value,name] of [['yield','收益优先'],['short','时长优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(displaySort===value));button.addEventListener('click',()=>{displaySort=value;page=0;selectedPlan=null;render();});sort.append(button);}const count=el('small',`${ordered.length} 个收益领先候选`);toolbar.append(el('span','方案排序'),sort,count);alternatives.append(toolbar);
+   for(const [value,name] of [['yield','收益优先'],['short','时长优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(displaySort===value));button.addEventListener('click',()=>{displaySort=value;page=0;selectedPlan=null;render();});sort.append(button);}const count=el('small',`${ordered.length} 个歌曲收益方案`);toolbar.append(el('span','方案排序'),sort,count);alternatives.append(toolbar);
    const baseline=el('div',null,'task-event-plan-baseline'),identity=el('div',null,'task-event-baseline-name');identity.append(el('small','比较基准'),el('strong',reference?.song.title??'—'),el('span',reference?.song.difficulty.toUpperCase()??'—','task-event-chart-label'));baseline.append(identity);
    const totals=el('div',null,'task-event-baseline-totals');for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){const metric=el('span');metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));totals.append(metric);}baseline.append(totals);const comparisonNotes=el('details',null,'event-comparison-notes');comparisonNotes.append(el('summary','比较基准'),baseline);toolbar.append(comparisonNotes);
-   comparisonNotes.append(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}仅重排${EVENT_YIELD_GOAL_LABELS[target]}的领先候选；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}。`,'event-hint task-event-gap-note'));
+   comparisonNotes.append(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}${completion.individual?'逐曲比较':'展示当前候选'}：${EVENT_YIELD_GOAL_LABELS[target]}；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}。`,'event-hint task-event-gap-note'));
    const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','收益方案');alternatives.append(tabs);
    count.hidden=ordered.length<=8;count.textContent=ordered.length?`${page*8+1}–${Math.min(ordered.length,page*8+8)} / ${ordered.length} 套`:'0 套';
    const visible=ordered.slice(page*8,page*8+8),selected=visible.find(r=>r.id===selectedPlan?.id&&r.song.id===selectedPlan?.song)??visible.find(r=>r.song.id===selectedPlan?.song)??visible[0];

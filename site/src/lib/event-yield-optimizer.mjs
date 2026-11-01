@@ -1,4 +1,4 @@
-import {bindEventScoreCache,searchDigest} from './event-search-cache.mjs';
+import {bindEventScoreCache,bindEventCandidateCache} from './event-search-cache.mjs';
 import {optimizePractical,PRACTICAL_SEARCH_WARNINGS} from './practical-optimizer.mjs';
 import {createEventEfficiency,createChallengeSpendingPlanner} from './scoring-rules/event-efficiency.mjs';
 import {searchEventFormations} from './event-formation-search.mjs';
@@ -69,7 +69,7 @@ export function createEventYieldRewardTransform({model,candidate,basis,mode,live
 
 export async function optimizeEventYield({rules,eventId,draft,chart,candidate,scope='owned',inventory,constraints={},mode='ordinary',
  liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='expectedScore',challengeRows=[],includeChallenge=true,
- onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,challengePlanCache,
+ onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,challengePlanCache,modelCache={},
  searchMethod='certified',maxEvaluations=24,refineScoreTies=false,witnessOnly=false,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}){
  if(!['practical','certified'].includes(searchMethod))throw Error('Invalid event search method');
  if(!Number.isInteger(maxEvaluations)||maxEvaluations<0)throw Error('Invalid event search budget');
@@ -78,11 +78,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  if(!['ordinary','challenge'].includes(mode))throw Error('收益配队仅支持普通与挑战；激奏需要团队结算档位');
  if(!['owned','selected','reference'].includes(scope)||!['badges','eventPoints','grade'].includes(goal))throw Error('Invalid event search options');
  if(!Number.isInteger(budget)||budget<1||budget>10000||!Number.isInteger(startingCP)||startingCP<0||startingCP>1000000)throw Error('Invalid farming budget');
- if(candidateCache){
-   const {LiveMusicScore,...preparationTables}=rules.tables;
-   const context=await searchDigest({...rules,tables:preparationTables});
-   if(candidateCache.get('$preparation-rules')!==context){candidateCache.clear();candidateCache.set('$preparation-rules',context);scoreCache?.clear();}
- }
+ if(await bindEventCandidateCache(candidateCache,rules))scoreCache?.clear();
  ({draft,scope,inventory}=prepareEventSearchInput({rules,draft,scope,inventory,rewardCards,rewardGrowth,rewardGrowthOverride}));
  if(mode==='ordinary'&&(!Number.isInteger(liveBoost)||liveBoost<1||liveBoost>10||budget<liveBoost))throw Error('普通收益配队需消耗至少 1 火，预算不少于单次耗火');
  const model=createEventEfficiency({tables:rules.tables,sourceReleaseId:rules.sourceReleaseId,eventId});
@@ -106,7 +102,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  const feature=(kind,pair)=>['member','support'].reduce((n,k)=>{const b=cardBonus(k,pair[`${k}CardId`]);return n+(kind==='both'?b.rewardBP+b.eventPointBP:kind==='items'?b.rewardBP:b.eventPointBP);},0)/10000;
  const extraProfiles=['items','points','both'].map(kind=>({id:'bonus-'+kind,label:'奖励加成 '+kind,powerWeight:.01,featureWeight:1,feature:(_,pair)=>feature(kind,pair)}));
  extraProfiles.push(...['items','points'].map(kind=>({id:'mixed-'+kind,label:'能力与奖励 '+kind,feature:(_,pair)=>feature(kind,pair)})));
- const planners=new Map(),continuations=new Map(),modelCache={};
+ const planners=new Map(),continuations=new Map();
  const continuationKey=challengePlanCache?JSON.stringify({costs:model.challengeCosts,rows:challengeRows,
    rewards:[rules.tables.Event,rules.tables.ChallengeLiveEventPoint,rules.tables.ChallengeLiveEventReward,rules.tables.ChallengeMusicBoostBonus]}):null;
  const continuationFor=(cp,objective)=>{

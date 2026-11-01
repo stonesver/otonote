@@ -6,7 +6,9 @@ const rules={tables:{LiveMusic:candidates.map((c,i)=>({_id:i,_musicType:1}))}};
 const input={mode:'ordinary',goal:'both',searchDepth:'full',basis:'expectedScore',draft:{modifiers:{}}};
 const row=(c,goal,amount=10)=>({id:c.id+goal,song:c,expectedScore:100,reward:{scoreRank:6},total:{badges:amount,eventPoints:amount}});
 const result=(c,goal,{proven=false,upper=10,amount=10}={})=>({results:[row(c,goal,amount)],practical:{scoreCacheHits:0,scoreCalculations:1},certifiedSearch:{bestProven:proven,globalUpperCandidate:{scoreRank:6,total:{badges:upper,eventPoints:upper}}}});
-const run=options=>runEventYieldBatch({rules,eventId:1,candidates,input,loadChart:async c=>({id:c.id}),yieldControl:async()=>{},...options});
+// Keep the optional global-only diagnostic path covered separately from the
+// production per-chart contract in event-yield-complete.test.mjs.
+const run=options=>runEventYieldBatch({rules,eventId:1,candidates,input,globalPruning:true,loadChart:async c=>({id:c.id}),yieldControl:async()=>{},...options});
 test('global objective ceiling covers every legal chart while keeping skipped charts separate',async()=>{
  const calls=[];const output=await run({optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:true});}});
  assert.equal(output.coverageComplete,true);assert.equal(output.allProven,false);

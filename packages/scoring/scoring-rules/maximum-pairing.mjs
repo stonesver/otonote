@@ -32,7 +32,9 @@ export function createMaximumPairing({edges,count=5,required=[],forbidden=[],req
   }
   const cost=Float64Array.from(costs),initialCapacity=Uint8Array.from(initial),capacity=new Uint8Array(to.length);
   const distance=new Float64Array(graph.length),previous=new Int32Array(graph.length),queued=new Uint8Array(graph.length),weights=new Float64Array(edges.length);
-  const forcedIndices=forced.map(e=>edges.indexOf(e));
+  // Reuse queue storage without retaining the previous solve's logical length.
+  // Residual capacities, distances and queue membership are still reset.
+  const forcedIndices=forced.map(e=>edges.indexOf(e)),queue=[];
   return function solve(weight=e=>e.weight){
     let max=0;
     for(let i=0;i<edges.length;i++){weights[i]=weight(edges[i]);max=Math.max(max,Math.abs(weights[i]));}
@@ -46,12 +48,13 @@ export function createMaximumPairing({edges,count=5,required=[],forbidden=[],req
     capacity.set(initialCapacity);
     for(let flow=0;flow<remaining;flow++){
       distance.fill(Infinity);queued.fill(0);
-      const queue=[source];queued[source]=1;distance[source]=0;
-      for(let cursor=0;cursor<queue.length;cursor++){
-        const u=queue[cursor];queued[u]=0;
+      let queueLength=1;queue[0]=source;queued[source]=1;distance[source]=0;
+      for(let cursor=0;cursor<queueLength;cursor++){
+        const u=queue[cursor];queued[u]=0;const fromDistance=distance[u];
         for(const edge of graph[u]){
-          const v=to[edge],next=distance[u]+cost[edge];
-          if(capacity[edge]&&distance[v]>next){distance[v]=next;previous[v]=edge;if(!queued[v]){queue.push(v);queued[v]=1;}}
+          if(!capacity[edge])continue;
+          const v=to[edge],next=fromDistance+cost[edge];
+          if(distance[v]>next){distance[v]=next;previous[v]=edge;if(!queued[v]){queue[queueLength++]=v;queued[v]=1;}}
         }
       }
       if(!Number.isFinite(distance[sink]))return null;

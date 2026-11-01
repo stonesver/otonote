@@ -18,14 +18,15 @@ export function createEventYieldParallel({rules,eventId,input,onMessage,createWo
    if(outputs.length!==candidates.length||outputs.some((o,i)=>o.candidateId!==candidates[i].id||o.records?.length!==goals.length||o.records.some((r,j)=>r.goal!==goals[j])))throw Error('Incomplete parallel challenge results');
    return outputs;
   },
-  runGroupProofs:async({candidates,input:stage,goals,challengeRows,initialRows,done,total,onCandidate=()=>{}})=>{
+  runGroupProofs:async({candidates,input:stage,goals,challengeRows,initialRows,done,total,onCandidate=()=>{},individualProofs=false})=>{
    const progress=new Map();
    const report=(index,p)=>{progress.set(goals[index],{...progress.get(goals[index]),...p});if(p.bestCandidate)onCandidate(goals[index],p.bestCandidate);onMessage({type:'progress',done,total,goal:goals[index],stage:p.stage??p.phase,detail:p,parallelism:Math.min(size,goals.length),parallelGoals:goals.map(goal=>({goal,...progress.get(goal)}))});};
-   const proofs=await phase(goals.map(goal=>({kind:'group',input:stage,candidates,goal,challengeRows,initialRows})),
+   const proofs=await phase(goals.map(goal=>({kind:'group',input:stage,candidates,goal,challengeRows,initialRows,individualProofs})),
     report,(index,proof)=>report(index,{phase:'event-group-proof',groups:proof.stats?.groups,groupsCompleted:proof.stats?.groupsCompleted,visited:proof.stats?.visited}));
    const ids=new Set(candidates.map(c=>c.id));
    for(const proof of proofs){const covered=new Set(proof.certificate?.coveredChartIds??[]);
-    if(!proof.proven||!proof.certificate?.bestProven||covered.size!==ids.size||[...ids].some(id=>!covered.has(id)))throw Error('Incomplete parallel group proof');
+    if(!proof.proven||!proof.certificate?.bestProven||covered.size!==ids.size||[...ids].some(id=>!covered.has(id))
+      ||individualProofs&&(!proof.certificate.perChartBestProven||[...ids].some(id=>!proof.results?.some(r=>r.song.id===id))))throw Error('Incomplete parallel group proof');
    }
    return new Map(goals.map((goal,i)=>[goal,proofs[i]]));
   }

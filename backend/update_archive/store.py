@@ -29,7 +29,8 @@ GONE = {'evicted_fifo', 'expired', 'cleaned_manual'}
 
 def key_name(key):
     safe_name(key)
-    if not (key == LEDGER or re.fullmatch(r'(global|jp)/objects/[a-f0-9]{64}-[a-f0-9]{32}', key)):
+    if not (key == LEDGER or re.fullmatch(r'(global|jp)/objects/[a-f0-9]{64}-[a-f0-9]{32}', key)
+            or re.fullmatch(r'control/shards/[a-f0-9]{64}-[a-f0-9]{32}\.json\.gz', key)):
         raise ArchiveError('archive_key_not_allowed')
     return key
 
@@ -207,13 +208,21 @@ class ArchiveRepository:
         if type(capacity) is not int or not CONTROL_RESERVE < capacity <= CAPACITY:
             raise ArchiveError('invalid_capacity')
         self.bucket, self.capacity, self.clock = bucket, capacity, clock
+        from .ledger import Ledger
+        self.ledger = Ledger(bucket, clock=clock)
+        self.sharded_writes = False
+        self._freeing_control = False
 
     def empty(self):
         return {'schemaVersion': 2, 'revision': 0, 'capacity': self.capacity, 'entries': {},
                 'objects': {}, 'baselines': {}, 'batches': {}, 'checks': [], 'requests': {},
-                'groups': {}, 'modes': {}, 'leases': {}, 'cleanup': {}}
+                'groups': {}, 'modes': {}, 'leases': {}, 'cleanup': {}, 'runs': {}}
 
     def state(self):
+        state, etag, _ = self._state()
+        return state, etag
+
+    def _state(self, *, for_write=False):
         item = self.bucket.get(LEDGER)
         raw = item[0] if item else None
         if raw and raw.startswith(b'\x1f\x8b'):
@@ -224,21 +233,53 @@ class ArchiveRepository:
                 raise ArchiveError('invalid_compressed_control') from None
         if raw is not None and len(raw) > MAX_EXPANDED_CONTROL:
             raise ArchiveError('control_too_large')
-        state = json.loads(raw) if raw is not None else self.empty()
-        if state.get('schemaVersion') not in (1, 2) or state.get('capacity') != self.capacity:
+        header = json.loads(raw) if raw is not None else self.empty()
+        if header.get('schemaVersion') not in (1, 2, 3) or header.get('capacity') != self.capacity:
             raise ArchiveError('archive_state_mismatch')
-        from .history import upgrade
-        upgrade(state)
+        if header['schemaVersion'] == 3:
+            state = self.ledger.load(header)
+        else:
+            needs_header = for_write and (self.sharded_writes or '_storage' in header)
+            state = copy.deepcopy(header) if needs_header else header
+            if not needs_header:
+                header = {k: state[k] for k in ('schemaVersion', 'revision', 'capacity')}
+            state.pop('_storage', None)
+            from .history import upgrade
+            upgrade(state)
         self.control_bytes = len(item[0]) if item else 0
-        return state, item[1] if item else None
+        return state, item[1] if item else None, header
+
+    def migrate(self):
+        """Explicit opt-in after every reader/writer has schema-3 support."""
+        self.sharded_writes = True
+        self.mutate(lambda s: None)
 
     def mutate(self, fn, *, revision=None):
         for _ in range(32):
-            state, etag = self.state()
+            state, etag, header = self._state(for_write=True)
             if revision is not None and state['revision'] != revision:
                 raise Conflict('revision_conflict')
             result = fn(state)
             state['revision'] += 1
+            if self.sharded_writes or header['schemaVersion'] == 3 or '_storage' in header:
+                from .ledger import ControlCapacity
+                try:
+                    self.ledger.commit(state, header, etag, self.capacity)
+                    return result
+                except ControlCapacity as error:
+                    if self._freeing_control:
+                        raise
+                    if self.ledger.collect():
+                        continue
+                    self._freeing_control = True
+                    try:
+                        self.make_space(0, now=self.clock(), control_reserve=error.required)
+                    finally:
+                        self._freeing_control = False
+                except Conflict:
+                    if revision is not None:
+                        raise
+                continue
             raw = canonical(state)
             if len(raw) > MAX_EXPANDED_CONTROL:
                 raise ArchiveError('control_too_large')
@@ -262,6 +303,10 @@ class ArchiveRepository:
     def used(state):
         return sum(o['size'] for o in state['objects'].values())
 
+    @staticmethod
+    def control_reserve(state):
+        return max(CONTROL_RESERVE, state.get('_controlStorageBytes', 0))
+
     def summary(self, *, now=None):
         now = self.clock() if now is None else now
         state, _ = self.state()
@@ -269,8 +314,8 @@ class ArchiveRepository:
 
     def summary_from_state(self, state):
         return {'status': 'ready', 'revision': state['revision'], 'capacityBytes': self.capacity,
-                'storedBytes': self.used(state), 'controlReservedBytes': CONTROL_RESERVE,
-                'usedBytes': self.used(state) + CONTROL_RESERVE, 'windowSeconds': None, 'retention': 'capacity_fifo',
+                'storedBytes': self.used(state), 'controlReservedBytes': self.control_reserve(state),
+                'usedBytes': self.used(state) + self.control_reserve(state), 'windowSeconds': None, 'retention': 'capacity_fifo',
                 'regions': {r: {'mode': state['modes'].get(r, 'auto'),
                     'storedBytes': sum(o['size'] for k, o in state['objects'].items() if k.startswith(r + '/')),
                     'previewReady': sum(e['region'] == r and e['status'] == 'saved' and e.get('previewStatus') == 'ready'
@@ -329,12 +374,14 @@ class ArchiveRepository:
         if count != size or h.hexdigest() != expected_sha:
             raise ArchiveError('object_digest_mismatch')
 
-    def make_space(self, size, *, now, exclude=(), evict=True):
+    def make_space(self, size, *, now, exclude=(), evict=True, control_reserve=CONTROL_RESERVE):
         if size > self.capacity - CONTROL_RESERVE:
             raise ArchiveError('single_item_cannot_fit')
         for _ in range(10000):
             s, _ = self.state()
-            if self.used(s) + size <= self.capacity - CONTROL_RESERVE:
+            if size > self.capacity - max(control_reserve, self.control_reserve(s)):
+                raise ArchiveError('single_item_cannot_fit')
+            if self.used(s) + size <= self.capacity - max(control_reserve, self.control_reserve(s)):
                 return
             # FIFO is physical-object based. All aliases of the oldest raw
             # object are evicted together; device receipts never participate.
@@ -377,7 +424,7 @@ class ArchiveRepository:
             if obj and obj['status'] != 'live':
                 raise Conflict('object_busy')
             if not obj:
-                if self.used(s) + size > self.capacity - CONTROL_RESERVE:
+                if self.used(s) + size > self.capacity - self.control_reserve(s):
                     raise Conflict('capacity_changed')
                 s['objects'][key] = {'size': size, 'sha256': sha, 'status': 'reserved',
                                      'token': token, 'until': now + 1800, 'refs': [eid], 'role': role, 'storedAt': now}
@@ -460,7 +507,7 @@ class ArchiveRepository:
                 if key not in e['objects']:e['objects'].append(key)
                 planned.append({**row, 'key': key, 'existing': obj['status'] == 'live',
                                 'signature': obj.get('signature')})
-            if self.used(s) > self.capacity - CONTROL_RESERVE:
+            if self.used(s) > self.capacity - self.control_reserve(s):
                 raise ArchiveError('preview_capacity_deferred')
             e['previewToken'] = token
             return planned
@@ -555,6 +602,7 @@ class ArchiveRepository:
         reservation merely because it has no committed references yet.
         """
         now = self.clock() if now is None else now
+        self.ledger.collect()
         for key, obj in self.state()[0]['objects'].items():
             if deadline is not None and time.monotonic() >= deadline:
                 break

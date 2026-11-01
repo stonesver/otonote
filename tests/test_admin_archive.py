@@ -19,6 +19,15 @@ class AdminArchiveTests(unittest.TestCase):
             self.assertEqual(client.get('/api/archive/summary').json()['status'], 'disabled')
             self.assertEqual(client.get('/api/config').status_code, 200)
 
+    def test_sharded_history_and_originals_use_the_existing_authenticated_routes(self):
+        eid = self.repo.add('jp', 'note.txt', b'hello', observed_at=1, now=1)
+        self.repo.migrate()
+        with self.writer() as client:
+            for path in ('summary', 'entries?region=jp', 'entries/'+eid, 'history/'+eid):
+                self.assertEqual(client.get('/api/archive/'+path).status_code, 200)
+            response = client.get('/api/archive/files/'+eid)
+            self.assertEqual((response.status_code, response.content), (200, b'hello'))
+
     def test_metadata_routes_share_one_snapshot_and_batches_omit_member_ids(self):
         eid = self.repo.add('global', 'note.txt', b'hello', observed_at=1, now=1)
         self.repo.mutate(lambda s: s['batches'].update({'batch': {

@@ -12,6 +12,22 @@ from .store import file_digest
 from .history import prior_entry
 
 
+SAFE_FAILURE_CODES = frozenset({
+    'control_too_large', 'archive_busy', 'archive_region_busy', 'ledger_writer_busy',
+    'ledger_writer_expired', 'ledger_snapshot_expired', 'ledger_page_missing',
+    'ledger_page_digest_mismatch', 'ledger_page_readback_failed', 'invalid_ledger_index',
+    'invalid_ledger_partition', 'capacity_exceeded',
+})
+
+
+def failure(result, error, stage):
+    client_required = type(error).__name__ in ('ClientUpdateRequired', 'JpClientUpdateRequired')
+    code = str(error) if isinstance(error, ArchiveError) and str(error) in SAFE_FAILURE_CODES else 'archive_run_failed'
+    result.update(status='waiting_client' if client_required else 'failed',
+                  error='verified_client_material_required' if client_required else code,
+                  failureStage=stage)
+
+
 def observe(repo, snapshot, *, now, mode):
     selected = region(snapshot['region'])
     rows = [file_record(r) for r in snapshot['files']]
@@ -91,10 +107,13 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
         if old and old['until'] > started:
             raise Conflict('archive_region_busy')
         runs[selected] = {'owner': owner, 'until': started + max_seconds}
-    repo.mutate(claim)
+    claimed, stage = False, 'claim'
     try:
+        repo.mutate(claim)
+        claimed, stage = True, 'maintenance'
         from .requests import process_cleanups, approved_entries, finish_requests, charge_request
         if previews_only:
+            stage = 'snapshot'
             source.prepare()
             state, _ = repo.state()
             selected_mode = mode or state['modes'].get(selected, 'auto')
@@ -109,13 +128,17 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
                         maintain(now=clock(), deadline=maintenance_deadline)
                 except (ArchiveError, OSError):
                     result.setdefault('maintenanceErrors', []).append('cleanup_pending')
+            stage = 'load_baseline'
             state, _ = repo.state()
             selected_mode = mode or state['modes'].get(selected, 'auto')
+            stage = 'snapshot'
             snapshot = source.snapshot(previous={k: v for k, v in state['baselines'].items()
                                                  if k.startswith(selected + ':')})
             if snapshot['region'] != selected:
                 raise ArchiveError('snapshot_region_mismatch')
+            stage = 'observe'
             result['batches'] = observe(repo, snapshot, now=clock(), mode=selected_mode)
+        stage = 'archive'
         result['downloadedBytes'] = getattr(source, 'received_bytes', 0)
         result['budgetBytes'] = result['downloadedBytes'] + getattr(source, 'control_allowance', 0)
         if selected_mode != 'record':
@@ -260,13 +283,8 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
         result['status'] = 'partial' if result['failed'] or result.get('maintenanceErrors') else 'archived' if result['saved'] else (
             'recorded' if result['batches'] else 'previews_updated' if result.get('previewed') else 'unchanged')
     except (ValueError, OSError, KeyError, RuntimeError) as error:
-        client_required = type(error).__name__ in ('ClientUpdateRequired', 'JpClientUpdateRequired')
-        # Only a fixed allowlisted reason is public; arbitrary source exception
-        # text can contain private URLs, local paths or credential material.
-        capacity_error = isinstance(error, ArchiveError) and str(error) == 'control_too_large'
-        result.update(status='waiting_client' if client_required else 'failed',
-                      error='verified_client_material_required' if client_required else
-                      'control_too_large' if capacity_error else 'archive_run_failed')
+        # Unknown exception text can contain private URLs or credentials.
+        failure(result, error, stage)
     finally:
         result['finishedAt'] = clock()
         def release(s):
@@ -274,6 +292,10 @@ def run_once(repo, source, *, clock=time.time, max_bytes=TRANSFER_LIMIT, max_sec
                 s['runs'].pop(selected, None)
             s['checks'].append(result)
             s['checks'] = s['checks'][-180:]
-        repo.mutate(release)
-        repo.compact(now=clock())
+        if claimed:
+            try:
+                repo.mutate(release)
+                repo.compact(now=clock())
+            except (ValueError, OSError, KeyError, RuntimeError) as error:
+                failure(result, error, 'finalize')
     return result

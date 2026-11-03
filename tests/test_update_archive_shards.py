@@ -78,7 +78,7 @@ class ShardTests(unittest.TestCase):
             self.assertEqual(repo.state()[0]['modes'], {})
             storage = header(bucket)['_storage']
             self.assertTrue(storage['blobs'])
-            self.assertTrue(storage['writers'])
+            self.assertFalse(storage['writers'])
             bucket.stop = False
             repo.mutate(lambda s: s['modes'].update(jp='record'))
             now[0] += ledger.GRACE + ledger.WRITER_LIFETIME
@@ -151,11 +151,19 @@ class ShardTests(unittest.TestCase):
                 result = replace(key, raw, etag)
                 if key.startswith('control/shards/') and not raced[0]:
                     raced[0] = True
-                    second.mutate(lambda s: s['modes'].update(global_='auto'))
+                    # An older noncooperating writer can still invalidate a
+                    # logical revision during a rolling upgrade. Keep the CAS
+                    # defense even though new writers use leased admission.
+                    raw, etag = bucket.get(LEDGER)
+                    current = ledger.unpack(raw, 128*1024**2)
+                    current['revision'] += 1
+                    current['checks'].append({'region': 'global', 'status': 'unchanged'})
+                    replace(LEDGER, ledger.pack(current), etag)
                 return result
             with patch.object(bucket, 'replace', side_effect=race):
                 first.mutate(lambda s: s['modes'].update(jp='record'))
-            self.assertEqual(first.state()[0]['modes'], {'global_': 'auto', 'jp': 'record'})
+            self.assertEqual(first.state()[0]['modes'], {'jp': 'record'})
+            self.assertEqual(first.state()[0]['checks'], [{'region': 'global', 'status': 'unchanged'}])
 
     def test_migration_command_backups_can_be_read_without_the_source_store(self):
         from backend.update_archive.migration import migrate
@@ -196,7 +204,7 @@ class ShardTests(unittest.TestCase):
             bucket.broken = True
             with self.assertRaisesRegex(ArchiveError, 'ledger_page_readback_failed'):
                 repo.mutate(lambda s: s['modes'].update(jp='auto'))
-            self.assertTrue(header(bucket)['_storage']['writers'])
+            self.assertFalse(header(bucket)['_storage']['writers'])
             self.assertGreater(sum(v['size'] for v in header(bucket)['_storage']['blobs'].values()), 0)
             self.assertEqual(ArchiveRepository(bucket).state()[0]['modes'], {})
 

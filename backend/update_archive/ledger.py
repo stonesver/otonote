@@ -6,6 +6,7 @@ Retired generations remain readable for an hour; collection never deletes a
 page referenced by a root or an unexpired writer reservation.
 """
 import copy
+import contextlib
 import gzip
 import io
 import json
@@ -25,6 +26,7 @@ TARGET = 1024 * 1024
 MAX_PAGE = 16 * 1024 * 1024
 GRACE = 3600
 WRITER_LIFETIME = 1800
+WRITER_WAIT_SECONDS = 300
 CACHE_BYTES = 32 * 1024 * 1024
 
 
@@ -77,6 +79,88 @@ class Ledger:
         self.cache = OrderedDict()
         self.cache_bytes = 0
         self.cache_lock = threading.RLock()
+        self.local = threading.local()
+
+    def release_writer(self, token):
+        for _ in range(32):
+            item = self.bucket.get(ROOT)
+            if not item:
+                return
+            header = unpack(item[0], 128 * 1024 * 1024)
+            storage = book(header)
+            if token not in storage['writers']:
+                return
+            storage['writers'].pop(token)
+            header['_storage'] = storage
+            try:
+                self.write_root(header, item[1])
+                return
+            except Conflict:
+                continue
+        raise Conflict('archive_busy')
+
+    @contextlib.contextmanager
+    def admission(self, *, empty, force=False):
+        """Fair, leased admission before loading the logical mutation snapshot.
+
+        A large region update must not restart every time another region writes
+        one small entry. Readers keep using the last published root throughout.
+        Upload registrations remain separate from logical history and billing.
+        """
+        if getattr(self.local, 'token', None):
+            yield
+            return
+        token, registered = uuid.uuid4().hex, False
+        deadline = time.monotonic() + WRITER_WAIT_SECONDS
+        try:
+            for _ in range(32):
+                item = self.bucket.get(ROOT)
+                header = unpack(item[0], 128 * 1024 * 1024) if item else empty()
+                if not force and header.get('schemaVersion') != 3 and '_storage' not in header:
+                    yield
+                    return
+                if header.get('schemaVersion') not in (1, 2, 3) or header.get('capacity') != empty()['capacity']:
+                    raise ArchiveError('archive_state_mismatch')
+                storage, now = book(header), self.clock()
+                storage['writers'] = {k: v for k, v in storage['writers'].items() if v['until'] > now}
+                order = max([storage.get('nextWriter', 0)] + [v.get('order', 0) for v in storage['writers'].values()]) + 1
+                storage['nextWriter'] = order
+                storage['writers'][token] = {'keys': [], 'until': now + WRITER_LIFETIME,
+                                             'admission': True, 'order': order}
+                header['_storage'] = storage
+                try:
+                    self.write_root(header, item[1] if item else None)
+                    registered = True
+                    break
+                except Conflict:
+                    continue
+            if not registered:
+                raise Conflict('archive_busy')
+            delay = .05
+            while True:
+                item = self.bucket.get(ROOT)
+                storage = book(unpack(item[0], 128 * 1024 * 1024))
+                now = self.clock()
+                waiting = sorted((v['order'], key) for key, v in storage['writers'].items()
+                                 if v.get('admission') and v['until'] > now)
+                own = storage['writers'].get(token)
+                if not own or own['until'] <= now:
+                    raise Conflict('ledger_writer_expired')
+                if waiting and waiting[0][1] == token:
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ArchiveError('ledger_writer_busy')
+                time.sleep(min(delay, remaining))
+                delay = min(2, delay * 2)
+            self.local.token = token
+            try:
+                yield
+            finally:
+                self.local.token = None
+        finally:
+            if registered:
+                self.release_writer(token)
 
     def cached(self, key, raw=None):
         with self.cache_lock:
@@ -204,8 +288,11 @@ class Ledger:
         self.bucket.replace(ROOT, raw, etag)
 
     def commit(self, state, header, etag, capacity):
-        now, token = self.clock(), uuid.uuid4().hex
+        now, token = self.clock(), getattr(self.local, 'token', None)
         storage = book(header)
+        writer = storage['writers'].get(token)
+        if not writer or writer['until'] <= now:
+            raise Conflict('ledger_writer_expired')
         maps, uploads = self.plan(state, storage)
         for pages in maps.values():
             for page in pages:
@@ -214,13 +301,13 @@ class Ledger:
         required = reserve_bytes(storage)
         if sum(o['size'] for o in state['objects'].values()) + required > capacity:
             raise ControlCapacity(required)
-        storage['writers'][token] = {'keys': list(uploads), 'until': now + WRITER_LIFETIME}
+        writer['keys'] = list(uploads)
         reserved = dict(header, _storage=storage)
         # Even a legacy root first records its complete staged-page inventory.
         self.write_root(reserved, etag)
         def upload(item):
             key, raw = item
-            if self.clock() >= now + WRITER_LIFETIME:
+            if self.clock() >= writer['until']:
                 raise Conflict('ledger_writer_expired')
             if self.cached(key) is None:
                 try:
@@ -243,7 +330,7 @@ class Ledger:
             current_book = book(current)
             if token not in current_book['writers'] or self.clock() >= current_book['writers'][token]['until']:
                 raise Conflict('ledger_writer_expired')
-            current_book['writers'].pop(token)
+            current_book['writers'][token]['keys'] = []
             old_refs = referenced(current_book, self.clock())
             current_book['maps'] = maps
             new_refs = referenced(current_book, self.clock())

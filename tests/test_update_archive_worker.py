@@ -45,7 +45,32 @@ class WorkerTests(unittest.TestCase):
                 with patch.object(Source, 'snapshot', side_effect=error):
                     result = run_once(repo, Source(), clock=lambda: 100)
                 self.assertEqual(result['error'], expected)
+                self.assertEqual(result['failureStage'], 'snapshot')
                 self.assertNotIn('private', str(result))
+
+    def test_busy_claim_reports_safe_reason_without_releasing_someone_elses_run(self):
+        from backend.update_archive.models import ArchiveError
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            repo = ArchiveRepository(LocalBucket(root), clock=lambda: 100)
+            with patch.object(repo, 'mutate', side_effect=ArchiveError('ledger_writer_busy')) as write, \
+                    patch.object(repo, 'compact') as compact:
+                result = run_once(repo, Source(), clock=lambda: 100)
+            self.assertEqual(result['status'], 'failed')
+            self.assertEqual(result['error'], 'ledger_writer_busy')
+            self.assertEqual(result['failureStage'], 'claim')
+            self.assertEqual(write.call_count, 1)
+            compact.assert_not_called()
+
+    def test_exhausted_observation_conflicts_are_not_hidden_as_source_failure(self):
+        from backend.update_archive.models import Conflict
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            repo = ArchiveRepository(LocalBucket(root), clock=lambda: 100)
+            with patch('backend.update_archive.worker.observe', side_effect=Conflict('archive_busy')):
+                result = run_once(repo, Source(), clock=lambda: 100)
+            self.assertEqual(result['error'], 'archive_busy')
+            self.assertEqual(result['failureStage'], 'observe')
 
     def test_manual_baseline_does_not_read_the_ledger_once_per_entry(self):
         from unittest.mock import patch

@@ -255,6 +255,10 @@ class ArchiveRepository:
         self.mutate(lambda s: None)
 
     def mutate(self, fn, *, revision=None):
+        with self.ledger.admission(empty=self.empty, force=self.sharded_writes):
+            return self._mutate(fn, revision=revision)
+
+    def _mutate(self, fn, *, revision=None):
         for _ in range(32):
             state, etag, header = self._state(for_write=True)
             if revision is not None and state['revision'] != revision:

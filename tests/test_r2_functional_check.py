@@ -18,6 +18,7 @@ class FunctionalTests(unittest.TestCase):
             {'sourceReleaseId': 'source', 'verificationStatus': 'reference_compatible'},
             {'sourceReleaseId': 'source', 'status': 'compatible', 'checks': 5, 'issues': []}]
         self.recognition = None
+        self.arena = None
         self.release_record = None
         self.write()
 
@@ -34,6 +35,9 @@ class FunctionalTests(unittest.TestCase):
                 target = self.release / relative;target.parent.mkdir(parents=True, exist_ok=True)
                 raw = json.dumps(doc).encode();target.write_bytes(raw)
                 files[name] = {'path': relative, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+            if self.arena is not None:
+                relative=locale+'/arena.json';raw=json.dumps(self.arena).encode();(self.release/relative).write_bytes(raw)
+                files['projection/arena.json']={'path':relative,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
             if self.recognition:
                 relative = locale + '/recognition.json'
                 raw = json.dumps(self.recognition).encode();(self.release/relative).write_bytes(raw)
@@ -109,3 +113,28 @@ class FunctionalTests(unittest.TestCase):
         for field,value in [('clientVersion','old'),('region','global'),('generatedAtByLocale',{'en':'2026-10-13T08:00:00Z','zh-CN':'old'})]:
             self.release_record={**record,field:value};self.write()
             with self.assertRaisesRegex(ValueError,'release record mismatch'):check(self.root,'jp')
+
+    def test_required_arena_rejects_missing_empty_unverified_and_mixed_master(self):
+        from tools.arena_content import build_arena_content
+        with self.assertRaisesRegex(ValueError,'Arena'):
+            check(self.root,'jp',require_arena=True)
+        self.arena=build_arena_content(self.root,'source','jp');self.write()
+        with self.assertRaisesRegex(ValueError,'Arena'):
+            check(self.root,'jp',require_arena=True)
+        from tests.test_arena_content import ArenaContentTests
+        fixture=ArenaContentTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        fixture.review.update(sourceReleaseId='source',region='jp',serverScopes=['jp'],masterVersion='a'*32)
+        self.arena=build_arena_content(fixture.root,'source','jp',review=fixture.review)
+        self.release_record={'region':'jp','sourceReleaseId':'source','clientVersion':None,'clientVersionCode':None,
+                             'generatedAtByLocale':{'en':None,'zh-CN':None},'masterVersion':'a'*32}
+        self.write()
+        self.assertEqual(check(self.root,'jp',require_arena=True)['locales']['en']['arena']['status'],'available')
+        for field in ('conditions','ranks','basePoints'):
+            self.arena['capabilities'][field]=False;self.write()
+            with self.assertRaisesRegex(ValueError,'Arena'):check(self.root,'jp',require_arena=True)
+            self.arena['capabilities'][field]=True
+        self.release_record['masterVersion']='b'*32;self.write()
+        with self.assertRaisesRegex(ValueError,'Arena'):check(self.root,'jp',require_arena=True)
+        self.release_record['masterVersion']='a'*32;self.write()
+        (self.release/'en/arena.json').write_text('{}')
+        with self.assertRaisesRegex(ValueError,'digest mismatch'):check(self.root,'jp',require_arena=True)

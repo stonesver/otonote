@@ -278,7 +278,20 @@ def read_arena_review(source, root):
         raise ValueError("arena review digest mismatch")
     value = json.loads(raw)
     if registry and isinstance(value,dict) and value.get('schemaVersion')==1 and value.get('region')==source['region'] and value.get('sourceReleaseId')!=source['contentReleaseId']:
-        return None
+        # A resource-only update may reuse the exact reviewed Master and client.
+        # Unknown/new Master versions need renewed native server bindings. Never
+        # turn a configured but outdated review into an empty successful release.
+        pattern = r'global-prod-remote-[A-Za-z0-9-]+-([a-f0-9]{32})-c([a-f0-9]{12})'
+        before = re.fullmatch(pattern, str(value.get('sourceReleaseId', '')))
+        after = re.fullmatch(pattern, source['contentReleaseId'])
+        if (source['region'] != 'global' or not before or not after
+                or before.groups() != after.groups() or after[1] != value.get('masterVersion')):
+            raise ValueError('arena review renewal required: release identity changed')
+        master = (root / source.get('masterRoot', '')).resolve()
+        if master != root and root not in master.parents:
+            raise ValueError('arena master escapes input root')
+        value = dict(value, sourceReleaseId=source['contentReleaseId'])
+        build_arena_content(master, source['contentReleaseId'], source['region'], review=value)
     if not isinstance(value, dict) or value.get("schemaVersion") != 1 or value.get("region") != source["region"] or value.get("sourceReleaseId") != source["contentReleaseId"]:
         raise ValueError("arena review identity mismatch")
     if registry:value['rankIcons']=project_rank_icons(path.parent,value.get('rankIcons',[]))

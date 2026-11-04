@@ -45,6 +45,15 @@ class ProductionIsolationTests(unittest.TestCase):
         self.assertEqual(job.count(arena_step),1)
         self.assertEqual(job.count(arena_flags),3)
         job=job.replace(arena_env,'').replace(arena_step,'').replace(arena_flags,'')
+        # Arena is now a required Global capability. Admit only this exact
+        # pre-upload gate; keep the historical producer digest for everything else.
+        original_check = '          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition > "$RUNNER_TEMP/functional.json"\n'
+        arena_check = ('          required=()\n'
+                       '          if [[ "$REGION" == global ]]; then required+=(--require-arena); fi\n'
+                       '          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition "${required[@]}" > "$RUNNER_TEMP/functional.json"\n')
+        self.assertEqual(job.count(arena_check), 1)
+        self.assertLess(job.index(arena_check), job.index('- name: Upload and read back produced immutable content'))
+        job = job.replace(arena_check, original_check, 1)
         self.assertEqual(hashlib.sha256(job.encode()).hexdigest(),
                          'c85ee3a1709f1f87c5ede4be596782e245e39813767bba42e851de3e284bdb3f')
 

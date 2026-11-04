@@ -484,7 +484,9 @@ jobs:
           set -euo pipefail
           cd "$STABLE_ROOT"
           store="$(cat "$RUNNER_TEMP/content-store")"
-          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition > "$RUNNER_TEMP/functional.json"
+          required=()
+          if [[ "$REGION" == global ]]; then required+=(--require-arena); fi
+          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition "${required[@]}" > "$RUNNER_TEMP/functional.json"
           printf '\nFunctional release checks (reference estimates are not gameplay verification):\n\n' >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/functional.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload and read back produced immutable content

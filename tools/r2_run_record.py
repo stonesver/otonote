@@ -9,7 +9,7 @@ from tools.r2_content import S3Bucket, canonical
 
 STAGES = ('configuration', 'prepare', 'baseline', 'image', 'proxy', 'light_prepare',
           'light_gate', 'restore', 'capacity', 'client', 'production_gate',
-          'produce', 'functional', 'upload', 'receipt', 'retention', 'checkpoint', 'promote')
+          'produce', 'functional', 'upload', 'receipt', 'retention', 'checkpoint', 'publication', 'promote')
 RESULTS = {'success', 'failure', 'cancelled', 'skipped'}
 
 

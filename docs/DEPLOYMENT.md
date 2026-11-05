@@ -9,7 +9,6 @@
 | 内容物化与 HTML 交付 | [预渲染](../deploy/r2-prerender.README.md) |
 | 私有管理页交付状态 | [管理页](../deploy/admin/R2_DELIVERY.md) |
 | 玩家榜采集与最终归档 | [榜单运维](runbooks/rankings.md) |
-| 官方更新档案 | [归档配置与启用](../deploy/update-archive.README.md) |
 | 空间维护与恢复 | [运行维护](runbooks/operations.md) |
 
 代码、内容、程序和持久状态分别记录身份与恢复目标。部署前核对当前版本和私有备份，部署后分别验收 HTTP 健康、预渲染组合、CDN、主要页面与浏览器交互。具体部署回执放入有保留条件的私有环境资料，不追加到本页。文档修改不会启用服务、触发发布或授权数据清理。

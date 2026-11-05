@@ -43,7 +43,7 @@ def read_json(path, now, max_age=None):
 
 
 def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_path=None):
-    conditions, runs, versions = [], {}, {}
+    conditions, runs, versions, deliveries = [], {}, {}, {}
     due_slot = last_due_slot(now)
 
     def condition(code, region='all', grace=600):
@@ -91,10 +91,31 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
                 raise ValueError('no remote pointer')
             versions[region] = remote['manifest'].split('/')[3]
             row = local.get(region, {})
-            if row.get('releaseId') != versions[region] or row.get('manifestSha256') != remote['sha256']:
+            matched = row.get('releaseId') == versions[region] and row.get('manifestSha256') == remote['sha256']
+            if not matched:
                 condition('delivery_lag', region)
+            run = runs.get(region, {})
+            if run.get('status') == 'running':
+                state = 'running'
+            elif run.get('status') in ('failure', 'cancelled'):
+                state = 'failed'
+            elif not run or timestamp(run['observedAt']) < due_slot:
+                state = 'unavailable'
+            elif run.get('outcome') == 'produced':
+                state = 'produced'
+            elif not local:
+                state = 'unavailable'
+            elif not matched:
+                state = 'awaiting_delivery'
+            elif run.get('outcome') == 'unchanged':
+                state = 'unchanged'
+            else:
+                state = 'delivered'
+            deliveries[region] = {'status': state, 'releaseId': versions[region],
+                                  'manifestSha256': remote['sha256'], 'currentDelivered': matched}
         except Exception:
             condition('remote_unavailable', region)
+            deliveries[region] = {'status': 'unavailable'}
     try:
         ranking = read_json(ranking_path, now, 900)
         age = now - timestamp(ranking['observedAt'])
@@ -129,7 +150,7 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
     free = shutil.disk_usage(disk_path).free
     if free < budget:
         condition('disk_budget', grace=0)
-    return {'conditions': conditions, 'runs': runs, 'versions': versions,
+    return {'conditions': conditions, 'runs': runs, 'versions': versions, 'delivery': deliveries,
             'diskFreeBytes': free, 'diskRequiredBytes': budget, 'worker': worker}
 
 
@@ -155,6 +176,7 @@ def advance(observed, previous, now):
                and h.get('code') in CODES and h.get('transition') in ('opened', 'recovered')][-40:]
     report = {name: observed[name] for name in ('runs', 'versions', 'diskFreeBytes', 'diskRequiredBytes')}
     report['worker'] = observed.get('worker', {'status': 'not_configured'})
+    report['delivery'] = observed.get('delivery', {})
     report.update(schemaVersion=1, observedAt=now, status='attention' if any(a['state'] == 'firing' for a in alerts)
                   else ('waiting' if alerts else 'healthy'), alerts=alerts, history=(history + transitions)[-40:])
     return report, transitions

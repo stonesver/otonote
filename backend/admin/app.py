@@ -21,7 +21,7 @@ from .transport import request_json
 STATIC = Path(__file__).parent / 'static'
 
 
-def create_admin(config, transport=request_json, *, archive_repo=None):
+def create_admin(config, transport=request_json):
     c = validate_config(config, 'admin')
     preview = c['auth']['mode'] == 'preview'
     proxy_key = None if preview else secret(c['auth']['proxyTokenEnv'])
@@ -59,7 +59,7 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
 
     @app.get('/assets/{name}')
     def asset(name: str):
-        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'archive.mjs', 'notices.mjs', 'notice-controls.mjs', 'request.mjs'}:
+        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'notices.mjs', 'notice-controls.mjs', 'request.mjs'}:
             raise HTTPException(404)
         return FileResponse(STATIC / name, media_type='text/javascript' if name.endswith('mjs') else 'text/css')
 
@@ -67,8 +67,7 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
     def public_config(request: Request):
         return {'preview': preview, 'sites': [{k: s[k] for k in ('id', 'name', 'timezone', 'nodes') if k in s} for s in sites.values()],
                 'nodes': [{'id': n['id'], 'name': n.get('name', n['id']), 'writable': bool(n.get('writeTokenEnv')) and not preview, 'canPublish': not preview and request.state.actor in n.get('publishUsers', [])} for n in nodes.values()],
-                'connection': 'SSH 本地端口转发', 'sampleSeconds': c['sampleSeconds'],
-                'archive': {'enabled': bool(archive_repo is not None or isinstance(c.get('archive'), dict) and c['archive'].get('enabled')), 'writable': not preview}}
+                'connection': 'SSH 本地端口转发', 'sampleSeconds': c['sampleSeconds']}
 
     @app.get('/api/summary/{site_id}')
     def summary(site_id: str, window: str = 'today'):
@@ -211,6 +210,4 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
         except (OSError, ValueError):
             # A timeout is an unknown submission outcome, never an invitation to duplicate it.
             raise HTTPException(503, 'submission_unknown_check_task_list')
-    from .archive import install as install_archive
-    install_archive(app, c.get('archive'), repo=archive_repo, preview=preview)
     return app

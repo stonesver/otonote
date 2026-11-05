@@ -10,12 +10,27 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 
 from backend.admin.config import load_config
+from backend.admin.app import create_admin
 from backend.admin.node import Jobs, create_node, execute_check, profile_state, run_worker
 from deploy.admin.export_r2_delivery_state import collect, export
 
 
 def encoded(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+
+
+class ArchiveRetirementTests(unittest.TestCase):
+    def test_dashboard_keeps_content_delivery_and_removes_archive_routes(self):
+        config = {'schemaVersion': 1, 'role': 'admin', 'port': 18080,
+                  'origin': 'http://127.0.0.1:18080', 'auth': {'mode': 'preview'},
+                  'sites': [], 'sources': [], 'nodes': []}
+        with TestClient(create_admin(config), base_url=config['origin']) as client:
+            self.assertEqual(client.get('/api/config').status_code, 200)
+            self.assertNotIn('archive', client.get('/api/config').json())
+            self.assertNotIn('view-archive', client.get('/').text)
+            self.assertIn('view-tasks', client.get('/').text)
+            self.assertEqual(client.get('/api/archive/summary').status_code, 404)
+            self.assertEqual(client.get('/assets/archive.mjs').status_code, 404)
 
 
 class DeliveryExportTests(unittest.TestCase):

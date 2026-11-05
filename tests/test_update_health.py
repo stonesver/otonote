@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -16,6 +17,44 @@ class HealthTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.now = int(dt.datetime(2026, 10, 19, 7, 0, 1, tzinfo=dt.timezone.utc).timestamp())
         self.observed = {'conditions': [], 'runs': {}, 'versions': {}, 'diskFreeBytes': 5000, 'diskRequiredBytes': 4000}
+
+    def test_delivery_combines_attempt_remote_pointer_and_served_version(self):
+        pointer = {'schemaVersion': 1, 'manifest': '/content/releases/'+'a'*24+'/manifest.json', 'sha256': 'b'*64}
+        local = {'releaseId': 'a'*24, 'manifestSha256': 'b'*64}
+        for status, steps, served, expected in (
+                ('success', {'promote': {'outcome': 'success'}}, local, 'delivered'),
+                ('success', {'light_gate': {'outcome': 'success'}}, local, 'unchanged'),
+                ('success', {'promote': {'outcome': 'success'}}, {**local, 'releaseId': 'c'*24}, 'awaiting_delivery'),
+                ('success', {'produce': {'outcome': 'success'}}, local, 'produced'),
+                ('failure', {'promote': {'outcome': 'failure'}}, local, 'failed'),
+                ('running', {}, local, 'running')):
+            with self.subTest(expected=expected):
+                bucket = MemoryBucket()
+                records.publish(bucket, 'global', 1, 1, 'a'*40, status, steps,
+                    now=dt.datetime.fromtimestamp(self.now, dt.timezone.utc), event='schedule')
+                bucket.put_new('content/current.json', json.dumps(pointer).encode())
+                delivery = self.root/'delivery.json'
+                delivery.write_text(json.dumps({'status':'passed','delivery':{'status':'ready','regions':{'global':served}}}))
+                os.utime(delivery, (self.now, self.now))
+                result = health.sample(bucket, delivery, self.root/'absent', self.root, 1, self.now)
+                self.assertEqual(result['delivery']['global']['status'], expected)
+                report, _ = health.advance(result, {}, self.now)
+                health.write_atomic(self.root/'update-health.json', report)
+                with patch('backend.admin.update_health.time.time', return_value=self.now):
+                    self.assertEqual(read_health(self.root)['delivery']['global']['status'], expected)
+                if expected == 'delivered':
+                    stale_time = self.now + 86400
+                    os.utime(delivery, (stale_time, stale_time))
+                    stale = health.sample(bucket, delivery, self.root/'absent', self.root, 1, stale_time)
+                    stale_report, _ = health.advance(stale, {}, stale_time)
+                    health.write_atomic(self.root/'update-health.json', stale_report)
+                    with patch('backend.admin.update_health.time.time', return_value=stale_time):
+                        row = read_health(self.root)['delivery']['global']
+                        self.assertEqual(row['status'], 'unavailable')
+                        self.assertTrue(row['currentDelivered'])
+                delivery.unlink()
+                unavailable = health.sample(bucket, delivery, self.root/'absent', self.root, 1, self.now)
+                self.assertNotIn(unavailable['delivery']['global']['status'], ('delivered', 'unchanged'))
 
     def test_duration_dedup_recovery(self):
         self.observed['conditions'] = [{'id': 'jp:run_failed', 'region': 'jp', 'code': 'run_failed', 'grace': 900}]

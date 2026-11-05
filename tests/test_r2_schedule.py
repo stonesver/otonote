@@ -134,12 +134,9 @@ class ScheduleTests(unittest.TestCase):
                 self.assertEqual(status, 0)
                 self.assertIn('MODE=' + ('promote' if auto == 'true' else 'shadow'), env)
 
-    def test_boundary_poll_does_not_start_archive_work(self):
-        block = self.text.split('  archive:\n', 1)[1]
-        condition = ' '.join(block.split('    if: >-\n', 1)[1].split('    strategy:', 1)[0].split())
-        for cron, expected in [('0 6,11,19 * * *', True), ('0 3 29 10 *', False)]:
-            context = self.context(**{'github.event.schedule': cron, 'vars.CONTENT_ARCHIVE_ENABLED_GLOBAL': 'true'})
-            self.assertEqual(bool(expression(condition, context)), expected)
+    def test_content_updates_have_no_archive_job(self):
+        self.assertNotIn('  archive:\n', self.text)
+        self.assertNotIn('CONTENT_ARCHIVE_ENABLED', self.text)
 
     def test_restore_concurrency_is_bounded_per_region_before_expensive_work(self):
         for region in ('global', 'jp'):

@@ -10,7 +10,7 @@ CODES = {'worker_errors', 'worker_budget', 'worker_metrics_stale', 'schedule_sta
 
 STAGES = ('configuration', 'prepare', 'baseline', 'image', 'proxy', 'light_prepare',
           'light_gate', 'restore', 'capacity', 'client', 'production_gate',
-          'produce', 'functional', 'upload', 'receipt', 'retention', 'checkpoint', 'promote')
+          'produce', 'functional', 'upload', 'receipt', 'retention', 'checkpoint', 'publication', 'promote')
 
 def read_health(workspace):
     unavailable = {'status': 'unavailable'}
@@ -25,7 +25,19 @@ def read_health(workspace):
                 or not math.isfinite(observed) or not -60 <= now - observed <= 360
                 or value.get('status') not in ('healthy', 'waiting', 'attention')):
             return unavailable
-        result = {'status': value['status'], 'observedAt': observed, 'alerts': [], 'history': [], 'runs': {}}
+        result = {'status': value['status'], 'observedAt': observed, 'alerts': [], 'history': [], 'runs': {}, 'delivery': {}}
+        for region, row in value.get('delivery', {}).items():
+            if region not in ('global', 'jp') or row.get('status') not in (
+                    'unavailable', 'running', 'failed', 'produced', 'awaiting_delivery', 'delivered', 'unchanged'):
+                return unavailable
+            clean = {'status': row['status']}
+            if row['status'] != 'unavailable' or 'currentDelivered' in row:
+                if (not re.fullmatch('[a-f0-9]{24}', row.get('releaseId', ''))
+                        or not re.fullmatch('[a-f0-9]{64}', row.get('manifestSha256', ''))
+                        or type(row.get('currentDelivered')) is not bool):
+                    return unavailable
+                clean.update({k: row[k] for k in ('releaseId', 'manifestSha256', 'currentDelivered')})
+            result['delivery'][region] = clean
         for field in ('alerts', 'history'):
             rows = value.get(field)
             if not isinstance(rows, list) or len(rows) > 40:

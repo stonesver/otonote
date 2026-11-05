@@ -51,7 +51,6 @@
 | --- | --- | --- |
 | [私有管理页的内容发布流程](../deploy/admin/R2_DELIVERY.md) | `runbook` | `current` |
 | [R2 预渲染部署与回滚](../deploy/r2-prerender.README.md) | `runbook` | `current` |
-| [官方更新档案：本地使用与外置配置](../deploy/update-archive.README.md) | `runbook` | `current` |
 | [部署入口](DEPLOYMENT.md) | `runbook` | `current` |
 | [内容生产与 R2 交付](runbooks/content-pipeline.md) | `runbook` | `current` |
 | [服装全身静态图](runbooks/costume-posters.md) | `runbook` | `current` |

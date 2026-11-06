@@ -1,4 +1,4 @@
-import { optimizeTeamPlanning } from './team-planning-optimizer.mjs';
+import { optimizeTeamPlanning } from './team-planning-optimizer.ts';
 import { createInventoryManager } from './inventory-manager.mjs';
 import { optimizeInventory } from './inventory-optimizer.mjs';
 import { preparePresetDraft, presetWindowCardCount } from './preset-portfolio.mjs';

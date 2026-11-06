@@ -3,7 +3,7 @@ import {runPlaylistTeamBatch} from './playlist-team-batch.ts';
 import {optimizePractical} from './practical-optimizer.mjs';
 import {optimizeInventory} from './inventory-optimizer.mjs';
 import {createFormationWorkerPool} from './formation-worker-pool.mjs';
-import {optimizeTeamPlanning} from './team-planning-optimizer.mjs';
+import {optimizeTeamPlanning} from './team-planning-optimizer.ts';
 import {createEventSearchStore,searchDigest} from './event-search-cache.mjs';
 import {SCORE_MODEL_VERSION} from './scoring-rules/model-version.mjs';
 import {createCalculationScheduler} from './calculation-scheduler.mjs';

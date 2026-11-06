@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.mjs';
+import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.ts';
 import { createGekisouSongCalculator } from '../../packages/scoring/scoring-rules/gekisou-song-score.mjs';
 import { fixture, replay, withoutReduction } from './fixtures/gekisou-skill-fixture.mjs';
 

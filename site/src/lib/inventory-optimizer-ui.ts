@@ -1,3 +1,7 @@
+import type {OptimizerWorkbench, OptimizerNodes, PlanningControls, TeamScopeControls} from './calculation/optimizer-ui-types.ts';
+import type {OptimizerReport, PlaylistReport, CalculationMode, CalculationObjective, ChartData, OptimizerConstraints} from './calculation/optimizer-types.ts';
+import type {Inventory} from './calculation/growth-types.ts';
+import type {PlanningSettings} from './calculation/planning-settings.ts';
 import {createOptimizerWorker,sendOptimizerCommand,receiveOptimizerMessages} from './calculation/optimizer-client.ts';
 import {setupTeamScopeControls} from './tool-calculation-scopes.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
@@ -14,31 +18,35 @@ import {createInventoryManager} from './inventory-manager.mjs';
 import {createCalculationProgress} from './calculation-progress.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import { createFormationCalculator } from './scoring-rules/formation-power.mjs';
-const format = n => n == null ? '—' : n.toLocaleString(undefined, {maximumFractionDigits: 2});
-function download(name, value) {
+const format = (n: number | null | undefined) => n == null ? '—' : n.toLocaleString(undefined, {maximumFractionDigits: 2});
+function download(name: string, value: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value,null,2)], {type:'application/json'}));
   const a = document.createElement('a'); a.href=url; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeamScopeControls}={}) {
-  const q = s => workbench.querySelector(s), rules=workbench.data.formalRules;
-  const ui=text=>planningUiText(text,workbench.data.locale);
+export function setupInventoryOptimizer(workbench: OptimizerWorkbench,{createScopeControls=setupTeamScopeControls}: {createScopeControls?: (workbench: OptimizerWorkbench, options: {onChange: () => void}) => TeamScopeControls}={}) {
+  function q<S extends string>(selector: S): S extends keyof OptimizerNodes ? OptimizerNodes[S] : HTMLElement {
+    // Nodes and select options are supplied by the calculator page template.
+    return workbench.querySelector(selector) as S extends keyof OptimizerNodes ? OptimizerNodes[S] : HTMLElement;
+  }
+  const rules=workbench.data.formalRules;
+  const ui=(text: string)=>planningUiText(text,workbench.data.locale);
   if(!q('[data-optimize-pairing]')) return null;
   const calculator=createFormationCalculator(rules);
-  let worker, chartRequest, request=0, lastResult, scenarios,calculationScope;
-  let task={value:'single'},scopeControls;
+  let worker: Worker | null | undefined, chartRequest: AbortController | null | undefined, request=0, lastResult: OptimizerReport | PlaylistReport | null | undefined, scenarios: PlanningControls | null,calculationScope: TeamScopeControls["scope"];
+  let task={value:'single'},scopeControls: TeamScopeControls;
   const progress=q('[data-pairing-progress]');
   const feedback=createCalculationProgress(progress,'pairing');
   const inventoryManager=createInventoryManager(rules);
   const profileStore=createPersonalGrowthStore({rules,vipRanks:workbench.data.vipRanks});
-  const editor={get inventory(){try{return profileStore.read()?.inventory??inventoryManager.empty();}catch{return inventoryManager.empty();}},validate:inventoryManager.validate};
+  const editor={get inventory(): Inventory {try{return profileStore.read()?.inventory??inventoryManager.empty();}catch{return inventoryManager.empty();}},validate:inventoryManager.validate};
   workbench.cardInventory=editor.inventory;
   scenarios=setupTeamPlanningScenarios(workbench,{getInventory:()=>editor.inventory,onChange:()=>{invalidate();progress.textContent=ui('条件已更新，请重新比较。');}});
   workbench.planningScenarios=scenarios;
-  function publish(extra={}) {workbench.optimizerState={...workbench.optimizerState,...extra};workbench.dispatchEvent(new CustomEvent('optimizer-ui-state',{detail:workbench.optimizerState}));}
+  function publish(extra: OptimizerWorkbench['optimizerState']={}) {workbench.optimizerState={...workbench.optimizerState,...extra};workbench.dispatchEvent(new CustomEvent('optimizer-ui-state',{detail:workbench.optimizerState}));}
   function stop() {publish({running:false});q('[data-search-state]').dataset.running='false';request++;chartRequest?.abort();chartRequest=null;worker?.terminate();worker=null;q('[data-optimize-pairing]').disabled=false;q('[data-cancel-pairing]').disabled=true;}
-  function fail(error) {
+  function fail(error: unknown) {
     stop();lastResult=null;
-    const detail=String(error?.message??error);
+    const detail=String((error as {message?: unknown} | null | undefined)?.message??error);
     q('[data-search-state]').textContent=ui('比较失败');
     progress.textContent=ui(/^Unsupported\b/.test(detail)?'当前资料包含计算器尚未支持的技能规则，请等待规则更新后重试。':detail);
     feedback.finish(ui('比较失败'),progress.textContent,'error');
@@ -51,12 +59,12 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
     scenarios?.sync();
     let inventory=editor.inventory;
     if(scenarios?.kind==='trial'){
-      try {const s=scenarios.read().planningScenario;inventory={...inventory,memberCardIds:[...new Set([...inventory.memberCardIds,...(s.selectedCardIds?.memberCardIds??[]),...s.trialCardIds.memberCardIds])],supportCardIds:[...new Set([...inventory.supportCardIds,...(s.selectedCardIds?.supportCardIds??[]),...s.trialCardIds.supportCardIds])]};}catch{}
+      try {const s=scenarios.read().planningScenario;inventory={...inventory,memberCardIds:[...new Set([...inventory.memberCardIds,...(s.selectedCardIds?.memberCardIds??[]),...s.trialCardIds!.memberCardIds])],supportCardIds:[...new Set([...inventory.supportCardIds,...(s.selectedCardIds?.supportCardIds??[]),...s.trialCardIds!.supportCardIds])]};}catch{}
     }
     calculationScope?.refresh();const first=task.value==='playlist'?calculationScope?.snapshot?.candidates[0]:null;
     const state=optimizerReadiness({draft:first?{...workbench.draft,selectedSongId:first.trackId,selectedDifficulty:first.difficulty}:workbench.draft,scope:q('[data-search-scope]').value,inventory,objective:q('[data-pairing-objective]').value,
-      locale:workbench.data.locale,characterFor:id=>calculator.card(id,'member')._characterID});
-    try {scenarios?.read();if([...workbench.querySelectorAll('[data-manual-card]')].some(input=>!input.checkValidity()))throw new Error('请检查当前槽位的等级与技能数值，再确认实际养成。');} catch(error){state.ready=false;state.message=error.message;}
+      locale:workbench.data.locale,characterFor:(id: string)=>calculator.card(id,'member')._characterID});
+    try {scenarios?.read();if([...workbench.querySelectorAll<HTMLInputElement>('[data-manual-card]')].some(input=>!input.checkValidity()))throw new Error('请检查当前槽位的等级与技能数值，再确认实际养成。');} catch(error){state.ready=false;state.message=(error as Error).message;}
     const noSongPower=task.value==='single'&&q('[data-pairing-objective]').value==='formation_power'&&!workbench.draft.selectedSongId;
     if(!noSongPower&&calculationScope&&(!calculationScope.snapshot?.chartCount)){state.ready=false;state.message='计算范围为空或歌单不可用，请调整范围。';}
     let space=null;
@@ -72,7 +80,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         }
         const input=resolveSearchInput(rules,draft,{scope:q('[data-search-scope]').value,inventory:editor.inventory,planningScenario,constraints:readOptimizerConstraints(workbench)});
         space=summarizeSearchSpace(rules,input);
-      }catch(error){state.ready=false;state.message=error.message;}
+      }catch(error){state.ready=false;state.message=(error as Error).message;}
     }
     q('[data-search-space]').textContent=ui(space
       ?`本次候选：${space.members} 张成员（${space.characters} 个角色）＋ ${space.supports} 张留影。包含配对与队长选择，组合规模最多 ${formatCombinationCount(space.combinations)} 种；筛选成员乐队不会同时筛掉其他留影。${q('[data-pairing-mode]').value==='gekisou'?'激奏还会比较站位。':''}`
@@ -96,23 +104,23 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
     clearOptimizerResults(workbench);
     try {
       assertToolTeamCompatible(workbench.teamWorkspaceContext);
-      const settings=scenarios?.persist()??{};
+      const settings: Partial<PlanningSettings>=scenarios?.persist()??{};
       const scope=q('[data-search-scope]').value,objective=q('[data-pairing-objective]').value;
       const mode=q('[data-pairing-mode]').value,gekisouScenario={
         frameRate:Number(q('[data-gekisou-fps]').value),opponents:readGekisouOpponentInputs(workbench),
         timingOffsetMs:Number(q('[data-gekisou-offset]').value),batches:Number(q('[data-gekisou-batches]').value),seed:Number(q('[data-gekisou-seed]').value),
-        ranks:[...workbench.querySelectorAll('[data-gekisou-rank]')].map(n=>Number(n.value))};
+        ranks:[...workbench.querySelectorAll<HTMLInputElement>('[data-gekisou-rank]')].map(n=>Number(n.value))};
       const activeMethod='practical';
       q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=false;q('[data-practical-summary]').hidden=true;
       q('[data-cancel-pairing]').textContent=ui('停止本次推荐');
       const maxEvaluations=0;
       const inventory=editor.validate(editor.inventory);
-      const constraints=readOptimizerConstraints(workbench),draft=structuredClone(workbench.draft);
+      const constraints: OptimizerConstraints=readOptimizerConstraints(workbench),draft=structuredClone(workbench.draft);
       if(scope==='owned')draft.modifiers.growth={...draft.modifiers.growth,...inventory.growth};
       q('[data-optimize-pairing]').disabled=true;q('[data-cancel-pairing]').disabled=false;progress.textContent=ui('准备计算…');q('[data-search-state]').textContent=ui('正在寻找更好的编成');q('[data-search-state]').dataset.running='true';publish({running:true,finished:false});
       const noSongPower=task.value==='single'&&objective==='formation_power'&&!draft.selectedSongId;
       const resolved=noSongPower?null:task.value==='single'?selectedChartScope(calculationScope.require({}),draft):calculationScope.require({});
-      let chart;
+      let chart: ChartData | undefined;
       if(task.value==='single'&&objective!=='formation_power') {
         const summary=workbench.data.charts?.find(c=>c.trackId===draft.selectedSongId&&c.difficulty===draft.selectedDifficulty);
         if(!summary?.analysisDataUrl)throw new Error('请先选择歌曲和难度');
@@ -130,7 +138,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         if(data.type==='progress'&&task.value==='playlist'){const p=data.progress;feedback.update({label:`逐曲推荐：${p.chartTitle??''}`,completed:p.chartDone,total:p.chartTotal,detail:p.message??p.stage??'比较本曲的队伍'});return;}
         if(data.type==='progress') {
           const p=data.progress;
-          if(!['practical-result','planning-result'].includes(p.phase))feedback.update({label:ui(p.stage??p.message??({planning:'比较养成范围',placements:'比较候选站位',pair_weights:'准备卡片配对',search:'搜索更好的编成'}[p.phase]??'准备队长加成')),completed:p.completed,total:p.total,detail:ui(p.phase==='search'?'搜索分支会变化，尚不能估计总量':'当前阶段进度，完成后继续下一阶段')});
+          if(!['practical-result','planning-result'].includes(p.phase))feedback.update({label:ui(p.stage??p.message??(({planning:'比较养成范围',placements:'比较候选站位',pair_weights:'准备卡片配对',search:'搜索更好的编成'} as Partial<Record<typeof p.phase,string>>)[p.phase]??'准备队长加成')),completed:p.completed,total:p.total,detail:ui(p.phase==='search'?'搜索分支会变化，尚不能估计总量':'当前阶段进度，完成后继续下一阶段')});
           if(p.phase==='planning'){progress.textContent=ui(p.message??`已比较 ${p.completed} 组培养范围`);return;}
           if(p.phase==='practical'){
             progress.textContent=(p.planningVariant?`${ui(`比较培养方案 ${p.planningVariant}`)} · `:'')+ui(`${p.stage} · ${p.completed}/${p.total}`);
@@ -145,7 +153,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
           if(p.bestCandidate)renderOptimizerResults(workbench,[p.bestCandidate],{mode,objective,live:true});
           return;
         }
-        if(data.type!=='result')return;
+        if(data.type!=='result'||data.result.kind==='playlist-team-batch')return;
         stop();lastResult=data.result;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=false;
         const r=data.result;r.calculationScope=resolved;
         q('[data-search-limits]').textContent=scopeSummary(resolved);
@@ -159,10 +167,10 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         if(r.searchMethod==='practical'){
           progress.textContent=ui(r.status==='completed'?'实用推荐的固定阶段已完成；这是已检查候选中的较好队伍，不代表全局最优。':'实用推荐已停止，部分阶段尚未完成。');
           const summary=q('[data-practical-summary]');summary.hidden=false;
-          summary.textContent=ui(`检查 ${r.practical.neighbourChecks} 个合法换卡／配对方案（特征粗筛），快速模拟 ${r.practical.screened} 队，完整复算 ${r.practical.finalists} 队。`);
+          summary.textContent=ui(`检查 ${r.practical!.neighbourChecks} 个合法换卡／配对方案（特征粗筛），快速模拟 ${r.practical!.screened} 队，完整复算 ${r.practical!.finalists} 队。`);
           if(r.closeness?.kind==='close')summary.textContent+=ui(' 前两名分差处于抽样误差范围内，视为接近，不建议仅凭这次分差换卡。');
           if(r.closeness?.kind==='unknown')summary.textContent+=ui(' 当前抽样不足以估计前两名差距的稳定性。');
-          q('[data-search-diagnostics]').textContent=ui((r.practical.directions??[]).map(d=>`${d.label}：${d.status==='generated'?'已生成起点':'受持卡或约束限制，未生成'}`).join('；'));
+          q('[data-search-diagnostics]').textContent=ui((r.practical!.directions??[]).map(d=>`${d.label}：${d.status==='generated'?'已生成起点':'受持卡或约束限制，未生成'}`).join('；'));
         }
         if(r.scoringCoverage?.complete===false){
           progress.textContent+=ui(' 部分卡片配对暂无法计算，结果只覆盖可完整计算的队伍。');
@@ -171,7 +179,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
           q('[data-search-diagnostics]').textContent+=' '+details.join('；');
         }
         if(!r.results.length)progress.textContent+=ui(r.status==='cancelled'?' 尚未完成任何队伍的精算；请重新开始。':r.scoringCoverage?.complete===false?' 当前条件下没有可完整计算的队伍。':' 未找到满足约束的队伍。');
-        if(!['practical','planning'].includes(r.searchMethod))q('[data-search-diagnostics]').textContent=ui(`剩余上界 ${format(r.upperBound)}，与当前最佳差 ${format(r.optimalityGap)}；待排查分支 ${r.checkpoint?.frontier?.length??0}。`);
+        if(!['practical','planning'].includes(r.searchMethod??''))q('[data-search-diagnostics]').textContent=ui(`剩余上界 ${format(r.upperBound)}，与当前最佳差 ${format(r.optimalityGap)}；待排查分支 ${r.checkpoint?.frontier?.length??0}。`);
         q('[data-search-limits]').textContent=ui(scopeSummary(resolved)+'。'+(r.warnings??[]).join(' '));
         renderOptimizerResults(workbench,r.results,{mode,objective});
         if(r.scoringCoverage?.complete===false&&!r.results.length)q('[data-results-empty]').hidden=true;
@@ -180,10 +188,10 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         guide();
 
       });
-      sendOptimizerCommand(worker,{type:'optimize',requestId:current,payload:{...settings,calculationScope:resolved,...(task.value==='playlist'?{playlistCandidates:resolved.candidates}:{}),variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
+      sendOptimizerCommand(worker,{type:'optimize',requestId:current,payload:{...settings,calculationScope:resolved,...(task.value==='playlist'?{playlistCandidates:resolved!.candidates}:{}),variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
     }catch(error){if(current!==request)return;fail(error);}
   }
-  function renderBatch(batch,{mode,objective}){
+  function renderBatch(batch: PlaylistReport,{mode,objective}: {mode: CalculationMode; objective: CalculationObjective}){
     const root=q('[data-pairing-results]');clearOptimizerResults(workbench);root.classList.add('playlist-batch-results');
     const intro=document.createElement('p');intro.textContent=`${scopeSummary(batch.calculationScope)}。已处理 ${batch.done} / ${batch.total} 张谱面；每曲分别推荐队伍，不能作为一支队伍覆盖整个歌单。`;root.append(intro);
     for(const {candidate,result} of batch.rows){const article=document.createElement('article'),heading=document.createElement('h3'),body=document.createElement('div'),boundary=document.createElement('p');heading.textContent=`${candidate.title} · ${candidate.difficulty.toUpperCase()}`;boundary.textContent=`${planningSearchStatus(result)}；仅覆盖本曲已检查候选，原有养成、发挥与证明边界不变。`;article.append(heading,boundary,body);renderOptimizerResults(workbench,result.results,{mode,objective,target:body});root.append(article);}
@@ -206,7 +214,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
   return {invalidate,destroy(){stop();clearOptimizerResults(workbench);feedback.destroy();scopeControls.destroy();}};
 }
 
-export function planningSearchStatus(result) {
+export function planningSearchStatus(result: OptimizerReport) {
   if(result.status==='cancelled')return '已停止';
   if(result.status==='budget_exhausted'||result.planning?.truncated)return '部分组合尚未比较';
   if(result.scoringCoverage?.complete===false)return '部分卡片未参与计算';

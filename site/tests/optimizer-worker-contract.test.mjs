@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Worker} from 'node:worker_threads';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
-import {optimizeTeamPlanning} from '../src/lib/team-planning-optimizer.mjs';
+import {optimizeTeamPlanning} from '../src/lib/team-planning-optimizer.ts';
 import {optimizePractical} from '../src/lib/practical-optimizer.mjs';
 import {runPlaylistTeamBatch} from '../src/lib/playlist-team-batch.ts';
 

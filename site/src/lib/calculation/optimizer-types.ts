@@ -1,3 +1,4 @@
+import type {GrowthComparison} from '../scoring-rules/growth-scenarios.mjs';
 import type {TeamDraft} from '../team-draft.mjs';
 import type {Inventory, PlanningScenario, PlanningComparison} from './growth-types.ts';
 
@@ -54,7 +55,7 @@ export interface ScoreComparison {
 export interface OptimizerCandidate {
   draft: TeamDraft; value: number; power: number;
   id?: string; delta?: number | null; expectedScore?: number; minimumScore?: number; maximumScore?: number;
-  planning?: PlanningComparison;
+  planning?: PlanningComparison; growthComparison?: GrowthComparison;
   direction?: {id: string; label: string; reason?: string; tradeoff?: string; alsoSuitable?: string[]};
   breakdown?: Record<string, {total: number}>;
   performanceSummary?: string | {label?: string};
@@ -67,6 +68,7 @@ export interface OptimizerCandidate {
   scorePrecision?: 'screen' | 'full'; orderCount?: number; bestOrder?: number[]; worstOrder?: number[];
   warnings?: string[];
 }
+export interface ScoringIssue {sourceCardId?: string; memberCardId?: string; supportCardId?: string; message: string; slots?: TeamDraft["slots"]}
 export interface OptimizerReport {
   kind?: undefined;
   status: 'completed' | 'cancelled' | 'budget_exhausted' | 'no_feasible_formation';
@@ -82,7 +84,7 @@ export interface OptimizerReport {
   planningScenario?: PlanningScenario; performanceScenario?: PerformanceScenario;
   baseline?: number | null; baselineResult?: OptimizerCandidate | null;
   planning?: {completedVariants: number; totalVariants: string; truncated: boolean; excludedCardIds: string[]};
-  scoringCoverage?: {complete: boolean; unsupportedComparisons?: unknown[]; unsupportedLeaders?: unknown[]; unsupportedPairs?: unknown[]; unsupportedCandidates?: unknown[]};
+  scoringCoverage?: {complete: boolean; unsupportedComparisons?: ScoringIssue[]; unsupportedLeaders?: ScoringIssue[]; unsupportedPairs?: ScoringIssue[]; unsupportedCandidates?: ScoringIssue[]};
   calculationScope?: CalculationScope | null;
 }
 export interface PlaylistReport {

@@ -6,5 +6,5 @@
     "allowImportingTsExtensions": true, "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src/lib/calculation/**/*.ts", "src/lib/production-optimizer-worker.ts", "src/lib/playlist-team-batch.ts", "src/components/calculation/**/*.svelte", "tests/types/**/*.ts"]
+  "include": ["src/lib/calculation/**/*.ts", "src/lib/production-optimizer-worker.ts", "src/lib/inventory-optimizer-ui.ts", "src/lib/team-planning-optimizer.ts", "src/lib/playlist-team-batch.ts", "src/components/calculation/**/*.svelte", "tests/types/**/*.ts"]
 }

@@ -3,7 +3,7 @@ import {confirmManualGrowth,incompleteManualGrowth} from './manual-growth-input.
 import {planningUiText} from './team-planning-translations.mjs';
 import { createFormationCalculator } from "./scoring-rules/formation-power.mjs";
 import { setupPresetPortfolio } from "./preset-portfolio-ui.mjs";
-import { setupInventoryOptimizer } from "./inventory-optimizer-ui.mjs";
+import { setupInventoryOptimizer } from "./inventory-optimizer-ui.ts";
 import {bandItemGroups} from '../../../packages/scoring/scoring-rules/band-item-totals.mjs';
 
 function cell(tag, value) {

@@ -1,4 +1,7 @@
-import { resolveGrowthScenario, createGrowthSearchVariants, prepareGrowthCandidate } from '../../../packages/scoring/scoring-rules/growth-scenarios.mjs';
+import type {OptimizerOptions, OptimizerReport, OptimizerCandidate} from './calculation/optimizer-types.ts';
+import type {TeamDraft} from './team-draft.mjs';
+import type {PlanningComparison} from './calculation/growth-types.ts';
+import { resolveGrowthScenario, createGrowthSearchVariants, prepareGrowthCandidate } from './scoring-rules/growth-scenarios.mjs';
 import { normalizePerformanceScenario } from '../../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { stableSnapshotHash } from './scoring-engine.mjs';
 import { optimizePractical } from './practical-optimizer.mjs';
@@ -7,17 +10,15 @@ import { compareScoredFormations } from './inventory-optimizer.mjs';
 import { selectPlanningDirections } from './team-planning-directions.mjs';
 import { skillMechanismIssue } from '../../../packages/scoring/scoring-rules/skill-mechanism-error.mjs';
 
-const pause = () => new Promise(resolve => setTimeout(resolve, 0));
+const pause = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 const labels = { reference: '参考队伍', selected: '手选卡', owned: '当前养成', trial: '试用卡队伍' };
 
 /** Feasible growth assignments are searched before candidate generation.
- * Nothing in this operation updates actual inventory or account modifiers.
- * @param {import("./calculation/optimizer-types.ts").OptimizerOptions} options
- * @returns {Promise<import("./calculation/optimizer-types.ts").OptimizerReport>} */
+ * Nothing in this operation updates actual inventory or account modifiers. */
 export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 'selected', planningScenario,
   performanceScenario, recommendationGoal = 'score', objective = 'expected_song_score', mode = 'ordinary', chart,
   constraints = {}, gekisouScenario = {}, eventAdapters = [], maxWindowCards = 5, variantLimit = 24,
-  signal, onProgress = () => {}, yieldControl = pause }) {
+  signal, onProgress = () => {}, yieldControl = pause }: OptimizerOptions): Promise<OptimizerReport> {
   if (!Number.isInteger(variantLimit) || variantLimit < 1 || variantLimit > 1000) throw new Error('培养组合比较上限应为 1–1000');
   const settings = planningScenario ?? draft.modifiers?.planningScenario ?? { scope: scope === 'theoretical' ? 'reference' : scope };
   const performance = objective === 'formation_power' ? undefined : normalizePerformanceScenario(performanceScenario ?? draft.modifiers?.performanceScenario ?? { profile: 'steady' });
@@ -25,11 +26,12 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
   const variants = createGrowthSearchVariants(resolved, { limit: variantLimit });
   const context = { rules, chart, mode, objective, gekisouScenario, performanceScenario: performance, eventAdapters };
   const evaluator = createCandidateEvaluator(context);
-  const warnings = new Set(resolved.assumptions), results = [], progressReports = [];
-  let evaluated = 0, completedVariants = 0, baselineResult = null, interrupted = false;
-  const actualScores = new Map();
-  const coverageReports = [], unsupportedComparisons = [];
-  const actualScore = draft => {
+  const warnings = new Set(resolved.assumptions), results: (OptimizerCandidate & {planning: PlanningComparison})[] = [], progressReports: OptimizerReport['practical'][] = [];
+  let evaluated = 0, completedVariants = 0, interrupted = false;
+  const baseline: {result: OptimizerCandidate | null} = {result: null};
+  const actualScores = new Map<string, Omit<OptimizerCandidate,'draft'> | null>();
+  const coverageReports: OptimizerReport['scoringCoverage'][] = [], unsupportedComparisons: NonNullable<OptimizerReport['scoringCoverage']>['unsupportedComparisons'] = [];
+  const actualScore = (draft: TeamDraft) => {
     const key = stableSnapshotHash(draft);
     if (!actualScores.has(key)) {
       try { actualScores.set(key, evaluator.score(draft)); }
@@ -41,27 +43,27 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
     }
     return actualScores.get(key);
   };
-  const prepareResult = (candidate, variant, live = false) => {
+  const prepareResult = (candidate: OptimizerCandidate, variant: {trainedCardIds: string[]}, live = false): OptimizerCandidate & {planning: PlanningComparison} => {
     const prepared = prepareGrowthCandidate(rules, resolved, candidate.draft, { trainedCardIds: variant.trainedCardIds });
     const { comparison, targetDraft, actualDraft } = prepared;
     const current = !live && comparison.actualAvailable && actualDraft ? actualScore(actualDraft) : null;
-    if (!live && resolved.scope !== 'reference' && comparison.actualTeamAvailable && current && (!baselineResult || current.value > baselineResult.value)) baselineResult = { ...current, draft: actualDraft };
+    if (!live && resolved.scope !== 'reference' && comparison.actualTeamAvailable && current && (!baseline.result || current.value > baseline.result.value)) baseline.result = { ...current, draft: actualDraft! };
     if (performance) targetDraft.modifiers.performanceScenario = performance;
     targetDraft.modifiers.recommendationGoal = recommendationGoal;
     targetDraft.modifiers.planningResult.selectedTrainingCardIds = variant.trainedCardIds.filter(id => targetDraft.slots.some(s => s.memberCardId===id || s.supportCardId===id));
     const trainingChanges = comparison.changedCards.map(card => ({ type: card.kind, id: card.id, fields: card.changes }));
     const hypothetical = ['reference', 'trial'].includes(resolved.scope);
     const isTraining = !hypothetical && resolved.plan.enabled && comparison.trainedCardCount > 0;
-    const planning = { kind: isTraining ? 'training' : resolved.scope === 'owned' ? 'current' : resolved.scope,
+    const planning: PlanningComparison = { kind: isTraining ? 'training' : resolved.scope === 'owned' ? 'current' : resolved.scope,
       label: isTraining ? `需要培养 ${comparison.trainedCardCount} 张卡` : labels[resolved.scope], trainingChanges: hypothetical ? [] : trainingChanges,
-      currentValue: baselineResult?.value ?? null, plannedTeamCurrentValue: current?.value ?? null,
+      currentValue: baseline.result?.value ?? null, plannedTeamCurrentValue: current?.value ?? null,
       targetValue: candidate.value, missingActual: !comparison.actualTeamAvailable, actualScoreAvailable: Boolean(current),
       ownershipUnknown: comparison.unknownOwnershipIds, materialEstimateAvailable: false,
       trainingCountComplete: !hypothetical && comparison.trainingCountComplete };
     return { ...candidate, draft: targetDraft, planning, performanceScenario: performance, performanceSummary: performance?.description,
       id: stableSnapshotHash({ slots: targetDraft.slots, growth: targetDraft.modifiers.growth }),
-      delta: baselineResult ? candidate.value - baselineResult.value : null,
-      comparison: compareScoredFormations(candidate, baselineResult), growthComparison: comparison };
+      delta: baseline.result ? candidate.value - baseline.result.value : null,
+      comparison: compareScoredFormations(candidate, baseline.result), growthComparison: comparison };
   };
   for (const variant of variants) {
     if (signal?.aborted) break;
@@ -89,18 +91,18 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
   }
   const cancelled = Boolean(signal?.aborted) || interrupted, bounded = variants.truncated;
   for (const result of results) {
-    result.planning.currentValue = baselineResult?.value ?? null;
-    result.delta = baselineResult ? result.value - baselineResult.value : null;
-    result.comparison = compareScoredFormations(result, baselineResult);
+    result.planning.currentValue = baseline.result?.value ?? null;
+    result.delta = baseline.result ? result.value - baseline.result.value : null;
+    result.comparison = compareScoredFormations(result, baseline.result);
   }
   if (bounded) warnings.add(`本次比较了前 ${completedVariants} 个培养组合，共有 ${variants.totalCountExact} 个；可缩小允许培养的卡片范围，或提高比较上限。`);
   const directions = selectPlanningDirections(results, { goal: recommendationGoal, objective });
-  const sum = key => progressReports.reduce((value, report) => value + (report?.[key] ?? 0), 0);
+  const sum = (key: 'neighbourChecks' | 'screened' | 'finalists') => progressReports.reduce((value, report) => value + (report?.[key] ?? 0), 0);
   const coverageComplete = !unsupportedComparisons.length && coverageReports.every(r => r?.complete !== false);
   return { status: cancelled ? 'cancelled' : bounded ? 'budget_exhausted' : 'completed', searchMethod: 'planning',
     optimality: cancelled || bounded || !coverageComplete ? 'incomplete' : 'practical_checked', sourceReleaseId: rules.sourceReleaseId,
     ruleSetVersion: rules.ruleSetVersion, mode, objective, results: directions, evaluated,
-    baseline: baselineResult?.value ?? null, baselineResult, checkpoint: null, warnings: [...warnings],
+    baseline: baseline.result?.value ?? null, baselineResult: baseline.result, checkpoint: null, warnings: [...warnings],
     scoringCoverage: { complete: coverageComplete, unsupportedComparisons,
       unsupportedLeaders: coverageReports.flatMap(r => r?.unsupportedLeaders ?? []),
       unsupportedPairs: coverageReports.flatMap(r => r?.unsupportedPairs ?? []),

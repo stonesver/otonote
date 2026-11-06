@@ -13,6 +13,7 @@ export interface TeamDraft {
   selectedSongId: string | null;
   selectedDifficulty: string | null;
   modifiers: Record<string, unknown> & AccountGrowth & {
+    recommendationGoal?: 'score' | 'stable' | 'missions';
     growth?: GrowthRecords; planningScenario?: PlanningScenario; performanceScenario?: PerformanceScenario;
   };
 }

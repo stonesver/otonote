@@ -63,7 +63,7 @@ flowchart LR
 
 ## 网页与内容如何配合
 
-页面使用 Astro 模板和 TypeScript。配队计算的请求、消息、结果及养成字段在 `site/src/lib/calculation/` 定义共享类型；生产配队 Worker 与逐曲编排使用 TypeScript。计分内核继续由 `packages/scoring` 提供，公式、搜索与采样配置不因类型迁移改变。当前严格检查覆盖这些边界、消息收发适配器和结果组件；其余 JavaScript 内部仍逐步迁移，外部数据继续经过现有运行时校验。
+页面使用 Astro 模板和 TypeScript。配队计算的请求、消息、结果及养成字段在 `site/src/lib/calculation/` 定义共享类型；页面请求组装与 Worker 消息处理、养成表单的设置转换、配队报告组装、生产配队 Worker 与逐曲编排使用 TypeScript。计分内核继续由 `packages/scoring` 提供，公式、搜索与采样配置不因类型迁移改变。当前严格检查覆盖上述实现、消息收发适配器和结果组件；未迁移的养成引擎与计分内核通过声明文件提供调用契约，声明不代表其 JavaScript 实现已接受严格检查。外部数据继续经过现有运行时校验。
 
 推荐结果的分数、养成对比区域使用 `RecommendationOverview.svelte`，由现有控制器挂载，沿用公共样式、队伍展示及编辑和保存操作。清空结果或销毁工作台前卸载组件；页面路由和其余工具继续使用现有 Astro 与原生交互。独立构建通过 Svelte 编译器处理该客户端组件，传统开发入口通过 Vite 插件处理；不需要页面级 hydration 指令。
 

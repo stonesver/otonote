@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.mjs';
+import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.ts';
 import { refreshPlanningPreset, evaluatePresetPool } from '../src/lib/preset-portfolio.mjs';
 import { generatePresetCandidates } from '../src/lib/preset-candidates.mjs';
 import { createTeamDraft } from '../src/lib/team-draft.mjs';

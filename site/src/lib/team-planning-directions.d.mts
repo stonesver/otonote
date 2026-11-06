@@ -1,0 +1,2 @@
+import type {OptimizerCandidate, CalculationObjective} from './calculation/optimizer-types.ts';
+export function selectPlanningDirections<T extends OptimizerCandidate>(candidates: T[], options?: {goal?: 'score' | 'stable' | 'missions'; limit?: number; objective?: CalculationObjective}): (T & {direction: NonNullable<OptimizerCandidate['direction']>; directionMetrics: {expectedScore: number; lowerScore: number; taskComparison: number | null; hasOpponents: boolean}})[];

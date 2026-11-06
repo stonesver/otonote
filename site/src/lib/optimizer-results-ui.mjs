@@ -17,6 +17,9 @@ function trainingDescription(change,workbench) {
   const fields=Array.isArray(change.fields)?change.fields:Object.entries(change.fields??change.changes??{}).map(([field,values])=>({field,...values}));
   return `${name}：${fields.map(item=>`${cardGrowthLabel(item.field,kind,typeof document==='undefined'?'zh-CN':document.documentElement.lang)} ${item.from??ui('未记录')} → ${item.to??'—'}`).join('，')}`;
 }
+/** @param {import("./calculation/optimizer-ui-types.ts").OptimizerWorkbench} workbench
+ * @param {import("./calculation/optimizer-types.ts").OptimizerCandidate[]} results
+ * @param {{mode?: import("./calculation/optimizer-types.ts").CalculationMode, objective?: import("./calculation/optimizer-types.ts").CalculationObjective, live?: boolean, target?: HTMLElement}} options */
 export function renderOptimizerResults(workbench,results,{mode,objective,live=false,target}={}) {
   const root=target??workbench.querySelector('[data-pairing-results]');clearOptimizerResults(workbench,root);
   workbench.querySelector('[data-results-empty]').hidden=Boolean(results.length);

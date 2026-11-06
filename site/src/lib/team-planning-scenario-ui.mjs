@@ -85,10 +85,15 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
     if(!root.children.length)root.append(node('p','还没有手选队伍。可先生成方案并应用，再保留喜欢的卡继续比较。'));
   }
   function refresh(){
+    const micro=q('[data-performance-profile] option[value="ap_timing"]'),gekisou=q('[data-pairing-mode]').value==='gekisou';
+    if(micro)micro.disabled=gekisou;
+    if(gekisou&&q('[data-performance-profile]').value==='ap_timing')q('[data-performance-profile]').value='steady';
     const v=values();q('[data-planning-training]').hidden=v.kind!=='training';q('[data-planning-trial]').hidden=v.kind!=='trial';q('[data-planning-missing]').hidden=v.kind==='reference';
     setText('[data-planning-note]',{reference:'不用导入卡库。先看搭配思路；结果可能包含你还没有的卡。',selected:'只比较下方选中的成员与留影。没有填写养成时，可展开下面的选项按参考值计算。',current:'使用已导入或手动填写的养成。缺少资料的卡默认不参加推荐。',training:'按所选范围比较培养后的搭配。手选卡需要填写实际养成，计划不会修改卡库。',trial:'选择想试的卡，再和已录入或手选的卡一起配队。'}[v.kind]);
     let performanceNote=v.explicit.trim()?'按填写的演出记录比较。':v.profile==='ideal'?'理想发挥：无时机偏差、无漏按，用于查看顺利发挥时的方案。':v.profile==='practice'?'参考条件：时机波动 ±110 毫秒，另有 2% 漏按；不是对你个人水平的判断。':'参考条件：时机波动 ±65 毫秒，不额外加入漏按；FC 不代表全 JUST。';
-    if(v.timingSpreadMs!==''||v.missPercent!==''||Number(v.timingBiasMs)!==0||v.startSeconds!=='')performanceNote+=' 已调整发挥条件，请展开上方设置查看。';
+    if(v.profile==='ap_timing')performanceNote='60 / 120 帧通用，优先容错较大的操作。具体按法见回放。';
+    else if(v.timingSpreadMs!==''||v.missPercent!==''||Number(v.timingBiasMs)!==0||v.startSeconds!=='')performanceNote+=' 已调整发挥条件，请展开上方设置查看。';
+    if(q('[data-performance-custom]'))q('[data-performance-custom]').hidden=v.profile==='ap_timing';
     setText('[data-performance-note]',performanceNote);
     setText('[data-planning-summary]',planningSummary(v));
     q('[data-recommendation-goal]').querySelector('[value="missions"]').disabled=q('[data-pairing-mode]').value!=='gekisou';

@@ -1,4 +1,5 @@
 import {readToolJson} from '../runtime/tool-startup.mjs';
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 import {registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
@@ -7,7 +8,7 @@ import {createPersonalGrowthStore,applyPersonalGrowth} from './personal-growth-s
 import {preparePresetDraft} from './preset-portfolio.mjs';
 import {createCalculationScopeControl} from './calculation-scope-ui.mjs';
 import {scopeSummary} from './calculation-scope.mjs';
-import {applyAPBasis,eventToolSearch,AP_BASES} from './ap-grade.mjs';
+import {applyAPBasis,eventToolSearch,AP_BASES,withAPTimingBasis} from './ap-grade.mjs';
 import {toolRoute} from './tool-route.mjs';
 import {selectedControlValues} from './filter-controls.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
@@ -22,10 +23,12 @@ class APGradeTool extends HTMLElement{
   catch(e){this.q('status').textContent=`个人养成未载入：${e.message}`;}
   if(params.get('eventMode')==='challenge'&&this.q('event').options.length)this.q('mode').value='challenge';
   if([...this.q('event').options].some(o=>o.value===params.get('eventId')))this.q('event').value=params.get('eventId');
+  if(this.draft.modifiers.performanceScenario?.profile==='ap_timing')this.q('basis').value='ap_timing';
   if(AP_BASES.includes(params.get('apBasis')))this.q('basis').value=params.get('apBasis');
   this.eventContext={boost:params.get('boost')??1,cost:params.get('cost')??200};
   for(const k of ['mode','event','difficulty','level'])this.q(k).addEventListener('change',()=>this.invalidate());
-  for(const k of ['basis','sort'])this.q(k).addEventListener('change',()=>{this.page=0;this.renderRows();});
+  this.q('sort').addEventListener('change',()=>{this.page=0;this.renderRows();});
+  this.q('basis').addEventListener('change',()=>{if(this.q('basis').value==='ap_timing'&&(this.worker||this.rows?.some(r=>!r.apTimingPlan)))this.invalidate();else{this.page=0;this.renderRows();}});
   this.q('query').addEventListener('input',()=>{this.page=0;this.renderRows();});
   this.q('run').addEventListener('click',()=>this.run());this.q('cancel').addEventListener('click',()=>{this.stop();this.q('status').textContent='已停止判档计算。';});
   for(const [k,delta] of [['prev',-1],['next',1]])this.q(k).addEventListener('click',()=>{this.page+=delta;this.renderRows();});
@@ -76,13 +79,13 @@ class APGradeTool extends HTMLElement{
     if(this.worker!==worker)return;
     if(data.type==='progress'){this.q('status').textContent=`正在预测 ${data.done} / ${data.total} 张谱面…`;return;}
     this.stop();if(data.type==='result'){
-     this.rows=data.rows;this.q('status').textContent=`${scopeSummary(calculationScope)}。已预测 ${data.rows.length} 张谱面${data.failures.length?`，${data.failures.length} 张失败，结果不完整`:''}。切换判档依据或排序无需重新计算。`;this.renderRows();
+     this.rows=data.rows;this.q('status').textContent=`${scopeSummary(calculationScope)}。已预测 ${data.rows.length} 张谱面${data.failures.length?`，${data.failures.length} 张失败，结果不完整`:''}。`;this.renderRows();
      if(data.failures.length){const details=el('details');details.append(el('summary','查看未成功的谱面'));for(const f of data.failures)details.append(el('p',`${f.title} ${f.difficulty}：${f.message}`));this.q('failures').append(details);}
     }else this.q('status').textContent=data.message;
    });
    worker.addEventListener('error',()=>{if(this.worker!==worker)return;this.stop();this.q('status').textContent='判档服务加载失败，请重试。';});
    this.q('status').textContent=`正在准备 ${candidates.length} 张谱面…`;
-   worker.postMessage({rules:this.data.rules,draft:this.draft,candidates,mode,eventId});
+   worker.postMessage({rules:this.data.rules,draft:this.draft,candidates,mode,eventId,basis:this.q('basis').value});
   }catch(e){this.stop();this.q('status').textContent=e.message;}
  }
  renderRows(){
@@ -92,12 +95,13 @@ class APGradeTool extends HTMLElement{
   const pages=Math.max(1,Math.ceil(rows.length/8));this.page=Math.min(this.page,pages-1);
   for(const r of rows.slice(this.page*8,this.page*8+8)){
    const card=el('article');card.className='event-rec-row';card.append(el('h3',`${r.title} · ${r.difficulty.toUpperCase()}`),el('p',`Lv.${r.level} · ${r.seconds==null?'时长未知':fmt(r.seconds)+' 秒'} · 综合力 ${fmt(r.power)}`),el('strong',`${grade(r.scoreRank)} 档 · AP ${fmt(r.estimatedScore)} 分`));
-   const range=el('p',`估计范围 ${grade(r.minimumRank)}–${grade(r.maximumRank)} · ${fmt(r.minimumScore)}–${fmt(r.maximumScore)} 分`);range.className='ap-threshold';card.append(range,el('p',r.nextRank==null?'已达到最高档位':`距 ${grade(r.nextRank)} 档还差 ${fmt(r.nextRankGap)} 分`));
+   const range=el('p',basis==='ap_timing'?`已检查最低 ${fmt(r.apTimingPlan.minimumScore)} · 最高 ${fmt(r.apTimingPlan.maximumScore)}`:`技能顺序范围 ${grade(r.minimumRank)}–${grade(r.maximumRank)} · ${fmt(r.minimumScore)}–${fmt(r.maximumScore)} 分`);range.className='ap-threshold';card.append(range,el('p',r.nextRank==null?'已达到最高档位':`距 ${grade(r.nextRank)} 档还差 ${fmt(r.nextRankGap)} 分`));
+   if(basis==='ap_timing'&&hasApTimingInstructions(r.apTimingPlan))card.append(el('p',`调整 ${r.apTimingPlan.adjustments.length} 个音符 · 60 / 120 帧通用`));
    if(r.gradeProbabilities){
      card.append(el('p',`P10 ${fmt(r.scoreDistribution.p10)} 分 · 顺序达档比例：${r.gradeProbabilities.filter(g=>g.rank>2).map(g=>`${grade(g.rank)} 及以上 ${fmt(g.atLeastProbability*100)}%`).join(' / ')}`));
      card.append(el('small','假定 120 种技能顺序等可能，均按 AP、满生命估算；比例不代表实战成功率。'));
    }
-   const draft={...this.draft,selectedSongId:r.trackId,selectedDifficulty:r.difficulty};
+   const draft=withAPTimingBasis({...this.draft,selectedSongId:r.trackId,selectedDifficulty:r.difficulty},basis,r.apTimingPlan);
    const links=el('div');links.className='ap-result-actions';const use=el('a','带入活动收益');use.href=toolRoute('/tools/event-efficiency/',location.pathname)+eventToolSearch(draft,{mode:r.mode,eventId:r.eventId||undefined,scoreRank:r.scoreRank,basis,...this.eventContext});links.append(use);
    if(r.mode==='ordinary'){const detail=el('a','查看分数明细');detail.href=toolRoute('/tools/song-calculator/',location.pathname)+serializeTeamDraftSearch(draft);links.append(detail);}
    card.append(links,skillActivation(this,draft,{mode:r.mode,eventId:r.eventId}));root.append(card);

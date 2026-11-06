@@ -58,6 +58,15 @@ test('joint event recommendation exposes both item and event-point objectives',(
  assert.match(goals,/value="eventPoints"/);
  assert.match(goals,/^<option value="both"/);
 });
+test('farming uses ordinary score bases while challenge leaderboards retain AP timing',()=>{
+ const page=readFileSync(new URL('../src/pages/tools/event-efficiency/index.astro',import.meta.url),'utf8');
+ for(const control of ['yield-basis','yield-challenge-basis']){
+  const choices=page.match(new RegExp(`<select\\b[^>]*data-${control}[^>]*>([\\s\\S]*?)<\\/select>`))?.[1];
+  for(const basis of ['expectedScore','minimumScore','maximumScore'])assert.ok(choices?.includes(`value="${basis}"`));
+  assert.doesNotMatch(choices,/ap_timing/);
+ }
+ assert.match(page.match(/<select\b[^>]*data-challenge-opt-objective[^>]*>([\s\S]*?)<\/select>/)?.[1],/value="ap_timing"/);
+});
 test('both objectives retain different teams for the same song instead of hiding its point leader',()=>{
  const base={song:{id:'song',seconds:100},reward:{scoreRank:5},expectedScore:1000};
  const items={...base,id:'items-team',total:{badges:11550,eventPoints:3100},recommendationGoals:['badges']};

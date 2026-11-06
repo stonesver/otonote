@@ -79,8 +79,8 @@ const attributeFilters = catalog.cardTaxonomy.attributes.filter(a => a.code >= 1
     <section class="event-recommendations challenge-optimizer" data-challenge-optimizer hidden aria-labelledby="challenge-optimizer-title">
      <h3 id="challenge-optimizer-title">挑战冲榜配队</h3><p data-challenge-opt-song class="event-feedback"></p>
      <p>针对这首挑战歌曲比较成员、留影配对与队长。挑战的卡片能力加成已计入；道具和活动 pt 加成不直接乘入歌曲分数。</p>
-     <div class="event-controls event-option-row"><label>搜索范围<select data-quick-native data-challenge-opt-scope><option value="reference">全卡库参考</option><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><label>出分目标<select data-quick-native data-challenge-opt-objective><option value="maximum_song_score">最高分</option><option value="expected_song_score">平均分</option></select></label></div>
-     <p class="event-hint">理想 AP 估算，最高分对应最有利的随机技能顺序，不是每次都能达到。搜索持续比较所选卡库内的合法配队，直至证明第一名在当前条件与模型内最优；备选仅供参考。可暂停并在当前页面继续。当前十张卡未填写养成时沿用计算器默认值，突破不等于满练。</p>
+     <div class="event-controls event-option-row"><label>搜索范围<select data-quick-native data-challenge-opt-scope><option value="reference">全卡库参考</option><option value="owned">我的卡库</option><option value="selected">当前队伍</option></select></label><label>出分目标<select data-quick-native data-challenge-opt-objective><option value="ap_timing">AP 微操</option><option value="maximum_song_score">正拍最高分</option><option value="expected_song_score">正拍平均分</option></select></label></div>
+     <p class="event-hint">微操优先推荐 60 / 120 帧通用、容错较大的操作，额外加分见回放。微操停止后保留结果，重启会重新比较；正拍可暂停续算。未填写养成的卡片沿用默认值。</p>
      <div class="event-controls"><button type="button" class="event-primary" data-challenge-opt-run>推荐挑战出分队伍</button><button type="button" data-challenge-opt-cancel hidden>暂停配队搜索</button></div><p data-challenge-opt-status role="status"></p><div data-challenge-opt-results></div>
     </section>
 

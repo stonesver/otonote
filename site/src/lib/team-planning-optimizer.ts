@@ -49,6 +49,7 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
     const current = !live && comparison.actualAvailable && actualDraft ? actualScore(actualDraft) : null;
     if (!live && resolved.scope !== 'reference' && comparison.actualTeamAvailable && current && (!baseline.result || current.value > baseline.result.value)) baseline.result = { ...current, draft: actualDraft! };
     if (performance) targetDraft.modifiers.performanceScenario = performance;
+    if (candidate.apTimingPlan) targetDraft.modifiers.apTimingPlan = candidate.apTimingPlan;
     targetDraft.modifiers.recommendationGoal = recommendationGoal;
     targetDraft.modifiers.planningResult.selectedTrainingCardIds = variant.trainedCardIds.filter(id => targetDraft.slots.some(s => s.memberCardId===id || s.supportCardId===id));
     const trainingChanges = comparison.changedCards.map(card => ({ type: card.kind, id: card.id, fields: card.changes }));
@@ -60,7 +61,7 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
       targetValue: candidate.value, missingActual: !comparison.actualTeamAvailable, actualScoreAvailable: Boolean(current),
       ownershipUnknown: comparison.unknownOwnershipIds, materialEstimateAvailable: false,
       trainingCountComplete: !hypothetical && comparison.trainingCountComplete };
-    return { ...candidate, draft: targetDraft, planning, performanceScenario: performance, performanceSummary: performance?.description,
+    return { ...candidate, draft: targetDraft, planning, performanceScenario: performance, performanceSummary: candidate.performanceSummary ?? performance?.description,
       id: stableSnapshotHash({ slots: targetDraft.slots, growth: targetDraft.modifiers.growth }),
       delta: baseline.result ? candidate.value - baseline.result.value : null,
       comparison: compareScoredFormations(candidate, baseline.result), growthComparison: comparison };

@@ -1,3 +1,4 @@
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {currentEventDraft,eventTeamSaveButton,createEventTeamView} from './event-team-view.mjs';
@@ -14,7 +15,10 @@ export function setupChallengeOptimizer(tool){
   let worker=null,key='',results=null,paused=false,pausing=false,selectedTeam=null,resultTabs=null,articleCache=new Map(),tabCache=new Map();
   const updates=createCalculationLiveUpdates({hasResults:()=>Boolean(results?.results.length),onResult:result=>{results=result;render();},onProgress:showProgress});
   const stop=(publish=false)=>{worker?.terminate();worker=null;paused=false;pausing=false;updates.stop({flushResult:publish});q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='推荐冲榜队伍';root.setAttribute('aria-busy','false');};
-  const currentDraft=()=>currentEventDraft(tool);
+  const currentDraft=()=>{const draft=currentEventDraft(tool);draft.modifiers??={};
+    if(q('objective').value==='ap_timing')draft.modifiers.performanceScenario={profile:'ap_timing'};
+    else if(draft.modifiers.performanceScenario?.profile==='ap_timing'){delete draft.modifiers.performanceScenario;delete draft.modifiers.apTimingPlan;}
+    return draft;};
   const fingerprint=()=>JSON.stringify({calculationScope:tool.calculationScope?.snapshot?.fingerprint,mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge'||Boolean(tool.classList?.contains('task-workbench')&&tool.dataset.task!=='challenge');
@@ -27,6 +31,7 @@ export function setupChallengeOptimizer(tool){
     q('run').disabled=!!worker&&!paused||root.hidden||!track;
   }
   function summary(result,ongoing){
+    if(result.results?.some(row=>row.apTimingPlan))return {label:ongoing?'正在比较冲榜配队':'冲榜配队比较结束',detail:result.results.some(row=>hasApTimingInstructions(row.apTimingPlan))?'按微操预计分推荐，额外加分见回放。结果限于已比较的候选，未证明全局最优。':'按正拍预计分推荐。结果限于已比较的候选，未证明全局最优。'};
     const certificate=result.certifiedSearch;
     const counts=`候选阶段完整复算 ${result.practical?.finalists??0} 支队伍${certificate?`，上界搜索已展开 ${certificate.expanded??certificate.evaluated} 个分支、完整评估 ${certificate.evaluated} 次；${certificate.candidateBoundPruned??0} 个候选经上界排除，待检查 ${certificate.frontier??'未知'} 个分支`:''}。完整评分比较全部 120 种技能顺序。`;
     const proof=certificate?.bestProven?'已证明所选范围、当前模型内的最佳出分。备选仅供参考，未证明排名。':'尚未证明所选范围、当前模型内的最优。';
@@ -61,11 +66,13 @@ export function setupChallengeOptimizer(tool){
       const heading=reuse?cached.heading:el('h4'),alternative=reuse?cached.alternative:el('p','备选仅供参考，未证明其排名。','event-hint');
       const label=index===0?(results.certifiedSearch?.bestProven?'最佳配队':'当前最佳候选'):`备选 ${index}`;
       card.hidden=row!==selected;alternative.hidden=index===0;
-      const title=`${label} · ${maximum?'最高':'平均'}估计分 ${fmt(row.value)}`;if(heading.textContent!==title)heading.textContent=title;
+      const title=`${label} · ${row.apTimingPlan?(hasApTimingInstructions(row.apTimingPlan)?'微操预计分':'正拍预计分'):maximum?'最高估计分':'平均估计分'} ${fmt(row.value)}`;if(heading.textContent!==title)heading.textContent=title;
       let tab=tabCache.get(id);if(!tab){tab=el('button');tab.type='button';tab.dataset.challengeTeamKey=id;tab.addEventListener('click',()=>{selectedTeam=id;render();});}
       if(tab.textContent!==label)tab.textContent=label;tab.setAttribute('aria-pressed',String(row===selected));buttons.push(tab);nextTabs.set(id,tab);
       if(!reuse){
-        card.append(heading,el('p',`最高 ${fmt(row.maximumScore)} · 平均 ${fmt(row.expectedScore)} · 最低 ${fmt(row.minimumScore)}`,'event-hint'),alternative);
+        card.append(heading);
+        card.append(el('p',row.apTimingPlan?`已检查最低 ${fmt(row.minimumScore)} · 最高 ${fmt(row.maximumScore)}`:`最高 ${fmt(row.maximumScore)} · 平均 ${fmt(row.expectedScore)} · 最低 ${fmt(row.minimumScore)}`,'event-hint'));
+        card.append(alternative);
         card.append(el('p',`活动内综合力 ${fmt(row.power)}${reference?' · 满养成参考，不代表实际持有':row.delta==null?' · 当前队伍不完整或不在所选卡库，未作对比':` · 比当前队伍${row.delta>=0?'提高':'降低'} ${fmt(Math.abs(row.delta))} 分`}`));
         card.append(createEventTeamView(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value),summary:row}));
         const apply=el('button','应用这支挑战队伍');apply.type='button';apply.addEventListener('click',()=>{
@@ -113,10 +120,12 @@ export function setupChallengeOptimizer(tool){
         }else {stop(true);q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
       worker.addEventListener('error',()=>{if(worker!==active)return;stop(true);q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});
-      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
+      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value==='ap_timing'?'maximum_song_score':q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
     }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;}
   });
-  q('cancel').addEventListener('click',()=>{if(!worker||paused)return;pausing=true;updates.stop({flushResult:true});feedback.update({label:'正在暂停',detail:'保留当前队伍与搜索进度'});worker.postMessage({type:'pause'});q('cancel').hidden=true;q('status').textContent='正在暂停，保留当前搜索进度…';});
+  q('cancel').addEventListener('click',()=>{if(!worker||paused)return;
+    if(q('objective').value==='ap_timing'){stop(true);feedback.finish('微操搜索已停止','保留已完成复算的候选；再次开始会重新比较。','stopped');q('status').textContent='微操搜索已停止，保留已完成复算的候选；再次开始会重新比较。';return;}
+    pausing=true;updates.stop({flushResult:true});feedback.update({label:'正在暂停',detail:'保留当前队伍与搜索进度'});worker.postMessage({type:'pause'});q('cancel').hidden=true;q('status').textContent='正在暂停，保留当前搜索进度…';});
   root.addEventListener('change',event=>{event.stopPropagation();sync();});
   return {sync,invalidate:()=>{key='';stop();sync();},destroy:()=>{stop();feedback.destroy();}};
 }

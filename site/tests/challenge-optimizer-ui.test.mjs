@@ -45,6 +45,10 @@ test('challenge controls remain functional after moving outside the result panel
  assert.equal(progress.dataset.state,'stopped');
  node('[data-challenge-opt-rewards]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
  node('[data-challenge-opt-reward-growth]').value='maximum';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowth,'maximum');assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
+ node('[data-challenge-opt-objective]').value='ap_timing';ui.sync();node('[data-challenge-opt-run]').listeners.click();
+ assert.equal(workers.at(-1).payload.draft.modifiers.performanceScenario.profile,'ap_timing');
+ node('[data-challenge-opt-cancel]').listeners.click();assert.equal(workers.at(-1).terminated,true);
+ assert.match(node('[data-challenge-opt-status]').textContent,/重新比较/);assert.equal(node('[data-challenge-opt-run]').disabled,false);
  ui.destroy();
  tool.dataset.task='team';ui.sync();assert.equal(node('challenge-optimizer').hidden,true);assert.equal(node('[data-challenge-opt-run]').disabled,true);
  tool.dataset.task='challenge';ui.sync();assert.equal(node('challenge-optimizer').hidden,false);assert.equal(node('[data-challenge-opt-run]').disabled,false);

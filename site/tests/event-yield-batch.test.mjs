@@ -14,6 +14,15 @@ test('global objective ceiling covers every legal chart while keeping skipped ch
  assert.ok(Object.values(output.globalProofs).every(c=>c.bestProven));
  assert.ok(calls.every(c=>c.maxEvaluations===0&&c.witnessOnly));
 });
+test('an imported timing team keeps the ordinary farming proof and sends on-time drafts to both stages',async()=>{
+ const draft={modifiers:{performanceScenario:{profile:'ap_timing'},apTimingPlan:{score:123}}},calls=[];
+ const output=await run({input:{...input,draft,includeChallenge:true},challengeCandidates:[candidates[0]],
+  optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:true});}});
+ assert.ok(calls.some(o=>o.mode==='challenge'));assert.ok(calls.some(o=>o.mode==='ordinary'&&o.witnessOnly));
+ assert.ok(calls.every(o=>!o.draft.modifiers.performanceScenario&&!o.draft.modifiers.apTimingPlan));
+ assert.equal(output.coverageComplete,true);assert.ok(Object.values(output.globalProofs).every(p=>p.bestProven));
+ assert.equal(draft.modifiers.apTimingPlan.score,123);
+});
 test('an unattained global vector falls back to complete individual proofs for every chart',async()=>{
  const calls=[];const output=await run({optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:!o.witnessOnly,upper:20});}});
  assert.equal(calls.length,32);assert.equal(output.coverageComplete,true);assert.equal(output.allProven,true);assert.equal(output.prunedCharts,0);

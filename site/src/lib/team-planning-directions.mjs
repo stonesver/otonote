@@ -1,3 +1,4 @@
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
 /** Compare whole formations under one scenario. Task units are normalized
  * within each section; COMBO, LUCK and JUST are never added as raw counts. */
 const finite = value => Number.isFinite(value) ? value : null;
@@ -39,7 +40,7 @@ export function selectPlanningDirections(candidates, { goal = 'score', limit = 3
     ? -(row.sections ?? []).reduce((sum, s) => sum + s.rank, 0) / Math.max(1, row.sections?.length ?? 0)
     : taskValue(row);
   const objectives = objective === 'formation_power' ? [{ id: 'power', label: '综合力较高', metric: row => row.power }] : [
-    { id: 'score', label: '冲高分', metric: row => objective === 'maximum_song_score' ? (finite(row.maximumScore) ?? expected(row)) : objective === 'minimum_song_score' ? (finite(row.minimumScore) ?? lower(row)) : expected(row) },
+    { id: 'score', label: '冲高分', metric: row => row.apTimingPlan?.score ?? (objective === 'maximum_song_score' ? (finite(row.maximumScore) ?? expected(row)) : objective === 'minimum_song_score' ? (finite(row.minimumScore) ?? lower(row)) : expected(row)) },
     { id: 'stable', label: '求稳定', metric: lower },
     ...(sections.size ? [{ id: 'missions', label: '争段落名次', metric: taskScore }] : [])
   ];
@@ -52,20 +53,22 @@ export function selectPlanningDirections(candidates, { goal = 'score', limit = 3
   const chosen = new Map();
   for (const direction of objectives) {
     const ranked = undominated.filter(row => finite(direction.metric(row)) !== null)
-      .sort((a, b) => direction.metric(b) - direction.metric(a) || expected(b) - expected(a) || signature(a).localeCompare(signature(b)));
+      .sort((a, b) => direction.metric(b) - direction.metric(a) || expected(b) - expected(a)
+        || (b.apTimingPlan?.apMarginMs??0)-(a.apTimingPlan?.apMarginMs??0)
+        || (a.apTimingPlan?.adjustments.length??0)-(b.apTimingPlan?.adjustments.length??0) || signature(a).localeCompare(signature(b)));
     const winner = ranked[0];
     if (!winner) continue;
     const key = signature(winner), existing = chosen.get(key);
     if (existing) { existing.direction.alsoSuitable.push(direction.label); continue; }
     const bestScore = Math.max(...rows.map(expected));
     const gap = Math.max(0, bestScore - expected(winner));
-    const reason = direction.id === 'power' ? '在已比较的队伍中，这队综合力较高。'
+    const reason = winner.apTimingPlan ? hasApTimingInstructions(winner.apTimingPlan) ? '微操预计分较高；同分优先更容易保持 AP 的方案。' : '这队的正拍预计分较高。' : direction.id === 'power' ? '在已比较的队伍中，这队综合力较高。'
       : direction.id === 'stable' ? '在相同发挥样本中，这队的较低分数较高。'
       : direction.id === 'missions' ? hasOpponents ? '在填写的对手条件下，这队的平均段落名次较好。' : '按各段计分事件数量衡量，这队的任务计数表现较好；可展开查看每段差别。'
       : objective === 'maximum_song_score' ? '在相同发挥样本中，这队出现过的最高分较高。'
       : objective === 'minimum_song_score' ? '在相同发挥样本中，这队出现过的最低分较高。'
       : '在当前计算条件下，这队的平均分较高。';
-    const tradeoff = direction.id === 'missions' && !hasOpponents ? '没有填写对手，任务计数优势不等于一定拿第一。'
+    const tradeoff = winner.apTimingPlan ? hasApTimingInstructions(winner.apTimingPlan) ? '需特定帧对齐的额外分数，见回放详情。' : '技能顺序与分数范围见回放。' : direction.id === 'missions' && !hasOpponents ? '没有填写对手，任务计数优势不等于一定拿第一。'
       : gap > 0 ? `平均分比本次最高方案少 ${Math.round(gap).toLocaleString()} 分。`
       : direction.id === 'stable' ? '这是参考样本的比较，不是实战保底。' : '换一首歌或改变发挥条件后，结果可能不同。';
     chosen.set(key, { ...winner, direction: { id: direction.id, label: direction.label, reason, tradeoff, alsoSuitable: [] },

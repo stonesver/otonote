@@ -33,3 +33,10 @@ test('Svelte result labels use the existing English translations',()=>{
  const html=overview({...base,locale:'en',scenarioLabel:'当前养成',result:{value:1234}});
  assert.match(html,/Recommended team/);assert.doesNotMatch(html,/[\u4e00-\u9fff]/);
 });
+test('Svelte recommendations distinguish useful timing plans from on-time results',()=>{
+ const plan={adjustments:[{scoreIndex:1,timingOffsetMs:-25}],score:120,onTimeMinimumScore:100};
+ assert.match(render({value:120,apTimingPlan:plan}),/微操预计分/);
+ const noGain=render({value:100,apTimingPlan:{...plan,score:100}});
+ assert.match(noGain,/正拍预计分/);assert.doesNotMatch(noGain,/微操预计分/);
+ assert.match(overview({...base,locale:'en',result:{value:120,apTimingPlan:plan}}),/Estimated timing score/);
+});

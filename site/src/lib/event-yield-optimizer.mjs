@@ -1,3 +1,4 @@
+import {withAPTimingBasis} from './ap-grade.mjs';
 import {bindEventScoreCache,searchDigest} from './event-search-cache.mjs';
 import {optimizePractical,PRACTICAL_SEARCH_WARNINGS} from './practical-optimizer.mjs';
 import {createEventEfficiency,createChallengeSpendingPlanner} from './scoring-rules/event-efficiency.mjs';
@@ -71,6 +72,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='expectedScore',challengeRows=[],includeChallenge=true,
  onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,challengePlanCache,
  searchMethod='certified',maxEvaluations=24,refineScoreTies=false,witnessOnly=false,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}){
+ draft=withAPTimingBasis(draft,'expectedScore');
  if(!['practical','certified'].includes(searchMethod))throw Error('Invalid event search method');
  if(!Number.isInteger(maxEvaluations)||maxEvaluations<0)throw Error('Invalid event search budget');
  if(typeof refineScoreTies!=='boolean')throw Error('Invalid score tie refinement option');

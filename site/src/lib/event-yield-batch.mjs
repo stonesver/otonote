@@ -28,7 +28,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
  const failures=[],challengeRows=[],rows=new Map(),scoreCaches=new Map(),resolved=new Map(goals.map(g=>[g,new Set()])),
    pruned=new Map(goals.map(g=>[g,new Set()])),globalProofs={},uppers=new Map(),witnessCharts=new Set(),failed=new Set();
  let challengeDone=0,challengeOptimized=0,cacheHits=0,calculations=0,optimizerInvocations=0;
- const canGlobal=globalPruning&&full&&input.searchMethod!=='practical'&&!input.refineScoreTies&&!input.draft.modifiers?.performanceScenario;
+ const canGlobal=globalPruning&&full&&input.searchMethod!=='practical'&&!input.refineScoreTies&&!eventYieldStageInput(input,input.mode).draft.modifiers?.performanceScenario;
  const key=(c,mode)=>mode+':'+c.id;
  const cacheFor=async(c,mode,stage,chart)=>{
    const id=key(c,mode);if(!scoreCaches.has(id))scoreCaches.set(id,Promise.resolve(getScoreCache(c,mode,stage,chart)));

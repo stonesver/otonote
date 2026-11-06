@@ -329,7 +329,7 @@ body:has(.task-studio) :is(.task-pairing,.tw-panel) .tw-card-view[data-kind=supp
 .task-studio.task-studio .task-dialog .activation-controls button[aria-pressed=true]{background:var(--tool-tint,var(--theme-surface));color:var(--studio-ink,var(--tool-ink,var(--theme-text)));border-color:var(--theme-border)}
 .task-studio.task-studio .task-dialog .task-replay-controls{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;padding:8px 10px}
 .task-studio.task-studio .task-dialog .task-replay-controls input[type=range]{width:auto;min-width:100px;flex:1;accent-color:var(--theme-accent);border:0;padding:0;height:24px;min-height:24px}
-.task-studio.task-studio .task-dialog .task-replay-controls select{width:68px;min-width:68px;flex:none;min-height:29px;height:29px;padding:3px 7px}
+.task-studio.task-studio .task-dialog .task-replay-controls select:not(.ap-timing-variant){width:68px;min-width:68px;flex:none;min-height:29px;height:29px;padding:3px 7px}
 .task-studio.task-studio .task-dialog .task-replay-controls button{width:auto;flex:none;white-space:nowrap}
 body:has(.task-studio) :is(.task-pairing,.tw-panel) .tw-card-stat[data-field=awake]{background:var(--theme-media-shade);color:var(--theme-media-text)!important;gap:2px;box-shadow:0 0 0 1px color-mix(in srgb, var(--theme-media-text) 43.92%, transparent)}
 body:has(.task-studio) :is(.task-pairing,.tw-panel) .tw-card-stat[data-field=awake] :is(.tw-card-stat-label,.tw-card-stat-value){color:inherit}

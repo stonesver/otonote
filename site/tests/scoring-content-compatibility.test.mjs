@@ -68,6 +68,7 @@ import { createPerformanceSongCalculator, createPerformanceTemplate } from '../.
 import { createFormationCalculator } from '../../packages/scoring/scoring-rules/formation-power.mjs';
 import { createOrdinarySkillLifecycle } from '../../packages/scoring/scoring-rules/formal-performance-state.mjs';
 import { createFrameClock, skillEndFrame } from '../../packages/scoring/scoring-rules/formal-frame-clock.mjs';
+import { TIMING_PERFORMANCE_VERSION } from '../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { optimizeInventory } from '../src/lib/inventory-optimizer.mjs';
 
 function ordinaryFixture() {
@@ -106,6 +107,46 @@ test('ordinary cumulative support ramps at matching judgements, caps, expires an
   assert.ok(mixed.skillTrace.filter(t=>t.action==='cumulative').length<increments.length);
   effect._skillCumulativeConditionID=99999;
   assert.throws(()=>createFormalSkillResolver(r)(d),/Cumulative/);
+});
+
+test('AP cumulative scores depend on frame alignment and activation-note timing even with the same best order',()=>{
+  const {r,c,d,effect}=ordinaryFixture();
+  c.notes=Array.from({length:10},(_,i)=>({id:`timing-${i}`,type:'tap',tick:900+i*100}));
+  Object.assign(effect,{_skillEffectType:2001,_effectValue:2000,_maxEffectValue:8000,_skillCumulativeConditionID:990});
+  r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[2],_conditionTargetIDs:[41,46],_maxCumulativeCount:4});
+  const ideal=createFormalSongCalculator(r,c).calculate(d);
+  const run=({phase=0,activationOffset=0}={})=>{
+    const performance=createPerformanceTemplate(r,c);
+    performance.version=TIMING_PERFORMANCE_VERSION;
+    performance.skillOrder=ideal.bestOrder;
+    performance.frames=Array.from({length:700},(_,i)=>({timeMs:Math.floor(i*1000/60+phase),deltaSeconds:1/60}));
+    const clock=createFrameClock({frames:performance.frames});
+    performance.judgements=performance.judgements.map(({scoreIndex,timeMs})=>{
+      const timingOffsetMs=scoreIndex===1?activationOffset:0;
+      return {scoreIndex,timeMs,timingOffsetMs,missed:false,inputFrame:clock.indexAt(timeMs+timingOffsetMs)};
+    });
+    return createPerformanceSongCalculator(r,c,{performance}).calculate(d,{includeTrace:true});
+  };
+  const baseline=run();
+  assert.equal(baseline.expectedScore,ideal.maximumScore);
+  for(const scenario of [{phase:1},{activationOffset:-20}]){
+    const result=run(scenario);
+    assert.equal(result.power,baseline.power);
+    assert.deepEqual(result.bestOrder,baseline.bestOrder);
+    assert.equal(result.performance.allPerfect,true);
+    assert.equal(result.performance.judgementCounts[5],c.notes.length);
+    assert.equal(result.performance.convertedCount,0);
+    assert.equal(result.performance.maxCombo,baseline.performance.maxCombo);
+    assert.equal(result.baseScore,baseline.baseScore);
+    assert.ok(result.expectedScore<baseline.expectedScore);
+    assert.ok(result.bestOrderNotes.some((note,i)=>note.scoreUpFactor<baseline.bestOrderNotes[i].scoreUpFactor));
+  }
+  assert.ok(ideal.warnings.some(warning=>warning.includes('累计加分')&&warning.includes('同一技能顺序')));
+  r.tables.SupportCard.find(row=>row._id===1)._supportSkillId01=0;
+  const fixed=createFormalSongCalculator(r,c).calculate(d);
+  assert.ok(!fixed.warnings.some(warning=>warning.includes('累计加分')));
+  assert.equal(run({phase:1}).expectedScore,run().expectedScore);
+  assert.equal(run({activationOffset:-20}).expectedScore,run().expectedScore);
 });
 
 test('GOOD releases only the extra handle, using the last matching note timestamp and native state phases',()=>{

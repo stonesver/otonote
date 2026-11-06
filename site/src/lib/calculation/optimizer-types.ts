@@ -15,7 +15,7 @@ export interface CalculationScope {
 }
 export interface PerformanceScenario {
   version?: string;
-  profile?: 'ideal' | 'steady' | 'practice' | 'explicit';
+  profile?: 'ideal' | 'steady' | 'practice' | 'explicit' | 'ap_timing';
   seed?: number; samples?: number; frameRate?: number;
   timingBiasMs?: number; timingSpreadMs?: number; missRate?: number;
   difficultRanges?: {startMs: number; endMs: number; spreadMultiplier?: number}[];
@@ -52,6 +52,17 @@ export interface ScoreComparison {
   powerSourceDeltas: Record<string, number>; skillScoreGainDelta: number | null;
   sectionDeltas: {index: number; noteScore: number; rankingBonus: number; totalScore: number}[] | null;
 }
+export interface ApTimingPlan {
+  version: string; context: string; chartId: string; chartHash: string;
+  order: number[]; score: number; minimumScore: number; maximumScore: number;
+  onTimeMinimumScore: number; apMarginMs: number; toleranceMs: number;
+  adjustments: {scoreIndex: number; noteId: string; nodeIndex: number | null; timeMs: number;
+    position: number; size: number; timingOffsetMs: number; apEarlyMs: number; apLateMs: number; apMarginMs: number}[];
+  rates: {frameRate: number; referenceScore: number; baselineScore: number; minimumScore: number; maximumScore: number;
+    minimumCondition: {phaseMs: number; biasMs: number}; maximumCondition: {phaseMs: number; biasMs: number};
+    favorable: {phaseMs: number; score: number}}[];
+  search: {screenedOrders: number; refinedOrders: number; policies: number[]; phaseClasses: number; optimality: 'candidate_search'};
+}
 export interface OptimizerCandidate {
   draft: TeamDraft; value: number; power: number;
   id?: string; delta?: number | null; expectedScore?: number; minimumScore?: number; maximumScore?: number;
@@ -60,12 +71,13 @@ export interface OptimizerCandidate {
   breakdown?: Record<string, {total: number}>;
   performanceSummary?: string | {label?: string};
   performanceScenario?: PerformanceScenario;
+  apTimingPlan?: ApTimingPlan;
   scoreDistribution?: {p10: number; count: number};
   scenario?: GekisouScenario;
   inputHash?: string;
   comparison?: ScoreComparison | null; sections?: ScoreSection[];
   rankingBonusShare?: number; sampleCount?: number; standardError?: number;
-  scorePrecision?: 'screen' | 'full'; orderCount?: number; bestOrder?: number[]; worstOrder?: number[];
+  scorePrecision?: 'screen' | 'full' | 'ap_timing'; orderCount?: number; bestOrder?: number[]; worstOrder?: number[];
   warnings?: string[];
 }
 export interface ScoringIssue {sourceCardId?: string; memberCardId?: string; supportCardId?: string; message: string; slots?: TeamDraft["slots"]}

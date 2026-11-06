@@ -55,6 +55,7 @@ export function eventRewardForScore(model, result, options) {
 
 // AP score under the chosen skill-order basis, not a bound for real play.
 export function estimateEventSong({rules,model,chart,draft,candidate,options}) {
+ if(options.scoreBasis==='ap_timing')throw Error('活动收益使用正拍估分；微操请在冲分工具中计算。');
  if(options.mode==='gekisou')throw Error('激奏需要团队结算评分，不能用个人估分推算。');
  const result=estimateAPChart({rules,draft,chart,candidate,mode:options.mode,eventId:model.event._id,basis:options.scoreBasis??'expectedScore'});
  const reward=eventRewardForScore(model,result,options);

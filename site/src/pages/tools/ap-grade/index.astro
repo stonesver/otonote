@@ -42,9 +42,9 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
    <p class="event-hint">按 AP、满生命、无辅助估分，仅计算当前队伍，不搜索其他卡组。普通与挑战分别计算，激奏需使用团队结算档位。接近分档线时请用实打确认。</p>
    <div class="event-controls"><button class="event-primary" data-ap-run>计算各首歌的 AP 档位</button><button data-ap-cancel hidden>停止判档计算</button></div><p data-ap-status role="status"></p>
   </section>
-  <section class="event-panel ap-results-panel"><h2><span class="studio-step">3</span>选歌与联动</h2><p>平均、最低和最高估分对应不同技能顺序。切换下方判档依据或排序会直接使用已算出的结果，无需重新计算。</p>
+  <section class="event-panel ap-results-panel"><h2><span class="studio-step">3</span>选歌与联动</h2><p>正拍平均、最低和最高分对应不同技能顺序。微操支持 60 / 120 帧，首次切换需重新计算。</p>
    <div class="ap-option-groups">
-    <label>判档依据<select data-ap-basis data-quick><option value="expectedScore">平均分</option><option value="minimumScore">最低分</option><option value="maximumScore">最高分</option></select></label>
+    <label>判档依据<select data-ap-basis data-quick><option value="expectedScore">正拍平均分</option><option value="minimumScore">正拍最低分</option><option value="maximumScore">正拍最高分</option><option value="ap_timing">AP 微操</option></select></label>
     <label>排列顺序<select data-ap-sort data-quick><option value="grade">档位优先</option><option value="short">短歌优先</option><option value="score">估分优先</option></select></label>
     <label>歌曲搜索<input type="search" data-ap-query placeholder="输入歌曲名称" /></label>
    </div><p class="event-hint">档位优先时，同档歌曲按时长排列。</p>

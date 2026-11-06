@@ -1,6 +1,7 @@
 <script lang="ts">
   import type {CalculationMode, CalculationObjective, OptimizerCandidate} from '../../lib/calculation/optimizer-types.ts';
   import {planningUiText} from '../../lib/team-planning-translations.mjs';
+  import {hasApTimingInstructions} from '../../lib/ap-timing-presentation.mjs';
 
   let {result, mode, objective, live = false, index, scenarioLabel, trainingDescriptions, locale, createTeamView}: {
     result: OptimizerCandidate;
@@ -33,7 +34,7 @@
   </div>
   <div class="recommendation-score">
     <strong>{result.value == null ? '—' : Math.round(result.value).toLocaleString()}</strong>
-    <span>{ui(objective === 'formation_power' ? '综合力' : objective === 'expected_song_score' ? '参考平均分' : objective === 'minimum_song_score' ? '本次比较中的低分' : '本次比较中的高分')}</span>
+    <span>{ui(result.apTimingPlan ? (hasApTimingInstructions(result.apTimingPlan) ? '微操预计分' : '正拍预计分') : objective === 'formation_power' ? '综合力' : objective === 'expected_song_score' ? '参考平均分' : objective === 'minimum_song_score' ? '本次比较中的低分' : '本次比较中的高分')}</span>
     {#if result.delta != null && !planning?.missingActual}
       <em class={result.delta >= 0 ? 'is-positive' : 'is-negative'}>{ui(`${result.delta >= 0 ? '+' : ''}${number(result.delta)} 较当前养成方案`)}</em>
     {/if}

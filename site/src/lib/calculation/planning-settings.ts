@@ -52,7 +52,8 @@ export function createPlanningSettings(values: PlanningFormValues, {sourceReleas
     if(Object.keys(targets).length)plan.targets=structuredClone(targets);
     planningScenario.plan=plan;
   }
-  const profile=values.profile==='ideal'||values.profile==='steady'||values.profile==='practice'?values.profile:'steady';
+  const profile=values.profile==='ap_timing'||values.profile==='ideal'||values.profile==='steady'||values.profile==='practice'?values.profile:'steady';
+  if(profile==='ap_timing')return {planningScenario,performanceScenario:{profile},recommendationGoal:values.goal==='stable'?'stable':'score'};
   const performanceScenario: PerformanceScenario={profile,seed:20261004,samples:profile==='ideal'?1:3,timingBiasMs:numeric(values.timingBiasMs??0,'整体偏差',-500,500)};
   if(values.timingSpreadMs!==''&&values.timingSpreadMs!=null)performanceScenario.timingSpreadMs=numeric(values.timingSpreadMs,'时机波动',0,500);
   if(values.missPercent!==''&&values.missPercent!=null)performanceScenario.missRate=numeric(values.missPercent,'漏按比例',0,100)/100;
@@ -73,7 +74,7 @@ export function planningSettingsValues(modifiers: TeamDraft['modifiers']={}, fal
   return {kind:s?.plan?.enabled!==false&&s?.plan?'training':s?.scope==='owned'?'current':KINDS.has(s?.scope??'')?s!.scope!:fallback,
     trainingScope:s?.scope==='selected'?'selected':'owned',unknownGrowth:s?.unknownGrowth??'exclude',growthMode:s?.plan?.mode==='maximum'?'maximum':'current-cap',maxTrainedCards:s?.plan?.maxTrainedCards??1,
     skillLevel:s?.plan?.skillLevel??'',gekisouSkillLevel:s?.plan?.gekisouSkillLevel??'',allowedCardIds:s?.plan?.allowedCardIds??[],targets:structuredClone(s?.plan?.targets??{}),
-    trialCardIds:structuredClone(s?.trialCardIds??{memberCardIds:[],supportCardIds:[]}),profile:p.profile==='explicit'?'steady':p.profile??'steady',
+    trialCardIds:structuredClone(s?.trialCardIds??{memberCardIds:[],supportCardIds:[]}),profile:p.profile==='explicit'?'steady':p.profile??'ap_timing',
     timingBiasMs:p.timingBiasMs??0,timingSpreadMs:p.timingSpreadMs??'',missPercent:p.missRate==null?'':p.missRate*100,
     startSeconds:p.difficultRanges?.[0]?.startMs==null?'':p.difficultRanges[0].startMs/1000,endSeconds:p.difficultRanges?.[0]?.endMs==null?'':p.difficultRanges[0].endMs/1000,
     explicit:p.profile==='explicit'?JSON.stringify(p.performance,null,2):'',goal:modifiers.recommendationGoal??'score'};

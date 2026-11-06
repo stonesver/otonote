@@ -1,6 +1,7 @@
 /* The score is a reading; the five tracks are the visual focus. */
 @import './skill-order.css';
 @import './skill-replay-compact.css';
+@import './ap-timing.css';
 skill-activation {
   /* Game semantics: five skill-track identities. */
   display:block; min-width:0; margin-block:20px; container-type:inline-size;

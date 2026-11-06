@@ -1,5 +1,15 @@
 /** Shared by build-time HTML translation and this tool's dynamic labels. */
 export const teamPlanningEnglish = {
+  'AP 微操':'AP timing',
+  '微操预计分':'Estimated timing score',
+  '正拍预计分':'Estimated on-time score',
+  '这队的正拍预计分较高。':'This team has a higher estimated on-time score.',
+  '技能顺序与分数范围见回放。':'See the replay for the skill order and score range.',
+  '正拍最高分':'Highest on-time score',
+  '正拍平均分':'Mean on-time score',
+  '60 / 120 帧通用，优先容错较大的操作。具体按法见回放。':'Works at 60 / 120 FPS, with more room to stay within AP. See the replay for inputs.',
+  '微操预计分较高；同分优先更容易保持 AP 的方案。':'Higher estimated timing score; ties favor inputs with more room to stay within AP.',
+  '需特定帧对齐的额外分数，见回放详情。':'See replay details for extra points that require frame alignment.',
   '搜索记录':'Search log',
   '保存队伍':'Save team',
   '分数明细':'Score details',

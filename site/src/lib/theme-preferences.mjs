@@ -10,11 +10,11 @@ export function installThemePreferences(config, resolve, win = window) {
   const previousState = previous?.getState();
   previous?.destroy();
   const events = new win.AbortController();
-  let preference = previousState?.preference ?? 'auto', state, timer, saved = false;
+  let preference = previousState?.preference ?? config.defaultTheme, state, timer, saved = false;
   let pendingSave = previousState?.pendingSave ?? false, storageAvailable = !pendingSave;
   const readPreference = (externalChange = false) => {
     if (pendingSave && !externalChange) return;
-    try { preference = win.localStorage.getItem(config.key) ?? 'auto'; storageAvailable = true; pendingSave = false; }
+    try { preference = win.localStorage.getItem(config.key) ?? config.defaultTheme; storageAvailable = true; pendingSave = false; }
     catch { storageAvailable = false; }
   };
   const locale = () => /\/(?:global|jp)\/en(?:\/|$)/.test(win.location.pathname) || root.lang === 'en' ? 'en' : 'zh-CN';

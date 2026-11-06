@@ -16,21 +16,21 @@ function contrast(first, second) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-test('paper preserves the CSS defaults and every preset overrides the same base palette', () => {
+test('classic preserves the CSS defaults and every preset overrides the same base palette', () => {
   const css = readFileSync(new URL('../src/styles/theme-tokens.css', import.meta.url), 'utf8');
   const defaults = Object.fromEntries([...css.matchAll(/--theme-([\w-]+):\s*(#[\da-f]+|light|dark)\s*;/g)].map(([, key, value]) => [key, value]));
-  assert.equal(DEFAULT_THEME, 'paper');
+  assert.equal(DEFAULT_THEME, 'classic');
   assert.deepEqual(THEME_PRESETS.find(theme => theme.id === DEFAULT_THEME).tokens, defaults);
   for (const theme of THEME_PRESETS) {
     assert.deepEqual(Object.keys(theme.tokens).sort(), Object.keys(defaults).sort(), theme.id);
   }
 });
 
-test('the collection offers twelve palettes, eleven light and night as the sole dark choice', () => {
+test('the collection offers thirteen palettes, twelve light and night as the sole dark choice', () => {
   const light = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'light');
   const dark = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'dark');
-  assert.equal(THEME_PRESETS.length, 12);
-  assert.equal(light.length, 11);
+  assert.equal(THEME_PRESETS.length, 13);
+  assert.equal(light.length, 12);
   assert.deepEqual(dark.map(theme => [theme.id, theme.group]), [['night', 'dark']]);
   for (const theme of light) {
     assert.ok(luminance(theme.tokens.canvas) >= 0.82, `${theme.id} must have a bright canvas`);

@@ -1,4 +1,4 @@
-export const DEFAULT_THEME = 'paper';
+export const DEFAULT_THEME = 'classic';
 
 // Two-color palettes with light reading surfaces.
 // Derived tokens stay in CSS; game colors keep their own identities.
@@ -13,6 +13,20 @@ const lightPalette = {
 };
 
 export const THEME_PRESETS = [
+  {
+    id: 'classic', group: 'everyday',
+    name: { 'zh-CN': '原版', en: 'Classic' },
+    description: { 'zh-CN': '暖灰 · 莓红与浅蓝', en: 'Warm gray · Berry and light blue' },
+    tokens: {
+      'color-scheme': 'light',
+      text: '#11131b', 'text-soft': '#1b1e29', canvas: '#f0eee8', surface: '#fffdf7', 'surface-deep': '#dfdcd3',
+      accent: '#7a3155', 'accent-bright': '#a14a73', secondary: '#79aec2', 'secondary-ink': '#315f73', 'on-secondary': '#11131b',
+      border: '#c5c1ba', muted: '#655e63', 'on-accent': '#fff',
+      warning: '#9a6a2f', 'warning-ink': '#714a1e', success: '#3e755d', 'success-ink': '#1f5b40', danger: '#ad4259', 'danger-ink': '#8c2941',
+      'inverse-surface': '#1b1e29', 'inverse-text': '#fffdf7', 'inverse-muted': '#c5c1ba',
+      'media-shade': '#080a10', 'media-text': '#fff', 'shadow-color': '#11131b', 'chart-5': '#7764a3',
+    },
+  },
   {
     id: 'paper', group: 'everyday',
     name: { 'zh-CN': '莓红 × 青柠', en: 'Berry × Lime' },

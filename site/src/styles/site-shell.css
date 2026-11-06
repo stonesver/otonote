@@ -74,7 +74,8 @@
 [data-shell="sidebar"] .nav-primary::after { display: none; }
 [data-shell="sidebar"] .nav-primary small { position: static; translate: none; font-size: 10px; margin-left: auto; }
 [data-shell="sidebar"] .nav-primary:hover, .nav-home:hover { background: var(--paper); }
-[data-shell="sidebar"] .nav-group[data-active] > .nav-primary { color: var(--lacquer); }
+/* A parent section can be active without being the current page. */
+[data-shell="sidebar"] .nav-group[data-active] > .nav-primary:where(:not([aria-current="page"])) { color: var(--lacquer); }
 [data-shell="sidebar"] .nav-primary[aria-current="page"],
 .nav-home[aria-current="page"] { color: var(--lacquer); background: color-mix(in srgb, var(--lacquer) 9%, transparent); }
 [data-shell="sidebar"] .nav-submenu-toggle {

@@ -16,6 +16,8 @@ test('the cold entry contains usable navigation, styles, skeletons and retry bef
   assert.match(html, /<header[\s>]/);
   assert.match(html, /nav-my-tools/);
   assert.match(html, /配队推荐/);
+  assert.match(html, /class="nav-primary nav-tool"[^>]*data-loading-route="\/tools\/song-ranking\/"/);
+  assert.equal((html.match(/data-loading-route="\/tools\/song-ranking\/"/g) ?? []).length, 1);
   assert.match(html, /data-nav-workspace/);
   assert.equal((html.match(/data-playlist-workspace-open/g) ?? []).length, 1);
   assert.match(html, /<button[^>]*data-playlist-workspace-open[^>]*disabled>/);

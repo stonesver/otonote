@@ -53,7 +53,7 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
   const groups = ['everyday', 'attribute', 'occasion', 'dark'];
   const card = preset => {
     const preview = ['canvas', 'surface', 'accent', 'secondary', 'text'].map(key => `--preview-${key}:${preset.tokens[key]}`).join(';');
-    return `<button class="theme-picker-card" type="button" data-theme-choice="${escape(preset.id)}" aria-pressed="false">
+    return `<button class="theme-picker-card" type="button" data-theme-choice="${escape(preset.id)}" aria-pressed="${preset.id === DEFAULT_THEME}">
       <span class="theme-picker-preview" data-preview-theme="${escape(preset.id)}" style="${escape(preview)}" aria-hidden="true">
         <span class="theme-picker-preview__nav"><b>O</b><i></i><i></i><i></i></span>
         <span class="theme-picker-preview__content"><span class="theme-picker-preview__header">OtoNote</span><span class="theme-picker-preview__panels"><i></i><i></i></span></span>
@@ -73,13 +73,13 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
         ${groups.map(group => `<button type="button" data-theme-filter="${group}" aria-pressed="false">${text(copy.groups[group], english.groups[group])}</button>`).join('')}
       </div>
       <div class="theme-picker-body">
-        <button class="theme-picker-auto" type="button" data-theme-choice="auto" aria-pressed="true">
+        <button class="theme-picker-auto" type="button" data-theme-choice="auto" aria-pressed="false">
           <span class="theme-picker-auto__icon" aria-hidden="true">${eventIcon}</span>
           <span class="theme-picker-auto__copy">${text(copy.automatic, english.automatic, ' class="theme-picker-auto__name"')}${text(copy.automaticDescription, english.automaticDescription, ' class="theme-picker-auto__description"')}</span>
           <span class="theme-picker-check" aria-hidden="true">${checkIcon}</span>
         </button>
         ${groups.map(group => `<section class="theme-picker-group" data-theme-group="${group}" aria-labelledby="theme-picker-${group}"><h3 id="theme-picker-${group}">${text(copy.groups[group], english.groups[group])}</h3><div class="theme-picker-grid">${THEME_PRESETS.filter(preset => preset.group === group).map(card).join('')}</div></section>`).join('')}
       </div>
-      <footer class="theme-picker-footer"><p data-theme-status role="status">${text(copy.following.replace('{name}', currentName), english.following.replace('{name}', defaultPreset.name.en))}</p><p data-theme-storage-status aria-live="polite" aria-atomic="true"></p></footer>
+      <footer class="theme-picker-footer"><p data-theme-status role="status">${text(copy.manual.replace('{name}', currentName), english.manual.replace('{name}', defaultPreset.name.en))}</p><p data-theme-storage-status aria-live="polite" aria-atomic="true"></p></footer>
     </dialog>`;
 }

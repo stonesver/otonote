@@ -7,7 +7,7 @@ export const THEME_PICKER_COPY = {
     close: '关闭外观设置',
     current: '当前配色',
     automatic: '跟随活动',
-    automaticDescription: '活动期间随网站切换；手动配色不会被覆盖。',
+    automaticDescription: '按活动日程切换，也可在下方固定配色。',
     following: '跟随活动 · {name}',
     manual: '已固定配色 · {name}',
     saved: '已保存到此浏览器。',
@@ -22,7 +22,7 @@ export const THEME_PICKER_COPY = {
     close: 'Close appearance settings',
     current: 'Current palette',
     automatic: 'Follow events',
-    automaticDescription: 'Use the site’s palette during events. Your manual choice always stays in place.',
+    automaticDescription: 'Use the event schedule, or keep a palette below.',
     following: 'Following events · {name}',
     manual: 'Fixed palette · {name}',
     saved: 'Saved in this browser.',
@@ -38,7 +38,7 @@ const escape = value => String(value).replace(/[&<>"']/g, character => ({
 }[character]));
 const svg = content => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${content}</svg>`;
 const paletteIcon = svg('<path d="M12 3a9 9 0 1 0 0 18h1.2a2.3 2.3 0 0 0 1.7-3.8 1.3 1.3 0 0 1 1-2.2H18a3 3 0 0 0 3-3 9 9 0 0 0-9-9Z"/><circle cx="7.5" cy="10" r=".9"/><circle cx="11" cy="6.8" r=".9"/><circle cx="16" cy="8" r=".9"/><circle cx="6.8" cy="14.5" r=".9"/>');
-const eventIcon = svg('<path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/><path d="M20 3v4m-2-2h4"/>');
+const eventIcon = svg('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4m8-4v4M4 10h16m-11 4h2m2 0h2m-6 3h2"/>');
 const checkIcon = svg('<path d="m6 12 4 4 8-8"/>');
 const closeIcon = svg('<path d="m6 6 12 12M18 6 6 18"/>');
 
@@ -52,15 +52,13 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
   const currentName = defaultPreset.name[language];
   const groups = ['everyday', 'attribute', 'occasion', 'dark'];
   const card = preset => {
-    const preview = ['canvas', 'surface', 'accent', 'text'].map(key => `--preview-${key}:${preset.tokens[key]}`).join(';');
+    const preview = ['canvas', 'surface', 'accent', 'secondary', 'text'].map(key => `--preview-${key}:${preset.tokens[key]}`).join(';');
     return `<button class="theme-picker-card" type="button" data-theme-choice="${escape(preset.id)}" aria-pressed="false">
       <span class="theme-picker-preview" style="${escape(preview)}" aria-hidden="true">
-        <span class="theme-picker-preview__sheet"><i></i><i></i><i></i></span>
-        <span class="theme-picker-preview__rhythm"><i></i><i></i><i></i><i></i><i></i></span>
-        <span class="theme-picker-preview__strip"><i></i><i></i><i></i><i></i></span>
+        <span class="theme-picker-preview__paper">Aa</span><i></i><i></i>
       </span>
-      <span class="theme-picker-card__name">${text(preset.name[language], preset.name.en)}<span class="theme-picker-check" aria-hidden="true">${checkIcon}</span></span>
-      ${text(preset.description[language], preset.description.en, ' class="theme-picker-card__description"')}
+      <span class="theme-picker-card__copy"><span class="theme-picker-card__name">${text(preset.name[language], preset.name.en)}</span>${text(preset.description[language], preset.description.en, ' class="theme-picker-card__description"')}</span>
+      <span class="theme-picker-check" aria-hidden="true">${checkIcon}</span>
     </button>`;
   };
   return `<button class="theme-picker-trigger" type="button" data-theme-picker-open aria-haspopup="dialog" aria-controls="theme-picker-dialog" aria-label="${escape(copy.title)}" title="${escape(copy.title)}">${paletteIcon}${text(copy.open, english.open, ' class="theme-picker-trigger__label"')}</button>

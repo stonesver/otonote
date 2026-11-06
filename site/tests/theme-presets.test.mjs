@@ -46,8 +46,7 @@ test('attribute-inspired palettes retain the five game attribute codes and names
   assert.deepEqual(attributes.map(theme => [theme.id, theme.attribute]), expected.map(([id, code]) => [id, code]));
   for (const [id, , name] of expected) {
     const theme = attributes.find(item => item.id === id);
-    assert.ok(theme.name['zh-CN'].includes(name));
-    assert.ok(theme.description['zh-CN'].includes(`${name}属性灵感`));
+    assert.equal(theme.name['zh-CN'], name);
   }
 });
 

@@ -58,7 +58,8 @@ PREDICATES = {
     7013: 'section_end', 7020: 'section_active', 7021: 'luck_rush_active',
 }
 REASONS = {
-    'leader_cumulative_required': '人数累计队长效果缺少累计条件；先确认效果码或补齐计数来源、单位和上限，禁止按普通加成或人数 1 代算',
+    'leader_cumulative_required': '本来源版本尚无累计条件 ID=0 的默认求值依据；保留原码，不从其他版本自动继承倍率 1',
+    'leader_zero_cumulative_runtime_mismatch': 'global build 86 的累计条件 ID=0 返回恒等倍率 1；当前网站执行器却拒绝。需补该分支及搜索上界，不能修改原始 1503 或伪造人数计数器',
     'combo_threshold_lifetime_runtime_mismatch': '修复持续条件失效撤销、清理重入及双档切换；接入原生命令回归',
     'compound_trigger_timestamp_runtime_mismatch': '按根 AND 检查器取当前更新时间，不继承子 COMBO 判定时间',
     'missing_effects': '只有父定义／卡片引用，没有效果行，不能补成无效果',
@@ -75,7 +76,7 @@ REASONS = {
     'team_semantic_adapter': '配队复用计分支持状态，声明候选排除范围并更新缓存／搜索上界',
 }
 CONTRACTS = {
-    'leader': '受益成员逐个筛选；目标对象间 OR、对象内非零约束 AND；实际技能分类数组用交集。人数累计另设选择器，每成员只计一次并按上限截断；同一受益成员同分量相加，all 展开三分量。',
+    'leader': '受益成员逐个筛选；目标对象间 OR、对象内非零约束 AND；实际技能分类数组用交集。人数累计另设选择器，每成员只计一次并按上限截断；global build 86 的累计型操作在累计条件 ID=0 时用恒等倍率 1，不创建人数计数器。同一受益成员同分量相加，all 展开三分量。',
     'ordinary': '成员发动／支援事件、资格与解除分开；同帧输入先处理，恢复在 LIFE 条件加分前；时长含所配留影延长，float32 后依执行器时间规则结束。判定解除不在激活帧及紧接 ExecuteFrame 检查。',
     'gekisou': '输入和普通演出更新后执行技能阶段，任务更新在后；条件读取技能阶段 LIFE 与此前已完成任务更新的任务计数。原生完整混合调度未整场验证。',
     'counter': '间隔计数、累计奖励、任务 COMBO、基础有效 JUST、HitCount 与时间戳分别保存。1030 按效果实例／区段／条件 ID 计数；等待中累计触发计数，成功匹配后取模消费。',
@@ -204,8 +205,16 @@ class Inventory:
         target = self.targets(row['_skillTargetIDs'], issues)
         target['emptyMeans'] = 'all_formation_members' if family == 'LeaderSkill' else 'operator_defined_channel'
         cumulative = self.cumulative(row.get('_skillCumulativeConditionID', 0), family, row, issues)
+        cumulative_evaluation = None
         if family == 'LeaderSkill' and op in [1500, 1501, 1502, 1503] and not cumulative:
-            issues.add('leader_cumulative_required')
+            if self.version == 'global-1.1.0-86' and row.get('_skillCumulativeConditionID') == 0:
+                cumulative_evaluation = {'mode': 'identity_without_condition', 'multiplier': 1,
+                    'counter': None, 'sourceClient': 'global-1.1.0-86',
+                    'evidence': 'leader-cumulative-default-native.json'}
+                info = OPS[op - 500]  # semantic result only; original opcode remains intact
+                adapters.add('leader_zero_cumulative_runtime_mismatch')
+            else:
+                issues.add('leader_cumulative_required')
         conditions = [p for program in programs.values() for g in program['anyOf'] for p in g['allOf']]
         trigger = [p for g in programs['trigger']['anyOf'] for p in g['allOf']]
         trigger_types = {p.get('code') for p in trigger}
@@ -264,6 +273,7 @@ class Inventory:
                 'label': info[1] if info else f'待确认效果 {op}', 'value': row['_effectValue'],
                 'unit': info[2] if info else 'unresolved', 'maximumValue': row.get('_maxEffectValue', 0)},
                 'targets': target, 'conditions': programs, 'cumulative': cumulative,
+                'cumulativeEvaluation': cumulative_evaluation,
                 'lifetime': {'mode': lifetime, 'triggerType': typ, 'durationSeconds': duration,
                              'maintainProgram': 'trigger' if typ == 2 else None,
                              'eligibilityRead': 'activation' if typ != 2 else 'see_mechanism_contract',
@@ -320,7 +330,7 @@ class Inventory:
                     'levels': sorted({e['level'] for e in effects}),
                     'expressionStatus': 'partial' if unresolved else 'complete', 'unresolved': unresolved,
                     'runtimeAdaptations': sorted({s for e in effects for s in e['runtimeAdaptations']})})
-        return {'sourceVersion': self.version, 'sourceTablesHash': digest(self.t), 'modelVersion': 'skill-semantics-inventory-v3',
+        return {'sourceVersion': self.version, 'sourceTablesHash': digest(self.t), 'modelVersion': 'skill-semantics-inventory-v4',
                 'scope': 'five_skill_families_all_effect_levels_plus_parent_only_and_card_references',
                 'releaseStatus': 'snapshot_records_not_proof_of_release', 'contracts': CONTRACTS, 'skills': records}
 
@@ -342,7 +352,8 @@ def combination_shapes(skill):
                                       for c in g['allOf']] for g in p['anyOf']] for role, p in e['conditions'].items()},
                 'lifetime': [e['lifetime']['mode'], e['lifetime']['triggerType']],
                 'budgets': [bool(e['budgets']['activationLimit']), bool(e['budgets']['perActivationEffectLimit'])],
-                'cumulative': [e['cumulative'].get('code'), selectors(e['cumulative'].get('targets', {'selectors': []}))] if e['cumulative'] else None}
+                'cumulative': [e['cumulative'].get('code'), selectors(e['cumulative'].get('targets', {'selectors': []}))] if e['cumulative'] else None,
+                'cumulativeEvaluation': e['cumulativeEvaluation']['mode'] if e['cumulativeEvaluation'] else None}
 
     return {digest([skill['family'], [effect_shape(e) for e in skill['effects'] if e['level'] == level]]) for level in skill['levels']}
 
@@ -373,6 +384,8 @@ def annotate(snapshot, baseline, combination_review=None):
         confirmed = bound_proof and proof.get('status') == 'implementation_confirmed'
         if confirmed and not unknown and not runtime:
             review = []
+        if bound_proof and proof.get('status') == 'runtime_mismatch' and runtime and not unknown:
+            review = []
         skill['mechanismReview'] = review
         native = []
         if (skill['family'] == 'GekisouSkill' and
@@ -385,6 +398,12 @@ def annotate(snapshot, baseline, combination_review=None):
         skill['evidence'] = {'dataDeclared': True, 'implementationMapping': 'source_inspected_not_full_skill_execution',
                              'nativeFieldEvidence': native, 'wholeSkillClientVerification': 'not_claimed',
                              'generalBoundary': 'mixed_scheduler_and_cross_version_client_evidence_scoped_separately'}
+        identity_effects = [e['id'] for e in skill['effects'] if e['cumulativeEvaluation']]
+        if identity_effects:
+            native.append({'fields': ['cumulativeEvaluation', 'operation_component'], 'effectIds': identity_effects,
+                'sourceClient': 'global-1.1.0-86', 'versionRelation': 'same_snapshot',
+                'scope': 'native_ID_zero_branch_and_component_mapping_with_synthetic_inputs_not_whole_formation',
+                'fixture': 'leader-cumulative-default-native.json'})
         if confirmed:
             skill['evidence']['combinationReview'] = proof
             skill['evidence']['implementationMapping'] = 'actual_rows_offline_probed_current_js'
@@ -450,6 +469,8 @@ def effect_text(e):
         clauses.append('targets=' + json.dumps([s.get('allOf', {}) for s in e['targets']['selectors']], ensure_ascii=False))
     if e['cumulative']:
         c = e['cumulative']; clauses.append(f"累计 {c.get('source')} / {c.get('unitParameters')}，次数上限 {c.get('countCap')}，效果上限 {op['maximumValue']}")
+    if e['cumulativeEvaluation']:
+        clauses.append('累计条件 ID=0：恒等倍率 1，无人数计数器')
     clauses += [f"持续={e['lifetime']['mode']}({e['lifetime']['durationSeconds']}s)",
                 f"发动上限={e['budgets']['activationLimit']}；每次额度={e['budgets']['perActivationEffectLimit']}（0=不限）"]
     return '；'.join(clauses)
@@ -478,6 +499,7 @@ def write_outputs(snapshots, output):
                 for e in s['effects']:
                     writer.writerow([version, s['key'], e['id'], e['level'], e['expressionStatus'], ';'.join(e['unresolved']), ';'.join(e['runtimeAdaptations']), effect_text(e)])
         md += [f'## {version}', '', f'[完整 JSON]({version}.json) · [逐技能 CSV]({version}-skills.csv) · [逐效果 CSV]({version}-effects.csv)', '',
+               f"Master 修订：{snap.get('sourceMasterRevision', '未单独声明；以 sourceTablesHash 区分数据')}。", '',
                f"{cov['definitions']} 个定义（其中 {cov['effectBackedDefinitions']} 个有效果），{cov['effects']} 条效果；完整表达 {cov['completeDefinitions']}/{cov['definitions']}，效果完整表达 {cov['completeEffects']}/{cov['effects']}。", '',
                f"被卡片引用的定义 {cov['referencedDefinitions']}，其中完整 {cov['completeReferencedDefinitions']}；按留影 rank 等级可达效果 {cov['reachableEffects']}。这些记录不构成已上线卡片清单。", '',
                '| 类别 | 定义 | 完整 | 效果行 | 被引用定义 |', '| --- | ---: | ---: | ---: | ---: |']
@@ -498,7 +520,7 @@ def write_outputs(snapshots, output):
         for s in snap['skills']:
             md.append(f"| {s['key']} | {s['expressionStatus']} | {','.join(str(r['cardId']) for r in s['references']) or '无'} | {s['consumers']['summary']['status']} | {s['consumers']['score']['status']} | {'; '.join(s['unresolved'] + s['runtimeAdaptations'] + s['mechanismReview']) or '统一消费方接入、上下文判定'} |")
         md += ['', '### 代表技能语义展开', '']
-        examples = {'LeaderSkill:53', 'LeaderSkill:90124', 'LiveSkill:1', 'SupportSkill:61', 'GekisouSkill:13', 'GekisouSkill:16', 'GekisouSkill:18', 'GekisouSkill:19', 'GekisouSkill:24', 'GekisouSupportSkill:76'}
+        examples = {'LeaderSkill:53', 'LeaderSkill:63', 'LeaderSkill:64', 'LeaderSkill:65', 'LeaderSkill:90088', 'LeaderSkill:90089', 'LeaderSkill:90090', 'LeaderSkill:90124', 'LiveSkill:1', 'SupportSkill:61', 'GekisouSkill:13', 'GekisouSkill:16', 'GekisouSkill:18', 'GekisouSkill:19', 'GekisouSkill:24', 'GekisouSupportSkill:76'}
         for s in snap['skills']:
             if s['key'] not in examples:
                 continue
@@ -516,6 +538,7 @@ def main():
     parser.add_argument('--rules', type=Path, default=ROOT / 'packages/scoring/data/formal-scoring-rules.json')
     parser.add_argument('--master', type=Path)
     parser.add_argument('--master-version')
+    parser.add_argument('--master-revision', help='Official Master revision; distinct from the client/rule version')
     parser.add_argument('--combination-review', type=Path, help='Offline probe receipt; stale code or data never clears review')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -530,6 +553,8 @@ def main():
         names = set(FAMILIES) | {f + 'Effect' for f in FAMILIES} | {'SkillConditionSet', 'SkillCondition', 'SkillTarget', 'SkillCumulativeCondition', 'SkillEffectSetting', 'MemberCard', 'SupportCard', 'SupportCardRank'}
         tables = {name: json.loads(path.read_text())['_allData'] for name in sorted(names) if (path := args.master / f'Master{name}.json').exists()}
         snap = Inventory(tables, args.master_version).build()
+        if args.master_revision:
+            snap['sourceMasterRevision'] = args.master_revision
         annotate(snap, baseline, review); snapshots.append(snap)
     write_outputs(snapshots, args.output)
     print(json.dumps({s['sourceVersion']: s['coverage'] for s in snapshots}, ensure_ascii=False, indent=2))

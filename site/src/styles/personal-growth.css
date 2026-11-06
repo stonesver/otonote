@@ -25,7 +25,7 @@
 .personal-growth-page :focus-visible { outline:2px solid var(--lacquer); outline-offset:3px; }
 [data-shell] .personal-growth-workbench button { min-height:44px; padding:10px 14px; border:1px solid var(--calc-line); border-radius:8px; background:var(--paper-light); color:var(--ink); font:500 12px/1.5 var(--font-body); cursor:pointer; }
 [data-shell] .personal-growth-workbench button:hover:not(:disabled) { border-color:var(--lacquer); background:var(--calc-tint); color:var(--lacquer); }
-[data-shell] .personal-growth-workbench :is(.growth-primary,[data-inventory-add],[data-inventory-apply]) { background:var(--lacquer); border-color:var(--lacquer); color:var(--theme-on-accent); }
+[data-shell] .personal-growth-workbench :is(.growth-primary,[data-inventory-add],[data-inventory-apply]) { background:var(--theme-action); border-color:var(--theme-action); color:var(--theme-on-action); }
 [data-shell] .personal-growth-workbench button:disabled { opacity:.45; cursor:default; }
 [data-shell] .personal-growth-workbench :is(input:not([type=checkbox]),select,textarea) { min-width:0; max-width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; border:1px solid var(--calc-line); border-radius:8px; background:var(--paper-light); color:var(--ink); font:400 13px/1.5 var(--font-body); }
 [data-shell] .personal-growth-workbench select:not([multiple]) { appearance:none; padding-right:36px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%237a3155' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 13px center; }

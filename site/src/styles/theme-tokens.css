@@ -10,6 +10,7 @@
   --theme-accent-bright:#a14a73;
   --theme-secondary:#79aec2;
   --theme-secondary-ink:#315f73;
+  --theme-on-secondary:#11131b;
   --theme-border:#c5c1ba;
   --theme-muted:#655e63;
   --theme-on-accent:#fff;
@@ -37,4 +38,32 @@
   --theme-elevated-shadow:0 24px 72px color-mix(in srgb,var(--theme-shadow-color) 16%,transparent);
   --theme-radius:18px;
   --theme-shadow:0 5px 24px color-mix(in srgb,var(--theme-shadow-color) 5%,transparent);
+}
+
+/* The site frame carries the theme; reading surfaces keep their own contrast. */
+:root, .theme-picker-preview {
+  --theme-shell-surface:color-mix(in srgb,var(--theme-accent) 14%,var(--theme-surface));
+  --theme-shell-edge:color-mix(in srgb,var(--theme-accent) 24%,var(--theme-border));
+  --theme-header-surface:var(--theme-shell-surface);
+  --theme-action:var(--theme-secondary);
+  --theme-on-action:var(--theme-on-secondary);
+  --theme-action-soft:color-mix(in srgb,var(--theme-secondary) 14%,var(--theme-surface));
+  --theme-action-edge:color-mix(in srgb,var(--theme-secondary) 65%,var(--theme-border));
+  --theme-ornament-mask:none;
+  --theme-stage-notes-mask:none;
+  --theme-stage-hits-mask:none;
+  --theme-stage-wide-notes-mask:none;
+  --theme-stage-wide-hits-mask:none;
+  --theme-ornament-space:0px;
+}
+
+/* Alpha mask: the anniversary motif takes its visible color from the theme. */
+:is([data-theme="anniversary"], [data-preview-theme="anniversary"]) {
+  --theme-ornament-space:112px;
+  --theme-ornament-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 120' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M66 87V41l38-8v46M66 51l38-8M19 65l8-6m99 35 7 6M38 22l-4 10m97-15-4 10M24 104l8-4m89-46 10-4'/%3E%3Cellipse cx='58' cy='88' rx='8' ry='5' transform='rotate(-20 58 88)'/%3E%3Cellipse cx='96' cy='80' rx='8' ry='5' transform='rotate(-20 96 80)'/%3E%3Cpath d='m12 27 6-5 5 6-6 5zm127 47 6-5 5 6-6 5zM80 8l3 8 8 3-8 3-3 8-3-8-8-3 8-3zM45 52c-10-11-17-3-12 4s1 13-7 10M110 106c-4-8 3-13 10-9s13-1 10-8'/%3E%3C/svg%3E");
+}
+
+/* The dark alternative keeps colored surfaces behind light labels subdued. */
+:is([data-theme="night"], [data-preview-theme="night"]) {
+  --theme-shell-surface:color-mix(in srgb,var(--theme-accent) 7%,var(--theme-surface));
 }

@@ -215,7 +215,7 @@
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions { gap: 10px; padding-top: 14px; border-top: 1px solid var(--tool-line); }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions :is(button,a) { font-size: 14px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions button:first-child { background: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border); }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result { background: var(--tool-accent); color: var(--theme-on-accent); border-color: var(--tool-accent); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result { background: var(--theme-action); color: var(--theme-on-action); border-color: var(--theme-action); }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.recommendation-caption,.recommendation-tradeoff,.recommendation-training,.recommendation-details summary,.team-result-boundary) { font-size: 13px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-result-boundary { color: var(--tool-muted); margin: 12px 0; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-empty { padding: 32px 16px; }
@@ -292,4 +292,4 @@
 .task-studio[data-tool-kind="deck-builder"] .team-builder-view #optimizer-results > .tool-panel-header { flex-direction: row; justify-content: space-between; align-items: center; margin: 0; padding: 0 0 12px; }
 .task-studio[data-tool-kind="deck-builder"] .team-builder-view #optimizer-results > .tool-panel-header > div { display: flex; align-items: center; gap: 10px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-optimize-pairing]:hover:not(:disabled),
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result:hover:not(:disabled) { background: var(--tool-hover); border-color: var(--tool-hover); color: var(--theme-on-accent); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result:hover:not(:disabled) { background: var(--theme-action); border-color: var(--theme-action); color: var(--theme-on-action); }

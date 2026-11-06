@@ -11,7 +11,6 @@ import GameServiceNotice from "../components/GameServiceNotice.astro";
 import SiteNotifications from "../components/SiteNotifications.astro";
 import SharedPlaylistWorkspace from "../components/SharedPlaylistWorkspace.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
-import brandMark from "../../public/brand/ournotes-mark.svg?raw";
 import shellPreferences from "../lib/shell-preferences.mjs?raw";
 import themeChrome from "../lib/theme-chrome.mjs?raw";
 import {createThemePreferencesScript} from "../lib/theme-preferences.mjs";
@@ -154,7 +153,7 @@ const htmlLanguage = activeReleaseContext.locale;
     <a class="skip-link" href="#main-content">{ui.skipMain}</a>
     <header class="site-header" data-site-header>
       <a class="site-brand" href={href("/")} aria-label={ui.brandHome}>
-        <span class="site-brand__mark" aria-hidden="true" set:html={brandMark} />
+        <img class="site-brand__mark" src={href("/brand/ournotes-mark.svg")} alt="" width="34" height="34" />
         <span class="site-brand__full">{siteTitle}</span>
         <span class="site-brand__compact" aria-hidden="true">{SITE_NAME}</span>
 

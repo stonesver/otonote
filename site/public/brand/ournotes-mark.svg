@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" style="color:var(--theme-accent,#963b62)"><title>OtoNote</title><g fill="currentColor"><path fill-rule="evenodd" d="M78.559 71.095A34 25 -26 1 1 17.441 100.905A34 25 -26 1 1 78.559 71.095ZM66.875 76.794A21 13 -26 1 1 29.125 95.206A21 13 -26 1 1 66.875 76.794Z"/><path d="M69 14H81C82 28 102 26 108 40C113 52 103 61 92 64C98 54 99 48 92 43L81 37V77L69 87Z"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>OtoNote — independent fan archive</title>
+  <rect width="64" height="64" rx="17" fill="#7a3155"/>
+  <path d="M12 22v20m10-26v32m10-36v40m10-36v32m10-26v20" stroke="#fffdf7" stroke-opacity=".13" stroke-width="2" stroke-linecap="round"/>
+  <path d="M25 42V24l20-6v18" fill="none" stroke="#fffdf7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="19" cy="43" rx="8" ry="6" transform="rotate(-20 19 43)" fill="#fffdf7"/>
+  <ellipse cx="39" cy="37" rx="8" ry="6" transform="rotate(-20 39 37)" fill="#79aec2"/>
+</svg>

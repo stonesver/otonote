@@ -30,6 +30,7 @@ export async function snapshot() {
     const context = pageContext();
     const pointer = validatePointer(await checkedJson(context.region === 'global' ? '/content/current.json' : '/content/jp/current.json'));
     const manifest = await checkedJson(pointer.manifest, pointer.sha256);
+    shared.pointer = pointer;
     const root = pointer.manifest.slice(0, -'manifest.json'.length);
     const region = manifest.region ?? (manifest.contentReleaseId?.startsWith('global-') ? 'global' : null);
     if (manifest.schemaVersion !== 1 || manifest.root !== root || region !== context.region || !manifest.locales?.[context.locale]) {
@@ -131,4 +132,10 @@ export async function otherEditionGroup(region, pattern) {
     const record=manifest.locales[pageContext().locale].groups[pattern];
     return record ? await editionRecord(manifest,record) : null;
   } catch { return null; }
+}
+
+/** Original pointer identity; does not check or adopt newer content. */
+export async function pinnedContentPointer() {
+  await snapshot();
+  return state().pointer ?? state().pointers?.[pageContext().region] ?? null;
 }

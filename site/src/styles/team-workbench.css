@@ -67,6 +67,20 @@
   color: var(--tool-ink);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-card-field { min-width: 0; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 6px;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .calculator-scope-note {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--tool-muted);
+}
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-scope-note {
   display: block;
   margin-top: 6px;

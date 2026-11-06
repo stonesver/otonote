@@ -32,6 +32,7 @@ test("nested data and tool routes retain their correct navigation context", () =
   assert.equal(activeNavigationGroup("/tools/deck-builder/"), "tools");
   assert.equal(activeNavigationGroup("/game-modes/gekisou/"), undefined);
   assert.equal(activeNavigationGroup("/events/"), "events");
+  assert.equal(activeNavigationGroup("/arena/"), "events");
   assert.equal(activeNavigationGroup("/missions/"), "events");
   assert.equal(activeNavigationGroup("/immersive/"), "immersive");
   assert.equal(activeNavigationGroup("/recruitment/1/"), "events");

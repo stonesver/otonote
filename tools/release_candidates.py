@@ -30,6 +30,7 @@ from tools.scoring_content import bind_scoring_rules
 from tools.formal_chart_projection import project_formal_charts
 from tools.costume_catalog import project_costumes
 from tools.costume_posters import poster_inputs
+from tools.arena_content import read_arena_review
 
 
 def write_json(path: Path, value: object) -> None:
@@ -51,6 +52,7 @@ def compile_core(source: dict, destination: Path, locales: tuple[str, ...], root
     empty.mkdir()
     results = []
     derivatives = None
+    arena_review = read_arena_review(source, root)
     scores = read_score_inputs(source, root)
     audio_report = read_music_audio_inputs(source, root)
     bgm_inputs = read_bgm_inputs(source, root)
@@ -84,7 +86,7 @@ def compile_core(source: dict, destination: Path, locales: tuple[str, ...], root
                 music_audio_report_path=audio_report,
                 live2d_runtime_report={}, adv_runtime_report={},
                 published_music_data_root=None, include_music=scores is not None,
-                bound_score_payloads=scores,
+                bound_score_payloads=scores, arena_review=arena_review,
                 supplemental_extracted_roots=(), functional_ui_extracted_roots=(),
             )
             project_formal_charts(build)
@@ -171,6 +173,7 @@ def build_candidates(plan: Path, output: Path, *, root: Path = ROOT,
         raise PreflightError(f"candidate inputs: {readiness['status']}; run release_preflight for details")
     if output.is_symlink():
         raise PreflightError("candidate output must not be a symlink")
+    bound_arena = {source['id']: read_arena_review(source, root) for source in sources}
     bound_scores = {source['id']: read_score_inputs(source, root) for source in sources}
     bound_stories = {source['id']: read_story_inputs(source, root, lazy=True) for source in sources}
     output = output.resolve()
@@ -183,6 +186,8 @@ def build_candidates(plan: Path, output: Path, *, root: Path = ROOT,
         extracted = source.get('extractedRoot')
         if not isinstance(extracted, str) or not (root / extracted).is_dir():
             raise PreflightError(f"{source['id']}: explicit extractedRoot is required")
+        if source.get('arenaReview'):
+            protected.append((root / source['arenaReview']['path']).resolve())
         if source.get('scoreInputs'):
             protected.append((root / source['scoreInputs']['index']).resolve().parent)
         if source.get('musicAudioInputs'):
@@ -208,6 +213,8 @@ def build_candidates(plan: Path, output: Path, *, root: Path = ROOT,
         # Fail if inputs changed during compilation, instead of blessing a mixed snapshot.
         if digest(plan) != plan_digest or inspect_plan(plan, root=root, require_production=True) != readiness:
             raise PreflightError('inputs changed during candidate generation')
+        if any(read_arena_review(source, root) != bound_arena[source['id']] for source in sources):
+            raise PreflightError('arena review changed during candidate generation')
         if any(read_score_inputs(source, root) != bound_scores[source['id']] for source in sources):
             raise PreflightError('score inputs changed during candidate generation')
         if any(read_story_inputs(source, root, lazy=True) != bound_stories[source['id']] for source in sources):

@@ -14,28 +14,29 @@ export function eventYieldChartPlan(candidates,rules,input){
  return {plan,selected};
 }
 
-/** Production worker and local benchmarks share this complete batch path.
- * A skipped chart is covered by a global objective bound, never represented
- * as if its own best formation had been calculated. */
+/** Full comparison certifies each chart independently and retains every chart.
+ * Global-only pruning is an explicit diagnostic mode, never the UI default. */
 export async function runEventYieldBatch({rules,eventId,candidates,challengeCandidates=[],input,
  loadChart,optimizer=optimizeEventYield,candidateCache=new Map(),challengePlanCache=new Map(),
  getScoreCache=async()=>new Map(),afterChart=async()=>{},onJobComplete=async()=>{},onGroupComplete=async()=>{},
- onMessage=()=>{},signal,yieldControl=createCalculationScheduler(),proveGroup,
- globalPruning=true,witnessPrepass=true,runChallengeJobs,runGroupProofs}){
+ onMessage=()=>{},signal,yieldControl=createCalculationScheduler({eco:input.eco===true}),proveGroup,
+ globalPruning=false,witnessPrepass=true,runChallengeJobs,runGroupProofs}){
  const {plan,selected}=eventYieldChartPlan(candidates,rules,input),full=input.searchDepth==='full';
  const cycle=input.mode==='ordinary'&&input.includeChallenge;
  const goals=eventYieldGoals(input.goal,input.mode),total=selected.length+(cycle?challengeCandidates.length:0),available=candidates.length+(cycle?challengeCandidates.length:0);
  const failures=[],challengeRows=[],rows=new Map(),scoreCaches=new Map(),resolved=new Map(goals.map(g=>[g,new Set()])),
    pruned=new Map(goals.map(g=>[g,new Set()])),globalProofs={},uppers=new Map(),witnessCharts=new Set(),failed=new Set();
  let challengeDone=0,challengeOptimized=0,cacheHits=0,calculations=0,optimizerInvocations=0;
+ const challengeProven=()=>!cycle||challengeOptimized===challengeCandidates.length;
  const canGlobal=globalPruning&&full&&input.searchMethod!=='practical'&&!input.refineScoreTies&&!eventYieldStageInput(input,input.mode).draft.modifiers?.performanceScenario;
+ const canGroup=full&&input.mode==='ordinary'&&Boolean(proveGroup)&&input.searchMethod!=='practical'&&!input.refineScoreTies&&!eventYieldStageInput(input,input.mode).draft.modifiers?.performanceScenario;
  const key=(c,mode)=>mode+':'+c.id;
  const cacheFor=async(c,mode,stage,chart)=>{
    const id=key(c,mode);if(!scoreCaches.has(id))scoreCaches.set(id,Promise.resolve(getScoreCache(c,mode,stage,chart)));
    return scoreCaches.get(id);
  };
  const allRows=()=>[...rows.values()].flat();
- const bestFor=goal=>allRows().filter(r=>r.recommendationGoals.includes(goal)).sort((a,b)=>compare(a,b,goal))[0];
+ const bestFor=(goal,chartId)=>allRows().filter(r=>(!chartId||r.song.id===chartId)&&r.recommendationGoals.includes(goal)).sort((a,b)=>compare(a,b,goal))[0];
  const handled=(c,g)=>resolved.get(g).has(c.id)||pruned.get(g).has(c.id)||failed.has(key(c,input.mode));
  const completed=()=>challengeDone+selected.filter(c=>goals.every(g=>handled(c,g))).length;
  const boundCovers=(c,goal)=>{
@@ -44,9 +45,9 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
    return compare({total:upper.total,reward:{scoreRank:upper.scoreRank},song:c},best,goal)>=0;
  };
  const checkProofs=()=>{
-   for(const goal of goals)if(!globalProofs[goal]?.bestProven&&full&&candidates.every(c=>resolved.get(goal).has(c.id)||pruned.get(goal).has(c.id))&&!failures.length)
+   for(const goal of goals)if(!globalProofs[goal]?.bestProven&&full&&challengeProven()&&candidates.every(c=>resolved.get(goal).has(c.id)||pruned.get(goal).has(c.id))&&!failures.length)
      globalProofs[goal]={bestProven:true,proofTarget:'best',scope:cycle?'all_selected_charts_given_challenge_rows':'all_selected_charts',
-       proof:'individual_proofs_and_global_chart_bounds',alternativesOptimality:'not_proven',scoreTieOptimality:input.refineScoreTies?'proven':'not_proven'};
+       proof:canGlobal?'individual_proofs_and_global_chart_bounds':'individual_chart_proofs',alternativesOptimality:canGlobal?'not_proven':'each_chart_reward_proven',scoreTieOptimality:input.refineScoreTies?'proven':'not_proven'};
  };
  const snapshot=type=>{
    checkProofs();
@@ -54,9 +55,9 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
    const individual=selected.filter(c=>goals.every(g=>resolved.get(g).has(c.id))).length;
    const globallyCovered=selected.filter(c=>goals.every(g=>resolved.get(g).has(c.id)||pruned.get(g).has(c.id))).length;
    const groupComplete=goals.every(g=>globalProofs[g]?.bestProven);
-   const coverageComplete=!failures.length&&(groupComplete||full&&globallyCovered===candidates.length);
+   const coverageComplete=!failures.length&&challengeProven()&&(groupComplete||full&&globallyCovered===candidates.length);
    const fullyOptimizedCharts=challengeOptimized+individual,prunedCharts=Math.max(0,globallyCovered-individual);
-   return {type,rows:selectEventYieldRows(allRows(),input.goal),failures,done:challengeDone+accounted,total,available,
+   return {type,rows:selectEventYieldRows(allRows(),input.goal,full?Infinity:10),failures,done:challengeDone+accounted,total,available,
      complete:coverageComplete,coverageComplete,evaluatedCharts:fullyOptimizedCharts,fullyOptimizedCharts,prunedCharts,
      witnessCharts:witnessCharts.size,optimizerInvocations,allProven:!failures.length&&fullyOptimizedCharts===available,
      globalProofs:{...globalProofs},cacheHits,calculations};
@@ -64,7 +65,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
  const mainChart=async(c,{witnessOnly=false,practicalSeed=false,preview=false}={})=>{
    const stage=eventYieldStageInput(input,input.mode),id=key(c,input.mode);
    if(failed.has(id))return;
-   let chart,scoreCache;
+   let chart,scoreCache;const modelCache={};
    try{
      for(const goal of goals){
        if(signal?.aborted)break;
@@ -73,11 +74,11 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
        chart??=await loadChart(c);scoreCache??=await cacheFor(c,input.mode,stage,chart);
        const started=performance.now();
        onMessage({type:'progress',done:completed(),total,title:c.title,stage:practicalSeed?'准备跨谱面收益搜索起点':witnessOnly?'验证合法收益上界见证':'证明所选收益第一名'});
-       const result=await optimizer({rules,eventId,...stage,candidate:c,chart,challengeRows,candidateCache,scoreCache,challengePlanCache,
+       const result=await optimizer({rules,eventId,...stage,candidate:c,chart,challengeRows,candidateCache,scoreCache,challengePlanCache,modelCache,
          yieldControl,signal,goal,witnessOnly,searchMethod:practicalSeed?'practical':stage.searchMethod??'certified',maxEvaluations:full?0:stage.maxEvaluations??24,
          includeChallenge:input.mode==='ordinary'&&input.includeChallenge,
          onProgress:p=>{
-           const best=p.bestCandidate&&bestFor(goal);
+           const best=p.bestCandidate&&bestFor(goal,canGlobal?null:c.id);
            if(p.bestCandidate&&(!best||compare(p.bestCandidate,best,goal)<0)){
              rows.set('live:'+c.id+':'+goal,[{...p.bestCandidate,recommendationGoals:[goal],search:{bestProven:false}}]);onMessage(snapshot('partial'));
            }
@@ -85,6 +86,10 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
          }});
        optimizerInvocations++;cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;
        if(witnessOnly)witnessCharts.add(c.id);
+       if(!preview&&!practicalSeed&&result.certifiedSearch?.bestProven)for(const [rowKey,value] of rows){
+         const kept=value.filter(r=>r.song.id!==c.id||!r.recommendationGoals.includes(goal));
+         if(kept.length)rows.set(rowKey,kept);else rows.delete(rowKey);
+       }
        rows.delete('live:'+c.id+':'+goal);
        rows.set((preview?'preview:':practicalSeed?'seed:':'')+c.id+':'+goal,result.results.map(row=>({...row,recommendationGoals:[goal],search:{optimality:result.optimality,status:result.status,...result.certifiedSearch}})));
        if(!preview&&result.certifiedSearch?.globalUpperCandidate)uppers.set(goal,result.certifiedSearch.globalUpperCandidate);
@@ -92,13 +97,14 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
        await onJobComplete({candidate:c,mode:input.mode,goal,witnessOnly,practicalSeed,result,wallMs:performance.now()-started});
      }
      if(chart&&scoreCache)await afterChart({candidate:c,mode:input.mode,stageInput:stage,chart,scoreCache,candidateCache});
+     if(!canGroup&&!canGlobal&&!preview&&!practicalSeed)scoreCaches.delete(id);
    }catch(error){if(!preview){failures.push({id:c.id,mode:input.mode,title:c.title,message:error.message});failed.add(id);}}
    onMessage(snapshot('partial'));
  };
  // Show a fully scored, legal cycle before starting unbounded certificates.
  // These rows are incumbents only. They never account for a completed chart,
  // and are removed before proofs use the final challenge continuation input.
- if(cycle&&canGlobal&&challengeCandidates.length&&selected.length&&!signal?.aborted){
+ if(cycle&&full&&input.searchMethod!=='practical'&&challengeCandidates.length&&selected.length&&!signal?.aborted){
    const c=challengeCandidates[0],stage=eventYieldStageInput(input,'challenge');
    try{
      const chart=await loadChart(c),scoreCache=await cacheFor(c,'challenge',stage,chart),goal=eventYieldGoals(input.goal,'challenge')[0];
@@ -157,30 +163,36 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
  }
  if(cycle&&!challengeRows.length&&!signal?.aborted)throw Error('后续挑战全部计算失败，无法可靠比较总收益。');
  if(cycle&&!signal?.aborted)for(const id of rows.keys())if(id.startsWith('preview:'))rows.delete(id);
- if(canGlobal&&witnessPrepass)for(const c of selected){if(signal?.aborted)break;await mainChart(c,{witnessOnly:true});}
+ if((canGlobal||canGroup)&&witnessPrepass)for(const c of selected){if(signal?.aborted)break;await mainChart(c,{witnessOnly:true});}
  // These representative charts supply legal incumbents, never coverage.
  // Every selected chart remains in the subsequent complete proof domain.
- if(canGlobal&&proveGroup&&input.mode==='ordinary')for(const c of plan.quick){
+ if(canGroup&&input.mode==='ordinary')for(const c of plan.quick){
    if(signal?.aborted)break;if(!goals.every(g=>handled(c,g)))await mainChart(c,{practicalSeed:true});
  }
  let parallelProofs;
- if(canGlobal&&proveGroup&&runGroupProofs&&!signal?.aborted){
+ if(canGroup&&runGroupProofs&&!signal?.aborted){
   const pending=goals.filter(goal=>!candidates.every(c=>resolved.get(goal).has(c.id)||pruned.get(goal).has(c.id)));
-  if(pending.length)try{parallelProofs=await runGroupProofs({candidates:selected,input:eventYieldStageInput(input,input.mode),goals:pending,challengeRows,initialRows:allRows(),done:completed(),total,
-   onCandidate:(goal,row)=>{const best=bestFor(goal);if(!best||compare(row,best,goal)<0){rows.set('parallel-live:'+goal,[{...row,recommendationGoals:[goal],search:{bestProven:false}}]);onMessage(snapshot('partial'));}}});}
+  if(pending.length)try{parallelProofs=await runGroupProofs({candidates:selected,input:eventYieldStageInput(input,input.mode),goals:pending,challengeRows,initialRows:allRows(),done:completed(),total,individualProofs:!canGlobal,
+   onCandidate:(goal,row)=>{const best=bestFor(goal,canGlobal?null:row.song.id);if(!best||compare(row,best,goal)<0){rows.set('parallel-live:'+goal+':'+row.song.id,[{...row,recommendationGoals:[goal],search:{bestProven:false}}]);onMessage(snapshot('partial'));}}});}
   catch{onMessage({type:'progress',done:completed(),total,stage:'并行验证不可用，继续完整单核验证'});}
  }
- if(canGlobal&&proveGroup&&!signal?.aborted)for(const goal of goals){
+ if(canGroup&&!signal?.aborted)for(const goal of goals){
    if(candidates.every(c=>resolved.get(goal).has(c.id)||pruned.get(goal).has(c.id)))continue;
    let proof;
    try{proof=parallelProofs?.get(goal)??await proveGroup({rules,eventId,input:eventYieldStageInput(input,input.mode),candidates:selected,challengeRows,initialRows:allRows(),goal,
-     candidateCache,challengePlanCache,loadChart,getScoreCache:cacheFor,yieldControl,signal,
-     onProgress:p=>onMessage({type:'progress',done:completed(),total,goal,stage:p.stage??p.phase,detail:p})});
+     candidateCache,challengePlanCache,loadChart,getScoreCache:cacheFor,yieldControl,signal,individualProofs:!canGlobal,
+     onProgress:p=>{if(!canGlobal&&p.bestCandidate){const row=p.bestCandidate,best=bestFor(goal,row.song.id);if(!best||compare(row,best,goal)<0){rows.set('parallel-live:'+goal+':'+row.song.id,[{...row,recommendationGoals:[goal],search:{bestProven:false}}]);onMessage(snapshot('partial'));}}
+       onMessage({type:'progress',done:completed(),total,goal,stage:p.stage??p.phase,detail:p});}});
    }catch(error){proof={proven:false,error:error.message};}
    cacheHits+=proof.stats?.scoreCacheHits??0;calculations+=proof.stats?.fullScoreCalculations??0;
-   if(proof.results?.length)rows.set('global:'+goal,proof.results.map(row=>({...row,recommendationGoals:[goal],search:{...proof.certificate,global:true}})));
-   if(proof.proven){rows.delete('parallel-live:'+goal);globalProofs[goal]={...proof.certificate,bestProven:true,proofTarget:'best',scope:cycle?'all_selected_charts_given_challenge_rows':'all_selected_charts'};
-     for(const c of selected)if(!resolved.get(goal).has(c.id))pruned.get(goal).add(c.id);}
+   const perChartProof=proof.proven&&proof.certificate?.perChartBestProven&&selected.every(c=>proof.certificate.coveredChartIds?.includes(c.id)&&proof.results?.some(r=>r.song.id===c.id));
+   if(proof.results?.length)rows.set('global:'+goal,proof.results.map(row=>({...row,recommendationGoals:[goal],search:{...proof.certificate,bestProven:Boolean(proof.proven&&(canGlobal||perChartProof)),global:canGlobal}})));
+   if(proof.proven&&(canGlobal||perChartProof)){
+     // Remove preliminary rows so a tied seed cannot hide a certified row.
+     for(const [id,value] of rows)if(id!=='global:'+goal&&value.every(r=>r.recommendationGoals.length===1&&r.recommendationGoals[0]===goal))rows.delete(id);
+     if(challengeProven())globalProofs[goal]={...proof.certificate,bestProven:true,proofTarget:canGlobal?'best':'best_for_each_chart',scope:cycle?'all_selected_charts_given_challenge_rows':'all_selected_charts'};
+     for(const c of selected)if(!resolved.get(goal).has(c.id))(canGlobal?pruned:resolved).get(goal).add(c.id);
+   }
    await onGroupComplete({goal,proof});
    // Group witnesses use the same raw score maps as the individual path.
    for(const c of selected)if(scoreCaches.has(key(c,input.mode))){

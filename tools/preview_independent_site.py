@@ -85,7 +85,7 @@ def handler(code, content, rendered=None, growth_upstream=None, notices=None):
         def proxy_growth(self):
             path = urlsplit(self.path).path.rstrip('/')
             allowed = {'GET': {'/api/growth-export/capabilities', '/api/growth-export/status'},
-                       'POST': {'/api/growth-export/read', '/api/growth-export/gacha-history'}}
+                       'POST': {'/api/growth-export/read', '/api/growth-export/gacha-history', '/api/growth-export/arena-rank'}}
             if path not in allowed.get(self.command, set()):
                 self.growth_response(404, {'error': 'not_found'}); return
             if not upstream:

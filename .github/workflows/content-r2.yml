@@ -1,4 +1,5 @@
 name: Content production to R2
+run-name: "Content update / ${{ inputs.region || 'all' }} / ${{ inputs.dispatch_id || github.event_name }}"
 
 on:
   workflow_dispatch:
@@ -14,29 +15,69 @@ on:
         default: shadow
         type: choice
         options: [shadow, promote, auto]
+      scheduled_for:
+        description: External scheduler's UTC minute; leave empty for manual runs
+        required: false
+        type: string
+      dispatch_id:
+        description: External trigger correlation ID; leave empty for manual runs
+        required: false
+        type: string
   schedule:
-    # UTC: both editions at 09:00, 14:00 and 19:00 Beijing time, three runs/day.
-    - cron: '0 1,6,11 * * *'
+    # Beijing 03:00 replaces 09:00; retain the existing 14:00 and 19:00 checks.
+    - cron: '0 6,11,19 * * *'
+    # arena-activity-schedule:start
+    # No verified activity dates are currently registered.
+    # arena-activity-schedule:end
 
 permissions:
   contents: read
   packages: read
 
 jobs:
-  produce:
+  select:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (
-        (github.event_name == 'schedule' &&
+        (github.event_name == 'schedule' && vars.CONTENT_R2_SCHEDULER != 'external' &&
           (vars.CONTENT_R2_ENABLED_GLOBAL == 'true' || vars.CONTENT_R2_ENABLED_JP == 'true')) ||
         (github.event_name == 'workflow_dispatch' &&
+          (inputs.scheduled_for == '' || vars.CONTENT_R2_SCHEDULER == 'external') &&
           ((inputs.region == 'global' && vars.CONTENT_R2_ENABLED_GLOBAL == 'true') ||
            (inputs.region == 'jp' && vars.CONTENT_R2_ENABLED_JP == 'true')))
       )
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    concurrency:
+      group: content-r2-selection
+      cancel-in-progress: false
+    outputs:
+      regions: ${{ steps.select.outputs.regions }}
+      run: ${{ steps.select.outputs.run }}
+      scheduled_for: ${{ steps.select.outputs.scheduled_for }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select due editions
+        id: select
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_REGION: ${{ inputs.region }}
+          SCHEDULED_FOR: ${{ inputs.scheduled_for }}
+          CONTENT_R2_ENABLED_GLOBAL: ${{ vars.CONTENT_R2_ENABLED_GLOBAL }}
+          CONTENT_R2_ENABLED_JP: ${{ vars.CONTENT_R2_ENABLED_JP }}
+        run: python -m tools.arena_sync
+  produce:
+    needs: select
+    if: needs.select.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
-        region: ${{ fromJSON((github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.region)) || ((vars.CONTENT_R2_ENABLED_GLOBAL == 'true' && vars.CONTENT_R2_ENABLED_JP == 'true') && '["global","jp"]') || (vars.CONTENT_R2_ENABLED_GLOBAL == 'true' && '["global"]') || '["jp"]') }}
+        region: ${{ fromJSON(needs.select.outputs.regions) }}
     runs-on: ${{ vars.CONTENT_R2_RUNNER_LABEL || 'ubuntu-latest' }}
     timeout-minutes: 330
     environment: content-r2-production
@@ -54,6 +95,7 @@ jobs:
       OURNOTES_MASTER_KEY_HEX: ${{ secrets.OURNOTES_MASTER_KEY_HEX }}
       OURNOTES_MASTER_IV_HEX: ${{ secrets.OURNOTES_MASTER_IV_HEX }}
       OURNOTES_UPDATE_IMAGE: ${{ vars.OURNOTES_UPDATE_IMAGE }}
+      OURNOTES_ARENA_REVIEW_BUNDLE_SHA256: ${{ matrix.region == 'global' && vars.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 || '' }}
       GLOBAL_STATE_PATHS: ${{ vars.R2_GLOBAL_STATE_PATHS }}
       GLOBAL_CONFIG_PATH: ${{ vars.R2_GLOBAL_CONFIG_PATH }}
       GLOBAL_DECODER_PROFILE_PATH: ${{ vars.R2_GLOBAL_DECODER_PROFILE_PATH }}
@@ -61,6 +103,7 @@ jobs:
       AUTO_PROMOTE_JP: ${{ vars.CONTENT_R2_AUTO_PROMOTE_JP }}
       R2_SHARED_MEDIA: ${{ vars.CONTENT_R2_SHARED_MEDIA || 'false' }}
       STABLE_ROOT: /srv/ournotes-updater/app
+      SCHEDULED_FOR: ${{ needs.select.outputs.scheduled_for }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -82,10 +125,15 @@ jobs:
           set -euo pipefail
           region="$SELECTED_REGION"
           if [[ "$EVENT_NAME" == schedule ]]; then
-            [[ "$SCHEDULE" == '0 1,6,11 * * *' ]] || exit 1
+            python3 - "$SCHEDULE" <<'PY'
+          import json, sys
+          from tools.arena_sync import CALENDAR, FIXED_CRON, scheduled_crons
+          if sys.argv[1] != FIXED_CRON and sys.argv[1] not in scheduled_crons(json.loads(CALENDAR.read_text())):
+              raise SystemExit('Unregistered content schedule')
+          PY
             if [[ "$region" == global ]]; then auto="$AUTO_PROMOTE_GLOBAL"; else auto="$AUTO_PROMOTE_JP"; fi
             if [[ "$auto" == true ]]; then mode=promote; else mode=shadow; fi
-            printf 'Daily schedule (Beijing, UTC+8): `09:00, 14:00, 19:00` (three triggers/day; actual starts may be delayed).\n\n' >> "$GITHUB_STEP_SUMMARY"
+            printf 'Daily schedule (Beijing, UTC+8): `03:00, 14:00, 19:00` (three fixed triggers/day plus registered activity dates; actual starts may be delayed).\n\n' >> "$GITHUB_STEP_SUMMARY"
           else
             [[ "$region" == "$INPUT_REGION" ]] || exit 1
             mode="$INPUT_MODE"
@@ -236,7 +284,7 @@ jobs:
           cd "$STABLE_ROOT"
           common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
                   --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
-                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp)
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256)
           probe=(python3 -m tools.r2_production_gate light-probe --root "$STABLE_ROOT"
                  --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE"
                  --prepared "$STABLE_ROOT/output/tmp/r2-light/proof.json")
@@ -340,7 +388,7 @@ jobs:
           cd "$STABLE_ROOT"
           common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
                   --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
-                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256
                   --env OURNOTES_CRI_KEY
                   --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
                   --env OURNOTES_MASTER_IV_HEX)
@@ -384,6 +432,11 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('skip=' + str(result['skip']).lower() + '\n')
           PY
+      - name: Load optional digest-pinned Arena review
+        if: matrix.region == 'global' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true' && env.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 != ''
+        run: |
+          python -m tools.arena_review_inputs --root "$STABLE_ROOT" \
+            --bundle-sha256 "$OURNOTES_ARENA_REVIEW_BUNDLE_SHA256" --github-env "$GITHUB_ENV"
       - name: Produce and seal local content
         id: produce
         if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
@@ -399,7 +452,7 @@ jobs:
           # The image and the private inputs are provisioned separately; neither is fabricated in CI.
           common=(--rm --user "$(id -u):$(id -g)" --workdir "$STABLE_ROOT"
                   --mount "type=bind,source=$STABLE_ROOT,target=$STABLE_ROOT"
-                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env GITHUB_SHA
+                  --env "TMPDIR=$STABLE_ROOT/output/tmp" --env HOME=/tmp --env OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 --env OURNOTES_ARENA_REVIEW_PATH --env OURNOTES_ARENA_REVIEW_SHA256 --env GITHUB_SHA
                   --env OURNOTES_CRI_KEY
                   --env OURNOTES_MASTER_SALT_HEX --env OURNOTES_MASTER_KEY_HEX
                   --env OURNOTES_MASTER_IV_HEX)
@@ -444,7 +497,9 @@ jobs:
           set -euo pipefail
           cd "$STABLE_ROOT"
           store="$(cat "$RUNNER_TEMP/content-store")"
-          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition > "$RUNNER_TEMP/functional.json"
+          required=()
+          if [[ "$REGION" == global ]]; then required+=(--require-arena); fi
+          python -m tools.r2_functional_check --store "$store" --region "$REGION" --require-recognition "${required[@]}" > "$RUNNER_TEMP/functional.json"
           printf '\nFunctional release checks (reference estimates are not gameplay verification):\n\n' >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/functional.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload and read back produced immutable content
@@ -512,6 +567,19 @@ jobs:
           python -m tools.r2_state checkpoint --root "$STABLE_ROOT" --region "$REGION" \
             --workers 8 --expected-current "$expected" \
             --verification-cache "$RUNNER_TEMP/r2-state-restore-proof.json" "${args[@]}" > "$RUNNER_TEMP/state-after.json"
+      - name: Seal recoverable publication
+        id: publication
+        if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$STABLE_ROOT"
+          store="$(cat "$RUNNER_TEMP/content-store")"
+          expected="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["currentSha256"])' "$RUNNER_TEMP/public-before.json")"
+          python -m tools.r2_publication record --region "$REGION" --store "$store" \
+            --publication "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" --expected-current "$expected"
+          printf '\nRecoverable publication: `%s_%s` (private checkpoint and immutable upload complete).\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
       - name: Promote verified public pointer
         id: promote
         if: env.MODE == 'promote' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'
@@ -539,77 +607,3 @@ jobs:
           JOB_STATUS: ${{ job.status }}
           RUN_STEPS: ${{ toJSON(steps) }}
         run: python -m tools.r2_run_record --status "$JOB_STATUS"
-  archive:
-    # Independent opt-in consumer. Missing variables keep BOTH editions disabled.
-    if: >-
-      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-      (
-        (github.event_name == 'schedule' &&
-          (vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' || vars.CONTENT_ARCHIVE_ENABLED_JP == 'true')) ||
-        (github.event_name == 'workflow_dispatch' &&
-          ((inputs.region == 'global' && vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true') ||
-           (inputs.region == 'jp' && vars.CONTENT_ARCHIVE_ENABLED_JP == 'true')))
-      )
-    strategy:
-      fail-fast: false
-      matrix:
-        region: ${{ fromJSON((github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.region)) || ((vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' && vars.CONTENT_ARCHIVE_ENABLED_JP == 'true') && '["global","jp"]') || (vars.CONTENT_ARCHIVE_ENABLED_GLOBAL == 'true' && '["global"]') || '["jp"]') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    environment: content-archive-production
-    concurrency:
-      group: content-archive-${{ matrix.region }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install isolated archive dependencies
-        run: |
-          python -m pip install --require-hashes -r tools/python-security-requirements.txt
-          python -m pip install -r backend/update_archive/requirements.txt
-      - name: Prepare archive JP egress when configured
-        if: matrix.region == 'jp'
-        shell: bash
-        env:
-          JP_NODE_CONFIGURED: ${{ secrets.OURNOTES_JP_PROXY_NODE != '' }}
-        run: |
-          set -euo pipefail
-          if [[ "$JP_NODE_CONFIGURED" == true ]]; then
-            bash deploy/prepare-jp-egress.sh "$RUNNER_TEMP/archive-jp-egress-client"
-          fi
-      - name: Run one bounded archive check
-        timeout-minutes: 21
-        shell: bash
-        env:
-          ARCHIVE_REGION: ${{ matrix.region }}
-          ARCHIVE_CONFIG: ${{ secrets.CONTENT_ARCHIVE_CONFIG }}
-          OURNOTES_ARCHIVE_ENDPOINT: ${{ secrets.OURNOTES_ARCHIVE_ENDPOINT }}
-          OURNOTES_ARCHIVE_ACCESS_KEY_ID: ${{ secrets.OURNOTES_ARCHIVE_ACCESS_KEY_ID }}
-          OURNOTES_ARCHIVE_SECRET_ACCESS_KEY: ${{ secrets.OURNOTES_ARCHIVE_SECRET_ACCESS_KEY }}
-          OURNOTES_ARCHIVE_SOURCE_ENDPOINT: ${{ secrets.OURNOTES_ARCHIVE_SOURCE_ENDPOINT }}
-          OURNOTES_ARCHIVE_SOURCE_ACCESS_KEY_ID: ${{ secrets.OURNOTES_ARCHIVE_SOURCE_ACCESS_KEY_ID }}
-          OURNOTES_ARCHIVE_SOURCE_SECRET_ACCESS_KEY: ${{ secrets.OURNOTES_ARCHIVE_SOURCE_SECRET_ACCESS_KEY }}
-          OURNOTES_JP_PROXY_NODE: ${{ secrets.OURNOTES_JP_PROXY_NODE }}
-          OURNOTES_JP_VERSION_PROXY: ${{ secrets.OURNOTES_JP_VERSION_PROXY }}
-          OURNOTES_CRI_KEY: ${{ secrets.OURNOTES_CRI_KEY }}
-          OURNOTES_MASTER_SALT_HEX: ${{ secrets.OURNOTES_MASTER_SALT_HEX }}
-          OURNOTES_MASTER_KEY_HEX: ${{ secrets.OURNOTES_MASTER_KEY_HEX }}
-          OURNOTES_MASTER_IV_HEX: ${{ secrets.OURNOTES_MASTER_IV_HEX }}
-        run: |
-          set -euo pipefail
-          umask 077
-          config="$RUNNER_TEMP/archive-$ARCHIVE_REGION.json"
-          trap 'rm -f "$config"' EXIT
-          python -c 'import os,pathlib; pathlib.Path(os.environ["RUNNER_TEMP"], "archive-"+os.environ["ARCHIVE_REGION"]+".json").write_text(os.environ["ARCHIVE_CONFIG"])'
-          unset ARCHIVE_CONFIG
-          command=(python -m backend.update_archive --config "$config" --region "$ARCHIVE_REGION")
-          if [[ "$ARCHIVE_REGION" == jp && -n "$OURNOTES_JP_PROXY_NODE" ]]; then
-            timeout --signal=TERM --kill-after=10s 1200s python -m tools.jp_version_egress \
-              --binary "$RUNNER_TEMP/archive-jp-egress-client/mihomo" -- "${command[@]}"
-          else
-            timeout --signal=TERM --kill-after=10s 1200s "${command[@]}"
-          fi

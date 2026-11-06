@@ -5,6 +5,8 @@ import {proveEventYieldGroups} from '../src/lib/event-yield-group-proof.mjs';
 import {optimizeEventYield} from '../src/lib/event-yield-optimizer.mjs';
 import {createFormalSongCalculator} from '../src/lib/scoring-rules/formal-song-score.mjs';
 import {createEventEfficiency} from '../src/lib/scoring-rules/event-efficiency.mjs';
+import {resolveTeamCardGrowth} from '../src/lib/team-card-view.mjs';
+import {materializeTeamAssumptions} from '../src/lib/workbench-team-input.mjs';
 function* permutations(xs,n){if(!n){yield [];return;}for(let i=0;i<xs.length;i++)for(const rest of permutations(xs.filter((_,j)=>j!==i),n-1))yield [xs[i],...rest];}
 const compare=(a,b,goal)=>(goal==='grade'?b.rank-a.rank:0)||b.total[goal==='eventPoints'?'eventPoints':'badges']-a.total[goal==='eventPoints'?'eventPoints':'badges']||b.total[goal==='eventPoints'?'badges':'eventPoints']-a.total[goal==='eventPoints'?'badges':'eventPoints']||a.seconds-b.seconds;
 test('cross-chart first proof matches independent 7200-team native oracle including duration and nonmonotone ranks',async()=>{
@@ -21,11 +23,13 @@ test('cross-chart first proof matches independent 7200-team native oracle includ
     draft.slots=members.map((memberCardId,i)=>({memberCardId,supportCardId:supports[i]}));
     const score=calculator.calculate(draft),bonuses=model.teamBonus(draft.slots.map(s=>({memberId:Number(s.memberCardId.split('-').at(-1)),supportId:Number(s.supportCardId.split('-').at(-1)),memberRank:1,supportRank:1})));
     const rank=model.scoreRank(Number(c.trackId.split('-').at(-1)),score.expectedScore),reward=model.rewards({mode:'ordinary',scoreRank:rank,...bonuses,liveBoost:1,challengeCost:200});
-    all.push({rank,total:{badges:11*reward.badges,eventPoints:11*reward.eventPoints},seconds:c.seconds,score,bonuses,trackId:c.trackId});
+    all.push({rank,total:{badges:11*reward.badges,eventPoints:11*reward.eventPoints},seconds:c.seconds,score,bonuses,trackId:c.trackId,
+     leader,keys:draft.slots.map(s=>s.memberCardId+'|'+s.supportCardId),supports:[...supports]});
    }
   }
  }
  assert.equal(all.length,7200);
+ const candidateCache=new Map();
  for(const basis of ['expectedScore','minimumScore','maximumScore'])for(const goal of ['badges','eventPoints','grade']){
   input.basis=basis;
   const exact=all.map(row=>{const rank=model.scoreRank(Number(row.trackId.split('-').at(-1)),row.score[basis]);const reward=model.rewards({mode:'ordinary',scoreRank:rank,...row.bonuses,liveBoost:1,challengeCost:200});return {...row,rank,total:{badges:11*reward.badges,eventPoints:11*reward.eventPoints}};});
@@ -39,11 +43,76 @@ test('cross-chart first proof matches independent 7200-team native oracle includ
   const best=exact.toSorted((a,b)=>compare(a,b,goal))[0],actual=result.results[0];
   assert.equal(compare({rank:actual.reward.scoreRank,total:actual.total,seconds:actual.song.seconds},best,goal),0,`${basis} ${goal}`);
   assert.equal(result.certificate.coveredChartIds.length,2);
+  // Per-chart mode must keep the optimum of the weaker chart too. The oracle
+  // above enumerates native scores independently of all production bounds.
+  const individual=await proveEventYieldGroups({rules:f.rules,eventId:1,input,candidates,goal,individualProofs:true,candidateCache,initialRows:seed.results,
+   loadChart:async c=>charts.get(c.id),getScoreCache:async c=>caches.get(c.id)??new Map()});
+  assert.equal(individual.proven,true);
+  assert.equal(individual.certificate.perChartBestProven,true);
+  assert.equal(individual.results.length,candidates.length);
+  for(const candidate of candidates){
+   const expected=exact.filter(r=>r.trackId===candidate.trackId).toSorted((a,b)=>compare(a,b,goal))[0];
+   const row=individual.results.find(r=>r.song.id===candidate.id);
+   assert.ok(row,`missing ${candidate.id}`);
+   assert.equal(compare({rank:row.reward.scoreRank,total:row.total,seconds:row.song.seconds},expected,goal),0,`${basis} ${goal} ${candidate.id}`);
+  }
+  // A parallel shard may receive only a formation scored on another chart.
+  // Even the deliberately inflated source totals above must be replaced by
+  // native destination scores before they can bound this one-chart domain.
+  const foreign=await proveEventYieldGroups({rules:f.rules,eventId:1,input,candidates:[candidates[1]],goal,
+   individualProofs:true,allowForeignSeeds:true,initialRows:seed.results,loadChart:async c=>charts.get(c.id),getScoreCache:async()=>new Map()});
+  const foreignExpected=exact.filter(r=>r.trackId===candidates[1].trackId).toSorted((a,b)=>compare(a,b,goal))[0];
+  assert.equal(foreign.proven,true);assert.deepEqual(foreign.certificate.coveredChartIds,[candidates[1].id]);
+  assert.equal(foreign.results.length,1);
+  assert.equal(compare({rank:foreign.results[0].reward.scoreRank,total:foreign.results[0].total,seconds:foreign.results[0].song.seconds},foreignExpected,goal),0);
+  // Reuse preparation across a different constrained domain. Locked pairs,
+  // leader and required supports must survive all chart/card cache reuse.
+  const constraints={leaderId:'member-card-1',requiredSupportIds:['support-card-6'],
+   lockedPairs:[{memberCardId:'member-card-2',supportCardId:'support-card-3'}]};
+  const constrainedInput={...input,constraints};
+  const constrainedSeed={...seed.results[0],draft:{...structuredClone(f.draft),slots:[
+   ['member-card-3','support-card-1'],['member-card-2','support-card-3'],['member-card-1','support-card-2'],
+   ['member-card-4','support-card-4'],['member-card-5','support-card-6']
+  ].map(([memberCardId,supportCardId])=>({memberCardId,supportCardId}))}};
+  const constrained=await proveEventYieldGroups({rules:f.rules,eventId:1,input:constrainedInput,candidates,goal,individualProofs:true,candidateCache,
+   initialRows:[constrainedSeed],loadChart:async c=>charts.get(c.id),getScoreCache:async c=>caches.get(c.id)??new Map()});
+  assert.equal(constrained.proven,true,`${basis} ${goal}: ${JSON.stringify(constrained.certificate)}`);
+  for(const candidate of candidates){
+   const expected=exact.filter(r=>r.trackId===candidate.trackId&&r.leader===constraints.leaderId&&r.supports.includes('support-card-6')&&r.keys.includes('member-card-2|support-card-3'))
+    .toSorted((a,b)=>compare(a,b,goal))[0];
+   const row=constrained.results.find(r=>r.song.id===candidate.id);
+   assert.ok(row);
+   assert.equal(compare({rank:row.reward.scoreRank,total:row.total,seconds:row.song.seconds},expected,goal),0,`locked ${basis} ${goal} ${candidate.id}`);
+   assert.equal(row.draft.slots[2].memberCardId,constraints.leaderId);
+   assert.ok(row.draft.slots.some(s=>s.memberCardId==='member-card-2'&&s.supportCardId==='support-card-3'));
+   assert.ok(row.draft.slots.some(s=>s.supportCardId==='support-card-6'));
+  }
  }
 });
 test('cross-chart proof explicitly refuses unsupported tie refinement',async()=>{
  const f=eventYieldOracleFixture();const result=await proveEventYieldGroups({rules:f.rules,eventId:1,input:{...f,mode:'ordinary',refineScoreTies:true},candidates:[f.candidate],goal:'badges'});
  assert.equal(result.proven,false);assert.equal(result.certificate.coverageComplete,false);
+});
+
+test('cross-chart owned results keep actual growth despite a prior full-reference team',async()=>{
+ const f=eventYieldOracleFixture();f.inventory.supportCardIds=f.inventory.supportCardIds.slice(0,5);
+ const input={...f,mode:'ordinary',basis:'expectedScore',liveBoost:1,challengeCost:200,includeChallenge:false,
+  constraints:{leaderId:'member-card-3',lockedPairs:f.draft.slots.map(s=>({...s}))}};
+ input.draft.modifiers.planningScenario={scope:'reference',unknownGrowth:'reference',referenceGrowth:'maximum'};
+ const before=structuredClone(input),result=await proveEventYieldGroups({rules:f.rules,eventId:1,input,candidates:[f.candidate],goal:'badges',
+  initialRows:[{draft:f.draft,song:f.candidate,orderCount:120,reward:{mode:'ordinary'},total:{badges:0,eventPoints:0}}],
+  loadChart:async()=>f.chart,getScoreCache:async()=>new Map()});
+ assert.equal(result.proven,true,JSON.stringify(result));assert.ok(result.results.length);
+ const data={rules:f.rules,...Object.fromEntries(['member','support'].map(kind=>[`${kind}Cards`,f.inventory[`${kind}CardIds`].map(id=>({id,kind}))]))};
+ for(const row of result.results){
+  const applied=materializeTeamAssumptions(row.draft,data,f.inventory);
+  assert.deepEqual(applied.modifiers.growth,row.draft.modifiers.growth);
+  for(const slot of row.draft.slots)for(const kind of ['member','support']){
+   const id=slot[`${kind}CardId`];
+   assert.deepEqual(resolveTeamCardGrowth({card:{id,kind},draft:row.draft,inventory:f.inventory,rules:f.rules}),{growth:f.inventory.growth[id],source:'actual'});
+  }
+ }
+ assert.deepEqual(input,before);
 });
 
 test('equal rewards keep the faster chart in the proven first-place domain',async()=>{
@@ -61,4 +130,6 @@ test('equal rewards keep the faster chart in the proven first-place domain',asyn
  const controller=new AbortController();
  const cancelled=await proveEventYieldGroups({...options,signal:controller.signal,onProgress:p=>{if(p.phase==='event-group-proof')controller.abort();}});
  assert.equal(cancelled.proven,false);assert.equal(cancelled.certificate.reason,'cancelled');
+ const cancelledIndividual=await proveEventYieldGroups({...options,individualProofs:true,signal:controller.signal});
+ assert.equal(cancelledIndividual.certificate.perChartBestProven,false);
 });

@@ -93,7 +93,7 @@ async function refreshLoads(gen=generation){
 }
 function renderUpdateHealth(health){
   const box=el('section',null,'content-delivery');
-  const labels={worker_errors:'Worker 错误率升高',worker_budget:'Worker 请求接近运维预算',worker_metrics_stale:'Worker 指标不可用',schedule_stale:'原生定时探测未及时到达',receipt_missing:'运行回执缺失',poll_stale:'超过一小时未取得探测结果',run_stuck:'运行超过六小时',run_failed:'生产阶段失败',delivery_unknown:'本机交付状态不可核对',delivery_lag:'网页落后于远端内容',remote_unavailable:'远端版本读取失败',ranking_stale:'榜单采集不新鲜',ranking_paused:'榜单采集已暂停',disk_budget:'剩余空间不足以覆盖发布预算'};
+  const labels={worker_errors:'Worker 错误率升高',worker_budget:'Worker 请求接近运维预算',worker_metrics_stale:'Worker 指标不可用',trigger_failed:'服务器触发被拒绝',trigger_unconfirmed:'GitHub 是否受理尚未确认',trigger_stale:'服务器触发器回执缺失或过期',schedule_stale:'定时更新未及时到达',receipt_missing:'运行回执缺失',poll_stale:'计划检查超过宽限仍无运行结果',run_stuck:'运行超过六小时',run_failed:'生产阶段失败',delivery_unknown:'本机交付状态不可核对',delivery_lag:'网页落后于远端内容',remote_unavailable:'远端版本读取失败',ranking_stale:'榜单采集不新鲜',ranking_paused:'榜单采集已暂停',disk_budget:'剩余空间不足以覆盖发布预算'};
   const states={healthy:'状态正常',waiting:'观察中',attention:'需要处理',unavailable:'采样不可用'};
   box.append(el('h4','更新运行与告警'),el('p',states[health?.status]||states.unavailable));
   if(!health||health.status==='unavailable'){
@@ -102,7 +102,7 @@ function renderUpdateHealth(health){
   box.append(el('small',`采样：${new Date(health.observedAt*1000).toLocaleString('zh-CN',{hour12:false})} · 告警仅在本页和服务器日志记录`));
   for(const region of ['global','jp']){
     const run=health.runs?.[region];if(!run)continue;
-    const origin={schedule:'原生定时',workflow_dispatch:'手动派发',unknown:'来源未知'}[run.event]||'来源未知';
+    const origin={schedule:'原生定时',external:'服务器定时',workflow_dispatch:'手动派发',unknown:'来源未知'}[run.origin||run.event]||'来源未知';
     const link=el('a',`${region.toUpperCase()} #${run.runId} · ${run.status} · ${origin}${run.failedStage?' · 失败阶段 '+run.failedStage:''}`,'action-link');
     link.href=`https://github.com/stonesver/otonote/actions/runs/${run.runId}`;link.target='_blank';link.rel='noopener noreferrer';
     const line=el('p');line.append(link);box.append(line);
@@ -135,6 +135,9 @@ function renderContentDelivery(profile){
   const workflow=el('a','打开 Actions：运行更新 / 查看进度','action-link');
   workflow.href='https://github.com/stonesver/otonote/actions/workflows/content-r2.yml';
   workflow.target='_blank';workflow.rel='noopener noreferrer';actions.append(workflow);section.append(actions);
+  const recovery=el('a','重试已保存的发布','action-link');
+  recovery.href='https://github.com/stonesver/otonote/actions/workflows/retry-content-publication.yml';
+  recovery.target='_blank';recovery.rel='noopener noreferrer';actions.append(recovery);
   const guide=el('details',null,'delivery-guide');
   guide.dataset.disclosure=`${profile.id}:guide`;
   guide.append(el('summary','手动更新怎么操作？'));
@@ -144,16 +147,21 @@ function renderContentDelivery(profile){
     'Branch 选择 main，region 选择 global 或 jp；更新两服需分别运行。',
     '正式更新选择 mode = promote，然后提交。仅验证生产和上传时选择 shadow，它不会更新网站。',
     '在该次 Actions 运行中查看进度和结果；promote 完成后等待服务器同步、生成页面，再回到此页刷新。'])steps.append(el('li',text));
-  guide.append(steps,el('p','日常追新由 Actions 定时执行。只修改网站功能时走代码发布流程，无需手动运行游戏资源生产。','caption'));
+  guide.append(steps,el('p','日常追新由定时触发器发起，Actions 执行。只修改网站功能时走代码发布流程，无需手动运行游戏资源生产。','caption'),
+    el('p','若已保存发布但晋级失败，使用“重试已保存的发布”，填入原运行摘要中的发布编号，先 verify 再 promote。若仅等待页面交付，重试服务器现有预渲染服务即可，无需重新生产资源。','caption'));
   section.append(guide,el('p','本页分别核对运行回执、远端版本和本机交付；详细步骤可打开对应 Actions 运行。','caption'));
   section.append(el('p',profile.updatedAt?`本机采样：${new Date(profile.updatedAt*1000).toLocaleString('zh-CN',{hour12:false})} · 每两分钟采样，超过六分钟失效`:'本机状态尚无采样','caption'));
   const cards=el('div',null,'delivery-regions');
+  const deliveryLabels={unavailable:'状态待核对',running:'正在生产',failed:'本次更新失败',produced:'候选已就绪，尚未晋级',awaiting_delivery:'内容已发布，等待页面交付',delivered:'已交付',unchanged:'无变化，交付正常'};
   for(const region of ['global','jp']){
     const item=profile.delivery?.status==='ready'?profile.delivery.regions?.[region]:null;
+    const result=profile.health?.status!=='unavailable'?profile.health?.delivery?.[region]:null;
+    const ready=['delivered','unchanged'].includes(result?.status);
     const card=el('section',null,'delivery-region'),heading=el('div',null,'node-header');
-    heading.append(el('h4',region==='global'?'Global 国际服':'JP 日服'),el('span',item?'本机交付已核对':'状态待核对',item?'badge':'badge warning'));card.append(heading);
+    heading.append(el('h4',region==='global'?'Global 国际服':'JP 日服'),el('span',deliveryLabels[result?.status]||deliveryLabels.unavailable,ready?'badge':'badge warning'));card.append(heading);
     if(item){
-      card.append(el('p',item.contentReleaseId,'delivery-version'),el('small','本机内容与已生成页面的版本一致。'));
+      const match=result?.currentDelivered===true?'远端当前内容与已交付页面一致。':result?.currentDelivered===false?'远端内容尚未交付到当前页面。':'本机页面版本已核对，远端状态待核对。';
+      card.append(el('p',item.contentReleaseId,'delivery-version'),el('small',match));
       const details=el('details');details.append(el('summary','版本核对信息'));
       details.dataset.disclosure=`${profile.id}:${region}`;
       const list=el('dl');
@@ -255,9 +263,9 @@ async function refreshGrowth(gen=generation){
   status('登录诊断已更新');
   $('updated').textContent=`快照 ${new Date(d.generatedAt).toLocaleString('zh-CN',{hour12:false})} · 首条 ${d.firstRequest?new Date(d.firstRequest).toLocaleString('zh-CN',{hour12:false}):'无'} · 末条 ${d.lastRequest?new Date(d.lastRequest).toLocaleString('zh-CN',{hour12:false}):'无'}`;
 }
-async function refresh(forceArchive=false){
+async function refresh(){
   const view=currentView;
-  if(!config||(!siteId()&&!['archive','settings'].includes(view)))return;
+  if(!config||(!siteId()&&view!=='settings'))return;
   if(inFlight.has(view)){$('refresh').disabled=true;return;}
   const gen=generation;inFlight.set(view,gen);$('refresh').disabled=true;
   try{
@@ -265,10 +273,6 @@ async function refresh(forceArchive=false){
     else if(view==='load')await refreshLoads(gen);
     else if(view==='growth')await refreshGrowth(gen);
     else if(view==='tasks')await refreshNodes(gen);
-    else if(view==='archive'){
-      const {mount}=await import('./archive.mjs');await mount($('archive-root'),api,{force:forceArchive});
-      if(gen===generation)status('归档只读取已保存结果 · 官方检测仍按每日三个既有时点运行');
-    }
     else if(view==='notices')await notices.load();
     else{settings();status('配置仅在后端维护 · 页面不显示密钥');}
   }catch(error){if(gen===generation)status(error.message,true);}
@@ -279,17 +283,17 @@ async function refresh(forceArchive=false){
 }
 
 function navigate(){
-  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings','archive','notices'].includes(key)?key:'overview';generation++;
-  const titles={archive:['官方更新档案','自动保存新资源，按活动分组；大版本和超大单元可手动补存。'],overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
+  const key=location.hash.slice(1);currentView=['overview','load','growth','tasks','settings','notices'].includes(key)?key:'overview';generation++;
+  const titles={overview:['访问与下载','了解内容如何被访问，以及资源如何被使用。'],load:['并发与带宽','观察服务器负载，保留来源和采样缺口。'],growth:['登录诊断','查看 BHK 登录请求的状态、阶段与错误码。'],tasks:['内容发布','运行内容更新，查看服务器已交付的版本。'],settings:['节点与配置','站点、统计和资源节点可以独立部署。']};
   titles.notices=['公告管理','编辑网站提示、维护与故障通知，独立于游戏资料发布。'];
   for(const view of document.querySelectorAll('.view'))view.hidden=view.id!==`view-${currentView}`;
   for(const a of document.querySelectorAll('[data-view]')){if(a.dataset.view===currentView)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');}
   status('正在读取对应数据…');$('updated').textContent='等待更新';
   $('title').textContent=titles[currentView][0];$('subtitle').textContent=titles[currentView][1];$('breadcrumb').textContent='网站运行 / '+titles[currentView][0];$('refresh').disabled=inFlight.has(currentView);refresh();
 }
-$('refresh').addEventListener('click',()=>refresh(true));for(const id of ['site','window','load-window','summary-date','load-date'])$(id).addEventListener('change',()=>{$('summary-date').hidden=$('window').value!=='date';$('load-date').hidden=$('load-window').value!=='date';generation++;refresh();});
+$('refresh').addEventListener('click',()=>refresh());for(const id of ['site','window','load-window','summary-date','load-date'])$(id).addEventListener('change',()=>{$('summary-date').hidden=$('window').value!=='date';$('load-date').hidden=$('load-window').value!=='date';generation++;refresh();});
 $('load-source').addEventListener('change',renderLoads);addEventListener('hashchange',navigate);
 const today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});for(const id of ['summary-date','load-date']){$(id).value=today;$(id).max=today;$(id).min=new Date(Date.now()-29*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Shanghai'});}
-try{config=await api('/api/config');$('preview').hidden=!config.preview;$('site').replaceChildren(...config.sites.map(s=>new Option(s.name||s.id,s.id)));navigate();if(!config.sites.length&&currentView!=='archive')status('尚未配置站点');}
+try{config=await api('/api/config');$('preview').hidden=!config.preview;$('site').replaceChildren(...config.sites.map(s=>new Option(s.name||s.id,s.id)));navigate();if(!config.sites.length)status('尚未配置站点');}
 catch(error){status(error.message,true);}
 let tick=0;setInterval(()=>{tick++;if(!document.hidden&&currentView!=='notices'&&(currentView!=='overview'||tick%12===0))refresh();},5000);

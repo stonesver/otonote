@@ -63,8 +63,8 @@ for(const {candidate:c} of jobs){
  charts.set(c.id,chart);chartFiles[c.id]={path:resolve(path),sha256:hash(bytes),analysisDataUrl:c.analysisDataUrl,
   releaseBinding:chart.sourceReleaseId?'payload_and_catalog':'catalog_sourceReleaseIds_and_immutable_analysisDataUrl'};
 }
-const preflight={sourceReleaseId:rules.sourceReleaseId,mode:input.mode,goal:input.goal,basis:input.basis,searchDepth:'full',
- fullCandidateSet:true,proofTarget:values['individual-proofs']?'every_chart':'global_objective',ordinaryCandidates:input.mode==='ordinary'?selected.length:0,challengeCandidates:cycle?challenges.length:input.mode==='challenge'?selected.length:0,
+const preflight={sourceReleaseId:rules.sourceReleaseId,mode:input.mode,goal:input.goal,basis:input.basis,eco:input.eco,searchDepth:'full',
+ fullCandidateSet:true,proofTarget:'every_chart',ordinaryCandidates:input.mode==='ordinary'?selected.length:0,challengeCandidates:cycle?challenges.length:input.mode==='challenge'?selected.length:0,
  plannedCharts:jobs.length,plannedInvocations:jobs.reduce((n,j)=>n+eventYieldGoals(input.goal,j.mode).length,0),availableLocalCharts:charts.size,missing};
 if(values['preflight-only']||missing.length){writeFileSync(values.output,JSON.stringify(preflight,null,2)+'\n');console.log(JSON.stringify({...preflight,missing:missing.length}));
  if(missing.length)process.exitCode=2;process.exit();}
@@ -100,7 +100,7 @@ let completedCharts=0,batchResult,reportedProgressAt=0,firstResultMs=null;
 if(productionRunner){
  batchResult=await productionRunner({rules,eventId:Number(values.event),candidates,challengeCandidates:challenges,input,candidateCache,challengePlanCache,
   ...(values['individual-proofs']?{globalPruning:false,witnessPrepass:false}:{}),
-  loadChart:async c=>charts.get(c.id),yieldControl,signal:controller.signal,proveGroup,
+  loadChart:async c=>charts.get(c.id),yieldControl,signal:controller.signal,proveGroup:values['individual-proofs']?undefined:proveGroup,
   onJobComplete:record,onGroupComplete:({goal,proof})=>{groupSamples.push({goal,...proof});checkBudget();console.log(JSON.stringify({groupGoal:goal,proven:proof.proven,error:proof.error,
     best:proof.results?.[0]?{song:proof.results[0].song.id,total:proof.results[0].total,scoreRank:proof.results[0].reward.scoreRank}:null,stats:proof.stats,elapsedMs:performance.now()-start}));},
   onMessage:m=>{checkBudget();const now=performance.now();if(firstResultMs===null&&m.rows?.length){firstResultMs=now-start;console.log(JSON.stringify({firstResultMs,done:m.done,total:m.total}));}if(m.type==='progress'&&m.detail?.phase==='event-group-proof'&&now-reportedProgressAt>2000){
@@ -121,7 +121,7 @@ if(productionRunner){
   found.push(...result.results.map(r=>({...r,recommendationGoals:[goal],search:{optimality:result.optimality,...result.certifiedSearch}})));
  }
  if(cycle&&mode==='challenge')challengeRows.push(...found);else rows.push(...found);
- const retained=selectEventYieldRows(rows,input.goal,30);rows.splice(0,rows.length,...retained);completedCharts++;
+ const retained=selectEventYieldRows(rows,input.goal,Infinity);rows.splice(0,rows.length,...retained);completedCharts++;
  console.log(JSON.stringify({completedCharts,total:jobs.length,elapsedMs:performance.now()-start,last:samples.at(-1)?.id,bestProven:samples.at(-1)?.certificate?.bestProven}));
 }
 const usage=process.cpuUsage(cpu),complete=!controller.signal.aborted&&(batchResult?batchResult.coverageComplete:samples.length===preflight.plannedInvocations);
@@ -136,7 +136,7 @@ const summary={...preflight,node:process.version,environment:{platform:platform(
  firstResultMs,wallMs:performance.now()-start,cpuMs:(usage.user+usage.system)/1000,rssBytes:process.resourceUsage().maxRSS*1024,
  groupFullScoreCalculations,fullScoreCalculations:groupCountersComplete&&samples.every(r=>r.counterCoverage!=='incomplete')?samples.reduce((n,r)=>n+r.fullScoreCalculations,groupFullScoreCalculations):null,
  expanded:samples.reduce((n,r)=>n+(r.certificate?.expanded??0),0)+groupSamples.reduce((n,g)=>n+(g.stats?.expanded??0),0),samples,
- winners:selectEventYieldRows(rows,input.goal).map(r=>({song:r.song.id,total:r.total,scoreRank:r.reward.scoreRank,recommendationGoals:r.recommendationGoals,search:r.search}))};
+ winners:selectEventYieldRows(rows,input.goal,Infinity).map(r=>({song:r.song.id,total:r.total,scoreRank:r.reward.scoreRank,recommendationGoals:r.recommendationGoals,search:r.search}))};
 writeFileSync(values.output,JSON.stringify(summary,null,2)+'\n');
 console.log(JSON.stringify({output:values.output,complete,allProven:summary.allProven,wallMs:summary.wallMs,cpuMs:summary.cpuMs}));
-if(values['individual-proofs']&&!summary.allProven)process.exitCode=1;
+if(!summary.allProven)process.exitCode=1;

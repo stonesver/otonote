@@ -1,4 +1,5 @@
 import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
+import {readCardBandConstraints,cardBandFilterSummary} from './card-band-constraints.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {currentEventDraft,eventTeamSaveButton,createEventTeamView} from './event-team-view.mjs';
@@ -19,7 +20,7 @@ export function setupChallengeOptimizer(tool){
     if(q('objective').value==='ap_timing')draft.modifiers.performanceScenario={profile:'ap_timing'};
     else if(draft.modifiers.performanceScenario?.profile==='ap_timing'){delete draft.modifiers.performanceScenario;delete draft.modifiers.apTimingPlan;}
     return draft;};
-  const fingerprint=()=>JSON.stringify({calculationScope:tool.calculationScope?.snapshot?.fingerprint,mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
+  const fingerprint=()=>JSON.stringify({calculationScope:tool.calculationScope?.snapshot?.fingerprint,mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,constraints:readCardBandConstraints(q('member-band'),q('support-band')),objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge'||Boolean(tool.classList?.contains('task-workbench')&&tool.dataset.task!=='challenge');
     if(key!==fingerprint()){
@@ -55,6 +56,7 @@ export function setupChallengeOptimizer(tool){
     if(q('rewards')?.checked&&q('scope').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}`,'task-event-reward-result-note'));
     if(results.searchScope==='reference')view.push(el('p','全卡库参考 · 卡片按满等级、满突破、满觉醒与满技能比较；账号加成沿用当前设置。','event-hint'));
     if(calculationScope)view.push(el('p',scopeSummary(calculationScope)));
+    const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
     const tabs=resultTabs??=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');view.push(tabs);
     const maximum=results.objective==='maximum_song_score',reference=results.searchScope==='reference';
     const identity=row=>row.draft.slots.map(slot=>`${slot.memberCardId}|${slot.supportCardId}`).join(';');
@@ -120,12 +122,13 @@ export function setupChallengeOptimizer(tool){
         }else {stop(true);q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
       worker.addEventListener('error',()=>{if(worker!==active)return;stop(true);q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});
-      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value==='ap_timing'?'maximum_song_score':q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
+      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,constraints:readCardBandConstraints(q('member-band'),q('support-band')),inventory:profile?.inventory,objective:q('objective').value==='ap_timing'?'maximum_song_score':q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
     }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;}
   });
   q('cancel').addEventListener('click',()=>{if(!worker||paused)return;
     if(q('objective').value==='ap_timing'){stop(true);feedback.finish('微操搜索已停止','保留已完成复算的候选；再次开始会重新比较。','stopped');q('status').textContent='微操搜索已停止，保留已完成复算的候选；再次开始会重新比较。';return;}
     pausing=true;updates.stop({flushResult:true});feedback.update({label:'正在暂停',detail:'保留当前队伍与搜索进度'});worker.postMessage({type:'pause'});q('cancel').hidden=true;q('status').textContent='正在暂停，保留当前搜索进度…';});
   root.addEventListener('change',event=>{event.stopPropagation();sync();});
+  for(const field of [q('member-band'),q('support-band')])field?.addEventListener('change',()=>sync());
   return {sync,invalidate:()=>{key='';stop();sync();},destroy:()=>{stop();feedback.destroy();}};
 }

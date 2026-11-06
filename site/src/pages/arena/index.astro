@@ -1,0 +1,6 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArenaPage from '../../components/ArenaPage.astro';
+import {activeReleaseContext} from '../../lib/release-context';
+---
+<BaseLayout title={activeReleaseContext.locale==='en'?'Gekisou Arena':'激奏舞台'} personalWorkspaces={false}><ArenaPage /></BaseLayout>

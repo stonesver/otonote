@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend.player_rankings import public_high_score_deck, query_player_rankings, validate_observation
-from tools.collect_player_rankings import (MUSIC_RPC, RankingClient, high_score_deck, ranking_entries,
+from tools.collect_player_rankings import (MUSIC_RPC, TOTAL_MUSIC_RPC, RankingClient, high_score_deck, ranking_entries,
                                            read_plan, read_current_content_plan, read_ended_content_plan,
                                            pause_required, run_capture, main)
 from tools.growth_login import CLIENT_VERSION, LoginError, SdkIdentity, integer, message, single
@@ -140,7 +140,7 @@ class RankingCollectionTests(unittest.TestCase):
         plan = select(datetime(2026, 10, 9, 4, tzinfo=timezone.utc))
         self.assertEqual(plan['eventId'], '2')
         self.assertEqual(plan['boards'], [{'type': 'music', 'musicId': '100109', 'musicName': 'Song',
-                                           'challengeMusicId': 2001}])
+                                           'challengeMusicId': 2001}, {'type':'total-music'}])
         self.assertEqual(plan['contentReleaseId'], 'global-test-release')
         self.assertEqual(plan['eventProjectionSha256'], hashlib.sha256(next(reversed(files.values()))).hexdigest())
         self.assertEqual(select(datetime(2026, 10, 17, 12, 59, 59, tzinfo=timezone.utc))['eventId'], '2')
@@ -416,6 +416,38 @@ class RankingCollectionTests(unittest.TestCase):
                 'uncollectedBoards': ['total-music'], 'boards': [
                     {'type': 'music', 'musicId': '100109', 'musicName': 'Song', 'challengeMusicId': 1}]}
 
+    def test_total_board_uses_its_own_wire_fields_and_discards_personal_rank(self):
+        deck=message(3,message(3,integer(1,72)))+integer(4,123456)
+        def row(player_id,score):
+            return message(1,message(1,player_id)+message(2,'Public player')+message(99,'PRIVATE_PROFILE'))+integer(2,score)+message(3,deck)
+        raw=message(1,row('a',12345))+message(1,row('b',12345))+integer(2,987654)+integer(3,876543)
+        plan=self.plan();plan.update(boards=[{'type':'total-music'}],uncollectedBoards=[])
+        client=RankingClient(plan);auth=[('private','FAKE')]
+        with patch.object(client,'authenticate',return_value=auth), patch.object(client,'rpc',return_value=raw) as rpc:
+            result=client.export(None,None,'host')
+        self.assertEqual(rpc.call_args.args[1],TOTAL_MUSIC_RPC)
+        self.assertEqual(rpc.call_args.args[2],integer(1,1))
+        board=result['boards'][0]
+        self.assertEqual(board['type'],'total-music')
+        self.assertEqual([(r['rank'],r['score']) for r in board['entries']],[(1,12345),(2,12345)])
+        self.assertEqual(board['entries'][0]['highScoreDeck']['cards'][0]['member']['masterId'],72)
+        self.assertEqual(auth,[])
+        for private in ('PRIVATE_PROFILE','987654','876543','FAKE'):
+            self.assertNotIn(private,json.dumps(result))
+        self.assertEqual(ranking_entries(b'',music=False,total_music=True),[])
+        with self.assertRaises(LoginError):ranking_entries(message(1,row('a',1))+message(1,row('b',2)),music=False,total_music=True)
+
+    def test_total_only_current_event_and_final_plan_are_supported(self):
+        from tools.ranking_finalizations import checked_plan
+        events=[dict(id=7,name='Total only',schedule=dict(startAt='2026/10/09 12:00:00',endAt='2026/10/17 20:59:59'),
+                     ranking=dict(configured=dict(eventPoints=False,music=False,totalMusic=True)))]
+        plan=read_current_content_plan('https://example.invalid',now=datetime(2026,10,10,tzinfo=timezone.utc),fetch_bytes=content_fixture(events).__getitem__)
+        self.assertEqual(plan['boards'],[{'type':'total-music'}])
+        self.assertEqual(checked_plan(plan,'global-hmt')['boards'],[{'type':'total-music'}])
+        with tempfile.TemporaryDirectory() as folder:
+            ended=read_ended_content_plan('https://example.invalid',Path(folder),now=datetime(2026,10,18,tzinfo=timezone.utc),fetch_bytes=content_fixture(events).__getitem__)
+        self.assertEqual(ended['eventId'],'7')
+
     def test_decode_public_fields_preserving_tied_server_order(self):
         raw = message(1, player('b', 123, '<script>')) + message(1, player('a', 123)) + integer(2, 8)
         rows = ranking_entries(raw, music=True)
@@ -496,8 +528,8 @@ class RankingCollectionTests(unittest.TestCase):
             }
             for name, rows in tables.items(): (root / (name + '.json')).write_text(json.dumps({'_allData':rows}))
             plan = read_plan(root, 1)
-            self.assertEqual(plan['boards'], [{'type':'music', 'musicId':'100063', 'musicName':'Song', 'challengeMusicId':3}])
-            self.assertEqual(plan['uncollectedBoards'], ['total-music'])
+            self.assertEqual(plan['boards'], [{'type':'music', 'musicId':'100063', 'musicName':'Song', 'challengeMusicId':3}, {'type':'total-music'}])
+            self.assertEqual(plan['uncollectedBoards'], [])
             with self.assertRaises(ValueError): read_plan(root, 99)
 
     def test_invalid_snapshots_rejected_without_unhandled_exceptions(self):

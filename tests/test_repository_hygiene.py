@@ -35,6 +35,10 @@ class RepositoryHygieneTests(unittest.TestCase):
         self.git("config", "user.name", "Test")
         self.git("config", "user.email", "test@example.invalid")
 
+    def test_public_arena_calendar_is_explicitly_allowed_without_other_config_exceptions(self):
+        self.assertIsNone(classify_path('config/arena-sync-schedule.json'))
+        self.assertEqual(classify_path('config/arena-private.json'),'actual-configuration')
+
     def test_actual_configuration_and_runtime_never_selected(self):
         for name in ("config/release-inputs.json", "config/global-update.server.json", "config/environments/global-production.toml", ".env", ".env.production", "deploy/qqbot.env", "deploy/qqbot.env copy.example", "packaging/growth-tool/sdk.bhk.xml", "output/result.json", ".git/config", ".claude/settings.json", "site/src/data/generated/rules.json", "site/src/data/scoring-evidence-global-report.json", "site/public/gallery/private.webp"):
             with self.subTest(path=name):

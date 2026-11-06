@@ -1,5 +1,15 @@
 import {createInventoryManager} from './inventory-manager.mjs';
 import {createFormationCalculator} from './scoring-rules/formation-power.mjs';
+import {resolveSearchInput} from './scoring-rules/formation-input.mjs';
+
+/** Validate both cycle pools before loading charts or starting a search. */
+export function validateEventCardPool({rules,constraints={},...options}) {
+ const expanded=withEventRewardCandidates({rules,...options}),draft=structuredClone(expanded.draft);
+ if(expanded.scope==='owned'){
+  draft.modifiers??={};draft.modifiers.growth=structuredClone(expanded.inventory?.growth??{});
+ }
+ return resolveSearchInput(rules,draft,{scope:expanded.scope,inventory:expanded.inventory,constraints});
+}
 
 /** Expand a calculation copy only. Stored ownership and actual growth never change. */
 export function withEventRewardCandidates({rules,draft,scope,inventory,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}) {

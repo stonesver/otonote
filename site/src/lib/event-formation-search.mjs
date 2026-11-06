@@ -10,7 +10,7 @@ import { createOrdinaryScoreBound } from '../../../packages/scoring/scoring-rule
 /** Complete legal pairing partitions with independently bounded score/bonuses.
  * The budget limits work, never the candidate library. A sampled player scenario
  * keeps its existing practical path until a corresponding bound is available. */
-export async function searchEventFormations({ rules, draft, chart, scope, inventory, eventAdapters = [],
+export async function searchEventFormations({ rules, draft, chart, scope, inventory, constraints = {}, eventAdapters = [],
   objective = 'expected_song_score', boundMetric, seeds = [], bonusFor, upperCandidate, transformScore = r => r,
   compareCandidates = (a,b) => b.value-a.value, rankCandidates = compareCandidates, maxEvaluations = 24, topN = 3,
   signal, yieldControl = async () => {}, onProgress = () => {}, scoreCache,
@@ -21,7 +21,10 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   if (!Number.isInteger(proofCount) || proofCount < 1 || proofCount > topN) throw new Error('Invalid event proof count');
   if (draft.modifiers?.performanceScenario) return { results: seeds, optimality: 'practical_checked',
     searchStatus: 'player_scenario_bound_unavailable', evaluated: 0, upperBound: null, optimalityGap: null };
-  const input = resolveSearchInput(rules, draft, { scope, inventory });
+  const input = resolveSearchInput(rules, draft, { scope, inventory, constraints });
+  const required = input.constraints.lockedPairs.map(pair => `${pair.memberCardId}|${pair.supportCardId}`);
+  const requiredMembers = [...new Set([...input.constraints.requiredMemberIds, ...input.constraints.lockedPairs.map(pair => pair.memberCardId)])];
+  const requiredSupports = [...new Set([...input.constraints.requiredSupportIds, ...input.constraints.lockedPairs.map(pair => pair.supportCardId)])];
   const cardDomains = partitionCards && !bonusFor;
   const characterFor = cardDomains ? new Map(rules.tables.MemberCard.map(row=>[`member-card-${row._id}`,row._characterID])) : null;
   const models = await compilePairingModels(rules, input, { eventAdapters, signal, yieldControl, pairCache, pairCacheKey, modelCache });
@@ -50,7 +53,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   // One global bonus ceiling can certify the retained reward tuples after
   // bounding reachable grades. Avoid two bonus flows per leader (and their
   // large edge matrices) when no further reward improvement is possible.
-  if (bonusCeiling && seeds.length >= proofCount) {
+  if (bonusCeiling && seeds.length >= proofCount && !required.length && !requiredMembers.length && !requiredSupports.length) {
     for (const model of models) {
       const state={leader:model.leader,required:[],forbidden:[]};
       const power=maximumPairing({edges:model.edges,requiredMembers:[model.leader]});
@@ -99,7 +102,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
     return bonusModels.get(leader);
   };
   const solveBonus=(state,kind)=>{
-    const result=maximumPairing({required:state.required,forbidden:state.forbidden,requiredMembers:[state.leader],
+    const result=maximumPairing({required:state.required,forbidden:state.forbidden,requiredMembers:[state.leader,...requiredMembers],requiredSupports,
       edges:byLeader.get(state.leader).edges,weight:bonusModel(state.leader)[kind]});
     return {...result,weight:result.edges.reduce((sum,e)=>sum+bonusFor.pair(e)[kind],0)};
   };
@@ -108,7 +111,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   const preservePriority = !bonusFor && !scoreBoundOptions.jointPowerBound;
   const solve = (state, cutoff = -Infinity) => {
     let model = byLeader.get(state.leader);
-    const options = { required: state.required, forbidden: state.forbidden, requiredMembers: [state.leader] };
+    const options = { required: state.required, forbidden: state.forbidden, requiredMembers: [state.leader,...requiredMembers], requiredSupports };
     if (cardDomains) {
       const members=state.memberRequired,supports=state.supportRequired;
       const characters=new Map(members.map(id=>[characterFor.get(id),id]));
@@ -154,8 +157,8 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   };
   const clear=()=>{queue.clear();certificate?.clear();active.clear();};
   for (const model of models) {
-    const state=solve({leader:model.leader,required:[],forbidden:[],...(cardDomains?{
-      memberRequired:[model.leader],supportRequired:[],memberExcluded:[],supportExcluded:[]
+    const state=solve({leader:model.leader,required:[...required],forbidden:[],...(cardDomains?{
+      memberRequired:[...new Set([model.leader,...requiredMembers])],supportRequired:[...requiredSupports],memberExcluded:[],supportExcluded:[]
     }:{})});
     if(state)push(state);
   }

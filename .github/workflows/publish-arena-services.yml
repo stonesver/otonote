@@ -1,0 +1,76 @@
+name: Build reviewed Arena service images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify source and resolve clean official base
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          docker pull python:3.11-slim-bookworm
+          base=$(docker image inspect python:3.11-slim-bookworm --format '{{index .RepoDigests 0}}')
+          [[ "$base" =~ @sha256:[a-f0-9]{64}$ ]]
+          printf 'PYTHON_BASE=%s\n' "$base" >> "$GITHUB_ENV"
+      - name: Build clean capture and shared-login images
+        shell: bash
+        run: |
+          set -euo pipefail
+          capture="ournotes-arena-capture:sha-$GITHUB_SHA"
+          growth="ournotes-growth:sha-$GITHUB_SHA"
+          docker build --file deploy/player-rankings-capture.Dockerfile \
+            --build-arg "BASE_IMAGE=$PYTHON_BASE" --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$capture" .
+          context="$RUNNER_TEMP/growth-context"
+          mkdir -p "$context/tools"
+          cp deploy/Dockerfile.growth "$context/Dockerfile"
+          cp tools/growth-export-requirements.txt "$context/requirements.txt"
+          for module in growth_export growth_login growth_web game_service_status global_game_config gacha_history arena_personal; do
+            cp "tools/$module.py" "$context/tools/"
+          done
+          cp tools/python-security-requirements.txt "$context/tools/"
+          docker build --build-arg "BASE_IMAGE=$PYTHON_BASE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" --tag "$growth" "$context"
+          docker run --rm --network none --entrypoint python "$capture" -c \
+            "import tools.arena_live,tools.arena_population,tools.collect_arena_rankings,tools.collect_player_rankings;from pathlib import Path;assert not list(Path('/app').rglob('*.xml'))"
+          docker run --rm --network none --entrypoint python "$growth" -c \
+            "import tools.growth_web,tools.arena_personal;from pathlib import Path;assert not list(Path('/opt/ournotes-growth').rglob('*.xml'))"
+          printf 'CAPTURE_IMAGE=%s\nGROWTH_IMAGE=%s\n' "$capture" "$growth" >> "$GITHUB_ENV"
+      - name: Export immutable images and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/arena-service-images"
+          mkdir "$out"
+          docker save "$CAPTURE_IMAGE" "$GROWTH_IMAGE" | gzip -1 > "$out/images.docker.tar.gz"
+          docker image inspect "$CAPTURE_IMAGE" "$GROWTH_IMAGE" > "$RUNNER_TEMP/images-inspect.json"
+          python - "$RUNNER_TEMP/images-inspect.json" "$out/images.json" <<'PY'
+          import json,os,sys
+          rows=json.load(open(sys.argv[1]))
+          result={'schemaVersion':1,'sourceCommit':os.environ['GITHUB_SHA'],'baseImage':os.environ['PYTHON_BASE'],
+                  'images':{role:{'id':row['Id'],'tag':row['RepoTags'][0]} for role,row in zip(('capture','growth'),rows)}}
+          open(sys.argv[2],'w').write(json.dumps(result,indent=2)+'\n')
+          PY
+          (cd "$out" && sha256sum images.docker.tar.gz images.json > SHA256SUMS)
+          cat "$out/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Source: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arena-service-images-${{ github.sha }}
+          path: ${{ runner.temp }}/arena-service-images
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

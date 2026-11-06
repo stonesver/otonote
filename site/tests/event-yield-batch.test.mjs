@@ -6,7 +6,9 @@ const rules={tables:{LiveMusic:candidates.map((c,i)=>({_id:i,_musicType:1}))}};
 const input={mode:'ordinary',goal:'both',searchDepth:'full',basis:'expectedScore',draft:{modifiers:{}}};
 const row=(c,goal,amount=10)=>({id:c.id+goal,song:c,expectedScore:100,reward:{scoreRank:6},total:{badges:amount,eventPoints:amount}});
 const result=(c,goal,{proven=false,upper=10,amount=10}={})=>({results:[row(c,goal,amount)],practical:{scoreCacheHits:0,scoreCalculations:1},certifiedSearch:{bestProven:proven,globalUpperCandidate:{scoreRank:6,total:{badges:upper,eventPoints:upper}}}});
-const run=options=>runEventYieldBatch({rules,eventId:1,candidates,input,loadChart:async c=>({id:c.id}),yieldControl:async()=>{},...options});
+// Keep the optional global-only diagnostic path covered separately from the
+// production per-chart contract in event-yield-complete.test.mjs.
+const run=options=>runEventYieldBatch({rules,eventId:1,candidates,input,globalPruning:true,loadChart:async c=>({id:c.id}),yieldControl:async()=>{},...options});
 test('global objective ceiling covers every legal chart while keeping skipped charts separate',async()=>{
  const calls=[];const output=await run({optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:true});}});
  assert.equal(output.coverageComplete,true);assert.equal(output.allProven,false);
@@ -78,6 +80,22 @@ test('challenge cycle stages keep their independent constraints and shared score
  assert.equal(calls[0].includeChallenge,false);assert.ok(challengeCalls.every(o=>o.scoreCache===challengeCalls[0].scoreCache));
  assert.equal(calls.find(o=>o.mode==='ordinary'&&o.searchMethod!=='practical').challengeRows.length,2);assert.equal(output.coverageComplete,true);
  assert.equal(output.globalProofs.badges.scope,'all_selected_charts_given_challenge_rows');
+});
+
+test('serial and parallel cycle jobs use the selected challenge band policy',async()=>{
+ const challenge={id:'challenge',trackId:'music-0',seconds:5,level:20},constraints={bandId:[1],supportBandId:[2],excludedSupportIds:[6]};
+ for(const challengeBandScope of ['all','same'])for(const parallel of [false,true]){
+  const calls=[],expected=challengeBandScope==='same'?constraints:{excludedSupportIds:[6]};
+  await run({input:{...input,includeChallenge:true,constraints,challengeBandScope},challengeCandidates:[challenge],
+   optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,{proven:true});},
+   ...(parallel?{runChallengeJobs:async({input:stage,goals})=>{
+    assert.deepEqual(stage.constraints,expected);
+    return [{records:goals.map(goal=>({goal,result:result(challenge,goal,{proven:true})}))}];
+   }}:{})});
+  assert.ok(calls.filter(o=>o.mode==='ordinary').every(o=>JSON.stringify(o.constraints)===JSON.stringify(constraints)));
+  if(!parallel)assert.ok(calls.some(o=>o.mode==='challenge'));
+  assert.ok(calls.filter(o=>o.mode==='challenge').every(o=>JSON.stringify(o.constraints)===JSON.stringify(expected)));
+ }
 });
 
 test('parallel phase failures replay complete serial domains without claiming missing coverage',async()=>{

@@ -89,7 +89,12 @@ def code_fingerprints(root: Path, *, private_inputs=()) -> tuple[str, str]:
         raise GateError("source fingerprint ROOT differs from checkout")
     producer = fingerprint(exclude_paths=private_inputs)
     workflow = file_hash(root / ".github/workflows/content-r2.yml")
-    return producer, digest(canonical({"producer": producer, "workflow": workflow}))
+    identity={"producer": producer, "workflow": workflow}
+    arena=os.environ.get('OURNOTES_ARENA_REVIEW_BUNDLE_SHA256','')
+    if arena:
+        if not SHA256.fullmatch(arena):raise GateError('invalid Arena review bundle digest')
+        identity['arenaReviewBundleSha256']=arena
+    return producer, digest(canonical(identity))
 
 
 def package_identity(region: str, value: dict) -> str:

@@ -19,7 +19,7 @@ export function formatCombinationCount(value) {
 export function readOptimizerConstraints(workbench) {
   const constraints=JSON.parse(workbench.querySelector('[data-search-constraints]').value);
   if(!constraints||typeof constraints!=='object'||Array.isArray(constraints))throw new Error('高级约束需要填写 JSON 对象');
-  for(const [selector,name] of [['[data-search-band]','bandId'],['[data-search-attribute]','attribute'],['[data-search-support-attribute]','supportAttribute']]) {
+  for(const [selector,name] of [['[data-search-band]','bandId'],['[data-search-support-band]','supportBandId'],['[data-search-attribute]','attribute'],['[data-search-support-attribute]','supportAttribute']]) {
     const field=workbench.querySelector(selector),values=selectedControlValues(field).map(Number);
     if(values.length)constraints[name]=field.multiple?values:values[0];
   }

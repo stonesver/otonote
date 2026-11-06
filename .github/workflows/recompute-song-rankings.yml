@@ -28,6 +28,11 @@ on:
         required: false
         default: ''
         type: string
+      arena_bundle_sha256:
+        description: Optional reviewed Arena input bundle digest in the private object store
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -67,6 +72,7 @@ jobs:
           MODEL: ${{ inputs.model }}
           MODE: ${{ inputs.mode }}
           RULES_SHA256: ${{ inputs.scoring_rules_sha256 }}
+          ARENA_SHA256: ${{ inputs.arena_bundle_sha256 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -107,6 +113,28 @@ jobs:
           PY
             options+=(--scoring-rules "$RUNNER_TEMP/scoring-rules.json"
                       --expected-rules-sha256 "$RULES_SHA256")
+          fi
+          if [[ -n "$ARENA_SHA256" ]]; then
+            python - "$ARENA_SHA256" "$RUNNER_TEMP/arena-input" <<'PY'
+          import os,re,sys
+          from pathlib import Path
+          from tools.r2_content import S3Bucket
+          from tools.recompute_published_rankings import unpack_arena_review_bundle
+          expected,target=sys.argv[1:]
+          if not re.fullmatch('[a-f0-9]{64}',expected):raise SystemExit('Invalid Arena input digest')
+          bucket=S3Bucket.from_environment();bucket.bucket=os.environ['R2_PRIVATE_BUCKET']
+          try:
+              response=bucket.client.get_object(Bucket=bucket.bucket,Key='state/objects/'+expected)
+              body=response['Body']
+              try:raw=body.read(16*1024**2+1)
+              finally:body.close()
+              _,review_sha=unpack_arena_review_bundle(raw,expected,target)
+              Path(target+'/review.sha256').write_text(review_sha)
+          except Exception as error:raise SystemExit('Cannot verify Arena input: '+type(error).__name__) from None
+          PY
+            options+=(--arena-review "$RUNNER_TEMP/arena-input/review.json"
+                      --arena-master-root "$RUNNER_TEMP/arena-input"
+                      --expected-arena-review-sha256 "$(cat "$RUNNER_TEMP/arena-input/review.sha256")")
           fi
           python -m tools.recompute_published_rankings \
             --region "$REGION" --expected-current "$EXPECTED_CURRENT" \

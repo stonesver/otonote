@@ -10,7 +10,7 @@ export function eventRewardOptions(tool,prefix){
  const note=el('p',null,'task-input-note task-event-reward-growth-note');settings.append(growthLabel,note);
  const list=el('ul',null,'task-event-reward-card-list'),hint=el('p',null,'task-input-note');settings.append(list);root.append(settings,hint);let key='';
  function refresh(){
-  const cards=tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[],reference=prefix==='challengeOpt'&&tool.querySelector('[data-challenge-opt-scope]').value==='reference';
+  const cards=tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[],reference=tool.querySelector(prefix==='challengeOpt'?'[data-challenge-opt-scope]':'[data-pool]').value==='reference';
   note.textContent=eventRewardGrowthNote(growth.value,true)+'奖励获取成本不从收益中扣除。';
   enabled.disabled=!cards.length||reference;settings.hidden=!enabled.checked||enabled.disabled;
   hint.textContent=reference?'全卡库参考已包含本期奖励卡。':!cards.length?'当前活动没有可读取的兑换 / pt 奖励卡。':enabled.checked?'按已获取奖励卡后的队伍比较，不模拟刷取途中逐张获得。':`可纳入 ${cards.length} 张商店兑换 / pt 奖励卡`;

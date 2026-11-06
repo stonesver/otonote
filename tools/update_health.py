@@ -11,11 +11,12 @@ import time
 
 from tools.r2_content import S3Bucket, baseline
 from tools.r2_run_record import key, validate
-from tools.r2_schedule import GRACE_SECONDS, last_due_slot
+from tools.r2_schedule import GRACE_SECONDS, EXTERNAL_GRACE_SECONDS, last_due_slot, parse_slot
 
 REGIONS = ('global', 'jp')
 CODES = {'worker_errors', 'worker_budget', 'worker_metrics_stale', 'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
-         'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget'}
+         'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget',
+         'trigger_failed', 'trigger_unconfirmed', 'trigger_stale'}
 
 
 def timestamp(value):
@@ -42,9 +43,8 @@ def read_json(path, now, max_age=None):
     return value
 
 
-def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_path=None):
-    conditions, runs, versions = [], {}, {}
-    due_slot = last_due_slot(now)
+def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_path=None, trigger_dir=None):
+    conditions, runs, versions, deliveries = [], {}, {}, {}
 
     def condition(code, region='all', grace=600):
         conditions.append({'id': region + ':' + code, 'code': code, 'region': region, 'grace': grace})
@@ -58,6 +58,25 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
         local = {}
         condition('delivery_unknown')
     for region in REGIONS:
+        grace = EXTERNAL_GRACE_SECONDS if trigger_dir else GRACE_SECONDS
+        due_slot = last_due_slot(now, grace=grace)
+        if trigger_dir:
+            try:
+                trigger = read_json(Path(trigger_dir) / (region + '.json'), now, 360)
+                if (trigger.get('region') != region or trigger.get('status') not in ('accepted', 'pending', 'unknown', 'failed')
+                        or not -60 <= now - trigger['checkedAt'] <= 360):
+                    raise ValueError('invalid trigger receipt')
+                planned = parse_slot(trigger['scheduledFor'])
+                if planned > now:
+                    raise ValueError('future trigger')
+                if planned <= now - grace:
+                    due_slot = max(due_slot, planned)
+                if trigger['status'] == 'failed':
+                    condition('trigger_failed', region, 0)
+                elif trigger['status'] in ('pending', 'unknown'):
+                    condition('trigger_unconfirmed', region, grace)
+            except (OSError, ValueError, KeyError, TypeError):
+                condition('trigger_stale', region, 0)
         try:
             raw = bucket.get(key(region))
             if raw is None or len(raw[0]) > 16384:
@@ -69,10 +88,11 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
             runs[region] = {name: run[name] for name in
                             ('runId', 'attempt', 'sourceSha', 'status', 'outcome', 'failedStage', 'consecutiveFailures', 'observedAt', 'stages')}
             runs[region]['event'] = run.get('event', 'unknown')
+            runs[region]['origin'] = 'external' if run.get('scheduledFor') else run.get('event', 'unknown')
             if run['status'] != 'running':
                 scheduled = run.get('lastScheduledAt')
                 if scheduled is None:
-                    condition('schedule_stale', region, GRACE_SECONDS)
+                    condition('schedule_stale', region, grace)
                 elif timestamp(scheduled) < due_slot or timestamp(scheduled) > now + 60:
                     condition('schedule_stale', region, 0)
             if run['status'] == 'running':
@@ -91,10 +111,31 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
                 raise ValueError('no remote pointer')
             versions[region] = remote['manifest'].split('/')[3]
             row = local.get(region, {})
-            if row.get('releaseId') != versions[region] or row.get('manifestSha256') != remote['sha256']:
+            matched = row.get('releaseId') == versions[region] and row.get('manifestSha256') == remote['sha256']
+            if not matched:
                 condition('delivery_lag', region)
+            run = runs.get(region, {})
+            if run.get('status') == 'running':
+                state = 'running'
+            elif run.get('status') in ('failure', 'cancelled'):
+                state = 'failed'
+            elif not run or timestamp(run['observedAt']) < due_slot:
+                state = 'unavailable'
+            elif run.get('outcome') == 'produced':
+                state = 'produced'
+            elif not local:
+                state = 'unavailable'
+            elif not matched:
+                state = 'awaiting_delivery'
+            elif run.get('outcome') == 'unchanged':
+                state = 'unchanged'
+            else:
+                state = 'delivered'
+            deliveries[region] = {'status': state, 'releaseId': versions[region],
+                                  'manifestSha256': remote['sha256'], 'currentDelivered': matched}
         except Exception:
             condition('remote_unavailable', region)
+            deliveries[region] = {'status': 'unavailable'}
     try:
         ranking = read_json(ranking_path, now, 900)
         age = now - timestamp(ranking['observedAt'])
@@ -129,7 +170,7 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
     free = shutil.disk_usage(disk_path).free
     if free < budget:
         condition('disk_budget', grace=0)
-    return {'conditions': conditions, 'runs': runs, 'versions': versions,
+    return {'conditions': conditions, 'runs': runs, 'versions': versions, 'delivery': deliveries,
             'diskFreeBytes': free, 'diskRequiredBytes': budget, 'worker': worker}
 
 
@@ -155,6 +196,7 @@ def advance(observed, previous, now):
                and h.get('code') in CODES and h.get('transition') in ('opened', 'recovered')][-40:]
     report = {name: observed[name] for name in ('runs', 'versions', 'diskFreeBytes', 'diskRequiredBytes')}
     report['worker'] = observed.get('worker', {'status': 'not_configured'})
+    report['delivery'] = observed.get('delivery', {})
     report.update(schemaVersion=1, observedAt=now, status='attention' if any(a['state'] == 'firing' for a in alerts)
                   else ('waiting' if alerts else 'healthy'), alerts=alerts, history=(history + transitions)[-40:])
     return report, transitions
@@ -184,6 +226,7 @@ def main():
     parser.add_argument('--disk', type=Path, required=True)
     parser.add_argument('--budget', type=int, required=True)
     parser.add_argument('--worker', type=Path)
+    parser.add_argument('--trigger-state', type=Path, help='Enable external scheduler health after cutover')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if args.budget <= 0:
@@ -193,7 +236,7 @@ def main():
         previous = read_json(args.output, now)
     except (OSError, ValueError):
         previous = {}
-    observed = sample(S3Bucket.from_environment(), args.delivery, args.ranking, args.disk, args.budget, now, args.worker)
+    observed = sample(S3Bucket.from_environment(), args.delivery, args.ranking, args.disk, args.budget, now, args.worker, args.trigger_state)
     report, transitions = advance(observed, previous, now)
     write_atomic(args.output, report)
     for transition in transitions:

@@ -30,3 +30,10 @@ export function rankingEventForBand(events, band, requested = '') {
   const matching=filterRankingEvents(events,band);
   return matching.some(event=>event.id===requested) ? requested : matching[0]?.id || '';
 }
+
+/** Configured boards stay selectable before their first server-specific capture. */
+export function availableRankingBoards(event, observed = [], selected = '') {
+  const fields={'event-points':'eventPoints',music:'music','total-music':'totalMusic'};
+  return [...new Set([...observed,...Object.entries(fields).filter(([,key])=>event?.rankingConfigured?.[key]===true).map(([id])=>id),selected])]
+    .filter(id=>Object.hasOwn(fields,id));
+}

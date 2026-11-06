@@ -80,6 +80,22 @@ class PreviewGrowthTests(unittest.TestCase):
         self.assertNotIn(b'PRIVATE', body)
         self.assertEqual(self.request('gacha-history', 'GET')[0], 404)
 
+    def test_personal_rank_uses_same_proxy_without_public_identity_selector(self):
+        from tools.arena_personal import extract_my_rank
+        from tools.growth_login import integer,message
+        class Personal(FakeGame):
+            def export_rank(self,identity,device,host,season,band,progress):
+                return extract_my_rank(message(2,integer(1,int(band))+integer(2,4)+integer(3,12345)),
+                    season,band,server_id=self.server_id,client_version=self.client_version)
+        self.gateway.arena_factory=Personal
+        body=json.dumps(dict(account='synthetic-account',password='synthetic-password',serverId='global-en',seasonId='1',bandId='2'))
+        status,headers,raw=self.request('arena-rank',body=body)
+        self.assertEqual(status,200);self.assertEqual(headers['Cache-Control'],'no-store')
+        result=json.loads(raw)['snapshot'];self.assertEqual(result['rank'],12345)
+        self.assertEqual((result['source']['serverId'],result['bandId']),('global-en','2'))
+        self.assertEqual(self.request('arena-rank','GET')[0],404)
+        self.assertNotIn(b'synthetic-account',raw)
+
     def test_public_maintenance_snapshot_passes_without_auth_or_nonce(self):
         self.gateway.game_status = GameServiceStatus(lambda server, version: {
             'status':'maintenance','source':'official_game_response'}, version='1.0.6')

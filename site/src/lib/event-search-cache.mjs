@@ -3,9 +3,22 @@
 import {SCORE_MODEL_VERSION} from './scoring-rules/model-version.mjs';
 export const EVENT_SEARCH_VERSION = 4;
 const ruleKeys=new WeakMap();
+const preparationKeys=new WeakMap();
 export async function searchDigest(value){
   const bytes=new TextEncoder().encode(JSON.stringify(value));
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');
+}
+export async function bindEventCandidateCache(cache,rules){
+  if(!cache)return false;
+  // Rules are immutable within a worker. Pair preparation is independent of
+  // the chart's scoring table; all other rule content still invalidates it.
+  if(!preparationKeys.has(rules)){
+    const {LiveMusicScore,...tables}=rules.tables;
+    preparationKeys.set(rules,searchDigest({...rules,tables}));
+  }
+  const context=await preparationKeys.get(rules);
+  if(cache.get('$preparation-rules')===context)return false;
+  cache.clear();cache.set('$preparation-rules',context);return true;
 }
 function rulesKey(rules){
   // Release rules are immutable for the lifetime of a worker.
@@ -14,11 +27,17 @@ function rulesKey(rules){
 }
 export async function eventSearchPartition(rules,eventId,input){
   const {selectedSongId,selectedDifficulty,...draft}=input.draft;
-  return searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),eventId,scope:input.scope,inventory:input.inventory,rewardCards:input.rewardCards,rewardGrowth:input.rewardGrowth,rewardGrowthOverride:input.rewardGrowthOverride??false,draft});
+  return searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),eventId,scope:input.scope,inventory:input.inventory,constraints:input.constraints??{},rewardCards:input.rewardCards,rewardGrowth:input.rewardGrowth,rewardGrowthOverride:input.rewardGrowthOverride??false,draft});
 }
-export async function bindEventScoreCache(cache,{rules,chart,draft}){
+export async function createEventScoreCacheBinding({rules,chart,draft}){
+  // The owner freezes this context for one chart job. Reuse its digest while
+  // still checking the actual cache marker on every access (a caller may
+  // reuse the same Map for another chart between accesses).
   const context=await searchDigest({version:EVENT_SEARCH_VERSION,modelVersion:SCORE_MODEL_VERSION,rules:await rulesKey(rules),chart,draft});
-  if(cache.get('$context')!==context){cache.clear();cache.set('$context',context);}
+  return cache=>{if(cache.get('$context')!==context){cache.clear();cache.set('$context',context);}};
+}
+export async function bindEventScoreCache(cache,input){
+  (await createEventScoreCacheBinding(input))(cache);
 }
 
 export function createEventSearchStore({indexedDB=globalThis.indexedDB,maxBytes=48*1024*1024,maxEntries=512}={}){

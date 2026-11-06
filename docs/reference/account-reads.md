@@ -2,7 +2,7 @@
 
 ## 范围与限制
 
-支持港澳台、EN、韩服的 BHK 邮箱密码认证、养成读取及抽卡查询。每次读取重新完成 SDK 和游戏认证，不缓存玩家密码、令牌或跨请求身份；App 暂不开发。Google 游戏授权未接通，不将本站 Google OAuth 当成游戏身份。
+支持港澳台、EN、韩服的 BHK 邮箱密码认证、养成、抽卡及本人舞台排名查询。每次读取重新完成 SDK 和游戏认证，不缓存玩家密码、令牌或跨请求身份；App 暂不开发。Google 游戏授权未接通，不将本站 Google OAuth 当成游戏身份。
 
 导入保留缺卡拒绝，不静默丢卡后覆盖原档案；未返回的养成保持未读取。游戏内人工对账及尚未接通的认证方式见[未结事项](../BACKLOG.md)。
 
@@ -18,6 +18,7 @@ EN 的 UTC 是本站明确的显示约定，不代表官方日界线。SDK 的 a
 
 - `GET /api/growth-export/capabilities/?serverId=global-en`：返回所选 serverId、支持列表、nonce、authMethods 和所选服维护状态。支持的方法目前仅 `email_password`。
 - `POST /api/growth-export/read/` 和 `/gacha-history/`：JSON 包含 `serverId`、`account`、`password`。历史客户端省略 serverId 时兼容港澳台；无效区服、额外参数、冲突来源拒绝。
+- `POST /api/growth-export/arena-rank/`：同一网关的本人查询，必填 `serverId`、`seasonId`、`bandId` 及邮箱密码；拒绝额外玩家 ID 或名次参数。能力响应 `arenaPersonal` 表示源码接通，不保证所选服已开放舞台；协议、段位版本核验和临时结果清空见[舞台契约](arena-stage.md#我的排名与段位)。
 - 沿用同源/Host/Origin、nonce、no-store、限流和并发限制。nonce 不代表玩家登录状态；每次请求新建客户端并独立认证。
 - 服务器列表必须同时匹配官方名称、编号及该服固定主机白名单。只有公开发现可访问共同 bootstrap，玩家 RPC 不能跨服。
 - `PlayerPreLogin` 未明确存在角色即停止，不注册或创建角色。维护和要求更新使用独立错误码，不误判为密码错误。

@@ -25,7 +25,7 @@ def permitted(name):
         return path.suffix == '.py'
     if name.startswith('packages/scoring/'):
         return path.suffix in {'.mjs','.json'}
-    return name in {'site/package.json','site/package-lock.json','config/site-product.json',
+    return name in {'config/arena-sync-schedule.json','site/package.json','site/package-lock.json','config/site-product.json',
                     'catalog/evidence/arena-client.json'}
 
 
@@ -34,7 +34,7 @@ def build(root, output, revision='HEAD'):
     if output.exists():raise ValueError('runtime destination already exists')
     source=inspect_source(root,revision)
     files={name:value for name,value in source['files'].items() if permitted(name)}
-    required={'tools/global_update.py','tools/publish_prerender.py','tools/code_publication.py',
+    required={'config/arena-sync-schedule.json','tools/global_update.py','tools/publish_prerender.py','tools/code_publication.py',
               'tools/runtime_bundle.py','tools/release_candidate.py','tools/repository_hygiene.py',
               'site/package-lock.json','packages/scoring/data/formal-scoring-rules.json',
               'analysis/crypto/decrypt_master.py','analysis/crypto/decrypt_global_formal_scores.py',

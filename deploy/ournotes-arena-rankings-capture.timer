@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh bounded Arena top-1000 snapshots
+
+[Timer]
+OnCalendar=*-*-* *:02,12,22,32,42,52:00 Asia/Shanghai
+RandomizedDelaySec=20s
+Persistent=true
+Unit=ournotes-arena-rankings-capture.service
+
+[Install]
+WantedBy=timers.target

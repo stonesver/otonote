@@ -14,6 +14,8 @@ manifest 上限 128 MiB，指针仍为 16 MiB。`inspect` 同时报告逻辑 `to
 
 同一 `(sha256, size)` 对象每阶段传输并完整验证一次。硬链接在单个校验阶段可复用摘要；传输后开始新的本地字节验证阶段，不能用 inode／mtime 代替最终完整性校验。
 
+对象流报告 `IncompleteReadError` 时，清除本次创建的不完整暂存文件，间隔一秒、两秒重新读取该对象，最多尝试三次。每次重新计算大小和 SHA-256，只有完整通过的响应可以提供复用证据。完整响应的大小或摘要不符仍直接失败，不靠重试接受损坏对象。
+
 可选 `--verification-cache` 只由成功恢复生成，位于 ROOT 外临时私有目录，为自有普通 `0600` 文件；绑定 endpoint／bucket、ROOT、区服、选择、指针与 manifest。每项同时记录 SHA 校验过的 GET 字节、该响应的 ETag 和大小。checkpoint 的新鲜分页 listing 与本地 SHA／大小及旧证据一致时，可跳过第二次完整 GET。对象名和自声明 metadata 不构成验证证据。缺少证据走完整读取，损坏或错绑证据拒绝。证据不进入 checkpoint 或可复用 CI artifact。
 
 ## 工作集与保留

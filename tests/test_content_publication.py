@@ -33,6 +33,25 @@ class ContentPublicationTests(unittest.TestCase):
                         'projections':[{'locale':'zh-CN'},{'locale':'en'}]}], 'files':inventory(candidate)})
         return candidate
 
+    def test_arena_projection_is_optional_and_release_bound(self):
+        from tools.arena_content import build_arena_content
+        candidate = self.candidate()
+        arena = build_arena_content(self.root, 'test-1', 'global')
+        bound = candidate/'global/test-1'
+        for locale in ('en', 'zh-CN'):
+            write(bound/'generated/releases/test-1'/locale/'arena.json', arena)
+        metadata = read_json(candidate/'candidate.json')
+        write(candidate/'candidate.json', {**metadata, 'files': inventory(candidate, exclude=('candidate.json',))})
+        result = publish_content(candidate, self.store)
+        manifest = read_json(Path(result['snapshot'])/'manifest.json')
+        for locale in ('en', 'zh-CN'):
+            self.assertIn('projection/arena.json', manifest['locales'][locale]['files'])
+        arena['sourceReleaseId'] = 'other'
+        write(bound/'generated/releases/test-1/en/arena.json', arena)
+        write(candidate/'candidate.json', {**metadata, 'files': inventory(candidate, exclude=('candidate.json',))})
+        with self.assertRaisesRegex(ValueError, 'arena projection identity'):
+            publish_content(candidate, self.store)
+
     def test_public_release_record_whitelists_version_identity(self):
         candidate=self.candidate()
         for locale in ('en','zh-CN'):

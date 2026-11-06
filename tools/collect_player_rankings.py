@@ -1,6 +1,7 @@
 """Bounded Global event ranking reads using an existing, in-memory game login.
 
-Wire schema: Global Android 1.0.1 (25), EventService and PlayerSimpleProfile.
+Wire schema: Global Android 1.0.1 (25), plus the total-music board verified
+against Global Android 1.1.0, EventService and PlayerSimpleProfile.
 Transport version follows per-request public negotiation, independently of this schema.
 Only public profile id/name, ranking score and its high-score deck are retained.
 Account growth, personal rank and all credentials are discarded. No automatic retry.
@@ -33,6 +34,7 @@ from tools.resource_pipeline.localization import resolve_text
 
 MUSIC_RPC = 'app.event.EventService/GetChallengeMusicRanking'
 POINTS_RPC = 'app.event.EventService/GetRankingList'
+TOTAL_MUSIC_RPC = 'app.event.EventService/GetChallengeMusicTotalRanking'
 MAX_PLAYERS = 1000
 EVENT_TIME_ZONE = timezone(timedelta(hours=8), 'Asia/Taipei')
 EVENT_TIME_PATTERN = re.compile(r'^(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$')
@@ -128,7 +130,7 @@ def _read_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=No
         if ended_root is None and start <= current <= end:
             active.append(event)
         if (ended_root is not None and end < current
-                and (flags['eventPoints'] or flags['music'])
+                and (flags['eventPoints'] or flags['music'] or flags['totalMusic'])
                 and not ensure_final_archive_metadata(ended_root, server, str(event['id']))):
             ended.append((end, event))
     if ended_root is None:
@@ -161,6 +163,8 @@ def _read_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=No
                            'musicName': song['name'], 'challengeMusicId': song['id']})
     if flags['eventPoints']:
         boards.append({'type': 'event-points'})
+    if flags['totalMusic']:
+        boards.append({'type': 'total-music'})
     if not boards or len(boards) > 20:
         raise ValueError('no_supported_boards_or_too_many_boards')
     return {'eventId': str(event['id']), 'eventName': event['name'], 'boards': boards, 'ttl': 900,
@@ -168,7 +172,7 @@ def _read_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=No
             'eventEndAt': _event_local_time(event['schedule']['endAt']).isoformat(),
             'contentReleaseId': pointer['contentReleaseId'], 'eventProjectionSha256': sha,
             'contentMasterVersion': (manifest.get('releaseRecord') or {}).get('masterVersion'),
-            'uncollectedBoards': ['total-music'] if flags['totalMusic'] else []}
+            'uncollectedBoards': []}
 
 
 def read_current_content_plan(base: str, *, now: datetime | None = None, fetch_bytes=None) -> dict | None:
@@ -207,11 +211,13 @@ def read_plan(master: Path, event_id: int, *, ttl: int = 900) -> dict:
                            'challengeMusicId': row['_id']})
     if event.get('_isRankingDisabled') is False:
         boards.append({'type': 'event-points'})
+    if event.get('_isTotalMusicRankingDisabled') is False:
+        boards.append({'type': 'total-music'})
     if not boards or len(boards) > 20:
         raise ValueError('no_supported_boards_or_too_many_boards')
     return {'eventId': str(event_id), 'eventName': name(event, str(event_id)),
             'boards': boards, 'ttl': ttl, 'masterHashes': hashes,
-            'uncollectedBoards': ['total-music'] if event.get('_isTotalMusicRankingDisabled') is False else []}
+            'uncollectedBoards': []}
 
 
 def high_score_deck(raw):
@@ -269,7 +275,7 @@ def ranking_profile(raw):
     return public_player_profile({'avatarMasterId': avatar, 'profileCardImages': images}) if avatar or images else None
 
 
-def ranking_entries(raw: bytes, *, music: bool) -> list[dict]:
+def ranking_entries(raw: bytes, *, music: bool, total_music: bool = False) -> list[dict]:
     result = []
     for number, wire, value in fields(raw):
         if number != 1:
@@ -277,21 +283,23 @@ def ranking_entries(raw: bytes, *, music: bool) -> list[dict]:
         if wire != 2 or len(result) >= MAX_PLAYERS:
             raise LoginError('invalid_or_oversized_ranking_response')
         profile = single(value, 1)
-        score = single(value, 3, wire=0, required=False) or 0
-        rank = len(result) + 1 if music else single(value, 2, wire=0)
+        # Total-music entries have score at 2 and deck at 3. Response-level
+        # fields 2/3 are the capture account's own rank/score and are discarded.
+        score = single(value, 2 if total_music else 3, wire=0, required=False) or 0
+        rank = len(result) + 1 if music or total_music else single(value, 2, wire=0)
         if score > (1 << 31) - 1 or rank < 1 or rank > (1 << 31) - 1:
             raise LoginError('invalid_ranking_number')
-        if music and result and score > result[-1]['score']:
+        if (music or total_music) and result and score > result[-1]['score']:
             raise LoginError('ranking_order_changed')
         result.append({'playerId': string(profile, 1), 'name': string(profile, 2, optional=True),
                        'rank': rank, 'score': score,
                        'profile': ranking_profile(profile),
-                       'highScoreDeck': high_score_deck(single(value, 4, required=False)) if music else None})
+                       'highScoreDeck': high_score_deck(single(value, 3 if total_music else 4, required=False)) if music or total_music else None})
     return result
 
 
 class RankingClient(GameClient):
-    read_methods = GameClient.read_methods | {MUSIC_RPC, POINTS_RPC}
+    read_methods = GameClient.read_methods | {MUSIC_RPC, POINTS_RPC, TOTAL_MUSIC_RPC}
 
     def __init__(self, plan: dict):
         super().__init__(server_id=plan.get('serverId', 'global-hmt'))
@@ -311,13 +319,21 @@ class RankingClient(GameClient):
         try:
             for definition in self.plan['boards']:
                 music = definition['type'] == 'music'
-                # ChallengeMusic ID is NOT the public LiveMusic ID.
-                payload = integer(1, definition['challengeMusicId']) if music else (
-                    integer(1, int(self.plan['eventId'])) + message(2, b''.join(varint(i) for i in range(1, 101))))
-                response = self.rpc(host, MUSIC_RPC if music else POINTS_RPC, payload, auth)
+                total_music = definition['type'] == 'total-music'
+                if definition['type'] not in ('music', 'total-music', 'event-points'):
+                    raise ValueError('unsupported_ranking_board')
+                if music:
+                    # ChallengeMusic ID is NOT the public LiveMusic ID.
+                    method, payload = MUSIC_RPC, integer(1, definition['challengeMusicId'])
+                elif total_music:
+                    method, payload = TOTAL_MUSIC_RPC, integer(1, int(self.plan['eventId']))
+                else:
+                    method = POINTS_RPC
+                    payload = integer(1, int(self.plan['eventId'])) + message(2, b''.join(varint(i) for i in range(1, 101)))
+                response = self.rpc(host, method, payload, auth)
                 boards.append({**definition, 'eventId': self.plan['eventId'], 'eventName': self.plan['eventName'],
-                               'coverage': 'server_returned_list' if music else 'top_100',
-                               'entries': ranking_entries(response, music=music)})
+                               'coverage': 'server_returned_list' if music or total_music else 'top_100',
+                               'entries': ranking_entries(response, music=music, total_music=total_music)})
         finally:
             auth.clear()
         source = {'kind': 'direct_game_read', 'clientVersion': self.client_version}

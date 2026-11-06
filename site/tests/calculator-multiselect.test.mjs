@@ -12,19 +12,19 @@ import {resolveSearchInput} from '../src/lib/scoring-rules/formation-input.mjs';
 import {createTeamDraft} from '../src/lib/team-draft.mjs';
 import {readOptimizerConstraints} from '../src/lib/optimizer-search-summary.mjs';
 
-function quickField(values,{required=false,selected=[values[0]],all='all',multiple=true}={}) {
+function quickField(values,{required=false,selected=[values[0]],all='all',multiple=true,icons={}}={}) {
  const make=tag=>({tagName:tag,dataset:{},attributes:{},children:[],listeners:{},
   setAttribute(k,v){this.attributes[k]=String(v);},getAttribute(k){return this.attributes[k]??null;},hasAttribute(k){return k in this.attributes;},removeAttribute(k){delete this.attributes[k];},
   append(...nodes){this.children.push(...nodes);},addEventListener(k,f){this.listeners[k]=f;},removeEventListener(){},remove(){},closest(){return null;}});
  const field=make('SELECT');field.multiple=multiple;field.dataset.quick='';field.dataset.quickAll=all;field.setAttribute('data-quick','');field.setAttribute('aria-label','Filter');if(required)field.setAttribute('data-quick-required','');
- field.options=values.map(value=>({value,textContent:value.toUpperCase(),selected:selected.includes(value),dataset:{},hasAttribute(){return false;}}));
+ field.options=values.map(value=>({value,textContent:value.toUpperCase(),selected:selected.includes(value),dataset:icons[value]?{icon:icons[value],iconOnly:'true'}:{},hasAttribute(key){return key==='data-icon-only'&&this.dataset.iconOnly==='true';}}));
  Object.defineProperty(field,'selectedOptions',{get:()=>field.options.filter(o=>o.selected)});
  Object.defineProperty(field,'value',{get:()=>field.selectedOptions[0]?.value??'',set:value=>{for(const o of field.options)o.selected=o.value===value;}});
  let group;const events=[];field.after=node=>{group=node;};field.dispatchEvent=e=>{events.push(e.type);root.listeners[e.type]?.();};
  const root=make('DIV');root.ownerDocument={documentElement:{lang:'en'},createElement:make};root.querySelectorAll=()=>[field];
  const controller=setupQuickOptions(root),click=value=>group.children[values.indexOf(value)].listeners.click();
  const pressed=()=>group.children.filter(b=>b.attributes['aria-pressed']==='true').map(b=>b.title.toLowerCase());
- return {field,events,controller,click,pressed};
+ return {field,events,controller,click,pressed,get group(){return group;}};
 }
 test('quick difficulty buttons accumulate selections, preserve one, select all and restore accessibly',()=>{
  const f=quickField(['expert','hard','normal','easy','all'],{required:true});
@@ -66,4 +66,14 @@ test('optimizer reads multiple constraints and applies unions before distinct-ch
  const controls=Object.fromEntries(['band','attribute','support-attribute'].map((name,i)=>[`[data-search-${name}]`,{multiple:true,selectedOptions:(i===0?['1','2']:[]).map(value=>({value}))}]));
  controls['[data-search-constraints]']={value:'{"leaderId":1}'};
  assert.deepEqual(readOptimizerConstraints({querySelector:s=>controls[s]}),{leaderId:1,bandId:[1,2]});
+});
+
+test('band icons keep accessible names, multi-selection and a readable fallback',()=>{
+ const f=quickField(['all','mygo','mujica'],{icons:{mygo:'/mygo.webp',mujica:'/mujica.webp'}});
+ const button=f.group.children[1],image=button.children[0],label=button.children[1];
+ assert.equal(button.getAttribute('aria-label'),'MYGO');assert.equal(button.title,'MYGO');
+ assert.equal(image.src,'/mygo.webp');assert.equal(label.className,'tool-choice-label');
+ f.click('mygo');f.click('mujica');assert.deepEqual(selectedControlValues(f.field),['mygo','mujica']);
+ image.listeners.error();assert.equal(image.hidden,true);assert.equal(label.className,'');assert.equal(button.dataset.icon,undefined);
+ f.click('all');assert.deepEqual(selectedControlValues(f.field),[]);
 });

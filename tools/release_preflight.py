@@ -114,6 +114,14 @@ def check_environment(entry: dict, root: Path = ROOT) -> dict:
             except (OSError, ValueError, TypeError, AttributeError, GoldenError) as exc:
                 check('input_parse', 'failed', str(exc))
     statuses = {check['status'] for check in report['checks']}
+    if entry.get('arenaReview') and not ({'failed', 'external_gate'} & statuses):
+        from tools.arena_content import read_arena_review
+        try:
+            read_arena_review(entry, root)
+            check('arena_review', 'passed', 'review identity and bytes verified')
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            check('arena_review', 'failed', str(exc))
+        statuses = {check['status'] for check in report['checks']}
     if entry.get('musicAudioInputs') and not ({'failed', 'external_gate'} & statuses):
         from tools.music_audio_inputs import read_music_audio_inputs
         try:

@@ -270,8 +270,17 @@ def upload(bucket, release, pointer_bytes, manifest, files, workers, progress=No
 
 def verify_release(bucket, release, manifest, files, workers, progress=None):
     """Validate the complete logical inventory before pointer CAS; legacy fallback."""
+    inventory = {name: {'sha256': sha, 'bytes': (release / name).stat().st_size}
+                 for name, sha in files.items()}
+    return verify_inventory(bucket, (release / 'manifest.json').read_bytes(), inventory, workers, progress)
+
+
+def verify_inventory(bucket, manifest_raw, inventory, workers, progress=None):
+    """Verify previously uploaded bytes from a sealed publication inventory."""
+    manifest = json.loads(manifest_raw)
+    files = {name: record['sha256'] for name, record in inventory.items()}
     release_id = manifest["root"].split("/")[-2]
-    resolver = SharedMediaResolver(_control(bucket), release_id, (release / "manifest.json").read_bytes())
+    resolver = SharedMediaResolver(_control(bucket), release_id, manifest_raw)
     if resolver.descriptor is None:
         return False
     if resolver.descriptor["inventorySha256"] != digest(canonical(files)):
@@ -282,7 +291,7 @@ def verify_release(bucket, release, manifest, files, workers, progress=None):
         raise ValueError("shared media inventory is incomplete")
     present = bucket.list_identities("content/blobs/")
     for name, record in media.items():
-        size = (release / name).stat().st_size
+        size = inventory[name]['bytes']
         if record["sha256"] != expected[name] or record["bytes"] != size:
             raise ValueError("shared media inventory differs from local content")
         if present.get(blob_key(record["sha256"])) != (size, record["etag"]):
@@ -290,7 +299,7 @@ def verify_release(bucket, release, manifest, files, workers, progress=None):
     base = f"content/releases/{release_id}/"
     def verify(item):
         name, sha = item
-        if not same_object(bucket, base + name, sha, (release / name).stat().st_size):
+        if not same_object(bucket, base + name, sha, inventory[name]['bytes']):
             raise ValueError("R2 release is incomplete or changed")
     _run_bounded(((name, sha) for name, sha in files.items() if not is_shared(name)), verify, workers, progress=progress)
     return True

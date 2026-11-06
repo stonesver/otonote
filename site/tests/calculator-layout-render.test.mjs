@@ -39,7 +39,7 @@ test('deck HTML already contains the current layout and no dormant legacy panels
   const {default:Component}=await import(await compile(source,child));
   const container=await experimental_AstroContainer.create();
   const html=await container.renderToString(Component),nodes=walk(parse(html));
-  for(const [field,part] of [['data-song-select','song'],['data-search-scope','conditions'],['data-pairing-mode','conditions'],['data-optimize-pairing','main'],['data-pairing-results','main']]) {
+  for(const [field,part] of [['data-song-select','song'],['data-search-scope','conditions'],['data-search-band','conditions'],['data-search-support-band','conditions'],['data-pairing-mode','conditions'],['data-optimize-pairing','main'],['data-pairing-results','main']]) {
     const controls=nodes.filter(n=>attr(n,field)!==undefined);
     assert.equal(controls.length,1,`${field} must have one owner`);
     assert.ok(within(controls[0],part),`${field} belongs to its workbench fragment`);

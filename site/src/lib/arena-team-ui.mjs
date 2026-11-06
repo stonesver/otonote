@@ -1,3 +1,4 @@
+import bandIcons from './arena-band-icons.json';
 import { createPersonalGrowthStore } from './personal-growth-store.mjs';
 import { createTeamWorkspaceStore } from './team-workspace-store.mjs';
 import { buildArenaTeamSkills, arenaMissionNames } from './arena-team-skills.mjs';
@@ -44,7 +45,7 @@ class ArenaTeamWorkbench extends HTMLElement {
       this.invalidate(); this.renderSongs();
     } });
     this.append(this.songPicker.element);
-    const iconRoot = globalThis[Symbol.for('ournotes.code-root.v1')] ?? import.meta.env.BASE_URL;
+    const iconRoot = `/content/releases/${bandIcons.releaseId}/public/`;
     for (const option of this.q('form').elements.bandId.options) option.dataset.icon = `${iconRoot}images/filter-bands/band-${option.value}.png`;
     this.stageOptions = setupQuickOptions(this.q('stage'));
     this.stageMode = 'schedule'; this.stageReady = false; this.q('run').disabled = true;

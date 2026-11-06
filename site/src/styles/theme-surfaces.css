@@ -1,6 +1,7 @@
 /* Shared surface hierarchy: tinted navigation, white content, paired action accents. */
 html[data-shell="sidebar"] {
-  .site-brand__mark { background:var(--theme-surface); }
+  .site-brand__mark { display:block; padding:0; border-radius:0; background:transparent; color:var(--theme-accent); }
+  .site-brand__mark svg { display:block; width:100%; height:100%; }
   .site-breadcrumb strong { font-size:15px; font-weight:700; }
   .page-editions { padding-top:14px; }
   .page-editions > div { background:var(--theme-surface); }

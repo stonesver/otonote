@@ -20,12 +20,28 @@ function fixture(mode='ordinary') {
     performanceScenario:{profile:'steady',seed:42,samples:3},gekisouScenario:{seed:42,batches:2,ranks:[1,1,1]},
     constraints:{leaderId:'member-card-1',lockedPairs:draft.slots}};
 }
-async function runWorker(t,payload,requestId=17) {
+async function runWorker(t,payload,requestId=17,control={}) {
   // Adapt browser messaging to an actual isolated worker, retaining structured clone.
   const moduleUrl=new URL('../src/lib/production-optimizer-worker.ts',import.meta.url).href;
   const worker=new Worker(new URL('data:text/javascript,'+encodeURIComponent(`
     import {parentPort} from 'node:worker_threads';
-    globalThis.self={postMessage:data=>parentPort.postMessage(data),addEventListener:(type,handler)=>parentPort.on(type,data=>handler({data}))};
+    const control=${JSON.stringify(control)};let receive,cancelled=false,requestPayload;
+    // Deliver cancellation at a precise boundary without racing the CPU clock.
+    globalThis.self={postMessage:data=>{
+      parentPort.postMessage(data);
+      if(!cancelled&&data.type==='progress'&&data.progress.phase===control.cancelAtPhase){cancelled=true;receive({data:{type:'cancel'}});}
+      if(!cancelled&&data.type==='progress'&&data.progress.phase===control.replaceAtPhase){
+        cancelled=true;
+        receive({data:{type:'optimize',requestId:data.requestId+1,payload:requestPayload}})
+          .then(()=>parentPort.postMessage({type:'settled',requestId:data.requestId+1}));
+      }
+    },addEventListener:(type,handler)=>{receive=handler;parentPort.on(type,async data=>{
+      if(data.type==='optimize')requestPayload=data.payload;
+      const pending=handler({data});
+      if(data.type==='optimize'&&control.cancelBeforeSearch)handler({data:{type:'cancel'}});
+      await pending;
+      if(data.type==='optimize')parentPort.postMessage({type:'settled',requestId:data.requestId});
+    });}};
     await import(${JSON.stringify(moduleUrl)});
     parentPort.postMessage({type:'ready'});
   `)));
@@ -35,8 +51,8 @@ async function runWorker(t,payload,requestId=17) {
     worker.on('error',reject);
     worker.on('message',message=>{
       if(message.type==='ready'){worker.postMessage({type:'optimize',requestId,payload});return;}
+      if(message.type==='settled'){if(message.requestId===requestId+(control.replaceAtPhase?1:0))resolve({message:messages.find(m=>m.type==='result'||m.type==='error'),messages});return;}
       messages.push(message);
-      if(message.type==='result'||message.type==='error')resolve({message,messages});
     });
   });
 }
@@ -60,4 +76,31 @@ test('typed worker keeps errors associated with their request',async t=>{
   const payload=fixture();payload.variantLimit=0;
   const {message}=await runWorker(t,payload,29);
   assert.equal(message.type,'error');assert.equal(message.requestId,29);assert.match(message.error,/1–1000/);
+});
+
+for(const mode of ['ordinary','gekisou'])for(const control of [{cancelBeforeSearch:true},{cancelAtPhase:'planning'},{cancelAtPhase:'planning-result'}]) {
+  test(`planning cancellation settles with full ${mode} candidates only: ${JSON.stringify(control)}`,{timeout:10000},async t=>{
+    const payload=fixture(mode);
+    const {message,messages}=await runWorker(t,payload,41,control);
+    assert.ok(message,'a cancelled worker must send a terminal response so the UI leaves stopping');
+    assert.equal(message.type,'result');assert.equal(message.requestId,41);
+    assert.equal(message.result.status,'cancelled');assert.equal(message.result.optimality,'incomplete');
+    assert.equal(messages.filter(m=>m.type==='result').length,1);
+    if(control.cancelAtPhase==='planning-result'){
+      const scored=messages.find(m=>m.progress?.phase==='planning-result').progress.bestCandidate;
+      assert.ok(message.result.results.length);
+      const kept=message.result.results.find(row=>row.id===scored.id);
+      assert.ok(kept,'keep the candidate whose full calculation already finished');
+      for(const field of ['value','power','expectedScore','minimumScore','maximumScore','scorePrecision','orderCount','performanceScenario'])assert.deepEqual(kept[field],scored[field],field);
+      assert.equal(kept.scorePrecision,'full');
+    }else assert.deepEqual(message.result.results,[]);
+  });
+}
+
+test('restarting a planning worker suppresses the cancelled predecessor and returns the unchanged full result',{timeout:10000},async t=>{
+  const payload=fixture(),expected=await optimizeTeamPlanning({...payload,yieldControl:async()=>{}});
+  const {message,messages}=await runWorker(t,payload,51,{replaceAtPhase:'planning-result'});
+  assert.equal(message.type,'result');assert.equal(message.requestId,52);
+  assert.deepEqual(message.result,expected);
+  assert.equal(messages.filter(m=>m.type==='result'||m.type==='error').length,1);
 });

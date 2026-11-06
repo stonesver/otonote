@@ -29,10 +29,13 @@ self.addEventListener('message',async ({data}: MessageEvent<OptimizerCommand>)=>
       const key='planning-result-v1:'+await searchDigest({model:SCORE_MODEL_VERSION,payload});
       // This namespace only stores completed planning reports from this worker.
       const cached=await resultStore.get(key) as OptimizerReport | null;
-      if(controller.signal.aborted)return;
+      if(active!==controller)return;
       const result=cached??await optimizeTeamPlanning({...payload,signal:controller.signal,onProgress:send,yieldControl});
-      if(!cached&&result.status==='completed')await resultStore.put(key,result);
-      if(!controller.signal.aborted)post({requestId,type:'result',result});return;
+      if(!cached&&!controller.signal.aborted&&result.status==='completed')await resultStore.put(key,result);
+      // Cancellation settles the current UI with fully scored candidates. A
+      // replacement request owns the UI; late work from its predecessor is ignored.
+      if(active===controller)post({requestId,type:'result',result:controller.signal.aborted
+        ? {...result,status:'cancelled',optimality:'incomplete'} : result});return;
     }
     if(payload.searchMethod==='practical'){const result=await optimizePractical({...payload,signal:controller.signal,onProgress:send,yieldControl});post({requestId,type:'result',result});return;}
     let size=Math.max(1,Math.min(4,Math.floor(payload.concurrency??1)));

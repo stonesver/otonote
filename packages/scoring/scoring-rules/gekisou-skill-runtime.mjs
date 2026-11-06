@@ -60,7 +60,7 @@ export function createGekisouEffectState(effect, budget = { uses: 0 }) {
  * previous Gekisou.Update counters/lots; operators only change game state. */
 export function advanceGekisouEffect(e, ctx) {
   const r = e.definition, p = e.programs, trigger = p._skillTriggerConditionGroup;
-  ctx = { ...ctx, band: e.band, counters: e.counters };
+  ctx.band = e.band; ctx.counters = e.counters;
   const end = timeMs => {
     e.operator.stop?.(e, ctx, timeMs);
     ctx.factor(e, 0, timeMs);
@@ -68,7 +68,9 @@ export function advanceGekisouEffect(e, ctx) {
     e.windows.at(-1).endMs = timeMs;
     ctx.dirty(); ctx.trace(e, 'end');
   };
-  const events = [ctx, ...ctx.section.previousLots.map(lot => ({ ...ctx, lot }))];
+  // Most frames have no lottery event. Keep that common path allocation-free.
+  let events;
+  const eventContexts = () => events ??= [ctx, ...ctx.section.previousLots.map(lot => ({ ...ctx, lot }))];
   if (e.executing && (ctx.closing || ctx.frame >= e.endFrame || e.operator.exhausted?.(e))) {
     end(ctx.frame >= e.endFrame && !ctx.closing ? e.endMs : ctx.timeMs);
   }
@@ -82,7 +84,7 @@ export function advanceGekisouEffect(e, ctx) {
   }
   const consumeEvent = program => {
     if (program.empty) return false;
-    for (const event of events) {
+    for (const event of eventContexts()) {
       const branch = program.match(event, ctx.random);
       if (branch) { program.consume(branch, e.counters); return true; }
     }
@@ -100,7 +102,7 @@ export function advanceGekisouEffect(e, ctx) {
   // retain their handle until duration/release. Neither depends on effect ID.
   if (e.executing && r._skillTriggerType === 2 && trigger.sustained(e.activationBranch) &&
     (!trigger.stillMatches(e.activationBranch, ctx) || !eligible)) end(ctx.timeMs);
-  const contexts = trigger.lottery || p._skillConditionGroup.lottery ? events : [ctx];
+  const contexts = trigger.lottery || p._skillConditionGroup.lottery ? eventContexts() : [ctx];
   for (const event of contexts) {
     const branch = trigger.empty ? (event.entering && !event.lot ? [] : null) : trigger.match(event);
     if (!branch || e.executing || !(e.operator.ready?.(e, event) ?? true) ||

@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | [Golden Replay evidence intake](../catalog/baselines/scoring/README.md) | `reference` | `current` |
 | [三服邮箱认证与账号读取](reference/account-reads.md) | `reference` | `current` |
-| [激奏舞台信息查询与配队入口设计](reference/arena-stage.md) | `reference` | `current` |
+| [激奏舞台规则、信息设计与配队](reference/arena-stage.md) | `reference` | `current` |
 | [计算搜索与证书边界](reference/calculation-search.md) | `reference` | `current` |
 | [服装图鉴](reference/costumes.md) | `reference` | `current` |
 | [抽卡记录](reference/gacha-history.md) | `reference` | `current` |
@@ -38,6 +38,7 @@
 | [JP 客户端自动升级](reference/jp-client-upgrade.md) | `reference` | `current` |
 | [两服目录身份与版本差异](reference/library-identity.md) | `reference` | `current` |
 | [演出情景与激奏机制：实现依据](reference/performance-scenarios.md) | `reference` | `current` |
+| [技能语义模型与执行契约](reference/skill-semantics.md) | `reference` | `current` |
 | [私有状态 checkpoint 与恢复](reference/private-state.md) | `reference` | `current` |
 | [浏览器截图导入](reference/screenshot-import.md) | `reference` | `current` |
 | [公告与页面更新提示](reference/site-notices.md) | `reference` | `current` |

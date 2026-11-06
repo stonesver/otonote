@@ -37,6 +37,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
     children: [
       { labelKey: "live2dWorkbench", href: "/tools/live2d/" },
       { labelKey: "teamBuilder", href: "/tools/deck-builder/" },
+      { labelKey: "arenaTeams", href: "/tools/arena/" },
       { labelKey: "songCalculator", href: "/tools/song-calculator/" },
       { labelKey: "songRanking", href: "/tools/song-ranking/" },
       { labelKey: "apGrade", href: "/tools/ap-grade/" },

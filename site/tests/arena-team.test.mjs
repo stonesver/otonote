@@ -8,15 +8,59 @@ import { createPerformanceTemplate } from '../../packages/scoring/scoring-rules/
 import { generateJustCandidates, searchArenaTeams } from '../src/lib/arena-team-search.mjs';
 import { createInventoryManager } from '../src/lib/inventory-manager.mjs';
 import { rankGekisouSection } from '../../packages/scoring/scoring-rules/gekisou-ranking.mjs';
+import { arenaCandidateChanges, arenaCandidateOrder, arenaSongPreview } from '../src/lib/arena-team-preview.mjs';
+import { arenaStageTracks } from '../src/lib/arena-song-picker.mjs';
 
 const stage = { bandId: 1, musicType: 99, missions: [3, 3, 3], participantCount: 5 };
 const section = (just, bonuses, noteScore = 100, perfectCount = 20) => ({ index: 1, missionType: 3, just, noteScore, perfectCount, bonuses });
 const candidate = (id, noteScore, just) => ({ id, songs: [{ samples: [{ noteScore, sections: [section(just, [50000, 0])] }] }] });
 
+test('candidate differences distinguish card replacement, support reassignment and captain movement', () => {
+  const slots = Array.from({ length: 5 }, (_, i) => ({ memberCardId: `m${i}`, supportCardId: `s${i}` }));
+  const cards = new Map(slots.map((slot, i) => [slot.memberCardId, { characterId: i }]));
+  cards.set('m0-new', { characterId: 0 });
+  const reference = { slots }, snapshot = structuredClone(reference);
+  const diff = draft => arenaCandidateChanges(draft, reference, cards);
+  const counts = result => [result.members, result.supports, result.pairings, result.leaderChanged];
+  // Whole-pair permutations do not replace cards or change who a support belongs to.
+  assert.deepEqual(counts(diff({ slots: [slots[1], slots[0], slots[2], slots[4], slots[3]] })), [0, 0, 0, false]);
+  const captain = diff({ slots: [slots[2], slots[1], slots[0], slots[3], slots[4]] });
+  assert.deepEqual(counts(captain), [0, 0, 0, true]);
+  const replaced = diff({ slots: slots.map((slot, i) => i === 0 ? { memberCardId: 'm0-new', supportCardId: 'new-support' } : slot) });
+  assert.deepEqual(counts(replaced), [1, 1, 0, false]);
+  assert.equal(replaced.slots[0].before, slots[0]);
+  assert.equal(replaced.slots[0].memberChanged, true);
+  assert.equal(replaced.slots[0].supportChanged, true);
+  // Swapping two existing supports is a pairing change, not two newly added cards.
+  const reassigned = diff({ slots: slots.map((slot, i) => i < 2 ? { ...slot, supportCardId: slots[1 - i].supportCardId } : slot) });
+  assert.deepEqual(counts(reassigned), [0, 0, 2, false]);
+  assert.equal(reassigned.slots[0].supportMoved, true);
+  const variant = diff({ slots: slots.map((slot, i) => i === 0 ? { ...slot, memberCardId: 'm0-new' } : slot) });
+  assert.deepEqual(counts(variant), [1, 0, 0, false]);
+  assert.deepEqual(reference, snapshot);
+});
+
 test('count-only benefit survives unknown-opponent comparison and changes recommendation', () => {
   const ranked = rankArenaCandidates([candidate('score', 5000000, 40), candidate('count', 4980000, 110)], [{ weight: 1 }]);
   assert.deepEqual(ranked.map(c => [c.id, c.worstLoss]), [['count', 20000], ['score', 30000]]);
   assert.equal(ranked[0].sameRankScore, 4980000);
+  const unknown = arenaCandidateOrder(ranked, { mode: 'unknown' });
+  assert.deepEqual(unknown.map(row => row.candidate.id), ['count', 'score']);
+  assert.ok(unknown.every(row => row.score === null));
+  assert.deepEqual(arenaCandidateOrder(ranked, { mode: 'unknown' }, 'score').map(row => row.candidate.id), ['score', 'count']);
+});
+
+test('arena song choices follow the league band and available charts, independent of original attributes and missions', () => {
+  const tracks = [
+    { id: 'a', bandIds: ['band-1'], musicType: 1, missions: [1, 2, 3] },
+    { id: 'b', bandIds: ['band-2'], musicType: 99, missions: [3, 3, 3] },
+    { id: 'shared', bandIds: ['band-1', 'band-2'] },
+    { id: 'missing', bandIds: ['band-1'] }
+  ];
+  const charts = ['a', 'b', 'shared'].map(trackId => ({ trackId, analysisDataUrl: '/chart.json' }));
+  const ids = band => arenaStageTracks(tracks, charts, band).map(track => track.id);
+  assert.deepEqual(ids(1), ['a', 'shared']);
+  assert.deepEqual(ids('2'), ['b', 'shared']);
 });
 
 test('same task counts use score/perfect tie-breakers; identical tuples must share ranks', () => {
@@ -45,6 +89,35 @@ test('ranking is performed before averaging operation samples', () => {
   a.songs[0].samples = [0, 20].map(just => ({ noteScore: 100, sections: [section(just, [50, 0])] }));
   b.songs[0].samples = [10, 10].map(just => ({ noteScore: 100, sections: [section(just, [50, 0])] }));
   assert.equal(rankArenaCandidates([a, b], [{ weight: 1 }])[0].worstLoss, 25);
+});
+
+test('visible rank previews preserve sample rank ranges and score the same scenario', () => {
+  const song = { samples: [0, 20].map(just => ({ noteScore: 100, sections: [section(just, [50, 0])] })) };
+  const opponents = [[{ just: 10, noteScore: 0, perfectCount: 0 }]];
+  assert.deepEqual(arenaSongPreview(song, { opponents }), {
+    score: 125, sections: [{ just: 10, minRank: 1, maxRank: 2 }]
+  });
+  assert.deepEqual(arenaSongPreview(song, { rank: 2 }), {
+    score: 100, sections: [{ just: 10, minRank: 2, maxRank: 2 }]
+  });
+  assert.equal(arenaSongPreview(song, { rank: 1 }).score, 150);
+  assert.equal(arenaSongPreview(song, { opponents: [[{ just: 0, noteScore: 0, perfectCount: 0 }]] }).score, 150);
+});
+
+test('candidate score order follows the displayed rank scenario without changing recommendation order', () => {
+  const count = { ...candidate('count', 100, 20), sameRankScore: 100, firstRankScore: 50100 };
+  const score = { ...candidate('score', 1000, 0), sameRankScore: 1000, firstRankScore: 51000 };
+  const middle = { ...candidate('middle', 2000, 0), sameRankScore: 2000, firstRankScore: 22000 };
+  middle.songs[0].samples[0].sections[0].bonuses = [20000, 0];
+  const tied = { ...structuredClone(score), id: 'tied' }, candidates = [count, score, middle, tied];
+  const ids = rows => rows.map(row => row.candidate.id);
+  assert.deepEqual(ids(arenaCandidateOrder(candidates, { mode: 'same' })), ['middle', 'score', 'tied', 'count']);
+  assert.deepEqual(ids(arenaCandidateOrder(candidates, { mode: 'first' })), ['score', 'tied', 'count', 'middle']);
+  const preview = { mode: 'opponents', songIndex: 0, opponents: new Map([[0, [[{ just: 10, noteScore: 0, perfectCount: 0 }]]]]) };
+  const rows = arenaCandidateOrder(candidates, preview);
+  assert.deepEqual(rows.map(row => [row.candidate.id, row.score]), [['count', 50100], ['middle', 2000], ['score', 1000], ['tied', 1000]]);
+  assert.deepEqual(ids(arenaCandidateOrder(candidates, preview, 'recommendation')), ['count', 'score', 'middle', 'tied']);
+  assert.deepEqual(candidates.map(c => c.id), ['count', 'score', 'middle', 'tied']);
 });
 
 test('stage view is immutable, distinguishes fallback from ALL and keeps mixed missions', () => {
@@ -100,6 +173,9 @@ test('owned growth is preserved, band restriction applies only to members, and s
   assert.deepEqual(profile, snapshot);
   assert.equal(result.poolMode, 'one_difficulty_per_song');
   assert.equal(result.weightMeaning, 'evaluation_importance');
+  await assert.rejects(searchArenaTeams({ rules, profile, stage: { ...stage, participantCount: 2 }, songs: [...songs, { ...songs[0], trackId: 'third' }] }), /1–2 首/);
+  const inherited = await searchArenaTeams({ rules, profile, stage: { ...stage, missions: [0, 0, 0] }, songs, performanceScenario: { profile: 'ideal' } });
+  assert.deepEqual(inherited.candidates.map(c => [c.id, c.sameRankScore, c.firstRankScore, c.worstLoss]), result.candidates.map(c => [c.id, c.sameRankScore, c.firstRankScore, c.worstLoss]));
   await assert.rejects(searchArenaTeams({ rules, profile, stage, songs: [songs[0], { ...songs[0], difficulty: 'hard' }] }), /每首歌曲只选一档难度/);
   await assert.rejects(searchArenaTeams({ rules, profile, stage: { ...stage, missions: [1, 3, 3] }, songs }), /混段/);
   await assert.rejects(searchArenaTeams({ rules, profile, stage, songs: [songs[0], { ...songs[0], chart: null, trackId: 'music-unknown' }] }), /谱面/);
@@ -139,6 +215,18 @@ test('parallel evaluation retains every candidate, song and skill-order sample i
   assert.equal(progress.at(-1).completed, candidates.length);
 });
 
+function arenaSkillCards(rules) {
+  const cards = new Map();
+  for (const kind of ['member', 'support']) for (const native of rules.tables[kind === 'member' ? 'MemberCard' : 'SupportCard']) {
+    const id = `${kind}-card-${native._id}`, skillId = kind === 'member' ? native._gekisouSkillID : native._gekisouSupportSkillId01;
+    const parent = rules.tables[kind === 'member' ? 'GekisouSkill' : 'GekisouSupportSkill'].find(s => s._id === skillId);
+    cards.set(id, { id, kind, masterId: native._id, skills: parent ? [{ kind: kind === 'member' ? 'gekisou' : 'gekisou_support',
+      slot: kind === 'member' ? 'gekisou' : 'gekisou_support_1', mission: parent._gekisouMissionType,
+      levels: [1, 2, 3, 4, 5].map(level => ({ level, summary: `效果等级 ${level}` })) }] : [] });
+  }
+  return cards;
+}
+
 test('team skills use actual member levels and support ranks, and separate inactive missions and durations', async () => {
   const { buildArenaTeamSkills } = await import('../src/lib/arena-team-skills.mjs');
   const { rules, draft } = fixture({ missions: [3, 3, 3] });
@@ -148,14 +236,7 @@ test('team skills use actual member levels and support ranks, and separate inact
   rules.tables.SupportCard[0]._gekisouSupportSkillId01 = rules.tables.SupportCard[1]._gekisouSupportSkillId01 = windowSkill;
   draft.modifiers.growth = { 'member-card-1': { gekisouSkillLevel: 1 }, 'member-card-2': { gekisouSkillLevel: 5 },
     'support-card-1': { rank: 1 }, 'support-card-2': { rank: 5 } };
-  const cards = new Map();
-  for (const kind of ['member', 'support']) for (const native of rules.tables[kind === 'member' ? 'MemberCard' : 'SupportCard']) {
-    const id = `${kind}-card-${native._id}`, skillId = kind === 'member' ? native._gekisouSkillID : native._gekisouSupportSkillId01;
-    const parent = rules.tables[kind === 'member' ? 'GekisouSkill' : 'GekisouSupportSkill'].find(s => s._id === skillId);
-    cards.set(id, { id, kind, masterId: native._id, skills: parent ? [{ kind: kind === 'member' ? 'gekisou' : 'gekisou_support',
-      slot: kind === 'member' ? 'gekisou' : 'gekisou_support_1', mission: parent._gekisouMissionType,
-      levels: [1, 2, 3, 4, 5].map(level => ({ level, summary: `效果等级 ${level}` })) }] : [] });
-  }
+  const cards = arenaSkillCards(rules);
   const skills = buildArenaTeamSkills(rules, draft, cards, [3]);
   assert.equal(skills.byCard.get('member-card-1')[0].summary, '效果等级 1');
   assert.equal(skills.byCard.get('member-card-2')[0].summary, '效果等级 5');
@@ -166,4 +247,38 @@ test('team skills use actual member levels and support ranks, and separate inact
   const count = skills.groups.find(g => g.role === '计数');
   assert.equal(count.sources.length, 2);
   assert.equal(count.entries.length, 2, 'different durations must not be added into a whole-section bonus');
+});
+
+
+test('compact JUST summaries retain level caps, paired-band branches, conversion selectors and separate budgets', async () => {
+  const { buildArenaTeamSkills } = await import('../src/lib/arena-team-skills.mjs');
+  const { rules, draft } = fixture({ missions: [3, 3, 3] });
+  rules.tables.MemberCard[0]._gekisouSkillID = 11;
+  rules.tables.MemberCard[1]._gekisouSkillID = 16;
+  rules.tables.MemberCard[2]._gekisouSkillID = 19;
+  rules.tables.SupportCard[0]._gekisouSupportSkillId01 = 76;
+  draft.modifiers.growth = { 'member-card-1': { gekisouSkillLevel: 3 }, 'member-card-2': { gekisouSkillLevel: 5 },
+    'support-card-1': { rank: 5 } };
+  const cards = arenaSkillCards(rules), build = () => buildArenaTeamSkills(rules, draft, cards, [3]);
+  const first = build();
+  assert.equal(first.byCard.get('member-card-1')[0].compactSummary, '每 4 次 JUST，额外计数 +1（最多 +5）');
+  assert.equal(first.byCard.get('member-card-1')[0].summary, '效果等级 3', 'native text remains available');
+  assert.equal(first.byCard.get('member-card-3')[0].compactSummary, '', 'inactive COMBO is not presented as a JUST effect');
+  const life = first.byCard.get('member-card-2')[0].compactSummary;
+  assert.match(life, /入段 LIFE < 700：每次 JUST 额外 \+1/);
+  assert.match(life, /入段 LIFE ≥ 700：每次 JUST 额外 \+3/);
+  assert.equal(first.byCard.get('support-card-1')[0].compactSummary,
+    '每 30 次 PERFECT，下 1 次 PERFECT～MISS → JUST；每段最多 4 轮');
+  const character = rules.tables.Character.find(c => c._id === rules.tables.MemberCard[0]._characterID);
+  rules.tables.MemberCard[0]._characterID = rules.tables.Character.find(c => c._bandID !== character._bandID)._id;
+  assert.match(build().byCard.get('support-card-1')[0].compactSummary, /^每 50 次 PERFECT/);
+  for (const e of rules.tables.GekisouSupportSkillEffect.filter(e => e._gekisouSupportSkillID === 76)) {
+    e._effectExecuteLimitResetConditionGroup = 0; e._effectLimitCount = 2;
+  }
+  assert.equal(build().byCard.get('support-card-1')[0].compactSummary,
+    '每 50 次 PERFECT，下 2 次 PERFECT～MISS → JUST；整曲最多 4 轮');
+  const trigger = rules.tables.GekisouSkillEffect.find(e => e._gekisouSkillID === 11 && e._level === 3)._skillTriggerConditionGroup;
+  const branch = rules.tables.SkillConditionSet.find(s => s._group === trigger);
+  rules.tables.SkillConditionSet.push({ ...branch, _id: 999999 });
+  assert.equal(build().byCard.get('member-card-1')[0].compactSummary, '效果等级 3', 'a template cannot flatten an unhandled OR program');
 });

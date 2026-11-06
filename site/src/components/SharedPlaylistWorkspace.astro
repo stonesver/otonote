@@ -25,7 +25,7 @@ import '../styles/playlist-workspace.css';
     standalone.openManager();
    }catch{launcher.textContent='加载失败，点击重试';}finally{loading=false;if(launcher.textContent==='正在打开…')launcher.textContent='我的歌单';}
   });
-  const observeDock=()=>{const dock=document.querySelector('.event-action-dock');if(dock){const sync=()=>group.style.setProperty('--personal-dock-offset',`${Math.max(0,window.innerHeight-dock.getBoundingClientRect().top)}px`);new ResizeObserver(sync).observe(dock);sync();return true;}return false;};
+  const observeDock=()=>{const dock=document.querySelector('.event-action-dock, [data-calculation-dock]');if(dock){const sync=()=>group.style.setProperty('--personal-dock-offset',`${Math.max(0,window.innerHeight-dock.getBoundingClientRect().top)}px`);new ResizeObserver(sync).observe(dock);sync();return true;}return false;};
   if(!observeDock()){const observer=new MutationObserver(()=>{if(observeDock())observer.disconnect();});observer.observe(document.body,{childList:true,subtree:true});}
  }
 </script>

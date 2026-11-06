@@ -89,7 +89,7 @@ export async function evaluateArenaCandidates({ rules, context, songs, performan
           const result = calculator.calculateRankingSamples({ ...candidate.draft, selectedSongId: song.trackId, selectedDifficulty: song.difficulty });
           if (result.randomSampling) throw Error('本版 JUST 比较暂不支持带随机效果的候选');
           power = result.power;
-          samples.push(...result.rankingSamples.map(sample => arenaRankingSample(rules, sample, context.missions, context.participantCount)));
+          samples.push(...result.rankingSamples.map(sample => arenaRankingSample(rules, sample, sample.sections.map(section => section.missionType), context.participantCount)));
           await yieldControl();
         }
         rows.push({ power, samples });
@@ -106,14 +106,15 @@ export async function evaluateArenaCandidates({ rules, context, songs, performan
 
 export async function searchArenaTeams({ rules: sourceRules, profile, stage, songs, performanceScenario }, { onProgress, yieldControl = async () => {}, evaluateCandidates = evaluateArenaCandidates } = {}) {
   const { context, rules } = applyArenaContext(sourceRules, stage);
-  if (context.missions.some(m => m !== 3)) throw Error('第一版支持三段 JUST；COMBO、LUCK 与混段尚未开放');
-  if (!songs?.length || songs.length > 12) throw Error('请选择 1–12 首歌曲作为评估范围');
+  if (!songs?.length || songs.length > context.participantCount) throw Error(`请选择 1–${context.participantCount} 首歌曲作为评估范围`);
   if (songs.some(s => !Number.isFinite(s.weight) || s.weight <= 0)) throw Error('曲目权重须为正数');
   const keys = songs.map(s => s.trackId);
   if (new Set(keys).size !== keys.length) throw Error('每首歌曲只选一档难度，请合并歌曲权重');
   const performance = normalizePerformanceScenario(performanceScenario);
   for (const song of songs) {
     if (!song.chart || song.chart.sourceReleaseId !== rules.sourceReleaseId || song.chart.trackId !== song.trackId || song.chart.difficulty !== song.difficulty) throw Error('谱面与内容版本不一致，请重新加载');
+    const music = rules.tables.LiveMusic.find(m => `music-${m._id}` === song.trackId);
+    if ([1, 2, 3].some(i => music?.[`_gekisouMission${i}`] !== 3)) throw Error('所选场次含 COMBO、LUCK 或混段，请选择三段 JUST 场次');
   }
   const candidates = await generateJustCandidates(rules, profile, context, songs, { onProgress, yieldControl });
   const { evaluated, omitted } = await evaluateCandidates({ rules, context, songs, performance, candidates }, { onProgress, yieldControl });

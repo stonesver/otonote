@@ -1,4 +1,5 @@
 name: Content production to R2
+run-name: "Content update / ${{ inputs.region || 'all' }} / ${{ inputs.dispatch_id || github.event_name }}"
 
 on:
   workflow_dispatch:
@@ -14,6 +15,14 @@ on:
         default: shadow
         type: choice
         options: [shadow, promote, auto]
+      scheduled_for:
+        description: External scheduler's UTC minute; leave empty for manual runs
+        required: false
+        type: string
+      dispatch_id:
+        description: External trigger correlation ID; leave empty for manual runs
+        required: false
+        type: string
   schedule:
     # Beijing 03:00 replaces 09:00; retain the existing 14:00 and 19:00 checks.
     - cron: '0 6,11,19 * * *'
@@ -30,9 +39,10 @@ jobs:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (
-        (github.event_name == 'schedule' &&
+        (github.event_name == 'schedule' && vars.CONTENT_R2_SCHEDULER != 'external' &&
           (vars.CONTENT_R2_ENABLED_GLOBAL == 'true' || vars.CONTENT_R2_ENABLED_JP == 'true')) ||
         (github.event_name == 'workflow_dispatch' &&
+          (inputs.scheduled_for == '' || vars.CONTENT_R2_SCHEDULER == 'external') &&
           ((inputs.region == 'global' && vars.CONTENT_R2_ENABLED_GLOBAL == 'true') ||
            (inputs.region == 'jp' && vars.CONTENT_R2_ENABLED_JP == 'true')))
       )
@@ -44,6 +54,7 @@ jobs:
     outputs:
       regions: ${{ steps.select.outputs.regions }}
       run: ${{ steps.select.outputs.run }}
+      scheduled_for: ${{ steps.select.outputs.scheduled_for }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,6 +67,7 @@ jobs:
         env:
           SCHEDULE: ${{ github.event.schedule }}
           INPUT_REGION: ${{ inputs.region }}
+          SCHEDULED_FOR: ${{ inputs.scheduled_for }}
           CONTENT_R2_ENABLED_GLOBAL: ${{ vars.CONTENT_R2_ENABLED_GLOBAL }}
           CONTENT_R2_ENABLED_JP: ${{ vars.CONTENT_R2_ENABLED_JP }}
         run: python -m tools.arena_sync
@@ -91,6 +103,7 @@ jobs:
       AUTO_PROMOTE_JP: ${{ vars.CONTENT_R2_AUTO_PROMOTE_JP }}
       R2_SHARED_MEDIA: ${{ vars.CONTENT_R2_SHARED_MEDIA || 'false' }}
       STABLE_ROOT: /srv/ournotes-updater/app
+      SCHEDULED_FOR: ${{ needs.select.outputs.scheduled_for }}
     steps:
       - uses: actions/checkout@v4
         with:

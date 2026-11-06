@@ -6,7 +6,8 @@ import re
 import time
 
 CODES = {'worker_errors', 'worker_budget', 'worker_metrics_stale', 'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
-         'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget'}
+         'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget',
+         'trigger_failed', 'trigger_unconfirmed', 'trigger_stale'}
 
 STAGES = ('configuration', 'prepare', 'baseline', 'image', 'proxy', 'light_prepare',
           'light_gate', 'restore', 'capacity', 'client', 'production_gate',
@@ -74,6 +75,10 @@ def read_health(workspace):
                 return unavailable
             result['runs'][region] = {key: row[key] for key in ('runId', 'status', 'sourceSha')}
             result['runs'][region].update(event=row.get('event', 'unknown'), failedStage=row.get('failedStage'))
+            origin = row.get('origin', row.get('event', 'unknown'))
+            if origin not in ('unknown', 'schedule', 'workflow_dispatch', 'external'):
+                return unavailable
+            result['runs'][region]['origin'] = origin
         worker = value.get('worker', {'status': 'not_configured'})
         if not isinstance(worker, dict) or worker.get('status') not in ('ready', 'not_configured', 'unavailable'):
             return unavailable

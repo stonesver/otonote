@@ -93,7 +93,7 @@ async function refreshLoads(gen=generation){
 }
 function renderUpdateHealth(health){
   const box=el('section',null,'content-delivery');
-  const labels={worker_errors:'Worker 错误率升高',worker_budget:'Worker 请求接近运维预算',worker_metrics_stale:'Worker 指标不可用',schedule_stale:'原生定时探测未及时到达',receipt_missing:'运行回执缺失',poll_stale:'超过一小时未取得探测结果',run_stuck:'运行超过六小时',run_failed:'生产阶段失败',delivery_unknown:'本机交付状态不可核对',delivery_lag:'网页落后于远端内容',remote_unavailable:'远端版本读取失败',ranking_stale:'榜单采集不新鲜',ranking_paused:'榜单采集已暂停',disk_budget:'剩余空间不足以覆盖发布预算'};
+  const labels={worker_errors:'Worker 错误率升高',worker_budget:'Worker 请求接近运维预算',worker_metrics_stale:'Worker 指标不可用',trigger_failed:'服务器触发被拒绝',trigger_unconfirmed:'GitHub 是否受理尚未确认',trigger_stale:'服务器触发器回执缺失或过期',schedule_stale:'定时更新未及时到达',receipt_missing:'运行回执缺失',poll_stale:'计划检查超过宽限仍无运行结果',run_stuck:'运行超过六小时',run_failed:'生产阶段失败',delivery_unknown:'本机交付状态不可核对',delivery_lag:'网页落后于远端内容',remote_unavailable:'远端版本读取失败',ranking_stale:'榜单采集不新鲜',ranking_paused:'榜单采集已暂停',disk_budget:'剩余空间不足以覆盖发布预算'};
   const states={healthy:'状态正常',waiting:'观察中',attention:'需要处理',unavailable:'采样不可用'};
   box.append(el('h4','更新运行与告警'),el('p',states[health?.status]||states.unavailable));
   if(!health||health.status==='unavailable'){
@@ -102,7 +102,7 @@ function renderUpdateHealth(health){
   box.append(el('small',`采样：${new Date(health.observedAt*1000).toLocaleString('zh-CN',{hour12:false})} · 告警仅在本页和服务器日志记录`));
   for(const region of ['global','jp']){
     const run=health.runs?.[region];if(!run)continue;
-    const origin={schedule:'原生定时',workflow_dispatch:'手动派发',unknown:'来源未知'}[run.event]||'来源未知';
+    const origin={schedule:'原生定时',external:'服务器定时',workflow_dispatch:'手动派发',unknown:'来源未知'}[run.origin||run.event]||'来源未知';
     const link=el('a',`${region.toUpperCase()} #${run.runId} · ${run.status} · ${origin}${run.failedStage?' · 失败阶段 '+run.failedStage:''}`,'action-link');
     link.href=`https://github.com/stonesver/otonote/actions/runs/${run.runId}`;link.target='_blank';link.rel='noopener noreferrer';
     const line=el('p');line.append(link);box.append(line);
@@ -147,7 +147,7 @@ function renderContentDelivery(profile){
     'Branch 选择 main，region 选择 global 或 jp；更新两服需分别运行。',
     '正式更新选择 mode = promote，然后提交。仅验证生产和上传时选择 shadow，它不会更新网站。',
     '在该次 Actions 运行中查看进度和结果；promote 完成后等待服务器同步、生成页面，再回到此页刷新。'])steps.append(el('li',text));
-  guide.append(steps,el('p','日常追新由 Actions 定时执行。只修改网站功能时走代码发布流程，无需手动运行游戏资源生产。','caption'),
+  guide.append(steps,el('p','日常追新由定时触发器发起，Actions 执行。只修改网站功能时走代码发布流程，无需手动运行游戏资源生产。','caption'),
     el('p','若已保存发布但晋级失败，使用“重试已保存的发布”，填入原运行摘要中的发布编号，先 verify 再 promote。若仅等待页面交付，重试服务器现有预渲染服务即可，无需重新生产资源。','caption'));
   section.append(guide,el('p','本页分别核对运行回执、远端版本和本机交付；详细步骤可打开对应 Actions 运行。','caption'));
   section.append(el('p',profile.updatedAt?`本机采样：${new Date(profile.updatedAt*1000).toLocaleString('zh-CN',{hour12:false})} · 每两分钟采样，超过六分钟失效`:'本机状态尚无采样','caption'));

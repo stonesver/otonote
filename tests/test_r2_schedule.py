@@ -82,6 +82,16 @@ class ScheduleTests(unittest.TestCase):
         self.assertFalse(expression(self.eligibility, context))
         self.assertFalse(expression(self.eligibility, self.context(**{'github.event_name': 'push'})))
 
+    def test_only_one_scheduler_is_eligible_and_manual_probes_remain_available(self):
+        for scheduler in ('', 'native', 'external'):
+            native = self.context(**{'vars.CONTENT_R2_SCHEDULER': scheduler})
+            self.assertEqual(bool(expression(self.eligibility, native)), scheduler != 'external')
+            manual = self.context(**{'vars.CONTENT_R2_SCHEDULER': scheduler,
+                'github.event_name': 'workflow_dispatch', 'inputs.region': 'global'})
+            self.assertTrue(expression(self.eligibility, manual))
+            manual['inputs.scheduled_for'] = '2026-11-06T06:00:00Z'
+            self.assertEqual(bool(expression(self.eligibility, manual)), scheduler == 'external')
+
     def test_three_daily_triggers_and_registered_dates_match_health_schedule(self):
         self.assertEqual(self.crons, ['0 6,11,19 * * *'])
         self.assertNotIn("*/5", self.text)
@@ -95,7 +105,7 @@ class ScheduleTests(unittest.TestCase):
         self.assertEqual([(hour + 8) % 24 for hour in UTC_HOURS], [14, 19, 3])
         for region in ('global', 'jp'):
             timer = WORKFLOW.parents[2] / f'deploy/ournotes-update-trigger-{region}.timer'
-            self.assertIn('OnCalendar=*-*-* 06,11,19:00:00 UTC', timer.read_text())
+            self.assertIn('OnCalendar=*-*-* *:*:00 UTC', timer.read_text())
 
     def select(self, event, cron='', region='', mode='', auto='true', global_workers='', jp_workers='',
                selected_region=None):

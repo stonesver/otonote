@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {runPlaylistTeamBatch} from '../src/lib/playlist-team-batch.mjs';
+import {runPlaylistTeamBatch} from '../src/lib/playlist-team-batch.ts';
 const candidates=[1,2,3].map(i=>({id:`c${i}`,trackId:`music-${i}`,title:`song ${i}`,difficulty:'expert',analysisDataUrl:`/${i}`}));
 const payload={draft:{slots:[],modifiers:{}},rules:{sourceReleaseId:'test'},objective:'expected_song_score',calculationScope:{title:'test'}};
 test('each chart receives independent draft and only requested charts load',async()=>{

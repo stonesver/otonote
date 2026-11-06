@@ -45,6 +45,19 @@ class RepositoryHygieneTests(unittest.TestCase):
             self.assertIsNone(classify_path(name), name)
         self.assertFalse(scan_bytes("deploy/qqbot.env.example", b"APP_SECRET=replace-with-your-secret\n"))
 
+    def test_svelte_components_are_source_and_still_scanned(self):
+        name = "site/src/components/calculation/Result.svelte"
+        self.assertIsNone(classify_path(name))
+        self.assertIsNotNone(classify_path("site/src/data/generated/Result.svelte"))
+        self.assertIsNotNone(classify_path("output/Result.svelte"))
+        self.assertIsNotNone(classify_path("config/Result.svelte"))
+        self.put(name, "<p>Result</p>")
+        manifest = export_source(self.root, self.base / "svelte-export")
+        self.assertEqual([item["path"] for item in manifest["files"]], [name])
+        self.put(name, "<script>const value = 'ghp_" + "a" * 36 + "';</script>")
+        with self.assertRaises(HygieneError):
+            export_source(self.root, self.base / "unsafe-svelte")
+
     def test_only_reviewed_arena_evidence_is_selected(self):
         reviewed = REVIEWED_ARENA_EVIDENCE.read_bytes()
         name = "catalog/evidence/arena-client.json"

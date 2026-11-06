@@ -1,3 +1,6 @@
+import {recommendationScenarioLabel,visibleRecommendations} from './recommendation-result-model.mjs';
+import {mountRecommendationOverview,clearOptimizerResults} from './calculation/recommendation-overview.ts';
+export {clearOptimizerResults};
 import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {requestTeamSave,openTeamWorkspace} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
@@ -8,21 +11,6 @@ import {toolRoute} from './tool-route.mjs';
 const ui=text=>planningUiText(text,typeof document==='undefined'?'zh-CN':document.documentElement.lang);
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=ui(text);if(cls)n.className=cls;return n;};
 const number=n=>n==null?'—':n.toLocaleString(undefined,{maximumFractionDigits:2});
-export function recommendationScenarioLabel(result) {
-  if(result.planning?.label)return result.planning.label;
-  const s=result.draft?.modifiers?.planningScenario;
-  if(s?.plan&&s.plan.enabled!==false)return '培养计划';
-  if(s?.scope==='reference')return '参考队伍 · 满养成';
-  if(s?.scope==='trial')return '试用队伍';
-  if(result.planning?.missingActual||s?.unknownGrowth==='reference')return '包含参考养成';
-  return s?.scope==='owned'?'当前养成':'所选养成';
-}
-export function visibleRecommendations(results) {
-  const seen=new Set();return results.filter(result=>{
-    const key=JSON.stringify([result.draft?.slots,result.draft?.modifiers?.growth]);
-    if(seen.has(key))return false;seen.add(key);return true;
-  }).slice(0,3);
-}
 function trainingDescription(change,workbench) {
   const kind=change.type??change.kind??(String(change.id).startsWith('support')?'support':'member');
   const card=workbench.cardFor?.(kind,change.id),name=change.name??card?.shortLabel??change.id;
@@ -30,30 +18,16 @@ function trainingDescription(change,workbench) {
   return `${name}：${fields.map(item=>`${cardGrowthLabel(item.field,kind,typeof document==='undefined'?'zh-CN':document.documentElement.lang)} ${item.from??ui('未记录')} → ${item.to??'—'}`).join('，')}`;
 }
 export function renderOptimizerResults(workbench,results,{mode,objective,live=false,target}={}) {
-  const root=target??workbench.querySelector('[data-pairing-results]');root.replaceChildren();
+  const root=target??workbench.querySelector('[data-pairing-results]');clearOptimizerResults(workbench,root);
   workbench.querySelector('[data-results-empty]').hidden=Boolean(results.length);
   const candidates=visibleRecommendations(results),tabs=el('div',null,'task-candidate-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','推荐候选');if(candidates.length>1)root.append(tabs);const rows=[],buttons=[];
   for(const [i,result] of candidates.entries()) {
     const row=el('li',null,'recommendation'),direction=result.direction;
-    const header=el('div',null,'recommendation-heading');
-    header.append(el('span',direction?.label??(live?'已找到的方案 · 计算中':i?`方案 ${i+1}`:'推荐编成'),'recommendation-label'),
-      el('span',mode==='gekisou'?'激奏演出':'普通自由演出','recommendation-mode'));
-    const resultHeading=el('header',null,'task-result-heading'),identity=el('div');identity.append(header,el('span',recommendationScenarioLabel(result),'recommendation-scenario'));resultHeading.append(identity);row.append(resultHeading);
-    const score=el('div',null,'recommendation-score');
-    score.append(el('strong',result.value==null?'—':Math.round(result.value).toLocaleString()),el('span',objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
-    if(result.delta!=null&&!result.planning?.missingActual)score.append(el('em',`${result.delta>=0?'+':''}${number(result.delta)} 较当前养成方案`,result.delta>=0?'is-positive':'is-negative'));
-    resultHeading.append(score);row.append(createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result}));
-
-
     const planning=result.planning;
-    if(planning?.trainingChanges?.length){
-      const training=el('div',null,'recommendation-training');training.append(el('strong',`这套队伍需要练好 ${planning.trainingChanges.length} 张卡`));
-      const list=el('ul');for(const change of planning.trainingChanges)list.append(el('li',trainingDescription(change,workbench)));training.append(list);
-      const values=[['当前卡库方案',planning.currentValue],['这套队伍按当前养成',planning.plannedTeamCurrentValue],['这套队伍达到目标后',planning.targetValue]];
-      if(planning.plannedTeamCurrentValue!=null){const dl=el('dl',null,'recommendation-power');for(const [label,value] of values){const item=el('div');item.append(el('dt',label),el('dd',number(value)));dl.append(item);}training.append(dl);}
-      if(planning.missingActual)training.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成比较这套队伍；持有情况未确认，不与当前卡库最佳队伍比较。':'部分当前养成未记录，暂不计算比现在提高多少。'));
-      training.append(el('p','材料消耗尚未核算；应用队伍不会修改实际卡库。'));row.append(training);
-    }else if(planning?.missingActual)row.append(el('p',planning.plannedTeamCurrentValue!=null?'已按填写的养成计算；持有情况未确认。':'参考养成，非当前实力','recommendation-caption'));
+    mountRecommendationOverview(workbench,root,row,{result,mode,objective,live,index:i,
+      scenarioLabel:recommendationScenarioLabel(result),locale:document.documentElement.lang,
+      trainingDescriptions:(planning?.trainingChanges??[]).map(change=>trainingDescription(change,workbench)),
+      createTeamView:()=>createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result})});
 
     const actions=el('div',null,'recommendation-actions'),apply=el('button','编辑队伍');apply.type='button';
     apply.addEventListener('click',()=>{workbench.draft=structuredClone(result.draft);workbench.planningScenarios?.restore();workbench.commit();openTeamWorkspace('editor');});actions.append(apply);

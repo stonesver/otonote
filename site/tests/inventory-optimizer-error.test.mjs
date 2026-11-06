@@ -2,7 +2,8 @@ import {teamScopeControls} from './helpers/calculation-scopes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { setupInventoryOptimizer } from '../src/lib/inventory-optimizer-ui.mjs';
+import './helpers/svelte-loader.mjs';
+const {setupInventoryOptimizer} = await import('../src/lib/inventory-optimizer-ui.mjs');
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
 

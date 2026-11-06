@@ -1,3 +1,6 @@
+import type {AccountGrowth, GrowthRecords, PlanningScenario} from './calculation/growth-types.ts';
+import type {PerformanceScenario} from './calculation/optimizer-types.ts';
+
 export interface TeamDraftSlot {
   memberCardId: string | null;
   supportCardId: string | null;
@@ -9,7 +12,9 @@ export interface TeamDraft {
   slots: TeamDraftSlot[];
   selectedSongId: string | null;
   selectedDifficulty: string | null;
-  modifiers: Record<string, unknown>;
+  modifiers: Record<string, unknown> & AccountGrowth & {
+    growth?: GrowthRecords; planningScenario?: PlanningScenario; performanceScenario?: PerformanceScenario;
+  };
 }
 
 export interface TeamDraftIssue {

@@ -1,3 +1,4 @@
+import {createOptimizerWorker,sendOptimizerCommand,receiveOptimizerMessages} from './calculation/optimizer-client.ts';
 import {setupTeamScopeControls} from './tool-calculation-scopes.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
 import {resolveGrowthScenario} from './scoring-rules/growth-scenarios.mjs';
@@ -6,7 +7,7 @@ import {setupTeamPlanningScenarios} from './team-planning-scenario-ui.mjs';
 import {resolveSearchInput} from './scoring-rules/formation-input.mjs';
 import {summarizeSearchSpace,formatCombinationCount,readOptimizerConstraints} from './optimizer-search-summary.mjs';
 import {optimizerReadiness,recommendedWorkerCount} from './optimizer-guidance.mjs';
-import {renderOptimizerResults} from './optimizer-results-ui.mjs';
+import {renderOptimizerResults,clearOptimizerResults} from './optimizer-results-ui.mjs';
 import { readGekisouOpponentInputs } from './gekisou-opponent-inputs.mjs';
 import {createPersonalGrowthStore} from './personal-growth-store.mjs';
 import {createInventoryManager} from './inventory-manager.mjs';
@@ -42,7 +43,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
     progress.textContent=ui(/^Unsupported\b/.test(detail)?'当前资料包含计算器尚未支持的技能规则，请等待规则更新后重试。':detail);
     feedback.finish(ui('比较失败'),progress.textContent,'error');
     q('[data-search-diagnostics]').textContent=detail;
-    q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=true;
+    clearOptimizerResults(workbench);q('[data-results-empty]').hidden=true;
     q('[data-export-pairing]').disabled=true;q('[data-resume-pairing]').disabled=true;
     publish({finished:true,hasResults:false});
   }
@@ -84,15 +85,15 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
       :q('[data-search-scope]').value==='theoretical'?'无需手动选卡。参考卡片按满养成搜索，账号加成单独设置。':'只比较当前队伍的成员与留影；不会自动加入其他卡。');
     publish({...state,hasResults:Boolean(lastResult?.results.length),finished:Boolean(lastResult),running:Boolean(worker),space});
   }
-  function invalidate() {stop();feedback.reset();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;q('[data-pairing-results]').replaceChildren();q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent=ui('等待开始');guide();}
+  function invalidate() {stop();feedback.reset();q('[data-practical-progress]').replaceChildren();q('[data-practical-progress]').hidden=true;q('[data-practical-summary]').hidden=true;lastResult=null;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;clearOptimizerResults(workbench);q('[data-results-empty]').hidden=false;q('[data-search-state]').textContent=ui('等待开始');guide();}
 
   q('[data-pairing-mode]').addEventListener('change',()=>{q('[data-gekisou-settings]').hidden=q('[data-pairing-mode]').value!=='gekisou';if(q('[data-gekisou-rank-note]'))q('[data-gekisou-rank-note]').hidden=q('[data-pairing-mode]').value!=='gekisou';});
-  for(const selector of ['[data-search-scope]','[data-pairing-objective]','[data-search-constraints]','[data-search-band]','[data-search-attribute]','[data-search-support-attribute]','[data-pairing-mode]','[data-gekisou-settings]','[data-planning-window-limit]','[data-planning-variant-limit]'])q(selector).addEventListener('change',()=>{invalidate();q('[data-pairing-results]').replaceChildren();progress.textContent=ui('输入已更新，请重新搜索。');});
-  q('[data-cancel-pairing]').addEventListener('click',()=>{if(!worker){stop();feedback.finish(ui('已停止'),ui('可调整条件后重新计算'),'stopped');progress.textContent=ui('已停止。可调整条件后重新计算。');guide();return;}feedback.update({label:ui('正在停止'),detail:ui('保留已经完成的方案')});worker?.postMessage({type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent=ui('正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。');});
+  for(const selector of ['[data-search-scope]','[data-pairing-objective]','[data-search-constraints]','[data-search-band]','[data-search-attribute]','[data-search-support-attribute]','[data-pairing-mode]','[data-gekisou-settings]','[data-planning-window-limit]','[data-planning-variant-limit]'])q(selector).addEventListener('change',()=>{invalidate();clearOptimizerResults(workbench);progress.textContent=ui('输入已更新，请重新搜索。');});
+  q('[data-cancel-pairing]').addEventListener('click',()=>{if(!worker){stop();feedback.finish(ui('已停止'),ui('可调整条件后重新计算'),'stopped');progress.textContent=ui('已停止。可调整条件后重新计算。');guide();return;}feedback.update({label:ui('正在停止'),detail:ui('保留已经完成的方案')});sendOptimizerCommand(worker,{type:'cancel'});q('[data-cancel-pairing]').disabled=true;progress.textContent=ui('正在停止；已完成计算的方案会保留。尚未算完的方案不会作为结果。');});
   q('[data-export-pairing]').addEventListener('click',()=>{if(lastResult)download('otonote-pairing-result.json',lastResult);});
   async function run() {
     stop();feedback.update({label:ui('准备配队比较'),detail:ui('正在读取谱面与养成条件')});const current=request;q('[data-resume-pairing]').disabled=true;q('[data-export-pairing]').disabled=true;
-    q('[data-pairing-results]').replaceChildren();
+    clearOptimizerResults(workbench);
     try {
       assertToolTeamCompatible(workbench.teamWorkspaceContext);
       const settings=scenarios?.persist()??{};
@@ -119,9 +120,9 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         const response=await fetch(summary.analysisDataUrl,{signal:chartRequest.signal});if(!response.ok)throw new Error('谱面加载失败');
         chart={...await response.json(),sourceReleaseId:rules.sourceReleaseId};if(current!==request)return;chartRequest=null;
       }
-      worker=new Worker(new URL('./production-optimizer-worker.mjs',import.meta.url),{type:'module'});q('[data-cancel-pairing]').disabled=false;
+      worker=createOptimizerWorker();q('[data-cancel-pairing]').disabled=false;
       worker.onerror=()=>{if(current===request)fail('后台计算失败，请重试。');};
-      worker.onmessage=({data})=>{
+      receiveOptimizerMessages(worker,data=>{
         if(data.requestId!==current||request!==current)return;
         if(data.type==='playlist-partial'){lastResult=data.result;renderBatch(data.result,{mode,objective});return;}
         if(data.type==='result'&&data.result.kind==='playlist-team-batch'){stop();lastResult=data.result;renderBatch(data.result,{mode,objective});q('[data-export-pairing]').disabled=false;guide();return;}
@@ -178,12 +179,12 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         q('[data-search-state]').dataset.running='false';
         guide();
 
-      };
-      worker.postMessage({type:'optimize',requestId:current,payload:{...settings,calculationScope:resolved,...(task.value==='playlist'?{playlistCandidates:resolved.candidates}:{}),variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
+      });
+      sendOptimizerCommand(worker,{type:'optimize',requestId:current,payload:{...settings,calculationScope:resolved,...(task.value==='playlist'?{playlistCandidates:resolved.candidates}:{}),variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
     }catch(error){if(current!==request)return;fail(error);}
   }
   function renderBatch(batch,{mode,objective}){
-    const root=q('[data-pairing-results]');root.replaceChildren();root.classList.add('playlist-batch-results');
+    const root=q('[data-pairing-results]');clearOptimizerResults(workbench);root.classList.add('playlist-batch-results');
     const intro=document.createElement('p');intro.textContent=`${scopeSummary(batch.calculationScope)}。已处理 ${batch.done} / ${batch.total} 张谱面；每曲分别推荐队伍，不能作为一支队伍覆盖整个歌单。`;root.append(intro);
     for(const {candidate,result} of batch.rows){const article=document.createElement('article'),heading=document.createElement('h3'),body=document.createElement('div'),boundary=document.createElement('p');heading.textContent=`${candidate.title} · ${candidate.difficulty.toUpperCase()}`;boundary.textContent=`${planningSearchStatus(result)}；仅覆盖本曲已检查候选，原有养成、发挥与证明边界不变。`;article.append(heading,boundary,body);renderOptimizerResults(workbench,result.results,{mode,objective,target:body});root.append(article);}
     for(const f of batch.failures){const p=document.createElement('p');p.textContent=`${f.title} ${f.difficulty}：${f.message}；结果不完整`;root.append(p);}
@@ -202,7 +203,7 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
   q('[data-search-effort]').addEventListener('change',updateEffort);
   updateEffort();
   guide();
-  return {invalidate,destroy(){stop();feedback.destroy();scopeControls.destroy();}};
+  return {invalidate,destroy(){stop();clearOptimizerResults(workbench);feedback.destroy();scopeControls.destroy();}};
 }
 
 export function planningSearchStatus(result) {

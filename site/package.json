@@ -27,7 +27,8 @@
     "catalog:candidate": "python3 ../tools/release_candidates.py",
     "build:candidate": "python3 ../tools/release_site.py",
     "build:code": "bash ../scripts/build-web-client.sh --preview",
-    "build:code:candidate": "cd .. && python3 -m tools.release_candidate"
+    "build:code:candidate": "cd .. && python3 -m tools.release_candidate",
+    "check:calculation": "node ../tools/check_calculation_types.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.9",
@@ -37,12 +38,15 @@
     "astro": "^7.1.0",
     "pixi-live2d-display": "0.5.0-beta",
     "pixi.js": "^7.4.3",
+    "svelte": "^5.57.3",
     "tesseract.js": "7.0.0",
     "three": "0.162.0",
     "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@astrojs/compiler": "^2.13.1",
-    "postcss": "8.5.25"
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "postcss": "8.5.25",
+    "svelte-check": "^4.7.8"
   }
 }

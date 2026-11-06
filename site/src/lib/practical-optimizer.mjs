@@ -55,6 +55,8 @@ export function* practicalNeighbours(draft, inventory) {
   for (const slot of [0, 1, 3, 4]) yield change('leader', slots => { [slots[2], slots[slot]] = [slots[slot], slots[2]]; });
 }
 
+/** @param {import("./calculation/optimizer-types.ts").OptimizerOptions} options
+ * @returns {Promise<import("./calculation/optimizer-types.ts").OptimizerReport>} */
 export async function optimizePractical({ rules, draft, scope = 'selected', inventory, constraints = {}, theoreticalGrowth, chart,
   mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value, finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, modelCache, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
   if(!Number.isInteger(finalistLimit)||finalistLimit<2||finalistLimit>24)throw Error('Invalid finalist limit');

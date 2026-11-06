@@ -11,7 +11,9 @@ const pause = () => new Promise(resolve => setTimeout(resolve, 0));
 const labels = { reference: '参考队伍', selected: '手选卡', owned: '当前养成', trial: '试用卡队伍' };
 
 /** Feasible growth assignments are searched before candidate generation.
- * Nothing in this operation updates actual inventory or account modifiers. */
+ * Nothing in this operation updates actual inventory or account modifiers.
+ * @param {import("./calculation/optimizer-types.ts").OptimizerOptions} options
+ * @returns {Promise<import("./calculation/optimizer-types.ts").OptimizerReport>} */
 export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 'selected', planningScenario,
   performanceScenario, recommendationGoal = 'score', objective = 'expected_song_score', mode = 'ordinary', chart,
   constraints = {}, gekisouScenario = {}, eventAdapters = [], maxWindowCards = 5, variantLimit = 24,

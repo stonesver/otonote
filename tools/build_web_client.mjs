@@ -5,6 +5,8 @@ import { resolve, dirname, relative, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { build, transform as transformTs } from '../site/node_modules/esbuild/lib/main.js';
+import {svelteClientPlugin} from './svelte_client_plugin.mjs';
+import {checkCalculationTypes} from './check_calculation_types.mjs';
 import { transform } from '../site/node_modules/@astrojs/compiler-rs/dist/index.mjs';
 import { loadingArtFiles } from '../site/src/runtime/loading-presentation.mjs';
 import { attachDataProfiles,interactionPreloads } from './web_client_dependencies.mjs';
@@ -14,6 +16,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const site = join(root, 'site');
 const output = resolve(process.argv[2] ?? join(root, 'output/web-client'));
 if (!output.startsWith(join(root, 'output') + '/')) throw new Error('Output must be under output/');
+checkCalculationTypes();
 await mkdir(dirname(output), {recursive:true});
 await mkdir(output); // A code release is always new; never overwrite a deployed tree.
 const stage = join(output, 'compiled');
@@ -82,7 +85,7 @@ const plugin = { name: 'ournotes-independent-content', setup(builder) {
     // Strip TS type parameters before replacing Vite's data-only glob macro.
     code = (await transformTs(code, { loader: 'ts', target: 'es2022' })).code;
     code = code.replace(/new Worker\(\s*new URL\((["'])(.+?)\1,\s*import.meta.url\)/g, (_,quote,name) => {
-      const file=resolve(dirname(args.path),name), key=basename(file).replace(/\.mjs$/, '');
+      const file=resolve(dirname(args.path),name), key=basename(file).replace(/\.(?:mjs|ts)$/, '');
       workers.set(key,file);
       return `new Worker(new URL(${JSON.stringify('../workers/'+key+'.js')}, import.meta.url)`;
     });
@@ -99,7 +102,8 @@ entries['endpoints/search-index'] = join(site,'src/pages/search-index.json.ts');
 entries.boot = join(site,'src/runtime/boot.mjs');
 const options = { bundle: true, splitting: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true,
   sourcemap: false, metafile: true, outdir: stage, entryNames: '[dir]/[name]-[hash]', chunkNames: 'chunks/[name]-[hash]',
-  assetNames: 'assets/[name]-[hash]', plugins: [plugin],
+  assetNames: 'assets/[name]-[hash]', plugins: [svelteClientPlugin(), plugin],
+  conditions: ['browser'],
   define: { 'import.meta.env.BASE_URL': 'globalThis.__OURNOTES_BASE__', 'import.meta.env.PUBLIC_SITE_PROFILE': '"v1"',
     ...Object.fromEntries(['PUBLIC_GROWTH_TOOL_URL','PUBLIC_GROWTH_SOURCE_URL','PUBLIC_GROWTH_DOWNLOAD_URL']
       .map(key=>['import.meta.env.'+key,JSON.stringify(process.env[key]??'')])),
@@ -117,6 +121,8 @@ while ([...workers.keys()].some(key=>!compiledWorkers.has(key))) {
   await build({...options,entryNames:'[dir]/[name]',entryPoints:Object.fromEntries(batch.map(([key,file])=>['workers/'+key,file]))});
   batch.forEach(([key])=>compiledWorkers.add(key));
 }
+await mkdir(join(stage,'licenses'),{recursive:true});
+await cp(join(site,'node_modules/svelte/LICENSE.md'),join(stage,'licenses/svelte-LICENSE.md'));
 // Heavy recognition engines are static, same-origin and loaded only after explicit use.
 const recognitionDir=join(stage,'recognition');
 await mkdir(recognitionDir,{recursive:true});

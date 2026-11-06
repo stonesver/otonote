@@ -69,6 +69,32 @@ class HealthTests(unittest.TestCase):
         self.assertEqual(recovered['status'], 'healthy');self.assertEqual(log[0]['transition'], 'recovered')
         self.assertEqual(len(recovered['history']), 2)
 
+    def test_external_trigger_health_distinguishes_acceptance_from_running(self):
+        now = self.now - 1800  # 06:30, beyond external 10-minute grace.
+        planned = '2026-10-19T06:00:00Z'
+        bucket = MemoryBucket()
+        old = dt.datetime.fromtimestamp(now-7200,dt.timezone.utc)
+        records.publish(bucket,'global',1,1,'a'*40,'success',{},now=old,event='schedule')
+        trigger = self.root/'global.json'
+        def sample(status):
+            health.write_atomic(trigger,{'region':'global','status':status,'checkedAt':now,
+                'scheduledFor':planned,'runId':2})
+            os.utime(trigger,(now,now))
+            return health.sample(bucket,self.root/'absent',self.root/'absent',self.root,1,now,trigger_dir=self.root)
+        accepted = sample('accepted')
+        self.assertIn('global:schedule_stale',{r['id'] for r in accepted['conditions']})
+        self.assertIn('global:trigger_failed',{r['id'] for r in sample('failed')['conditions']})
+        self.assertIn('global:trigger_unconfirmed',{r['id'] for r in sample('unknown')['conditions']})
+        records.publish(bucket,'global',2,1,'a'*40,'success',{},
+            now=dt.datetime.fromtimestamp(now,dt.timezone.utc),scheduled_for=planned)
+        completed = sample('accepted')
+        self.assertNotIn('global:schedule_stale',{r['id'] for r in completed['conditions']})
+        self.assertEqual(completed['runs']['global']['origin'],'external')
+        report,_ = health.advance(completed,{},now)
+        health.write_atomic(self.root/'update-health.json',report)
+        with patch('backend.admin.update_health.time.time',return_value=now):
+            self.assertEqual(read_health(self.root)['runs']['global']['origin'],'external')
+
     def test_private_view_rejects_stale_future_and_invalid_data_and_strips_secrets(self):
         report, _ = health.advance(self.observed, {}, self.now)
         report['secret'] = 'never-display'

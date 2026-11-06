@@ -16,7 +16,7 @@ import re
 import time
 from datetime import datetime, timezone
 
-from tools.r2_schedule import UTC_HOURS
+from tools.r2_schedule import UTC_HOURS, due_slot, parse_slot
 
 FIXED_CRON = '0 ' + ','.join(map(str, UTC_HOURS)) + ' * * *'
 MAX_BYTES = 16 * 1024 * 1024
@@ -107,9 +107,9 @@ def validate_calendar(calendar):
     for row in rows:
         if not isinstance(row, dict) or set(row) != {'at', 'regions'}:
             raise ValueError('invalid activity check')
-        point = timestamp(row['at'])
+        point = parse_slot(row['at'])
         regions = row['regions']
-        if (point % 60 or point in seen or fixed_slot(point) or not isinstance(regions, list) or not regions
+        if (point in seen or fixed_slot(point) or not isinstance(regions, list) or not regions
                 or any(r not in ('global', 'jp') for r in regions) or len(set(regions)) != len(regions)):
             raise ValueError('invalid or duplicate activity check')
         seen.add(point)
@@ -150,10 +150,13 @@ def render_workflow(source, calendar):
     return before + BEGIN + '\n' + '\n'.join(lines) + '\n' + END + after
 
 
-def select_regions(regions, *, event, cron='', requested=None, calendar=None, now=None):
+def select_regions(regions, *, event, cron='', requested=None, calendar=None, now=None, scheduled_for=''):
     if any(r not in ('global', 'jp') for r in regions):
         raise ValueError('invalid sync edition')
     if event == 'workflow_dispatch':
+        if scheduled_for and (requested not in regions or parse_slot(scheduled_for) != due_slot(
+                time.time() if now is None else now, requested, calendar)):
+            return []
         return [requested] if requested in regions else []
     if event != 'schedule':
         raise ValueError('invalid sync event')
@@ -217,10 +220,12 @@ def main(argv=None):
             return
         regions = [r for r in ('global', 'jp') if os.environ.get('CONTENT_R2_ENABLED_' + r.upper()) == 'true']
         result = select_regions(regions, event=os.environ['GITHUB_EVENT_NAME'], cron=os.environ.get('SCHEDULE', ''),
-                                requested=os.environ.get('INPUT_REGION'), calendar=calendar)
+                                requested=os.environ.get('INPUT_REGION'), calendar=calendar,
+                                scheduled_for=os.environ.get('SCHEDULED_FOR', ''))
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             output.write('regions=' + json.dumps(result or ['global']) + '\n')
             output.write('run=' + str(bool(result)).lower() + '\n')
+            output.write('scheduled_for=' + (os.environ.get('SCHEDULED_FOR', '') if result else '') + '\n')
         print(json.dumps({'selectedEditions': result, 'status': 'selected' if result else 'not_due'}))
     except Exception as error:
         raise SystemExit('Arena sync selection failed: ' + type(error).__name__)

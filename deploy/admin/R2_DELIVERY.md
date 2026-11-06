@@ -4,7 +4,7 @@
 
 ## 日常操作
 
-- 自动追新由 GitHub Actions 定时运行，无需保持管理页打开。
+- 自动追新由配置的调度来源触发 GitHub Actions，无需保持管理页打开。
 - 手动更新：在管理页打开 Actions 链接，登录 GitHub，选择 **Run workflow → main → region=global 或 jp → mode=promote**。两服分别运行；`shadow` 仅生产、上传和校验，不切换网站内容。
 - 在 GitHub 查看该次运行的实时进度、错误和发布结果；`promote` 完成后，等待服务器同步和生成页面，回到管理页刷新，核对对应内容版本。
 - 只有网站功能代码变更时使用代码发布流程，无需重新触发游戏资源生产。

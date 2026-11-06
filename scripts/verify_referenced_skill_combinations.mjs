@@ -1,5 +1,5 @@
 /** Read-only probes of combinations missing from the baseline.
- * Usage: node scripts/verify_referenced_skill_combinations.mjs MASTER INVENTORY OUTPUT [--include-unreferenced]
+ * Usage: node scripts/verify_referenced_skill_combinations.mjs MASTER INVENTORY OUTPUT [--include-unreferenced|--include-latest]
  * Actual effect rows remain intact; isolated bindings and input states are
  * synthetic. This executes the current JS implementation, not a client binary.
  */
@@ -17,17 +17,19 @@ import { replayGekisouFrames } from '../packages/scoring/scoring-rules/gekisou-f
 
 const [master, input, output, scopeFlag] = process.argv.slice(2);
 if (!master || !input || !output) throw new Error('Required: MASTER INVENTORY OUTPUT');
-if(scopeFlag && scopeFlag!=='--include-unreferenced')throw new Error('Unknown scope flag');
+if(scopeFlag && !['--include-unreferenced','--include-latest'].includes(scopeFlag))throw new Error('Unknown scope flag');
 const root = fileURLToPath(new URL('../', import.meta.url));
 const inventory = JSON.parse(readFileSync(input));
 const rules = JSON.parse(readFileSync(join(root, 'packages/scoring/data/formal-scoring-rules.json')));
-for (const name of Object.keys(rules.tables)) {
+for (const name of new Set([...Object.keys(rules.tables), ...inventory.skills.map(s=>s.family)])) {
   const path = join(master, `Master${name}.json`);
   if (existsSync(path)) rules.tables[name] = JSON.parse(readFileSync(path))._allData;
 }
 const t = rules.tables, sha = value => createHash('sha256').update(value).digest('hex');
 const referencedKeys = [...Array.from({length:10}, (_,i)=>`LeaderSkill:${53+i}`), 'LiveSkill:9',
   ...[72,74,75,72070,72074].map(id=>`SupportSkill:${id}`), 'GekisouSkill:22', 'GekisouSkill:23'];
+const latestKeys=['LeaderSkill:63','LeaderSkill:64','LeaderSkill:65','GekisouSkill:24'];
+if(scopeFlag==='--include-latest')referencedKeys.push(...latestKeys);
 const unreferencedKeys=[...Array.from({length:15},(_,i)=>90061+i),...Array.from({length:21},(_,i)=>90079+i),
   90101,90106,90116,90121].map(id=>`LeaderSkill:${id}`);
 const keys=[...referencedKeys,...(scopeFlag?unreferencedKeys:[])];
@@ -77,7 +79,8 @@ function targetMatch(member,id) {
 function leaders(skill) {
   const calc=createFormationCalculator(rules);let cases=0;
   const unreferenced=unreferencedKeys.includes(skill.key);
-  const matrix=unreferenced?[1,2,3,4,5].flatMap(band=>[1,2,3,4,5].flatMap(cardType=>[1,2,3].flatMap(mission=>[1,2,3].map(category=>({
+  const latest=latestKeys.includes(skill.key);
+  const matrix=unreferenced||latest?[1,2,3,4,5].flatMap(band=>[1,2,3,4,5].flatMap(cardType=>[1,2,3].flatMap(mission=>[1,2,3].map(category=>({
     ...t.MemberCard[0],_characterID:t.Character.find(c=>c._bandID===band)._id,_cardType:cardType,
     _liveSkillID:t.LiveSkill.find(s=>s._skillCategories.includes(category))._id,
     _gekisouSkillID:t.GekisouSkill.find(s=>s._gekisouMissionType===mission)._id}))))):[];
@@ -97,6 +100,7 @@ function leaders(skill) {
           for(const component of components){assert.notEqual(component,undefined);expected[component]+=row._effectValue*times;}
         }
         assert.deepEqual(calc.effectRates(member,rows,formation),expected);cases++;
+        if(latest){assert.deepEqual(calc.effectRates(member,rows,formation,true),expected);cases++;}
       }
     }
   }
@@ -113,11 +117,12 @@ function leaders(skill) {
   }
   return {cases,checks:['all_levels_actual_member_targets','overlapping_sources_sum_per_component',
     ...(unreferenced?['225_synthetic_target_combinations_per_level','all_power_expands_three_components']:[]),
+    ...(latest?['225_synthetic_target_combinations_per_level','neither_either_both_recipient_groups','leader_upper_bound_preserves_independent_additive_targets']:[]),
     ...(categoryTargets.length?['actual_not_display_category','category_any_overlap']:[]),
     ...([61,62].includes(skill.skillId)?['0_to_5_same_attribute_members_count_once_each','cap_two','empty_recipient_targets_benefit_every_member']:[])]};
 }
 
-function missingLeaderCumulative(skill){
+function zeroLeaderCumulative(skill){
   const calc=createFormationCalculator(rules);let cases=0;
   for(const e of skill.effects){
     assert.equal(e.raw._skillEffectType,1503);assert.equal(e.raw._skillCumulativeConditionID,0);
@@ -126,9 +131,9 @@ function missingLeaderCumulative(skill){
       assert.throws(()=>calc.effectRates(member,[e.raw],t.MemberCard.slice(0,5).map(member=>({member}))),/Unsupported leader cumulative condition/);cases++;
     }
   }
-  return {status:'data_incomplete',cases,reasonCodes:['leader_cumulative_required'],
-    checks:['all_levels_missing_required_cumulative','current_executor_rejects_even_before_recipient_filter'],
-    requiredAction:'Confirm intended opcode or supply the cumulative source/unit/cap; never coerce 1503 to 1003 or invent a count.'};
+  return {status:'runtime_mismatch',cases,reasonCodes:['leader_zero_cumulative_runtime_mismatch'],
+    checks:['all_levels_zero_cumulative_ID','current_executor_rejects_even_before_recipient_filter'],
+    requiredAction:'Implement the build-86 native identity multiplier for ID=0, including search upper bounds; retain opcode 1503 and independent recipient filtering.'};
 }
 
 function ordinary(skill,level,band) {
@@ -250,15 +255,61 @@ function gekisou(skill) {
     skill.skillId===23?'combo_addition_survives_break_as_section_skill_not_threshold_or_guard':'gauge_factor_and_reduction_compose']};
 }
 
+function justAndReduction(skill) {
+  let cases=0;
+  for(const level of skill.levels)for(const frameRate of [60,120]) {
+    const r=structuredClone(rules), member=r.tables.MemberCard.find(c=>c._id===skill.references[0].cardId), support=r.tables.SupportCard[0];
+    support._gekisouSupportSkillId01=support._gekisouSupportSkillId02=0;
+    const draft={slots:[{memberCardId:`member-card-${member._id}`,supportCardId:`support-card-${support._id}`}],
+      modifiers:{growth:{[`member-card-${member._id}`]:{gekisouSkillLevel:level}}}};
+    const effects=compileGekisouEffects(r,draft,true);
+    assert.deepEqual(effects.map(e=>e.definition),skill.effects.filter(e=>e.level===level).map(e=>e.raw));
+    for(const mission of [1,2])assert.deepEqual(compileGekisouEffects(r,draft,true,[mission]),[]);
+    const bonus=effects.find(e=>e.definition._skillEffectType===13000).definition;
+    const reduction=effects.find(e=>e.definition._skillEffectType===3004).definition;
+    assert.equal(bonus._effectValue,2);assert.equal(reduction._effectValue,2000);
+    const replay=(samples,ranges)=>{
+      const c=createFrameClock({frameRate});
+      const events=samples.map(([timeMs,originalJudgement],i)=>({id:String(i),scoreIndex:i,type:1,timeMs,
+        originalJudgement,inputFrame:c.indexAt(timeMs)}));
+      return replayGekisouFrames(r,{events,skillTimes:[]},ranges,effects,
+        {ranks:ranges.map(()=>1),frameRate,timingOffsetMs:0},1,{trace:true,performanceInput:{judgements:events}});
+    };
+    const short=replay([[900,1],[1000,1],[1100,6],[1200,5],[1250,2],[1300,1],[1400,6],[3500,1],[4000,6],[4100,1],[4200,6],[6500,1]],
+      [{index:1,missionType:3,startMs:1000,endMs:2000},{index:2,missionType:3,startMs:4000,endMs:5000}]);
+    assert.deepEqual(short.events.map(e=>e.lifeAtInput),[900,800,800,800,760,680,680,580,580,500,500,400]);
+    assert.deepEqual(short.states.map(s=>[s.rawJust,s.just]),[[2,6],[2,6]]);
+    assert.equal(short.transitions.filter(e=>e.action==='start').length,4);
+    assert.equal(short.transitions.filter(e=>e.action==='end').length,4);
+    assert.ok(short.states.every(s=>s.effects.every(e=>!e.executing)));
+    cases++;
+    const deadline=1000+(bonus._activationTimeSecond||6)*1000;
+    const long=replay([[1000,6],[1200,5],[1300,1],[deadline-100,6],[deadline+100,6],[deadline+200,1],[8000,6]],
+      [{index:1,missionType:3,startMs:1000,endMs:9000}]);
+    assert.equal(long.states[0].rawJust,4);
+    assert.equal(long.states[0].just,level===5?12:8);
+    assert.equal(long.events.at(-1).lifeAtInput,level===5?840:820);
+    assert.equal(long.transitions.filter(e=>e.action==='start').length,2);
+    assert.equal(long.transitions.filter(e=>e.action==='end').length,2);
+    const starts=long.states[0].countCommands.filter(c=>c.value>0);
+    assert.deepEqual(starts.map(c=>[c.timeMs,c.value,c.channel]),[[1000,2,'just']]);
+    cases++;
+  }
+  return {cases,checks:['all_five_levels_actual_both_effect_rows','60_and_120_fps','COMBO_and_LUCK_inapplicable',
+    'JUST_base_one_plus_two_including_entry','PERFECT_not_counted','MISS_and_life_changes_do_not_release_or_reinstall',
+    'entry_frame_damage_precedes_reduction','BAD_and_MISS_20_percent_damage_reduction','short_sections_cleanup_and_reentry',
+    'Lv1_to_4_3_4_5_6_second_expiry_vs_Lv5_section_lifetime','expiry_removes_both_handles_without_reactivation']};
+}
+
 const results=[];
 for(const key of keys) {
   const skill=inventory.skills.find(s=>s.key===key);assert.ok(skill,key);
   assert.equal(Boolean(skill.references.length),referencedKeys.includes(key));checkClosure(skill);
   const result={key,sourceClosureHashes:skill.effects.map(e=>e.sourceClosureHash),levels:skill.levels,effectRows:skill.effects.length};
   try {
-    const probe=[90088,90089,90090].includes(skill.skillId)&&skill.family==='LeaderSkill'?missingLeaderCumulative:
+    const probe=[90088,90089,90090].includes(skill.skillId)&&skill.family==='LeaderSkill'?zeroLeaderCumulative:
       skill.family==='LeaderSkill'?leaders:skill.family==='LiveSkill'?liveRelease:
-      skill.family==='GekisouSkill'?gekisou:skill.skillId===74?cumulative:conversion;
+      skill.family==='GekisouSkill'?(skill.skillId===24?justAndReduction:gekisou):skill.skillId===74?cumulative:conversion;
     Object.assign(result,{status:'implementation_confirmed'},probe(skill));
   } catch(error) {console.error(error.stack);Object.assign(result,{status:'needs_investigation',failure:error.message});}
   results.push(result);
@@ -273,7 +324,7 @@ const report={schemaVersion:1,sourceVersion:inventory.sourceVersion,verification
   codeAndTestHashes:Object.fromEntries(evidenceFiles.map(path=>[path,sha(readFileSync(resolve(root,path)))])),results,
   totals:{definitions:results.length,effectRows:results.reduce((n,r)=>n+r.effectRows,0),
     cases:results.reduce((n,r)=>n+(r.cases??0),0),confirmed:results.filter(r=>r.status==='implementation_confirmed').length,
-    dataIncomplete:results.filter(r=>r.status==='data_incomplete').length}};
+    runtimeMismatch:results.filter(r=>r.status==='runtime_mismatch').length}};
 writeFileSync(output,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report.totals));
 for(const r of results)console.log(r.key,r.status,r.cases??r.failure);
-if(report.totals.confirmed+report.totals.dataIncomplete!==keys.length)process.exitCode=1;
+if(report.totals.confirmed+report.totals.runtimeMismatch!==keys.length)process.exitCode=1;

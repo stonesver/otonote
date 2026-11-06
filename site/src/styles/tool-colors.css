@@ -422,18 +422,18 @@ html[data-tool-theme="site"][data-tool-theme] body {
 /* Navigation and selection use the first color; setup and execution use its partner. */
 html[data-tool-theme="site"][data-tool-theme] body .tool-studio.tool-studio[data-tool-kind][data-tool-kind] {
   :is(.event-setup-rail, .event-default-setup, .team-setup, .ds-score-setup, .task-condition-panel) {
-    background:var(--theme-action-soft); border-color:var(--theme-action-edge);
+    background:var(--theme-surface); border-color:var(--theme-border);
     --tool-muted:var(--theme-text-soft);
   }
   :is(.event-setup-rail, .task-condition-panel) :is(.task-condition-group, .task-context-bar) {
     background:transparent;
   }
-  :is(.event-setup-title, .ds-panel-title, .task-condition-panel > header) {
+  :is(.event-setup-title, .ds-panel-title, .ds-score-setup > summary, .task-condition-panel > header) {
     background:var(--theme-action); color:var(--theme-on-action);
   }
   .event-setup-title { margin:0 0 4px; padding:12px; }
   .event-pool-readiness { background:var(--tool-tint); }
-  .event-action-dock { background:var(--theme-action-soft); border-color:var(--theme-action-edge); --tool-muted:var(--theme-text-soft); }
+  .event-action-dock { background:var(--theme-surface); border-color:var(--theme-border); --tool-muted:var(--theme-text-soft); }
   :is(.event-action-dock,.event-pool-readiness) button:not(:disabled):hover { border-color:var(--theme-secondary-ink); }
   .ds-task-switcher > button[aria-pressed="true"] { background:var(--theme-accent); color:var(--theme-on-accent); border-color:var(--theme-accent); }
 }

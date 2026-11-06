@@ -26,10 +26,11 @@ test('paper preserves the CSS defaults and every preset overrides the same base 
   }
 });
 
-test('the collection offers twelve light palettes and keeps night as the sole dark choice', () => {
+test('the collection offers twelve palettes, eleven light and night as the sole dark choice', () => {
   const light = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'light');
   const dark = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'dark');
-  assert.equal(light.length, 12);
+  assert.equal(THEME_PRESETS.length, 12);
+  assert.equal(light.length, 11);
   assert.deepEqual(dark.map(theme => [theme.id, theme.group]), [['night', 'dark']]);
   for (const theme of light) {
     assert.ok(luminance(theme.tokens.canvas) >= 0.82, `${theme.id} must have a bright canvas`);

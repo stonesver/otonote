@@ -1,6 +1,6 @@
 export const DEFAULT_THEME = 'paper';
 
-// Each palette pairs navigation color with a distinct action color; reading surfaces stay light.
+// Two-color palettes with light reading surfaces.
 // Derived tokens stay in CSS; game colors keep their own identities.
 const lightPalette = {
   'color-scheme': 'light',
@@ -16,13 +16,13 @@ export const THEME_PRESETS = [
   {
     id: 'paper', group: 'everyday',
     name: { 'zh-CN': '莓红 × 青柠', en: 'Berry × Lime' },
-    description: { 'zh-CN': '莓红导航 · 青柠操作区', en: 'Berry navigation · Lime actions' },
+    description: { 'zh-CN': '莓红 · 青柠', en: 'Berry · Lime' },
     tokens: {...lightPalette},
   },
   {
     id: 'night', group: 'dark',
     name: { 'zh-CN': '夜间', en: 'Night' },
-    description: { 'zh-CN': '银蓝导航 · 暖金操作区', en: 'Silver blue navigation · Warm gold actions' },
+    description: { 'zh-CN': '炭灰 · 银蓝与暖金', en: 'Charcoal · Silver blue and warm gold' },
     tokens: {
       'color-scheme': 'dark',
       text: '#eeeff0', 'text-soft': '#d0d3d5', canvas: '#191b1d', surface: '#222528', 'surface-deep': '#2d3135',
@@ -34,18 +34,9 @@ export const THEME_PRESETS = [
     },
   },
   {
-    id: 'mist', group: 'everyday',
-    name: { 'zh-CN': '蓝 × 橙', en: 'Blue × Orange' },
-    description: { 'zh-CN': '深蓝导航 · 暖橙点题 · 浅白内容', en: 'Deep blue navigation · Warm orange accents · Light content' },
-    tokens: {
-      ...lightPalette, canvas: '#f6f7f8',
-      accent: '#255b91', 'accent-bright': '#326aa0', secondary: '#f0a15a', 'secondary-ink': '#87420f', 'on-secondary': '#502e13',
-    },
-  },
-  {
     id: 'apricot', group: 'everyday',
     name: { 'zh-CN': '青绿 × 珊瑚', en: 'Teal × Coral' },
-    description: { 'zh-CN': '青绿导航 · 珊瑚操作区', en: 'Teal navigation · Coral actions' },
+    description: { 'zh-CN': '青绿 · 珊瑚', en: 'Teal · Coral' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#126e69', 'accent-bright': '#21766e', secondary: '#f3907d', 'secondary-ink': '#963c2e', 'on-secondary': '#5b241a',
@@ -54,7 +45,7 @@ export const THEME_PRESETS = [
   {
     id: 'silver', group: 'everyday',
     name: { 'zh-CN': '靛蓝 × 柠黄', en: 'Indigo × Lemon' },
-    description: { 'zh-CN': '靛蓝导航 · 柠黄操作区', en: 'Indigo navigation · Lemon actions' },
+    description: { 'zh-CN': '靛蓝 · 柠黄', en: 'Indigo · Lemon' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#4852a2', 'accent-bright': '#5c63ac', secondary: '#f0d86c', 'secondary-ink': '#776013', 'on-secondary': '#51410d',
@@ -63,7 +54,7 @@ export const THEME_PRESETS = [
   {
     id: 'new-year', group: 'occasion',
     name: { 'zh-CN': '新年', en: 'New Year' },
-    description: { 'zh-CN': '朱红导航 · 金黄操作区', en: 'Vermilion navigation · Gold actions' },
+    description: { 'zh-CN': '朱红 · 金黄', en: 'Vermilion · Gold' },
     tokens: {
       ...lightPalette, canvas: '#faf1e6',
       accent: '#a13a2e', 'accent-bright': '#b24737', secondary: '#f5cf6a', 'secondary-ink': '#7a5b23', 'on-secondary': '#613b10',
@@ -72,7 +63,7 @@ export const THEME_PRESETS = [
   {
     id: 'christmas', group: 'occasion',
     name: { 'zh-CN': '圣诞', en: 'Christmas' },
-    description: { 'zh-CN': '松绿导航 · 圣诞红操作区', en: 'Pine navigation · Christmas red actions' },
+    description: { 'zh-CN': '松绿 · 圣诞红', en: 'Pine green · Christmas red' },
     tokens: {
       ...lightPalette, canvas: '#edf5f3',
       accent: '#265c43', 'accent-bright': '#397456', secondary: '#bc403c', 'secondary-ink': '#a23732', 'on-secondary': '#ffffff',
@@ -81,7 +72,7 @@ export const THEME_PRESETS = [
   {
     id: 'anniversary', group: 'occasion',
     name: { 'zh-CN': '周年', en: 'Anniversary' },
-    description: { 'zh-CN': '深蓝导航 · 香槟金操作区', en: 'Navy navigation · Champagne actions' },
+    description: { 'zh-CN': '深蓝 · 香槟金', en: 'Navy · Champagne gold' },
     tokens: {
       ...lightPalette, canvas: '#eff3f9',
       accent: '#294c72', 'accent-bright': '#3c6085', secondary: '#f2c85f', 'secondary-ink': '#7b5d20', 'on-secondary': '#543c10',
@@ -90,7 +81,7 @@ export const THEME_PRESETS = [
   {
     id: 'attribute-red', group: 'attribute', attribute: 1,
     name: { 'zh-CN': '红赤', en: 'Red' },
-    description: { 'zh-CN': '红赤导航 · 湖蓝操作区', en: 'Red navigation · Aqua actions' },
+    description: { 'zh-CN': '红赤 · 湖蓝', en: 'Red · Aqua' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#ad3455', 'accent-bright': '#bd4765', secondary: '#78cbd0', 'secondary-ink': '#286269', 'on-secondary': '#173e44',
@@ -99,7 +90,7 @@ export const THEME_PRESETS = [
   {
     id: 'attribute-azure', group: 'attribute', attribute: 2,
     name: { 'zh-CN': '绀碧', en: 'Azure' },
-    description: { 'zh-CN': '绀碧导航 · 橙黄操作区', en: 'Azure navigation · Amber actions' },
+    description: { 'zh-CN': '绀碧 · 橙黄', en: 'Azure · Amber' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#2865a0', 'accent-bright': '#4178ae', secondary: '#ffc26e', 'secondary-ink': '#7b5019', 'on-secondary': '#523719',
@@ -108,7 +99,7 @@ export const THEME_PRESETS = [
   {
     id: 'attribute-jade', group: 'attribute', attribute: 3,
     name: { 'zh-CN': '翡翠', en: 'Jade' },
-    description: { 'zh-CN': '翡翠导航 · 樱粉操作区', en: 'Jade navigation · Pink actions' },
+    description: { 'zh-CN': '翡翠 · 樱粉', en: 'Jade · Cherry pink' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#27704f', 'accent-bright': '#3e805e', secondary: '#efa4bb', 'secondary-ink': '#903c60', 'on-secondary': '#58223a',
@@ -117,7 +108,7 @@ export const THEME_PRESETS = [
   {
     id: 'attribute-gold', group: 'attribute', attribute: 4,
     name: { 'zh-CN': '山吹', en: 'Golden Yellow' },
-    description: { 'zh-CN': '山吹导航 · 天蓝操作区', en: 'Gold navigation · Sky blue actions' },
+    description: { 'zh-CN': '山吹 · 天蓝', en: 'Golden yellow · Sky blue' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#805c16', 'accent-bright': '#936c21', secondary: '#86b9e4', 'secondary-ink': '#315f85', 'on-secondary': '#1b4160',
@@ -126,7 +117,7 @@ export const THEME_PRESETS = [
   {
     id: 'attribute-violet', group: 'attribute', attribute: 5,
     name: { 'zh-CN': '紫苑', en: 'Purple' },
-    description: { 'zh-CN': '紫苑导航 · 嫩绿操作区', en: 'Purple navigation · Spring green actions' },
+    description: { 'zh-CN': '紫苑 · 嫩绿', en: 'Purple · Spring green' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
       accent: '#73529a', 'accent-bright': '#8562aa', secondary: '#bddc79', 'secondary-ink': '#536728', 'on-secondary': '#3a4a1c',

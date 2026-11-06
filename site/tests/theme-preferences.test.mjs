@@ -24,8 +24,8 @@ test('manual themes persist during campaigns; overlapping events pick the latest
   const campaigns = [...THEME_CAMPAIGNS, event];
   assert.equal(at('auto','2026-12-25T12:00:00+08:00', campaigns).theme.id,'anniversary');
   assert.equal(at('auto','2026-12-26T00:00:00+08:00', campaigns).theme.id,'christmas');
-  const manual = at('mist','2026-12-25T12:00:00+08:00',campaigns);
-  assert.equal(manual.theme.id,'mist');
+  const manual = at('apricot','2026-12-25T12:00:00+08:00',campaigns);
+  assert.equal(manual.theme.id,'apricot');
   assert.equal(manual.campaign,null);
   assert.equal(manual.nextChangeAt,null);
   assert.equal(at('retired-theme','2026-12-25T12:00:00+08:00').preference,'auto');
@@ -93,6 +93,22 @@ test('inline bootstrap runs independently and disposes scheduled updates with it
   assert.equal(env.timers.size,0);
 });
 
+test('a saved retired mist choice follows automatic defaults and active campaigns on first paint', () => {
+  for (const [now, expected] of [
+    ['2026-11-06T00:00:00Z', DEFAULT_THEME],
+    ['2026-12-24T00:00:00Z', 'christmas'],
+  ]) {
+    const env = browser('mist');
+    class TestDate extends Date { static now() { return Date.parse(now); } }
+    vm.runInNewContext(createThemePreferencesScript(), {window:env.win, Date:TestDate});
+    assert.equal(env.win.__otonoteThemePreferences.getState().preference, 'auto');
+    assert.equal(env.root.dataset.themePreference, 'auto');
+    assert.equal(env.root.dataset.theme, expected);
+    assert.equal(env.properties.get('--theme-accent'), THEME_PRESETS.find(theme => theme.id === expected).tokens.accent);
+    env.win.__otonoteThemePreferences.destroy();
+  }
+});
+
 test('a quota failure retains the new session choice across pageshow and shell replacement', () => {
   const env = browser('paper');env.denyWrites();
   const controller = installThemePreferences(config,resolveThemePreference,env.win);
@@ -103,9 +119,9 @@ test('a quota failure retains the new session choice across pageshow and shell r
   const next = installThemePreferences(config,resolveThemePreference,env.win);
   assert.equal(env.root.dataset.theme,'night');
   assert.equal(next.getState().pendingSave,true);
-  env.values.set(config.key,'mist');
+  env.values.set(config.key,'apricot');
   const external = new Event('storage');external.key=config.key;env.win.dispatchEvent(external);
-  assert.equal(env.root.dataset.theme,'mist');
+  assert.equal(env.root.dataset.theme,'apricot');
   assert.equal(next.getState().pendingSave,false);
   next.destroy();
 });
@@ -113,6 +129,7 @@ test('a quota failure retains the new session choice across pageshow and shell r
 test('normal and cold selectors expose the same choices and English translations', () => {
   for(const html of [renderThemePicker('en'),renderThemePicker('zh-CN',{loading:true})]){
     for(const id of ['auto',...THEME_PRESETS.map(theme=>theme.id)]) assert.ok(html.includes(`data-theme-choice="${id}"`));
+    assert.ok(!html.includes('data-theme-choice="mist"'));
     assert.match(html,/aria-haspopup="dialog"/);
     assert.match(html,/data-theme-storage-status aria-live="polite"/);
   }

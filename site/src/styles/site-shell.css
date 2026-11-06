@@ -530,7 +530,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 /* The frame floats as two soft surfaces; the logo belongs to the navigation rail. */
 [data-shell="sidebar"] { --sidebar-width:224px; --header-height:76px; }
 [data-shell="sidebar"] .site-header {
-  grid-template-columns:auto minmax(0,1fr) auto auto;
+  grid-template-columns:auto minmax(0,1fr) repeat(3,auto);
   margin:12px 16px 0 8px; padding:0 20px; height:56px; min-height:56px;
   top:12px; border:0; border-radius:var(--theme-radius); box-shadow:var(--theme-shadow);
 }
@@ -571,7 +571,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 }
 @media(max-width:1100px) {
   [data-shell="sidebar"] { --shell-top:max(8px, env(safe-area-inset-top)); }
-  [data-shell="sidebar"] .site-header { grid-template-columns:auto minmax(0,1fr) auto auto auto; gap:10px; margin:var(--shell-top) 10px 0; top:var(--shell-top); padding:0 12px; }
+  [data-shell="sidebar"] .site-header { grid-template-columns:auto minmax(0,1fr) repeat(4,auto); gap:10px; margin:var(--shell-top) 10px 0; top:var(--shell-top); padding:0 12px; }
   [data-shell="sidebar"] .site-brand { position:static; width:32px; height:44px; padding:0; background:transparent; }
   [data-shell="sidebar"] .site-brand__full { display:none; }
   [data-shell="sidebar"] .site-brand__mark { width:32px; height:32px; }

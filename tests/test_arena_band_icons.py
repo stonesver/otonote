@@ -1,9 +1,10 @@
 import base64
 import hashlib
+import json
 import unittest
+from pathlib import Path
 
-from tools.publish_arena_band_icons import publish
-from tools.r2_content import canonical
+from tools.publish_arena_band_icons import publish, canonical
 
 
 class Bucket:
@@ -18,6 +19,11 @@ class Bucket:
 
 
 class ArenaBandIconTests(unittest.TestCase):
+    def test_checked_in_release_identity_matches_published_manifest(self):
+        inventory = json.loads((Path(__file__).resolve().parents[1] / 'site/src/lib/arena-band-icons.json').read_text())
+        manifest = canonical({'schemaVersion': 1, 'kind': 'arena-band-icons', 'files': inventory['files']})
+        self.assertEqual(hashlib.sha256(manifest).hexdigest()[:24], inventory['releaseId'])
+
     def fixture(self):
         files = {f'public/images/filter-bands/band-{i}.png': f'badge-{i}'.encode() for i in range(1, 6)}
         hashes = {key: hashlib.sha256(raw).hexdigest() for key, raw in files.items()}

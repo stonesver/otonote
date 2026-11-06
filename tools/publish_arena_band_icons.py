@@ -5,7 +5,8 @@ import json
 import os
 from pathlib import Path
 
-from tools.r2_content import S3Bucket, canonical
+from tools.r2_content import S3Bucket
+from tools.release_candidate import canonical
 
 
 def publish(bucket, payload, inventory):

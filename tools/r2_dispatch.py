@@ -4,7 +4,6 @@ This does no production work and never treats an accepted dispatch as a release.
 Keep it independent of producers so its operational changes need no rebuild.
 """
 import argparse
-import datetime
 import fcntl
 import json
 import os

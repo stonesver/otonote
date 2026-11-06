@@ -107,9 +107,9 @@ def validate_calendar(calendar):
     for row in rows:
         if not isinstance(row, dict) or set(row) != {'at', 'regions'}:
             raise ValueError('invalid activity check')
-        point = timestamp(row['at'])
+        point = parse_slot(row['at'])
         regions = row['regions']
-        if (point % 60 or point in seen or fixed_slot(point) or not isinstance(regions, list) or not regions
+        if (point in seen or fixed_slot(point) or not isinstance(regions, list) or not regions
                 or any(r not in ('global', 'jp') for r in regions) or len(set(regions)) != len(regions)):
             raise ValueError('invalid or duplicate activity check')
         seen.add(point)

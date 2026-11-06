@@ -1,3 +1,4 @@
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
 import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {requestTeamSave,openTeamWorkspace} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
@@ -40,7 +41,7 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
       el('span',mode==='gekisou'?'激奏演出':'普通自由演出','recommendation-mode'));
     const resultHeading=el('header',null,'task-result-heading'),identity=el('div');identity.append(header,el('span',recommendationScenarioLabel(result),'recommendation-scenario'));resultHeading.append(identity);row.append(resultHeading);
     const score=el('div',null,'recommendation-score');
-    score.append(el('strong',result.value==null?'—':Math.round(result.value).toLocaleString()),el('span',objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
+    score.append(el('strong',result.value==null?'—':Math.round(result.value).toLocaleString()),el('span',result.apTimingPlan?(hasApTimingInstructions(result.apTimingPlan)?'微操预计分':'正拍预计分'):objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
     if(result.delta!=null&&!result.planning?.missingActual)score.append(el('em',`${result.delta>=0?'+':''}${number(result.delta)} 较当前养成方案`,result.delta>=0?'is-positive':'is-negative'));
     resultHeading.append(score);row.append(createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result}));
 

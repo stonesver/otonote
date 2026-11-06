@@ -1,7 +1,7 @@
 import {estimateAPChart} from './ap-grade.mjs';
 import {createCalculationScheduler} from './calculation-scheduler.mjs';
 self.addEventListener('message',async({data})=>{
- const {rules,draft,candidates,mode,eventId,eco}=data,rows=[],failures=[];
+ const {rules,draft,candidates,mode,eventId,eco,basis}=data,rows=[],failures=[];
  const yieldControl=createCalculationScheduler({eco:eco===true});let next=0,done=0;
  try{
   await Promise.all(Array.from({length:Math.min(4,candidates.length)},async()=>{
@@ -11,7 +11,7 @@ self.addEventListener('message',async({data})=>{
      const response=await fetch(c.analysisDataUrl,{signal:AbortSignal.timeout(30000)});
      if(!response.ok)throw Error(`谱面加载失败（${response.status}）`);
      const chart=await response.json();await yieldControl();
-     rows.push(estimateAPChart({rules,draft,chart,candidate:c,mode,eventId}));await yieldControl();
+     rows.push(estimateAPChart({rules,draft,chart,candidate:c,mode,eventId,basis}));await yieldControl();
     }catch(error){failures.push({title:c.title,difficulty:c.difficulty,message:error.message});}
     self.postMessage({type:'progress',done:++done,total:candidates.length});
    }

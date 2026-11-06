@@ -1,6 +1,8 @@
 import {renderGekisouPlayback} from './gekisou-playback-view.mjs';
 import {skillOrderSummary} from './skill-order-summary.mjs';
 import {createReplayClock, noteDensity,partitionActivationEffects} from './skill-activation-model.mjs';
+import {apTimingSummary,renderApTimingReplay} from './ap-timing-view.mjs';
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
 const say = (zh,en) => document.documentElement.lang.startsWith('en') ? en : zh;
 const el = (tag,text,cls) => {const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
@@ -33,6 +35,10 @@ function effectsList(data,skill,events=[]){
 export function renderSkillActivation(root,result,data={}){
   root.stopReplay?.();
   root.replaceChildren();const playback=result.skillPlayback;
+  if(result.apTimingPlan){
+    const order=skillOrderSummary(data,data.rangePayload?.draft,result);if(order)root.append(order);
+    renderApTimingReplay(root,result,data).catch(error=>root.append(el('p',error.message)));return;
+  }
   if(!playback){
     root.append(el('p',say('尚未指定歌曲，以下为 AP／满生命条件下的配对效果；选歌后可查看发动时间。','No chart selected. Pair effects below assume AP and full life; select a song for timing.')));
     for(const skill of result.skills??[]){root.append(el('h4',skillName(data,skill,skill.slotIndex)),effectsList(data,skill));}return;
@@ -133,6 +139,7 @@ export function renderSkillActivation(root,result,data={}){
 if(typeof HTMLElement!=='undefined'&&typeof customElements!=='undefined'&&!customElements.get('skill-activation')){
 class SkillActivation extends HTMLElement {
   connectedCallback(){if(this.initialized)return;this.initialized=true;
+    if(hasApTimingInstructions(this.summaryResult?.apTimingPlan))this.append(apTimingSummary(this.summaryResult.apTimingPlan));
     const order=skillOrderSummary(this.data??{},this.payload?.draft,this.summaryResult);if(order)this.append(order);
     const details=el('details',null,'skill-activation');const summary=el('summary'),mark=el('span',null,'activation-mark');mark.setAttribute('aria-hidden','true');for(let i=0;i<5;i++)mark.append(el('i'));
     const summaryText=el('span',null,'activation-summary-text');summaryText.append(el('strong',say('查看技能发动','View skill activations')),el('small',say('发动顺序、技能条件与音符覆盖','Order, conditions and note coverage')));summary.append(mark,summaryText,el('span','⌄','activation-chevron'));details.append(summary);const body=el('div',null,'activation-body');details.append(body);this.append(details);
@@ -156,7 +163,7 @@ class SkillActivation extends HTMLElement {
     this.stop();body.replaceChildren(el('p',say('正在重放这支队伍的技能…','Replaying skill activations…'),'activation-loading'));body.setAttribute('aria-busy','true');
     const fail=message=>{this.stop();body.removeAttribute('aria-busy');body.replaceChildren(el('p',message));const retry=el('button',say('重试','Retry'));retry.type='button';retry.addEventListener('click',()=>this.load(body));body.append(retry);};
     try{const worker=new Worker(new URL('./skill-activation-worker.mjs',import.meta.url),{type:'module'});this.worker=worker;
-      worker.onmessage=({data})=>{if(this.worker!==worker)return;if(data.error){fail(data.error);return;}this.stop();body.removeAttribute('aria-busy');this.result=data.result;renderSkillActivation(body,this.result,this.data);};
+      worker.onmessage=({data})=>{if(this.worker!==worker)return;if(data.error){fail(data.error);return;}this.stop();body.removeAttribute('aria-busy');this.result=data.result;if(data.chart)this.data.chart=data.chart;renderSkillActivation(body,this.result,this.data);};
       worker.onerror=()=>{if(this.worker===worker)fail(say('技能记录加载失败，请重试','Could not load skill records. Try again.'));};worker.postMessage(this.payload);
     }catch(error){fail(error.message);}
   }
@@ -164,9 +171,10 @@ class SkillActivation extends HTMLElement {
 customElements.define('skill-activation',SkillActivation);
 }
 export function skillActivation(tool,draft,options={}){
-  const data=tool.data??tool,view=document.createElement('skill-activation');view.data={memberCards:data.memberCards,supportCards:data.supportCards,ranking:Boolean(options.ranking)};
+  const data=tool.data??tool,view=document.createElement('skill-activation');view.data={memberCards:data.memberCards,supportCards:data.supportCards,ranking:Boolean(options.ranking),chart:options.chart?.notes?options.chart:tool.loadedChart};
   const copy=draft?structuredClone(draft):null;
   const chart=options.chart??data.charts?.find(c=>c.trackId===copy?.selectedSongId&&c.difficulty===copy?.selectedDifficulty);
   view.payload={rules:data.formalRules??data.rules,draft:copy,chart:options.conditionsOnly?null:chart,mode:options.mode??'ordinary',scenario:options.scenario,eventId:options.eventId,ranking:options.ranking,conditionsOnly:options.conditionsOnly};
+  view.data.rangePayload=view.payload;
   view.result=options.result;view.summaryResult=options.summary;return view;
 }

@@ -6,6 +6,7 @@ import { createAutoStageRenderer } from './auto-stage-renderer.ts';
 import { createDemoClock } from './demo-clock.mjs';
 import { createMediaClock } from './media-clock.mjs';
 import { chartLoopRange, chartPlaybackFromSearch, chartPlaybackUrl } from './chart-playback-state.mjs';
+import { createTimingPlayback, importTimingPlayback, timingPlaybackDuration } from './ap-timing-playback.mjs';
 import { SCORE_DIFFICULTY_REQUEST_EVENT, SCORE_DIFFICULTY_CHANGE_EVENT } from './score-workbench-element.ts';
 
 const formatTime = time => `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, '0')}`;
@@ -33,6 +34,7 @@ export function registerChartDemo() {
       let request, sequence = 0, timeline, frameId = 0, disposed = false, playbackDuration = 0, playAttempt = 0;
       let skinRequest = null, skinLoaded = false, firstLoad = true, loadedDifficulty = null, size = null;
       let loopStart = null, loopEnd = null, loopRestartPending = false;
+      let rawChart=null,timing=null,timingFile=null;
       const loopRange = () => chartLoopRange(loopStart, loopEnd, playbackDuration);
       const activeLoop = () => find('loop-enabled').checked ? loopRange() : null;
       const syncLoop = () => {
@@ -64,12 +66,13 @@ export function registerChartDemo() {
           gutter: Math.max(rect.width * 0.06, (rect.width - rect.height * 1.85) / 2),
           topWidthRatio: 0.12, horizonRatio: 0.08, judgementRatio: 0.88, perspective: true
         });
-        const scene = timeline ? createAutoScene(timeline, frame, clock.time(), { lookAheadSeconds: 2.5 / Number(find('speed').value), missions, en })
+        const scene = timeline ? createAutoScene(timeline, frame, clock.time(), { lookAheadSeconds: 2.5 / Number(find('speed').value), missions, en, performance:timing })
           : { longPaths: [], markers: [], hitEffects: [], activeCue: null, combo: 0 };
         renderer.render({ context, frame, profile, stageTheme: skin.theme,
           gameSettings: { backgroundBrightness: Number(find('brightness').value), laneOpacity: 78, guidelineOpacity: 50, slideOpacity: 75, guideOpacity: 55,
             hiddenHeight: Number(find('hidden-height').value), hiddenFade: Number(find('hidden-fade').value) }, scene });
         setText(find('combo'), String(scene.combo));
+        if(find('timing-status')&&timing)setText(find('timing-status'),`${timing.variant.timingCondition.frameRate} FPS · ${en?'Calculated playback · Score':'计算方案回放 · 得分'} ${Math.round(scene.score??0).toLocaleString()} · ${(scene.scoreUpFactor??1).toFixed(2)}×`);
         setText(find('section'), scene.activeGekisou ? `${en ? 'Section' : '激奏'} ${scene.activeGekisou.index} · ${scene.activeGekisou.label}` : (en ? 'Normal section' : '常规区间'));
         sync();
       };
@@ -119,6 +122,20 @@ export function registerChartDemo() {
       };
       const stop = () => { playAttempt++; clock.pause(); cancelAnimationFrame(frameId); frameId = 0; play.disabled = !timeline; sync(); };
       const listen = (element, type, callback) => element.addEventListener(type, callback, { signal: events.signal });
+      const resizeTimingClock=()=>{if(!timeline)return;const time=clock.time();stop();playbackDuration=Math.max(timeline.duration,Number(audio?.dataset.duration)||0,timingFile?timingPlaybackDuration(timeline,timingFile.skillPlayback):0);clock.load(playbackDuration);clock.seek(time);seek.max=String(playbackDuration);syncLoop();};
+      const clearTiming=()=>{timing=null;timingFile=null;if(find('timing-file'))find('timing-file').value='';if(find('timing-variant'))find('timing-variant').replaceChildren();if(find('timing-controls'))find('timing-controls').hidden=true;if(find('timing-clear'))find('timing-clear').hidden=true;if(find('timing-status'))find('timing-status').textContent='';resizeTimingClock();};
+      if(find('timing-file'))listen(find('timing-file'),'change',async()=>{
+        const file=find('timing-file').files[0];if(!file||!rawChart)return;
+        const currentChart=rawChart;
+        try{
+          const value=JSON.parse(await file.text());if(rawChart!==currentChart)return;
+          timingFile=importTimingPlayback(value,rawChart);const select=find('timing-variant');select.replaceChildren();
+          timingFile.skillPlayback.variants.forEach((v,i)=>{const option=document.createElement('option');option.value=String(i);const c=v.timingCondition;option.textContent=`${c.frameRate} FPS · ${c.kind==='ap_minimum'?(en?'AP minimum':'AP 最低分'):c.kind==='ap_maximum'?(en?'AP maximum':'AP 最高分'):c.kind==='alignment'?(en?'Favorable alignment':'有利对齐'):(en?'Reference clock':'参考时钟')} · ${Number(c.phaseMs.toFixed(3))} ms`;select.append(option);});
+          timing=createTimingPlayback(timingFile.skillPlayback,timingFile.skillPlayback.variants[0]);find('timing-controls').hidden=false;find('timing-clear').hidden=false;resizeTimingClock();draw();
+        }catch(error){clearTiming();find('timing-status').textContent=error.message;}
+      });
+      if(find('timing-variant'))listen(find('timing-variant'),'change',()=>{timing=createTimingPlayback(timingFile.skillPlayback,timingFile.skillPlayback.variants[Number(find('timing-variant').value)]);draw();});
+      if(find('timing-clear'))listen(find('timing-clear'),'click',()=>{clearTiming();find('timing-file').value='';draw();});
       const load = async () => {
         const requestedPosition = firstLoad ? null : loadedDifficulty === difficulty.value
           ? { time: clock.time(), loop: activeLoop() } : null;
@@ -127,7 +144,7 @@ export function registerChartDemo() {
           for (const key of ['t', 'loopStart', 'loopEnd']) url.searchParams.delete(key);
           history.replaceState(history.state, '', url);
         }
-        stop(); timeline = undefined; playbackDuration = 0; clock.load(0); draw();
+        stop(); clearTiming();rawChart=null;timeline = undefined; playbackDuration = 0; clock.load(0); draw();
         request?.abort(); request = new AbortController();
         const current = ++sequence;
         play.disabled = reset.disabled = seek.disabled = true;
@@ -140,7 +157,7 @@ export function registerChartDemo() {
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = await response.json();
           if (disposed || current !== sequence) return;
-          timeline = normalizeAutoTimeline(data);
+          rawChart=data;timeline = normalizeAutoTimeline(data);
           playbackDuration = Math.max(timeline.duration, Number(audio?.dataset.duration) || 0);
           clock.load(playbackDuration); seek.max = String(playbackDuration);
           const requested = firstLoad ? chartPlaybackFromSearch(location.search, playbackDuration) : requestedPosition;

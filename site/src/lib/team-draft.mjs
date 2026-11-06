@@ -227,6 +227,10 @@ export function serializeTeamDraftSearch(draft) {
     params.set("tgwRank", String(normalized.modifiers.tgwCardRank));
   }
   const { tgwCardRank: _rank, ...otherModifiers } = normalized.modifiers;
+  if (otherModifiers.apTimingPlan) {
+    const {version,context,order,search,adjustments}=otherModifiers.apTimingPlan;
+    otherModifiers.apTimingPlan={version,context,order,search,adjustments:adjustments.map(({scoreIndex,timingOffsetMs})=>({scoreIndex,timingOffsetMs}))};
+  }
   // Search candidates may carry growth for the whole owned inventory.
   // A share URL needs only the selected team, keeping unused cards private and URLs bounded.
   if (isObject(otherModifiers.growth)) {

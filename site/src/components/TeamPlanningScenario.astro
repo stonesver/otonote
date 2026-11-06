@@ -39,11 +39,11 @@ import '../styles/team-planning.css';
   </details>
 </div> : <div class="planning-panel" data-performance-panel>
   <div class="planning-fields">
-    <label class="planning-field"><span>发挥条件</span><select data-performance-profile data-quick-native><option value="steady">参考发挥</option><option value="practice">练习中的发挥</option><option value="ideal">理想发挥</option></select></label>
+    <label class="planning-field"><span>发挥条件</span><select data-performance-profile data-quick-native><option value="ap_timing">AP 微操</option><option value="steady">参考发挥</option><option value="practice">练习中的发挥</option><option value="ideal">理想发挥</option></select></label>
     <label class="planning-field"><span>推荐方向</span><select data-recommendation-goal><option value="score">冲高分</option><option value="stable">较低分表现</option><option value="missions">激奏段落任务</option></select></label>
   </div>
   <p data-performance-note class="calculator-scope-note" aria-live="polite"></p>
-  <details><summary>调整发挥条件或导入演出记录</summary>
+  <details data-performance-custom><summary>调整发挥条件或导入演出记录</summary>
     <p class="calculator-scope-note">这里设置本次模拟，不会推断你的个人水平。相同的原始操作会用于比较不同队伍。</p>
     <div class="planning-fields">
       <label class="planning-field"><span>整体偏早 / 偏晚（毫秒）</span><input type="number" data-performance-bias value="0" min="-500" max="500" /></label>

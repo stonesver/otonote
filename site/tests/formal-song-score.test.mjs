@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createTeamDraft, parseTeamDraftSearch, serializeTeamDraftSearch } from "../src/lib/team-draft.mjs";
 import { createFormationCalculator } from "../src/lib/scoring-rules/formation-power.mjs";
 import { createFormalSkillResolver } from "../src/lib/scoring-rules/formal-skills.mjs";
@@ -120,14 +122,17 @@ test('native skill end timestamps ceil the combined float32 duration', () => {
 });
 
 test("all published chart projections adapt; source skill events need not be sorted", () => {
-  const directory = new URL("../public/data/music-charts/", import.meta.url);
+  // The full published catalog must use its own rules snapshot. Historical
+  // hand fixtures above deliberately retain the audited baseline rules.
+  const publishedRules=process.env.OTONOTE_PUBLISHED_RULES?JSON.parse(readFileSync(process.env.OTONOTE_PUBLISHED_RULES)):rules;
+  const directory=process.env.OTONOTE_PUBLISHED_CHARTS?pathToFileURL(resolve(process.env.OTONOTE_PUBLISHED_CHARTS)+'/'):new URL("../public/data/music-charts/", import.meta.url);
   for (const filename of readdirSync(directory).filter((f) => f.endsWith(".json"))) {
     const data = JSON.parse(readFileSync(new URL(filename, directory)));
-    const result = prepareFormalChart(rules, data);
+    const result = prepareFormalChart(publishedRules, data);
     assert.equal(result.events.length, result.masterFullCombo, filename);
     assert.equal(result.skillTimes.length, 5);
     assert.ok(result.skillTimes.every((time, i, all) => !i || time > all[i - 1]), filename);
-    assert.equal(result.verificationStatus, "code_formula_reconstructed_chart");
+    assert.equal(result.verificationStatus, publishedRules.referenceProfile ? "reference_formula_reconstructed_chart" : "code_formula_reconstructed_chart");
   }
 });
 

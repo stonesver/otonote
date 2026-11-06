@@ -1,0 +1,33 @@
+.ap-timing-summary { margin:12px 0 18px; padding:18px; border:1px solid #dce3eb; border-radius:12px; background:#f7f8fa; color:#263449; }
+.ap-timing-summary p { margin:10px 0; line-height:1.65; }
+.ap-timing-score { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ap-timing-score>div { display:grid; gap:4px; }
+.ap-timing-score>div>span { color:#657187; font-size:12px; }
+.ap-timing-score strong { font-size:clamp(24px,5vw,32px); line-height:1.2; font-variant-numeric:tabular-nums; letter-spacing:-.025em; }
+.ap-timing-gain { color:#215f58; font-size:13px; font-weight:650; }
+.ap-timing-muted { color:#657187; font-size:12px; line-height:1.65; }
+.ap-timing-details { margin-top:12px; border-top:1px solid #dce3eb; padding-top:12px; font-size:13px; }
+.ap-timing-details>summary { cursor:pointer; font-weight:600; color:#526077; padding:4px 0; }
+.ap-timing-details p { line-height:1.7; }
+.ap-timing-details small { display:block; color:#657187; line-height:1.7; }
+.ap-timing-replay .task-replay-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:16px 0 8px; }
+.ap-timing-replay .task-replay-controls input[type=range] { flex-basis:100%!important; accent-color:#783f59; }
+.ap-timing-replay .task-replay-controls select { max-width:100%; }
+.ap-timing-replay .task-replay-controls select.ap-timing-variant { width:auto; min-width:180px; }
+.ap-timing-replay button,.ap-timing-replay select { font:inherit; min-height:38px; border:1px solid #ccd5df; border-radius:7px; background:#fff; color:#263449; padding:7px 10px; cursor:pointer; }
+.ap-timing-replay button[aria-pressed=true] { background:#783f59; border-color:#783f59; color:white; }
+.ap-timing-replay :is(button,select,summary,input):focus-visible { outline:3px solid #527aba; outline-offset:3px; }
+.ap-timing-live { margin:8px 0; color:#526077; font-size:13px; font-variant-numeric:tabular-nums; }
+.ap-timing-practice { margin:18px 0; }
+.ap-timing-cue { display:flex; align-items:center; justify-content:space-between; gap:12px; border-left:3px solid #783f59; padding:12px 14px; background:#f7f8fa; margin-top:8px; border-radius:0 8px 8px 0; }
+.ap-timing-cue>div { display:grid; gap:5px; }
+.ap-timing-cue small { color:#657187; font-variant-numeric:tabular-nums; }
+.ap-timing-cue strong { font-size:14px; font-weight:600; }
+.ap-timing-cue>button { flex-shrink:0; }
+.ap-timing-notes { width:100%; border-collapse:collapse; font-size:13px; }
+.ap-timing-notes :is(th,td) { padding:10px 8px; border-bottom:1px solid #e6eaf0; text-align:left; white-space:nowrap; }
+.ap-timing-lane { display:block; position:relative; width:100px; height:18px; background:repeating-linear-gradient(90deg,#e9edf2 0,#e9edf2 calc(100% / 6 - 1px),#ced8e2 calc(100% / 6 - 1px),#ced8e2 calc(100% / 6)); border:1px solid #ccd5df; border-radius:4px; overflow:hidden; }
+.ap-timing-lane i { position:absolute; top:3px; height:10px; border-radius:2px; background:#783f59; }
+.ap-timing-range { margin-bottom:18px; }
+.ap-timing-range button { margin:4px 8px 4px 0; }
+@media(max-width:480px) { .ap-timing-summary { padding:14px; } .ap-timing-cue { padding:10px; gap:8px; } .ap-timing-cue strong { font-size:12px; } .ap-timing-lane { width:72px; } .ap-timing-notes :is(th,td) { padding:8px 4px; } }

@@ -33,7 +33,7 @@ test('AP forecast works without events and retains full skill-order scoring',()=
 });
 test('eco scheduler rests between CPU slices and shares overlapping pauses',async()=>{
  let time=0,finish;const sleeps=[];
- const scheduler=createCalculationScheduler({now:()=>time,sleep:ms=>{sleeps.push(ms);return new Promise(r=>finish=r);}});
+ const scheduler=createCalculationScheduler({eco:true,now:()=>time,sleep:ms=>{sleeps.push(ms);return new Promise(r=>finish=r);}});
  await scheduler();assert.deepEqual(sleeps,[]);time=20;
  const a=scheduler(),b=scheduler();assert.deepEqual(sleeps,[40]);finish();await Promise.all([a,b]);
  time=25;await scheduler();assert.deepEqual(sleeps,[40]);

@@ -1,7 +1,9 @@
-// A cycle shares the player's collection, not a selected formation or grade.
-// Keep old callers compatible while allowing each stage its own constraints.
+import {withAPTimingBasis} from './ap-grade.mjs';
+// Farming uses on-time estimates even when the imported team has a timing plan.
+// A cycle shares the collection; each stage owns its scoring basis and scope.
 export function eventYieldStageInput(input,mode){
- if(mode!=='challenge'||input.mode!=='ordinary'||!input.includeChallenge)return {...input,mode};
- return {...input,mode,scope:input.challengeScope&&input.challengeScope!=='same'?input.challengeScope:input.scope,
-   basis:input.challengeBasis??input.basis};
+ const followup=mode==='challenge'&&input.mode==='ordinary'&&input.includeChallenge;
+ const basis=followup?input.challengeBasis??input.basis:input.basis;
+ return {...input,mode,basis,draft:withAPTimingBasis(input.draft,'expectedScore'),
+   ...(followup?{scope:input.challengeScope&&input.challengeScope!=='same'?input.challengeScope:input.scope}:{})};
 }

@@ -27,10 +27,10 @@ export function createPerformanceTemplate(rules, chart, { frameRate = 60 } = {})
 export function validateAgainstTimeline(timeline, performance, defaultFrameRate) {
   if (!performance || ![PERFORMANCE_VERSION, TIMING_PERFORMANCE_VERSION].includes(performance.version)) throw new Error('判定文件版本不受支持');
   if (performance.chartId !== timeline.chartId || performance.chartHash !== timeline.chartHash) throw new Error('判定文件与当前谱面或模型不匹配，请重新下载模板');
-  const allowed = new Set(['version', 'chartId', 'chartHash', 'frameRate', 'frames', 'skillOrder', 'judgements']);
+  const allowed = new Set(['version', 'chartId', 'chartHash', 'frameRate', 'framePhaseMs', 'frames', 'skillOrder', 'judgements']);
   for (const key of Object.keys(performance)) if (!allowed.has(key)) throw new Error(`不支持的判定文件字段：${key}`);
   const frameRate = performance.frameRate ?? defaultFrameRate ?? 60;
-  const clock = createFrameClock({ frameRate, frames: performance.frames });
+  const clock = createFrameClock({ frameRate, frames: performance.frames, phaseMs: performance.framePhaseMs ?? 0 });
   const order = performance.skillOrder;
   if (!Array.isArray(order) || order.length !== 5 || new Set(order).size !== 5 || order.some(i => !Number.isInteger(i) || i < 0 || i > 4)) throw new Error('技能顺序必须是 0 至 4 的完整排列');
   if (!Array.isArray(performance.judgements) || performance.judgements.length !== timeline.events.length) throw new Error(`判定文件须包含全部 ${timeline.events.length} 个计分事件`);
@@ -65,12 +65,12 @@ export function validatePerformance(rules, chart, performance) {
  * windows. This reuses the score bucket engine and independently reconstructs
  * life/combos and the currently audited skill vocabulary. It is not a captured
  * Unity input stream and intentionally does not synthesize Gekisou or assist. */
-export function createPerformanceSongCalculator(rules, chart, { performance, frameRate = 60, eventAdapters = [] } = {}) {
-  const timeline = prepareFormalChart(rules, chartWithRelease(rules, chart));
+export function createPerformanceSongCalculator(rules, chart, { performance, frameRate = 60, eventAdapters = [], _context } = {}) {
+  const timeline = _context?.timeline ?? prepareFormalChart(rules, chartWithRelease(rules, chart));
   const input = validateAgainstTimeline(timeline, performance, frameRate);
   const { clock, skillOrder, judgements } = input;
-  const formation = createFormationCalculator(rules, { eventAdapters });
-  const resolve = createFormalSkillResolver(rules, { dynamic: true });
+  const formation = _context?.formation ?? createFormationCalculator(rules, { eventAdapters });
+  const resolve = _context?.resolve ?? createFormalSkillResolver(rules, { dynamic: true });
   const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
   const judgementRows = new Map(rules.tables.LiveJudgementParameter.map(row => [row._noteSimulateJudgement, row]));
   const maximumLife = setting('life_base');
@@ -121,7 +121,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
         // after this note's damage; later bucket replay must not re-query it.
         const lifeAtInput = life.at(inputNote.timeMs);
         lowestLife = Math.min(lowestLife, lifeAtInput);
-        replay.addNote({ ...inputNote, originalJudgement, judgement, convertedBy, lifeAtInput });
+        replay.addNote({ ...inputNote, inputTimeMs: nowMs, originalJudgement, judgement, convertedBy, lifeAtInput });
         changed = true;
       }
       replay.calculate(nowMs);
@@ -130,8 +130,8 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       const currentLife = life.at(nowMs);
       lowestLife = Math.min(lowestLife, currentLife);
       replay.calculate(nowMs);
-      if (includeTrace && changed) stateTrace.push({ frame, timeMs: nowMs, life: currentLife, combo: combo.state.combo,
-        maxCombo: combo.state.maxCombo, score: replay.score, converters: converters.filter(c => c.active)
+      if (includeTrace && (changed || stateTrace.at(-1)?.score !== replay.score)) stateTrace.push({ frame, timeMs: nowMs, life: currentLife, combo: combo.state.combo,
+        maxCombo: combo.state.maxCombo, score: replay.score, scoreUpFactor: f32(replay.state.general + replay.state.perfect), converters: converters.filter(c => c.active)
           .map(c => ({ slotIndex: c.slot, effectId: c.effect.id, remaining: c.remaining })) });
     }
     const finalMs = Math.max(musicLengthMs, clock.at(lastFrame + 1).timeMs);
@@ -151,7 +151,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       judgementCounts: counts, convertedCount, conversions: [...conversionCounts].map(([effectId, count]) => ({ effectId, count })) };
     return { status: 'estimated', modelVersion: SCORE_MODEL_VERSION, scorePrecision: 'explicit_performance',
       verificationStatus: timeline.verificationStatus, scenario: performance.version === TIMING_PERFORMANCE_VERSION ? 'ordinary_raw_timing_no_assist' : 'ordinary_explicit_judgements_no_assist',
-      timingModel: { frameRate: input.frameRate, clock: clock.kind, scoreBucketMs: 40 },
+      timingModel: { frameRate: input.frameRate, phaseMs: clock.phaseMs, clock: clock.kind, scoreBucketMs: 40 },
       sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion, event: eventPipeline.context,
       inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, performance, skillOrder, modelVersion: SCORE_MODEL_VERSION }),
       power: power.total.total, baseScore, expectedScore: score, minimumScore: score, maximumScore: score,
@@ -165,7 +165,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
         ...timeline.warnings.filter(warning => warning.includes('不一致'))],
       ...(includeTrace ? { bestOrderNotes: notes, bestOrderFixedScore: score - noteTotal, stateTrace, skillTrace,
         skillPlayback: { skills, skillTimes: timeline.skillTimes, frameRate: input.frameRate,
-          variants: [{ kind: 'explicit', order: skillOrder, score, notes, commands: factorCommands, skillTrace }] } } : {}) };
+          variants: [{ kind: 'explicit', order: skillOrder, score, notes, commands: factorCommands, skillTrace, stateTrace }] } } : {}) };
   }
   function validateOrder(order) {
     if (!Array.isArray(order) || order.length !== 5 || new Set(order).size !== 5 || order.some(i => !Number.isInteger(i) || i < 0 || i > 4)) throw new Error('技能顺序必须是 0 至 4 的完整排列');
@@ -187,5 +187,6 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   function calculate(draft, options = {}) {
     return calculateOrders(draft, { skillOrders: [options.skillOrder ?? input.skillOrder], includeTrace: options.includeTrace })[0];
   }
-  return { calculate, calculateOrders, timeline };
+  return { calculate, calculateOrders, timeline,
+    withPerformance: next => createPerformanceSongCalculator(rules, chart, { performance: next, eventAdapters, _context: { timeline, formation, resolve } }) };
 }

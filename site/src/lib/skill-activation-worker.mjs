@@ -5,6 +5,7 @@ import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
 import {calculateSongSkillReplay} from './song-skill-replay.mjs';
 import {checkedJson} from '../runtime/content.mjs';
 import {createScenarioSongCalculator} from '../../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
+import {calculateApWindowRanges} from '../../../packages/scoring/scoring-rules/ap-window-range.mjs';
 
 self.addEventListener('message', async ({data}) => {
   try {
@@ -38,9 +39,15 @@ self.addEventListener('message', async ({data}) => {
       draft.modifiers.event = {id:eventId, sourceReleaseId:rules.sourceReleaseId};
       eventAdapters = [model.challengeAdapter(rules)];
     } else delete draft.modifiers.event;
+    if(data.apWindowOrder){
+      const range=calculateApWindowRanges(rules,chart,draft,{order:data.apWindowOrder,eventAdapters,
+        onProgress:rangeProgress=>self.postMessage({rangeProgress})});
+      self.postMessage({range});return;
+    }
     const performanceScenario = draft.modifiers?.performanceScenario;
     const calculator = performanceScenario ? createScenarioSongCalculator(rules,chart,{mode:mode==='gekisou'?'gekisou':'ordinary',performanceScenario,scenario,eventAdapters})
       : mode === 'gekisou' ? createGekisouSongCalculator(rules,chart,{scenario,eventAdapters}) : createFormalSongCalculator(rules,chart,{eventAdapters});
-    self.postMessage({result:calculator.calculate(draft,{includeTrace:true})});
+    const result=calculator.calculate(draft,{includeTrace:true});
+    self.postMessage({result,...(result.apTimingPlan?{chart}:{})});
   } catch (error) { self.postMessage({error:String(error.message ?? error)}); }
 });

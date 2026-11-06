@@ -2,8 +2,9 @@ const f32 = Math.fround;
 
 /** Music timestamps and deltaTime are independent inputs in the client.
  * A supplied clock is a scenario, never an inferred device recording. */
-export function createFrameClock({ frameRate = 60, frames = null } = {}) {
+export function createFrameClock({ frameRate = 60, frames = null, phaseMs = 0 } = {}) {
   if (![30, 60, 120].includes(frameRate)) throw new Error('模拟帧率须为 30、60 或 120');
+  if (!Number.isFinite(phaseMs) || phaseMs < 0 || phaseMs >= 1000 / frameRate || frames && phaseMs !== 0) throw new Error('参考帧对齐无效');
   if (frames != null) {
     if (!Array.isArray(frames) || !frames.length || frames.length > 100000) throw new Error('无效的逐帧时钟');
     frames = frames.map((frame, i) => {
@@ -15,17 +16,17 @@ export function createFrameClock({ frameRate = 60, frames = null } = {}) {
   function at(index) {
     if (!Number.isSafeInteger(index) || index < 0) throw new Error('无效的帧序号');
     if (frames && index >= frames.length) throw new Error('逐帧时钟未覆盖结算和技能结束，请补齐尾帧');
-    return frames?.[index] ?? { timeMs: Math.floor(index * 1000 / frameRate), deltaSeconds: f32(1 / frameRate) };
+    return frames?.[index] ?? { timeMs: Math.floor(index * 1000 / frameRate + phaseMs), deltaSeconds: f32(1 / frameRate) };
   }
   function indexAt(timeMs) {
     if (!Number.isFinite(timeMs)) throw new Error('无效的输入时刻');
-    if (!frames) return Math.max(0, Math.ceil(timeMs * frameRate / 1000));
+    if (!frames) return Math.max(0, Math.ceil((timeMs - phaseMs) * frameRate / 1000));
     let lo = 0, hi = frames.length;
     while (lo < hi) { const mid = (lo + hi) >>> 1; if (frames[mid].timeMs < timeMs) lo = mid + 1; else hi = mid; }
     at(lo);
     return lo;
   }
-  return { at, indexAt, frameRate, frames, kind: frames ? 'explicit_frames' : 'ideal' };
+  return { at, indexAt, frameRate, frames, phaseMs, kind: frames ? 'explicit_frames' : 'ideal' };
 }
 
 // MusicStopwatch.Update 0x6a63bb8 / get_ElapsedMilliseconds 0x6a63b6c.

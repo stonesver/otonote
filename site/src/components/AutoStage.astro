@@ -35,6 +35,9 @@ const config = JSON.stringify({ skin: createGameSkin(skinManifest, import.meta.e
     <button type="button" data-auto-copy-position disabled>{en ? "Copy position link" : "复制位置链接"}</button>
   </div>
   <div class="chart-demo-controls">
+    <label>{en ? "Timing plan" : "微操方案"}<input type="file" accept="application/json,.json" data-auto-timing-file /></label>
+    <label hidden data-auto-timing-controls>{en ? "Clock condition" : "时钟条件"}<select data-auto-timing-variant></select></label>
+    <button type="button" data-auto-timing-clear hidden>{en ? "Clear timing plan" : "移除微操方案"}</button>
     <label hidden={externalDifficulty}>{en ? "Difficulty" : "难度"}<select data-auto-difficulty>
       {charts.map((chart) => <option value={chart.difficulty} data-url={chart.analysisDataUrl} selected={chart.difficulty === "expert"}>{chart.difficulty.toUpperCase()} · Lv.{chart.displayLevel}</option>)}
     </select></label>
@@ -52,6 +55,7 @@ const config = JSON.stringify({ skin: createGameSkin(skinManifest, import.meta.e
     </div>
   </div>
   <div class="auto-stage-status"><p data-auto-status role="status">{en ? "Loading chart…" : "正在加载谱面…"}</p><button type="button" data-auto-retry hidden>{en ? "Retry" : "重新加载"}</button></div>
+  <p data-auto-timing-status role="status"></p>
   <noscript>{en ? "Enable JavaScript to play charts." : "启用 JavaScript 后可播放谱面。"}</noscript>
 </auto-stage>
 <script>

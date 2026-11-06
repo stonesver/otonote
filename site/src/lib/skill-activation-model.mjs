@@ -16,7 +16,7 @@ export function activationRows(playback, variant) {
     const skill = playback.skills[slotIndex], startMs = playback.skillTimes[position];
     const windows = [];
     for (const [i, command] of commands.entries()) {
-      if (command.ownerId !== slotIndex * 100 + 1 || !fields.some(k => command[k] > 0)) continue;
+      if (![slotIndex * 100 + 1,slotIndex * 100 + 2].includes(command.ownerId) || !fields.some(k => command[k] > 0)) continue;
       const endIndex = commands.findIndex((end, j) => j !== i && !used.has(j) && end.ownerId === command.ownerId
         && end.timeMs >= command.timeMs && fields.every(k => (end[k] ?? 0) === -(command[k] ?? 0)));
       if (endIndex < 0) continue;
@@ -30,16 +30,16 @@ export function activationRows(playback, variant) {
   });
 }
 export function playbackDuration(playback, variant) {
-  return Math.max(1000, ...(variant.notes ?? []).map(n => n.timeMs), ...activationRows(playback, variant).map(r => r.endMs),
+  return Math.max(1000, ...(variant.notes ?? []).map(n => Math.max(n.timeMs,n.inputTimeMs??n.timeMs)), ...(variant.stateTrace??[]).map(s=>s.timeMs), ...activationRows(playback, variant).map(r => r.endMs),
     ...(playback.ranges ?? []).map(r => r.endMs), ...(variant.skillTransitions ?? []).map(e => e.timeMs));
 }
 
 /** Read the same scored sample at any time. Seeking never runs another calculation. */
 export function createReplayClock(playback, variant, {stateTrace=[]}={}) {
   const rows=activationRows(playback,variant),duration=playbackDuration(playback,variant);
-  const notes=[...(variant.notes??[])].sort((a,b)=>a.timeMs-b.timeMs),prefix=[0];
+  const notes=[...(variant.notes??[])].map(note=>({...note,timeMs:note.inputTimeMs??note.timeMs})).sort((a,b)=>a.timeMs-b.timeMs),prefix=[0];
   for(const note of notes)prefix.push(prefix.at(-1)+(note.score??0));
-  const states=[...stateTrace].sort((a,b)=>a.timeMs-b.timeMs);
+  const states=[...(variant.stateTrace??stateTrace)].sort((a,b)=>a.timeMs-b.timeMs);
   const sections=(playback.ranges??[]).map(range=>({...range,...variant.sections?.find(s=>s.index===range.index)}));
   const rewardTotal=sections.reduce((sum,s)=>sum+(s.rankingBonus??0),0),adjustment=(variant.score??prefix.at(-1))-prefix.at(-1)-rewardTotal;
   const nextTimes=[...new Set([...rows.map(r=>r.startMs),...sections.map(s=>s.startMs),...(variant.skillTransitions??[]).filter(e=>e.action==='start').map(e=>e.timeMs),duration])].sort((a,b)=>a-b);
@@ -49,7 +49,7 @@ export function createReplayClock(playback, variant, {stateTrace=[]}={}) {
     const rewards=sections.filter(s=>s.endMs<=timeMs).reduce((sum,s)=>sum+(s.rankingBonus??0),0),fixed=timeMs===duration?adjustment:0;
     const active=rows.filter(r=>r.windows.some(w=>w.startMs<=timeMs&&timeMs<w.endMs));
     const last=rows.filter(r=>r.startMs<=timeMs).at(-1);
-    return {timeMs,count,note,noteScore:prefix[count],rewards,fixed,score:prefix[count]+rewards+fixed,
+    return {timeMs,count,note,noteScore:prefix[count],rewards,fixed,score:timeMs===duration?variant.score:(state?.score??prefix[count]+rewards+fixed),scoreUpFactor:state?.scoreUpFactor??note?.scoreUpFactor,
       life:state?.life??note?.currentLife??note?.lifeAtInput,combo:state?.combo??note?.combo,
       active,last,section:sections.find(s=>s.startMs<=timeMs&&timeMs<s.endMs)};
   }};

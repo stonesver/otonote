@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ArenaTeamWorkbench from '../../../components/ArenaTeamWorkbench.astro';
+import { activeReleaseContext } from '../../../lib/release-context';
+import { siteHref } from '../../../lib/site-context';
+import '../../../styles/arena-team.css';
+const href = (path:string) => import.meta.env.BASE_URL === '/' ? path : siteHref(path, activeReleaseContext);
+---
+<BaseLayout title="舞台配队 · JUST">
+  <div class="arena-studio">
+    <header class="arena-heading">
+      <a href={href('/tools/')}>游戏工具 / 舞台配队</a>
+      <div class="arena-title-line"><h1>舞台配队</h1><span class="arena-mode">JUST</span></div>
+      <p>选出能抢到名次，也能拿到分数的一队。</p>
+    </header>
+    <ArenaTeamWorkbench />
+  </div>
+</BaseLayout>

@@ -1,0 +1,58 @@
+---
+import { catalog } from '../lib/catalog';
+import { sharedTeamData } from '../lib/shared-team-data.mjs';
+import { scoringRulesAvailable } from '../lib/scoring-release-gate.mjs';
+import ScoringUnavailable from './ScoringUnavailable.astro';
+import formalRules from '../data/formal-scoring-rules.json';
+const available = scoringRulesAvailable(formalRules, catalog.release.id);
+const data = available ? sharedTeamData() : { bands: [] };
+const client = JSON.stringify({ ...data,
+  tracks: catalog.musicTracks.map(t => ({ id:t.id, title:t.title })),
+  charts: catalog.musicCharts.map(c => ({ id:c.id, trackId:c.trackId, difficulty:c.difficulty, displayLevel:c.displayLevel, analysisDataUrl:c.analysisDataUrl })),
+  attributes: catalog.cardTaxonomy.attributes.map(a => ({ code:a.code, name:a.names[catalog.release.locale] }))
+}).replaceAll('<', '\\u003c');
+---
+{available ? <arena-team-workbench>
+  <script is:inline type="application/json" data-arena-data set:html={client} />
+  <details class="arena-settings" data-arena-settings open>
+    <summary><span>配队条件</span><span class="arena-settings-summary" data-arena-condition-summary>使用我的养成</span><span class="arena-settings-edit">编辑</span></summary>
+    <form data-arena-form>
+      <div class="arena-controls">
+        <section>
+          <h2>舞台</h2>
+          <label>参赛乐队<select name="bandId">{data.bands.map(b => <option value={b.id}>{b.name}</option>)}</select></label>
+          <div class="arena-field-pair">
+            <label>舞台属性<select name="musicType"><option value="" selected>选择属性</option><option value="0">沿用原曲</option><option value="99">ALL</option>{catalog.cardTaxonomy.attributes.filter(a=>a.code!==99).map(a=><option value={a.code}>{a.names[catalog.release.locale]}</option>)}</select></label>
+            <label>对局人数<select name="participantCount">{[5,4,3,2].map(n=><option value={n}>{n} 人</option>)}</select></label>
+          </div>
+          <div class="arena-task-strip" aria-label="三段任务"><span>JUST</span><span>JUST</span><span>JUST</span></div>
+        </section>
+        <section class="arena-pool-controls">
+          <h2>歌曲</h2>
+          <label>选择歌曲<select data-song-select>{catalog.musicTracks.map(t=><option value={t.id}>{t.title}</option>)}</select></label>
+          <div class="arena-song-add"><label>难度<select data-difficulty-select><option value="hard">HARD</option><option value="expert">EXPERT</option><option value="normal">NORMAL</option><option value="easy">EASY</option></select></label><button type="button" data-add-song>＋ 加入</button></div>
+          <ul class="arena-song-list" data-song-list></ul>
+          <p class="arena-hint">最多 12 首，默认等权。更看重的歌曲可调高权重。</p>
+        </section>
+        <section>
+          <h2>我的卡库</h2>
+          <p class="arena-profile" data-profile-status role="status">读取养成…</p>
+          <div class="arena-profile-actions"><label class="arena-upload">导入养成<input type="file" aria-label="导入养成 JSON" accept=".json,application/json" data-profile-file /></label><button type="button" data-open-growth>管理卡库</button></div>
+          <details class="arena-performance"><summary>参考发挥 <span>稳定 FC</span></summary>
+            <label>时机波动（±毫秒）<input name="timingSpreadMs" type="number" min="0" max="50" step="1" value="20" required /></label>
+            <label>操作样本<select name="samples"><option value="1">1 组</option><option value="3">3 组</option></select></label>
+            <p class="arena-hint">数值越小，时机越准。各队使用相同操作，并比较全部技能顺序。</p>
+          </details>
+        </section>
+      </div>
+      <div class="arena-run"><span>成员、留影与队长跨曲固定</span><button type="button" data-arena-cancel hidden>取消</button><button type="submit" data-arena-run>推荐 JUST 队伍 <span aria-hidden="true">→</span></button></div>
+    </form>
+  </details>
+  <div class="arena-main">
+    <p class="arena-status" data-arena-status role="status" aria-live="polite"></p>
+    <progress data-arena-progress hidden max="1" value="0" aria-label="配队进度"></progress>
+    <div data-arena-results><section class="arena-empty"><span class="arena-empty-mark" aria-hidden="true">JUST</span><div><h2>看看你的卡库，能组出什么队。</h2><p>选好舞台和歌曲，同时比较计数抢名次与整场得分。</p></div></section></div>
+    <details class="arena-method"><summary>怎么算推荐？</summary><p>推荐优先降低“选错队的最大损失”：对手未知时，比较计数能争取到的名次奖励，以及为此换卡损失的分数。对照队按同名次得分排序。</p><p>分数来自当前养成、所选谱面和参考发挥。搜索覆盖多种 JUST 技能组合；最大损失是本次候选间的宽范围估计，不是胜率。每首歌按同一难度比较，曲池权重表示重要程度。</p></details>
+  </div>
+</arena-team-workbench> : <ScoringUnavailable />}
+<script>import '../lib/arena-team-ui.mjs';</script>

@@ -13,7 +13,8 @@ const items=[
  {path:'song-calculator',mark:'分',title:say('歌曲计算','Song calculator'),goal:say('单曲分数与技能贡献','Song score and skill contributions'),description:say('带入队伍，选一首歌，查看平均分与技能贡献。','Select a team and song to see score estimates and skill contributions.'),input:say('使用已保存或配队页带入的队伍','Use a saved or linked team')},
  {path:'ap-grade',mark:'AP',title:say('队伍 AP 估分','Team AP forecast'),goal:say('多首歌曲 AP 档位预测','AP grade forecasts across songs'),description:say('一支队伍比较多首歌，按档位、时长或分数选曲。','Compare your team across songs by grade, length or score.'),input:say('保存的队伍，或直接点选卡面','Saved team or choose cards here')},
  {path:'event-efficiency',mark:'火',title:say('活动收益计算','Event rewards'),goal:say('活动收益与耗火规划','Event rewards and boost planning'),description:say('填游戏加成立即估算，或用卡库推荐队伍与歌曲。','Enter in-game bonuses, or find a team and song from your cards.'),input:say('快速计算只需加成、评分与消耗','Quick mode: bonuses, grade and boost')},
- {path:'live2d',mark:'L2D',title:say('Live2D 预览','Live2D preview'),goal:say('角色造型与动作预览','Character costumes and motions'),description:say('选择角色和服装，播放动作、切换表情。','Choose a character and costume, then play motions and expressions.'),input:say('点选预览，参数调试按需打开','Choose a preview; optional parameter controls')}
+ {path:'live2d',mark:'L2D',title:say('Live2D 预览','Live2D preview'),goal:say('角色造型与动作预览','Character costumes and motions'),description:say('选择角色和服装，播放动作、切换表情。','Choose a character and costume, then play motions and expressions.'),input:say('点选预览，参数调试按需打开','Choose a preview; optional parameter controls')},
+ {path:'arena',mark:'JUST',title:say('舞台配队','Arena teams'),goal:say('JUST 竞争力与整场得分','JUST competition and total score'),description:say('使用实际养成，推荐跨曲固定队伍，比较抢名次的收益与换卡成本。','Build one fixed team for a song pool and compare ranking rewards with card trade-offs.'),input:say('三段 JUST · 手动舞台条件','Three JUST sections · Manual stage conditions')}
 ];
 const browseTools = [
  {path:'/music/',kind:'chart-preview',title:say('谱面播放与分析','Chart playback and analysis'),description:say('从歌曲页选择难度，播放谱面、循环观察区段并查看音符密度。','Choose a difficulty on a song page, loop a section and inspect note density.')},
@@ -27,7 +28,7 @@ const browseTools = [
    <a class="tools-library-link" href={href('/my-growth/')}><span class="tools-library-symbol" aria-hidden="true">＋</span><div><strong>{say('我的卡库与养成','My collection and growth')}</strong><span>{say('保存养成，在各工具中直接使用','Save your cards and use them across tools')}</span></div></a>
   </header>
   <nav class="tools-task-grid" aria-label={say('可用工具','Available tools')}>
-   {[items[1],items[5],items[0],items[3],items[2],items[4],items[6]].map(item=><a class={`tools-task tools-task--${item.path}`} href={href(`/tools/${item.path}/`)} data-tool-state="available" data-navigation-title={item.title}>
+   {[items[1],items[7],items[5],items[0],items[3],items[2],items[4],items[6]].map(item=><a class={`tools-task tools-task--${item.path}`} href={href(`/tools/${item.path}/`)} data-tool-state="available" data-navigation-title={item.title}>
     <div class="tools-task-top"><span class="tools-task-glyph"><ToolGlyph kind={item.path}/></span><span class="tools-task-name">{item.title}</span></div>
     <div class="tools-task-copy"><h2>{item.goal}</h2><p>{item.description}</p></div>
     {item.path==='deck-builder' && <div class="tools-lineup" aria-hidden="true"><div class="tools-lineup-cards">{['♪','♫','✦','♫','♪'].map((mark,i)=><span style={`--card-index:${i}`}><i>{mark}</i><b>{i===2?'LEADER':'MEMBER'}</b><small>SUPPORT</small></span>)}</div><span class="tools-lineup-caption">MEMBER × SUPPORT</span></div>}

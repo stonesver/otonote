@@ -61,6 +61,10 @@ test('shared sidebar HTML starts compact, keeps locale URLs and highlights deep 
   assert.match(tools, /data-nav-workspace aria-haspopup="dialog"/);
   assert.match(tools, /href="\/jp\/en\/tools\/deck-builder\/\?workspace=1"/);
   assert.match(tools, /MY TOOLS/);
+  assert.equal((tools.match(/data-playlist-workspace-open/g) ?? []).length, 1);
+  assert.match(tools, /<button[^>]*data-playlist-workspace-open[^>]*aria-haspopup="dialog"[^>]*disabled>.*My playlists<\/span><\/button>/);
+  assert.ok(tools.indexOf('data-nav-workspace') < tools.indexOf('data-playlist-workspace-open'));
+  assert.ok(tools.indexOf('data-playlist-workspace-open') < tools.indexOf('nav-browse'));
   const library = renderSidebarNavigation({...options, pathname:'/cards/members/card-1/'});
   assert.match(library, /data-loading-group="library" data-active/);
   assert.equal((library.match(/aria-expanded="true"/g) ?? []).length, 1);

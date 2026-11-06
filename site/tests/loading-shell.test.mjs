@@ -17,6 +17,8 @@ test('the cold entry contains usable navigation, styles, skeletons and retry bef
   assert.match(html, /nav-my-tools/);
   assert.match(html, /配队推荐/);
   assert.match(html, /data-nav-workspace/);
+  assert.equal((html.match(/data-playlist-workspace-open/g) ?? []).length, 1);
+  assert.match(html, /<button[^>]*data-playlist-workspace-open[^>]*disabled>/);
   assert.equal((html.match(/data-loading-toggle=/g) ?? []).length, 3);
   assert.equal((html.match(/data-nav-submenu hidden inert/g) ?? []).length, 3);
   assert.match(html, /<style data-loading-style>\.loading-page/);

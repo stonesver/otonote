@@ -185,7 +185,7 @@ const shellRenderer = await build({entryPoints:[join(site,'src/runtime/loading-s
 const {renderLoadingShell} = await import('data:text/javascript;base64,'+Buffer.from(shellRenderer.outputFiles[0].text).toString('base64'));
 const shellClient = await build({entryPoints:[join(site,'src/runtime/loading-shell-client.mjs')],bundle:true,write:false,minify:true,format:'iife',target:'es2022'});
 const startupClient = await build({entryPoints:[join(site,'src/runtime/startup-client.mjs')],bundle:true,write:false,minify:true,format:'iife',target:'es2022'});
-const shellCss = (await Promise.all(['theme-tokens','global','site-shell','unified-search','theme-picker','loading-shell'].map(name=>readFile(join(site,`src/styles/${name}.css`),'utf8')))).join('\n');
+const shellCss = (await Promise.all(['theme-tokens','global','site-shell','unified-search','theme-picker','loading-shell','theme-blue-orange'].map(name=>readFile(join(site,`src/styles/${name}.css`),'utf8')))).join('\n');
 const css = (await transformTs(shellCss,{loader:'css',minify:true})).code;
 const shell = renderLoadingShell({css,clientScript:shellClient.outputFiles[0].text,
   appManifest,startupScript:startupClient.outputFiles[0].text,loadingArt,navigationScript,shellPreferences:await readFile(join(site,'src/lib/shell-preferences.mjs'),'utf8'),

@@ -32,6 +32,7 @@ const icons = {
   '/tools/song-calculator/': navIcons.music,
   '/tools/event-efficiency/': 'M4 20V11h4v9 M10 20V7h4v13 M16 20V3h4v17',
   workspace: 'M4 5h13v15H4z M8 2h13v15 M8 9h5 M8 13h5',
+  playlist: 'M3 6h10 M3 11h10 M3 16h6 M17 5v12 M17 7l4-1 M17 17c0 3-6 4-6 1s6-4 6-1Z',
   library: navIcons.stories, 'more-tools': navIcons.tools,
   home: 'M3 10l9-7 9 7 M5 9v12h5v-7h4v7h5V9'
 };
@@ -48,6 +49,7 @@ export function renderSidebarNavigation({ui, englishUi = ui, locale = 'zh-CN', p
     <p class="nav-caption">${text('我的工具', 'MY TOOLS')}</p>
     ${SIDEBAR_TOOLS.map(item => link(item.href, svg(item.href) + text(...item.title), 'nav-primary nav-tool', '', item.title[english ? 1 : 0])).join('')}
     ${link('/tools/deck-builder/?workspace=1', svg('workspace') + text('卡库与队伍', 'Cards & teams'), 'nav-primary nav-workspace', ' data-nav-workspace aria-haspopup="dialog"', english ? 'Cards & teams' : '卡库与队伍')}
+    <button class="nav-primary nav-playlist" type="button" data-playlist-workspace-open aria-haspopup="dialog" title="${english ? 'My playlists' : '我的歌单'}" disabled>${svg('playlist')}${text('我的歌单', 'My playlists')}</button>
   </div>
   <div class="nav-section nav-browse" aria-label="${english ? 'Browse' : '浏览'}">
     <p class="nav-caption">${text('浏览', 'BROWSE')}</p>

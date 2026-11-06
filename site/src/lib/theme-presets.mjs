@@ -36,10 +36,10 @@ export const THEME_PRESETS = [
   {
     id: 'mist', group: 'everyday',
     name: { 'zh-CN': '蓝 × 橙', en: 'Blue × Orange' },
-    description: { 'zh-CN': '蓝色导航 · 杏橙操作区', en: 'Blue navigation · Apricot actions' },
+    description: { 'zh-CN': '深蓝导航 · 暖橙点题 · 浅白内容', en: 'Deep blue navigation · Warm orange accents · Light content' },
     tokens: {
       ...lightPalette, canvas: '#f6f7f8',
-      accent: '#255bb2', 'accent-bright': '#366ac0', secondary: '#ffb36d', 'secondary-ink': '#91400d', 'on-secondary': '#572b11',
+      accent: '#255b91', 'accent-bright': '#326aa0', secondary: '#f0a15a', 'secondary-ink': '#87420f', 'on-secondary': '#502e13',
     },
   },
   {

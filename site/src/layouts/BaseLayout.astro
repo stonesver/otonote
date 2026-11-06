@@ -36,6 +36,7 @@ import "../styles/tool-colors.css";
 import "../styles/tool-ux.css";
 import "../styles/tool-design-system.css";
 import "../styles/skill-activation.css";
+import "../styles/theme-blue-orange.css";
 import { filterVisualOptions } from "../lib/filter-visuals";
 
 interface Props {
@@ -281,6 +282,12 @@ const htmlLanguage = activeReleaseContext.locale;
         if (toggle instanceof HTMLElement) toggle.focus();
       });
       navigation?.addEventListener("click", (event) => {
+        if (event.target instanceof Element && event.target.closest("[data-playlist-workspace-open]")) {
+          closeNavigation();
+          if (mobileNavigation.matches && toggle instanceof HTMLElement) toggle.focus();
+          document.dispatchEvent(new CustomEvent("playlist-workspace:open"));
+          return;
+        }
         if (event.target instanceof Element && event.target.closest("a")) {
           const workspace = event.target.closest("[data-nav-workspace]");
           closeNavigation();

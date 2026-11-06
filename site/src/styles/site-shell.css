@@ -68,6 +68,8 @@
   line-height: 1.5;
 }
 .nav-home svg, .nav-primary svg { width: 17px; height: 17px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+[data-shell="sidebar"] .nav-playlist { width:100%; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+[data-shell="sidebar"] .nav-playlist:disabled { opacity:.5; cursor:default; }
 [data-shell="sidebar"] .nav-primary::before,
 [data-shell="sidebar"] .nav-primary::after { display: none; }
 [data-shell="sidebar"] .nav-primary small { position: static; translate: none; font-size: 10px; margin-left: auto; }

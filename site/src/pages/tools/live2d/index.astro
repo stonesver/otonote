@@ -1,5 +1,4 @@
 ---
-import ToolPageHeader from "../../../components/ToolPageHeader.astro";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Live2DWorkbench from '../../../components/Live2DWorkbench.astro';
 import { activeReleaseContext } from '../../../lib/release-context';
@@ -7,7 +6,7 @@ const en = activeReleaseContext.locale === 'en';
 const say = (zh: string, english: string) => en ? english : zh;
 ---
 <BaseLayout title={say('Live2D 预览与调试', 'Live2D preview & debugger')}>
-  <ToolPageHeader title={say("Live2D 预览与调试", "Live2D preview & debugger")} description={say("选择角色与服装，播放动作和表情，按需调整模型参数。", "Choose a character and costume, play motions and expressions, and adjust model parameters.")} meta="角色 · 服装 · 动作" />
+
   <div class="content-shell l2d-page">
 
     <Live2DWorkbench />

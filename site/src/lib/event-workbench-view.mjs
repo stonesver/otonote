@@ -4,7 +4,7 @@ import {eventRewardOptions} from './event-reward-options.mjs';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
 /** Reshape live reward nodes; their original controllers still own every value. */
 export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,context,songRow,songLabel,songButton,accountButton,tags,adjust}){
- const q=s=>host.querySelector(s),summary=q('.event-summary'),reward=q('#event-results'),legacySong=q('#event-song'),challenge=q('[data-challenge-optimizer]'),planning=q('.task-event-planning-group'),manual=q('.event-quick-bonus').closest('.task-condition-group'),bonus=accountButton.closest('.task-condition-group'),activity=conditionBody.firstElementChild;
+ const q=s=>host.querySelector(s),summary=q('.event-summary'),reward=q('[data-workbench-part="event-results"]'),songInputs=q('[data-workbench-part="event-song"]'),challenge=q('[data-challenge-optimizer]'),planning=q('.task-event-planning-group'),manual=q('.event-quick-bonus').closest('.task-condition-group'),bonus=accountButton.closest('.task-condition-group'),activity=conditionBody.firstElementChild;
  const originalYield=planning.querySelector('.task-event-yield-conditions');if(originalYield)originalYield.replaceWith(...originalYield.childNodes);
  const primary=el('section',null,'task-condition-group task-event-primary');primary.append(el('h3','卡片与预算'));conditionBody.insertBefore(primary,planning);
  for(const s of ['[data-pool]','[data-yield-goal]','[data-yield-stages]','[data-yield-budget]','[data-yield-starting]'])primary.append(q(s).closest('label'));
@@ -15,10 +15,10 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
  const songFilters=q('[data-yield-song-filters]');autoFilters.append(q('[data-yield-difficulty]').closest('label'),q('[data-yield-level]').closest('label'),songFilters);
  const continuation=el('section',null,'task-condition-group task-event-continuation');continuation.append(el('h3','后续挑战'),q('[data-yield-challenge-settings]'));continuation.querySelector('h4')?.remove();conditionBody.insertBefore(continuation,planning);
  planning.querySelector('h3').textContent='搜索设置';planning.querySelector('#event-yield-title')?.remove();
- planning.append(q('[data-yield-depth]').closest('label'),q('[data-yield-eco]').closest('label'));planning.querySelector('.tool-help')?.remove();
+ planning.querySelector('.tool-help')?.remove();
  const advanced=el('details',null,'task-event-advanced');advanced.append(el('summary','计算范围与说明'));
  for(const s of ['[data-yield-hint]','[data-yield-goal-help]','[data-pool-hint]','[data-team-status]','[data-bonus]']){const n=q(s);if(n)advanced.append(n);}
- for(const n of [...planning.children])if(n!==planning.firstElementChild&&!n.contains(range)&&n!==songBasis&&!n.contains(q('[data-yield-depth]'))&&!n.contains(q('[data-yield-eco]'))&&!n.contains(q('[data-open-team-workspace="inventory"]')))advanced.append(n);
+ for(const n of [...planning.children])if(n!==planning.firstElementChild&&!n.contains(range)&&n!==songBasis&&!n.contains(q('[data-open-team-workspace="inventory"]')))advanced.append(n);
  planning.append(advanced);modalizeDetails(host,advanced);
  const challengeConditions=el('section',null,'task-condition-group task-challenge-conditions');challengeConditions.append(el('h3','冲榜配队条件'),q('[data-challenge-opt-scope]').closest('label'),q('[data-challenge-opt-objective]').closest('label'),el('p','活动能力加成计入出分；奖励加成不乘入歌曲分数。','task-input-note'));conditionBody.append(challengeConditions);
  challengeConditions.insertBefore(q('[data-challenge-opt-card-bands]'),q('[data-challenge-opt-objective]').closest('label'));
@@ -26,7 +26,7 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
  const challengeNotes=el('details',null,'task-event-advanced');challengeNotes.append(el('summary','冲榜计算范围与说明'));for(const n of [...challenge.children])if(n.tagName==='P'&&!n.hasAttribute('data-challenge-opt-song')&&!n.hasAttribute('data-challenge-opt-status'))challengeNotes.append(n);challengeConditions.append(challengeNotes);modalizeDetails(host,challengeNotes);
  challenge.classList.add('task-challenge-result');main.append(challenge);challenge.querySelector('h3').textContent='活动曲冲榜';const challengeAction=q('[data-challenge-opt-run]').parentElement;challengeAction.classList.add('task-challenge-toolbar');main.insertBefore(challengeAction,tags);
  // The remaining song inputs are accessed through the standalone song picker.
- legacySong.hidden=true;
+ songInputs.hidden=true;
  // Quick view mirrors the prototype: four numbers, then comparison and next step.
  summary.classList.add('task-quick-result');summary.querySelector('.event-summary-label').textContent='即时收益';summary.querySelector('[data-next-step]').hidden=true;
  const grid=el('div',null,'task-reward-grid');for(const s of ['badges','points','cp'])grid.append(q(`[data-summary-${s}]`).closest('div'));const unit=q('.event-summary-main');unit.classList.add('task-reward-unit');grid.append(unit);summary.querySelector('dl').before(grid);

@@ -31,10 +31,14 @@ self.addEventListener('message',async({data})=>{
   const response=await fetch(analysisDataUrl,{signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw Error(`谱面加载失败（${response.status}）`);
   const chart=await response.json();
-  yieldControl=createCalculationScheduler({eco:false});
+  yieldControl=createCalculationScheduler();
   startedAt=performance.now();
   let lastProgress=0,lastStage='';
   session=createChallengeSearchSession({...input,chart,yieldControl,shouldPause:()=>paused,onProgress:p=>{
+   if(p.phase==='practical-result'&&p.bestCandidate?.apTimingPlan){
+    self.postMessage({type:'snapshot',elapsedMs:performance.now()-startedAt,result:{objective:input.objective,searchScope:input.scope,mode:'challenge',status:'running',results:[{...p.bestCandidate,...(input.scope==='reference'?{delta:null,comparison:null}:{})}]}});
+    return;
+   }
    const stage=p.phase==='event-exact'?'搜索并验证最佳配队':p.stage;
    if(!stage||stage===lastStage&&performance.now()-lastProgress<100)return;
    lastStage=stage;lastProgress=performance.now();

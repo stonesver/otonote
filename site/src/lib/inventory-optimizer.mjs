@@ -129,7 +129,9 @@ export function draftFromPairing(input, leader, edges) {
 }
 
 /** Search full candidate inventory. A budgeted result is explicitly incomplete.
- * Lawler subspaces partition the whole legal space; no top-K power prefilter. */
+ * Lawler subspaces partition the whole legal space; no top-K power prefilter.
+ * @param {import("./calculation/optimizer-types.ts").OptimizerOptions} options
+ * @returns {Promise<import("./calculation/optimizer-types.ts").OptimizerReport>} */
 export async function optimizeInventory({ rules, draft, scope = "selected", inventory, constraints, theoreticalGrowth,
   chart, objective = "formation_power", mode = "ordinary", gekisouScenario, topN = 10, maxEvaluations = 500, checkpoint,
   signal, onProgress, evaluateBatch, batchSize = 1, yieldControl = () => new Promise((r) => setTimeout(r, 0)) }) {

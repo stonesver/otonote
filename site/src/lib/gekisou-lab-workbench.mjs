@@ -13,7 +13,7 @@ import {
 } from "./team-draft.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const COLORS = ["#38bdf8", "#fb923c", "#c084fc", "#4ade80", "#facc15"];
+const COLORS = Array.from({length:5},(_,index)=>`var(--theme-chart-${index+1})`);
 const STORAGE_KEY = scopedStorageKey('gekisou-lab:v1');
 const JUDGEMENT_LABELS = ["perfect", "great", "good", "hit", "miss"];
 
@@ -702,16 +702,16 @@ class GekisouBattleLab extends HTMLElement {
         y: top,
         width: Math.max(1, x(range.end) - x(range.start)),
         height: plotHeight,
-        fill: ["#172554", "#3f1d2e", "#312e18"][index],
-        opacity: 0.8
+        fill: COLORS[index],
+        opacity: 0.12
       }));
-      const label = svgElement("text", { x: x(range.start) + 6, y: top + 15, fill: "#cbd5e1", "font-size": 11 });
+      const label = svgElement("text", { x: x(range.start) + 6, y: top + 15, fill: "var(--theme-text)", "font-size": 11 });
       label.textContent = range.mission.label;
       svg.append(label);
     });
     for (let index = 0; index <= 4; index += 1) {
       const lineY = top + (plotHeight / 4) * index;
-      svg.append(svgElement("line", { x1: left, y1: lineY, x2: width - right, y2: lineY, stroke: "#334155" }));
+      svg.append(svgElement("line", { x1: left, y1: lineY, x2: width - right, y2: lineY, stroke: "var(--theme-border)" }));
     }
 
     scenario.participants.forEach((participant, index) => {
@@ -732,9 +732,9 @@ class GekisouBattleLab extends HTMLElement {
         "stroke-linejoin": "round"
       }));
     });
-    const startLabel = svgElement("text", { x: left, y: height - 10, fill: "#94a3b8", "font-size": 11 });
+    const startLabel = svgElement("text", { x: left, y: height - 10, fill: "var(--theme-muted)", "font-size": 11 });
     startLabel.textContent = "0:00";
-    const endLabel = svgElement("text", { x: width - 48, y: height - 10, fill: "#94a3b8", "font-size": 11 });
+    const endLabel = svgElement("text", { x: width - 48, y: height - 10, fill: "var(--theme-muted)", "font-size": 11 });
     endLabel.textContent = `${Math.floor(duration / 60)}:${String(Math.round(duration % 60)).padStart(2, "0")}`;
     svg.append(startLabel, endLabel);
   }

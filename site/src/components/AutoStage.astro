@@ -35,6 +35,9 @@ const config = JSON.stringify({ skin: createGameSkin(skinManifest, import.meta.e
     <button type="button" data-auto-copy-position disabled>{en ? "Copy position link" : "复制位置链接"}</button>
   </div>
   <div class="chart-demo-controls">
+    <label>{en ? "Timing plan" : "微操方案"}<input type="file" accept="application/json,.json" data-auto-timing-file /></label>
+    <label hidden data-auto-timing-controls>{en ? "Clock condition" : "时钟条件"}<select data-auto-timing-variant></select></label>
+    <button type="button" data-auto-timing-clear hidden>{en ? "Clear timing plan" : "移除微操方案"}</button>
     <label hidden={externalDifficulty}>{en ? "Difficulty" : "难度"}<select data-auto-difficulty>
       {charts.map((chart) => <option value={chart.difficulty} data-url={chart.analysisDataUrl} selected={chart.difficulty === "expert"}>{chart.difficulty.toUpperCase()} · Lv.{chart.displayLevel}</option>)}
     </select></label>
@@ -52,6 +55,7 @@ const config = JSON.stringify({ skin: createGameSkin(skinManifest, import.meta.e
     </div>
   </div>
   <div class="auto-stage-status"><p data-auto-status role="status">{en ? "Loading chart…" : "正在加载谱面…"}</p><button type="button" data-auto-retry hidden>{en ? "Retry" : "重新加载"}</button></div>
+  <p data-auto-timing-status role="status"></p>
   <noscript>{en ? "Enable JavaScript to play charts." : "启用 JavaScript 后可播放谱面。"}</noscript>
 </auto-stage>
 <script>
@@ -60,16 +64,16 @@ const config = JSON.stringify({ skin: createGameSkin(skinManifest, import.meta.e
 </script>
 <style>
   .chart-demo { display:block; margin-block:24px; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--paper-light); }
-  .auto-stage-screen { overflow:hidden; background:#0a1226; border:1px solid #233656; border-radius:12px; color:#edf7ff; }
-  .auto-stage-heading { display:flex; align-items:center; gap:12px; padding:8px 16px; border-bottom:1px solid #ffffff18; }
+  .auto-stage-screen { overflow:hidden; background:var(--theme-inverse-surface); border:1px solid var(--theme-border); border-radius:12px; color:var(--theme-inverse-text); }
+  .auto-stage-heading { display:flex; align-items:center; gap:12px; padding:8px 16px; border-bottom:1px solid color-mix(in srgb,var(--theme-inverse-text) 10%,transparent); }
   .auto-stage-heading > div { display:flex; align-items:center; gap:10px; }
   .auto-stage-heading strong { font-size:13px; }
-  .auto-stage-mode { font:700 10px var(--font-mono); letter-spacing:.1em; padding:4px 6px; border:1px solid #75d7ee70; border-radius:4px; color:#a5e8f8; }
-  [data-auto-skin-status] { margin-left:auto; color:#a0b4ce; font-size:11px; }
-  .auto-stage-heading button { min-height:32px; padding:4px 8px; background:transparent; border-color:#ffffff25; color:#d8eafa; font-size:11px; }
-  canvas { display:block; width:100%; height:clamp(240px,calc(100dvh - 400px),560px); background:#0a1226; }
-  .auto-stage-readout { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 16px; font:11px var(--font-mono); color:#a2b8d2; border-top:1px solid #ffffff18; }
-  .auto-stage-readout b { margin-left:6px; color:#edf7ff; font-size:15px; }
+  .auto-stage-mode { font:700 10px var(--font-mono); letter-spacing:.1em; padding:4px 6px; border:1px solid color-mix(in srgb,var(--theme-secondary) 45%,transparent); border-radius:4px; color:var(--theme-secondary); }
+  [data-auto-skin-status] { margin-left:auto; color:var(--theme-inverse-muted); font-size:11px; }
+  .auto-stage-heading button { min-height:32px; padding:4px 8px; background:transparent; border-color:color-mix(in srgb,var(--theme-inverse-text) 15%,transparent); color:var(--theme-inverse-text); font-size:11px; }
+  canvas { display:block; width:100%; height:clamp(240px,calc(100dvh - 400px),560px); background:var(--theme-inverse-surface); }
+  .auto-stage-readout { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 16px; font:11px var(--font-mono); color:var(--theme-inverse-muted); border-top:1px solid color-mix(in srgb,var(--theme-inverse-text) 10%,transparent); }
+  .auto-stage-readout b { margin-left:6px; color:var(--theme-inverse-text); font-size:15px; }
   .auto-stage-transport { display:flex; align-items:center; gap:8px; margin-top:12px; }
   .auto-stage-loop { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:12px; }
   .auto-stage-loop button { font-size:11px; padding-inline:10px; }
@@ -92,17 +96,17 @@ const config = JSON.stringify({ skin: createGameSkin(skinManifest, import.meta.e
   button { cursor:pointer; font-size:12px; }
   button:disabled { opacity:.5; cursor:wait; }
   :is(select,button,input):focus-visible { outline:2px solid var(--lacquer); outline-offset:3px; }
-  [data-auto-play] { min-width:68px; background:var(--lacquer); color:white; }
+  [data-auto-play] { min-width:68px; background:var(--lacquer); color:var(--theme-on-accent); }
   input { min-width:0; accent-color:var(--lacquer); }
   output { font:11px var(--font-mono); white-space:nowrap; }
   .auto-stage-effects { cursor:pointer; }
   .auto-stage-status { display:flex; align-items:center; gap:12px; margin-top:8px; }
   [data-auto-status] { margin:0; color:var(--silver-dark); font-size:11px; }
-  .chart-demo:fullscreen { box-sizing:border-box; width:100%; height:100%; margin:0; padding:16px; overflow:auto; border:0; border-radius:0; background:#080e21; color:#edf7ff; }
+  .chart-demo:fullscreen { box-sizing:border-box; width:100%; height:100%; margin:0; padding:16px; overflow:auto; border:0; border-radius:0; background:var(--theme-inverse-surface); color:var(--theme-inverse-text); }
   .chart-demo:fullscreen .auto-stage-screen { max-width:1200px; margin:auto; }
   .chart-demo:fullscreen :is(.auto-stage-transport,.auto-stage-loop,.chart-demo-controls,.auto-stage-status) { max-width:1200px; margin-inline:auto; }
-  .chart-demo:fullscreen :is(label,[data-auto-status],.auto-note-speed > span) { color:#a2b8d2; }
-  .chart-demo:fullscreen .chart-demo-controls { border-color:#ffffff25; }
+  .chart-demo:fullscreen :is(label,[data-auto-status],.auto-note-speed > span) { color:var(--theme-inverse-muted); }
+  .chart-demo:fullscreen .chart-demo-controls { border-color:color-mix(in srgb,var(--theme-inverse-text) 15%,transparent); }
   .chart-demo:fullscreen canvas { height:max(200px,calc(100dvh - 270px)); }
   @media (max-width:620px) {
     .chart-demo { padding:10px; }

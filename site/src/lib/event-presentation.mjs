@@ -37,7 +37,6 @@ export function setupEventPresentation(host,{main,aside,conditionBody,context,ad
  adjust.remove();
  const dock=el('footer',null,'event-action-dock'),dockCopy=el('div',null,'event-action-copy'),dockTitle=el('strong'),dockNote=el('small'),actions=el('div',null,'event-dock-actions');dockCopy.append(dockTitle,dockNote);dock.append(dockCopy,actions);host.append(dock);
  const run=q('[data-yield-run]'),rushRun=q('[data-challenge-opt-run]');run.textContent='计算收益';rushRun.textContent='推荐冲榜队伍';actions.append(run,rushRun);
- const depth=field('[data-yield-depth]'),eco=field('[data-yield-eco]'),search=el('div',null,'event-dock-search');depth.classList.add('event-search-depth');search.append(depth,eco);dock.insertBefore(search,actions);
  challengeConditions.classList.add('event-rush-options');setup.append(challengeConditions);
  const summary=el('section',null,'event-condition-summary'),copy=el('div'),title=el('strong'),description=el('span'),modify=button('修改条件');copy.append(title,description);summary.append(copy,modify);rail.parentElement.before(summary);
  setup.id='event-default-conditions';modify.setAttribute('aria-controls',setup.id);
@@ -97,7 +96,7 @@ export function setupEventPresentation(host,{main,aside,conditionBody,context,ad
   run.hidden=isQuick||isRush;rushRun.hidden=!isRush;
   continueActions.hidden=isQuick||isRush||running;
   cancelWrap.hidden=!running||isRush;rushCancelWrap.hidden=!running||!isRush;
-  dock.hidden=isQuick;search.hidden=isQuick||isRush;
+  dock.hidden=isQuick;
   set(dockTitle,isRush?'活动曲冲榜':ordinary?`${q('[data-yield-budget]').value} 火 · ${selectedOptionText(q('[data-yield-goal]'))}`:'挑战收益');
   if(!isQuick&&host.calculationScope?.enabled&&host.calculationScope?.summary)set(description,description.textContent+' · '+host.calculationScope.summary);
   set(dockNote,running?'计算中，可随时停止':isRush?selectedOptionText(q('[data-challenge-opt-scope]')):`${selectedOptionText(q('[data-pool]'))} · ${ordinary?selectedOptionText(q('[data-yield-stages]')):'当前挑战'}`);

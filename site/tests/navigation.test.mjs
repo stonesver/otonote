@@ -11,6 +11,7 @@ test('tool directory and sidebar expose the same canonical tools without duplica
   assert.deepEqual(links.sort(), NAVIGATION_GROUPS.find(group=>group.id==='tools').children.map(child=>child.href).sort());
   assert.equal(new Set(links).size,8);
   assert.ok(links.includes('/tools/gacha-history/'));
+  assert.ok(links.includes('/tools/arena/'));
 });
 
 test("V1 includes galleries and the immersive scene while legacy media archives stay closed", () => {
@@ -42,15 +43,29 @@ test("nested data and tool routes retain their correct navigation context", () =
 
 import {SIDEBAR_TOOLS, SIDEBAR_GROUPS, sidebarSelection, renderSidebarNavigation} from '../src/lib/sidebar-navigation.mjs';
 
-test('compact sidebar preserves every canonical destination and promotes the three workbenches', () => {
+test('compact sidebar preserves every canonical destination and promotes the core tools', () => {
   const routes = new Set([...SIDEBAR_TOOLS, ...SIDEBAR_GROUPS.flatMap(group => [group, ...group.children])].map(item => item.href));
   assert.deepEqual([...routes].sort(), navigationRoutes().sort());
-  assert.deepEqual(SIDEBAR_TOOLS.map(item => item.href), ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/']);
+  assert.deepEqual(SIDEBAR_TOOLS.map(item => item.href), ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/', '/tools/song-ranking/']);
   for (const item of SIDEBAR_TOOLS) assert.equal(sidebarSelection(item.href).groupId, undefined);
   assert.deepEqual(sidebarSelection('/music/bgm/track-1/'), {route:'/music/bgm/', groupId:'library'});
   assert.equal(sidebarSelection('/stories/episodes/story-entry-main-101/').groupId, 'library');
-  assert.equal(sidebarSelection('/tools/song-ranking/').groupId, 'more-tools');
+  assert.ok(!SIDEBAR_GROUPS.find(group => group.id === 'more-tools').children.some(item => item.href === '/tools/song-ranking/'));
   assert.equal(sidebarSelection('/rankings/').groupId, 'events');
+});
+
+test('song rankings is a single named primary entry in both interface languages', () => {
+  const ui = new Proxy({}, {get: (_, key) => String(key)});
+  for (const [locale, title] of [['zh-CN', '歌曲排行榜'], ['en', 'Song rankings']]) {
+    const html = renderSidebarNavigation({ui, locale, pathname:'/tools/song-ranking/', href:path => `/global/${locale}${path}`});
+    const primary = html.slice(0, html.indexOf('nav-browse'));
+    assert.equal((html.match(/data-loading-route="\/tools\/song-ranking\/"/g) ?? []).length, 1);
+    assert.match(primary, /class="nav-primary nav-tool"[^>]*data-loading-route="\/tools\/song-ranking\/" aria-current="page"/);
+    assert.ok(primary.includes(`title="${title}"`));
+    assert.ok(primary.includes(`>${title}</span>`));
+    assert.ok(!primary.includes('d="undefined"'));
+    assert.match(html, /data-loading-group="more-tools">/);
+  }
 });
 
 test('shared sidebar HTML starts compact, keeps locale URLs and highlights deep links', () => {
@@ -62,6 +77,10 @@ test('shared sidebar HTML starts compact, keeps locale URLs and highlights deep 
   assert.match(tools, /data-nav-workspace aria-haspopup="dialog"/);
   assert.match(tools, /href="\/jp\/en\/tools\/deck-builder\/\?workspace=1"/);
   assert.match(tools, /MY TOOLS/);
+  assert.equal((tools.match(/data-playlist-workspace-open/g) ?? []).length, 1);
+  assert.match(tools, /<button[^>]*data-playlist-workspace-open[^>]*aria-haspopup="dialog"[^>]*disabled>.*My playlists<\/span><\/button>/);
+  assert.ok(tools.indexOf('data-nav-workspace') < tools.indexOf('data-playlist-workspace-open'));
+  assert.ok(tools.indexOf('data-playlist-workspace-open') < tools.indexOf('nav-browse'));
   const library = renderSidebarNavigation({...options, pathname:'/cards/members/card-1/'});
   assert.match(library, /data-loading-group="library" data-active/);
   assert.equal((library.match(/aria-expanded="true"/g) ?? []).length, 1);

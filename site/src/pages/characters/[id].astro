@@ -58,9 +58,9 @@ const vocalTracks = catalog.musicTracks.filter((track) =>
 );
 ---
 
-<BaseLayout title={character.displayName} description={profile.description || undefined} image={profileAsset?.previewUrl}>
+<BaseLayout contentHeading title={character.displayName} description={profile.description || undefined} image={profileAsset?.previewUrl}>
   <div class="character-page content-shell">
-  <article class="character-profile" style={`--character-color: ${character.mainColor || "#77BBDD"}`}>
+  <article class="character-profile" style={`--character-color: ${character.mainColor || "var(--theme-secondary)"}`}>
     <section class="character-profile__hero" aria-labelledby="character-name">
       <header class="character-profile__identity">
         <div class="character-profile__kicker">{ui.archive} <span>{character.role}</span></div>

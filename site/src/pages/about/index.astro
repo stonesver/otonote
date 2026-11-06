@@ -60,7 +60,7 @@ const documents = [
   <article class="about-page">
     <header class="about-heading">
       <div class="about-heading-copy">
-      <h1>{say("关于", "About")} {SITE_NAME}</h1>
+
       <p class="about-lead">{siteDescription(activeReleaseContext.locale)}</p>
       <div class="about-actions">
         <a class="about-source-link" href={repository} target="_blank" rel="noopener noreferrer">{say("在 GitHub 查看源码", "View source on GitHub")}</a>
@@ -174,7 +174,7 @@ const documents = [
 
 <style>
   .about-page {
-    --about-muted: #625b63;
+    --about-muted: var(--theme-muted);
     --about-surface: color-mix(in srgb, var(--paper-light) 86%, transparent);
     --about-tint: color-mix(in srgb, var(--lacquer) 6%, var(--paper-light));
     width: min(100% - 2 * var(--gutter), 1100px);
@@ -187,9 +187,9 @@ const documents = [
   .about-heading-copy > p.about-lead { color: var(--ink); font-size: 16px; }
   .about-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
   .about-source-link, .about-secondary-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 20px; border: 1px solid transparent; border-radius: 7px; font-size: 13px; font-weight: 600; }
-  .about-source-link { background: var(--lacquer); color: var(--paper-light); }
+  .about-source-link { background: var(--lacquer); color: var(--theme-on-accent); }
   .about-secondary-link { color: var(--lacquer); border-color: color-mix(in srgb, var(--lacquer) 25%, transparent); }
-  .about-identity { position: relative; overflow: hidden; padding: 24px; border: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent); border-radius: 12px; background: var(--about-tint); text-align: center; transform: rotate(2deg); box-shadow: 0 14px 32px -24px rgb(70 36 57 / 28%); }
+  .about-identity { position: relative; overflow: hidden; padding: 24px; border: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent); border-radius: 12px; background: var(--about-tint); text-align: center; transform: rotate(2deg); box-shadow: 0 14px 32px -24px color-mix(in srgb, var(--theme-shadow-color) 28%, transparent); }
   .about-identity-top, .about-identity-bottom { display: flex; justify-content: space-between; gap: 10px; color: var(--lacquer); font: 10px/1.7 var(--font-mono); letter-spacing: .06em; }
   .about-identity-top { padding-bottom: 20px; border-bottom: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent); }
   .about-mark { position: relative; display: grid; place-items: center; margin: 34px -24px 20px; }
@@ -253,7 +253,7 @@ const documents = [
   .about-community { margin-top: 36px; padding: 30px; background: var(--about-surface); border: 1px solid var(--line); border-radius: 10px; }
   .about-contact { display: flex; flex-wrap: wrap; gap: 10px; margin-block: 24px; font-style: normal; font-size: 13px; }
   .about-contact > * { display: inline-flex; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; }
-  .about-contact > a:first-child { background: var(--lacquer); border-color: var(--lacquer); color: var(--paper-light); }
+  .about-contact > a:first-child { background: var(--lacquer); border-color: var(--lacquer); color: var(--theme-on-accent); }
   .about-documents { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 24px; }
   .about-documents h3 { margin-bottom: 8px; }
   .about-documents ul { display: flex; flex-wrap: wrap; gap: 8px 20px; }

@@ -48,6 +48,8 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     justBase: 0, perfectCount: 0, noteScore: 0, baseNoteScore: 0, entered: false, closed: false,
     history: [], comboHistory: [], countCommands: [], previousLots: [], rushFactor: 0,
     effects: effects.filter(e => e.active && e.missionType === range.missionType).map(e => createGekisouEffectState(e, budgets.get(e.key))), luck: createGekisouLuckMachine(rules, { random }) }));
+  const allEffects = states.flatMap(s => s.effects);
+  const emptyNotes = [];
   const events = (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
     inputFrame: event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs),
     sectionIndex: ranges.findIndex(r => event.timeMs >= r.startMs && event.timeMs <= r.endMs) + 1,
@@ -149,13 +151,13 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
   const lastFrame = Math.max(...frames.keys(), ordinary?.lastFrame ?? 0);
   for (let frame = 0; frame <= Math.max(lastFrame, ordinary?.lastFrame ?? 0); frame++) {
     if (!performanceInput && !ordinary && !frames.has(frame)) continue;
-    const frameNotes = frames.get(frame) ?? [];
+    const frameNotes = frames.get(frame) ?? emptyNotes;
     currentFrame = frame;
     const timeMs = clock.at(frame).timeMs;
     frameNotes.forEach((note, i) => { note.judgementSequence = judgementSequence + i; });
     // Judgements see the PREVIOUS skill phase's converters and window handles.
     const justEnabled = justWindows.some(w => frame >= w.start && frame < w.end);
-    const judgementEffects = states.flatMap(s => s.effects).filter(e => e.executing);
+    const judgementEffects = frameNotes.length ? allEffects.filter(e => e.executing) : emptyNotes;
     for (const note of frameNotes) {
       note.inputTimeMs = timeMs;
       const offset = note.timingOffsetMs ?? scenario.timingOffsetMs;
@@ -197,7 +199,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       if (trace && (frameNotes.length || ordinary?.skillTrace.at(-1)?.frame === frame)) stateTrace.push({ frame, timeMs, life: life.at(timeMs), combo: combo.state.combo, maxCombo: combo.state.maxCombo });
     }
     for (const s of states) {
-      const notes = frameNotes.filter(n => n.sectionIndex === s.index);
+      const notes = frameNotes.length ? frameNotes.filter(n => n.sectionIndex === s.index) : emptyNotes;
       if (s.closed || (!s.entered && timeMs < s.startMs)) {
         // Early AP input retains authored section membership. Start effects
         // are not yet installed; recount after entry can still backdate them.

@@ -54,6 +54,15 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     }
   }
   const payloads = [];
+  const addPayload = bytes => {
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    if (!payloads.some(p => p.name === hash + '.json')) {
+      payloads.push({name:hash + '.json', bytes});
+      // Match checkedJson so its integrity-checked read consumes this preload.
+      append(head,fragment(`<link rel="preload" as="fetch" crossorigin="anonymous" href="${derivedRoot}payloads/${hash}.json" fetchpriority="high">`)[0]);
+    }
+    return { hash, url:derivedRoot + 'payloads/' + hash + '.json' };
+  };
   const tool = (route.startsWith('tools/') || route === 'my-growth') && all.find(n => toolTags.includes(n.tagName));
   if (tool) {
     set(tool, 'inert', ''); set(tool, 'data-tool-pending', ''); set(tool, 'aria-busy', 'true');
@@ -61,16 +70,21 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     append(head, fragment(`<style data-tool-visibility-style>${toolPendingStyle}</style>`)[0]);
     walk(tool, node => {
       if (node.tagName !== 'script' || attr(node, 'type') !== 'application/json') return;
-      const bytes = Buffer.from(node.childNodes.map(n => n.value ?? '').join(''));
-      JSON.parse(bytes);
-      const hash = createHash('sha256').update(bytes).digest('hex');
-      payloads.push({name:hash + '.json', bytes});
+      let bytes = Buffer.from(node.childNodes.map(n => n.value ?? '').join(''));
+      const value = JSON.parse(bytes);
+      // Identical rules have one content-addressed URL across tool pages.
+      // Fetch both parts together; initialization still waits for all inputs.
+      const field = ['formalRules','rules'].find(key => value?.[key]?.tables);
+      if (field) {
+        const rules = addPayload(Buffer.from(safeJson(value[field])));
+        set(node, 'data-deferred-rules', rules.url);
+        set(node, 'data-rules-sha256', rules.hash); set(node, 'data-rules-field', field);
+        delete value[field]; bytes = Buffer.from(safeJson(value));
+      }
+      const {hash, url} = addPayload(bytes);
       node.childNodes = [];
-      set(node, 'data-deferred-json', derivedRoot + 'payloads/' + hash + '.json');
+      set(node, 'data-deferred-json', url);
       set(node, 'data-sha256', hash);
-      // Match checkedJson's same-origin credentials/CORS fetch so the later
-      // integrity-checked read consumes this response rather than downloading twice.
-      append(head,fragment(`<link rel="preload" as="fetch" crossorigin="anonymous" href="${derivedRoot}payloads/${hash}.json" fetchpriority="high">`)[0]);
     });
     const en = locale === 'en';
     const scene = loadingPresentation('tool', locale);

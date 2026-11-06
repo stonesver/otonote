@@ -7,6 +7,7 @@ import { requireInteger } from './formation-power.mjs';
 export const PERFORMANCE_SCENARIO_VERSION = 'performance-scenario-v1';
 export const TIMING_PERFORMANCE_VERSION = 'ournotes-performance-timing-v1';
 export const PERFORMANCE_PROFILES = Object.freeze([
+  { id: 'ap_timing', label: 'AP 微操冲分', timingSpreadMs: 0, missRate: 0, description: '比较 60／120 帧共用的 AP 操作方案，优先保留判定余量。' },
   { id: 'ideal', label: '理想发挥', timingSpreadMs: 0, missRate: 0, description: '零毫秒偏差、不漏击；JUST 段按可用判定窗口计算。' },
   { id: 'steady', label: '连击较稳的参考发挥', timingSpreadMs: 65, missRate: 0, description: '每个音符偏差在 -65 至 65 毫秒间均匀抽样，不额外漏击；这是参考条件，不代表你的实测水平。' },
   { id: 'practice', label: '练习中的参考发挥', timingSpreadMs: 110, missRate: 0.02, description: '偏差在 -110 至 110 毫秒间均匀抽样，另有 2% 漏击；可以指定难段。' },
@@ -18,6 +19,8 @@ export function normalizePerformanceScenario(input = {}) {
   const profile = input.profile ?? 'steady';
   const preset = PERFORMANCE_PROFILES.find(row => row.id === profile);
   if (!preset && profile !== 'explicit') throw new Error('未知的发挥情景');
+  if (profile === 'ap_timing') return { version: PERFORMANCE_SCENARIO_VERSION, profile, frameRate: 60, samples: 1,
+    timingBiasMs: 0, timingSpreadMs: 0, missRate: 0, difficultRanges: [], description: preset.description };
   if (profile === 'explicit' && !input.performance) throw new Error('指定发挥需要完整判定文件');
   const seed = requireInteger(input.seed ?? 20261004, 'player seed', 0, 0xffffffff);
   const samples = requireInteger(input.samples ?? (profile === 'ideal' || profile === 'explicit' ? 1 : 3), 'player samples', 1, 16);
@@ -44,6 +47,7 @@ export function normalizePerformanceScenario(input = {}) {
  * any card's window expansion or converter; RNG is separate from game luck. */
 export function createPerformanceScenario(rules, chart, input = {}, sampleIndex = 0) {
   const scenario = normalizePerformanceScenario(input);
+  if (scenario.profile === 'ap_timing') throw new Error('AP 微操需要结合队伍搜索，不能生成与队伍无关的发挥样本');
   if (scenario.profile === 'explicit') return structuredClone(scenario.performance);
   requireInteger(sampleIndex, 'player sample index', 0, 15);
   const timeline = prepareFormalChart(rules, { ...chart, sourceReleaseId: chart.sourceReleaseId ?? rules.sourceReleaseId });

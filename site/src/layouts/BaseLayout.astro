@@ -11,6 +11,10 @@ import GameServiceNotice from "../components/GameServiceNotice.astro";
 import SiteNotifications from "../components/SiteNotifications.astro";
 import SharedPlaylistWorkspace from "../components/SharedPlaylistWorkspace.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
+import shellPreferences from "../lib/shell-preferences.mjs?raw";
+import themeChrome from "../lib/theme-chrome.mjs?raw";
+import {createThemePreferencesScript} from "../lib/theme-preferences.mjs";
+import {renderThemePicker} from "../lib/theme-picker-view.mjs";
 import pageFirstRenderScript from "../lib/page-first-render.mjs?raw";
 import { activeReleaseContext } from "../lib/release-context";
 import { logicalPath, siteHref } from "../lib/site-context";
@@ -20,6 +24,8 @@ import {
   activeNavigationChild,
   activeNavigationGroup
 } from "../lib/navigation.mjs";
+import "../styles/theme-tokens.css";
+import "../styles/theme-picker.css";
 import "../styles/global.css";
 import "../styles/site-shell.css";
 import "../styles/page-title.css";
@@ -27,9 +33,15 @@ import "../styles/filter-panel.css";
 import "../styles/interaction-motion.css";
 import "../styles/page-transitions.css";
 import "../styles/tool-colors.css";
+import "../styles/tool-ux.css";
+import "../styles/tool-design-system.css";
+import "../styles/skill-activation.css";
+import "../styles/theme-surfaces.css";
+import "../styles/theme-seasonal.css";
 import { filterVisualOptions } from "../lib/filter-visuals";
 
 interface Props {
+  contentHeading?: boolean;
   personalWorkspaces?: boolean;
   navigationPath?: string;
   editionCounterparts?: {edition:string;href:string}[];
@@ -81,10 +93,13 @@ const htmlLanguage = activeReleaseContext.locale;
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#11131b" />
+    <meta name="theme-color" />
     <!-- Keep the outgoing frame until streamed module HTML has been fully parsed. -->
     <link rel="expect" blocking="render" href="#page-content-ready" />
     <script is:inline set:html={pageFirstRenderScript} />
+    <script is:inline set:html={shellPreferences} />
+    <script is:inline set:html={createThemePreferencesScript()} />
+    <script is:inline set:html={themeChrome} />
     <link rel="icon" href={href("/favicon.svg")} type="image/svg+xml" />
     <meta property="og:title" content={pageTitle(title)} />
     <meta property="og:description" content={description} />
@@ -92,7 +107,8 @@ const htmlLanguage = activeReleaseContext.locale;
     <title>{pageTitle(title)}</title>
     <style is:inline>
       /* Match the page canvas even before the shared stylesheet arrives. */
-      html { background: #f0eee8; }
+      html { background: var(--theme-canvas); }
+      :is(team-draft-workbench, scoring-research-workbench, event-efficiency-tool):not(.task-workbench) { visibility: hidden; }
     </style>
     <script is:inline>
       // Keep a direct comparison available without changing the visible interface.
@@ -141,7 +157,7 @@ const htmlLanguage = activeReleaseContext.locale;
         <img class="site-brand__mark" src={href("/brand/ournotes-mark.svg")} alt="" width="34" height="34" />
         <span class="site-brand__full">{siteTitle}</span>
         <span class="site-brand__compact" aria-hidden="true">{SITE_NAME}</span>
-        <small>{htmlLanguage === "en" ? "Events · Data · Team tools" : "活动 · 资料 · 配队工具"}</small>
+
       </a>
 
       <nav id="site-navigation" class="site-nav" aria-label={ui.mainNavigation} data-site-nav>
@@ -176,12 +192,14 @@ const htmlLanguage = activeReleaseContext.locale;
         </div>
       </nav>
 
+      <button class="sidebar-collapse" data-sidebar-collapse type="button" aria-controls="site-navigation" aria-expanded="true" aria-label={htmlLanguage === "en" ? "Collapse sidebar" : "收起侧栏"}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="4"/><path d="M9 4v16m6-12-3 4 3 4"/></svg></button>
       <nav class="site-breadcrumb" aria-label={htmlLanguage === "en" ? "Breadcrumb" : "当前位置"}>
         <a href={href("/")}>{homeLabel}</a>
         {pathname !== "/" && <><span aria-hidden="true">/</span>{activeGroup && activeGroup.label !== currentLabel && <><a href={href(activeGroup.href)}>{activeGroup.label}</a><span aria-hidden="true">/</span></>}<strong aria-current="page">{currentLabel}</strong></>}
       </nav>
 
       <UnifiedSearch />
+      <Fragment set:html={renderThemePicker(htmlLanguage)} />
 
       <RegionLocaleSwitcher />
 
@@ -205,10 +223,11 @@ const htmlLanguage = activeReleaseContext.locale;
       <span data-unavailable-path></span>
     </aside>
 
-    {Astro.props.personalWorkspaces !== false && <><SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={pathname.startsWith("/tools/")} /><SharedPlaylistWorkspace /></>}
+    {Astro.props.personalWorkspaces !== false && <><SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={false} /><SharedPlaylistWorkspace /></>}
     <main id="main-content" data-page-kind={pathname === "/" ? "home" : "module"} tabindex="-1">
-      {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
+      {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab|event-efficiency))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
       {activeReleaseContext.region === 'global' && <GameServiceNotice locale={activeReleaseContext.locale} />}
+      {pathname !== "/" && !Astro.props.contentHeading && <h1 class="sr-only">{currentLabel}</h1>}
       <slot />
     </main>
     <SiteNotifications locale={activeReleaseContext.locale} />
@@ -234,7 +253,7 @@ const htmlLanguage = activeReleaseContext.locale;
       try { navigationStorage = window.sessionStorage; } catch { /* Storage is optional. */ }
       restoreNavigationScroll(navigation, navigationStorage);
       const backdrop = document.querySelector<HTMLButtonElement>("[data-nav-backdrop]");
-      const backgroundElements = document.querySelectorAll<HTMLElement>("#main-content, .site-footer, .availability-notice, .site-brand, .site-breadcrumb, .global-search, .context-switcher");
+      const backgroundElements = document.querySelectorAll<HTMLElement>("#main-content, .site-footer, .availability-notice, .site-brand, .sidebar-collapse, .site-breadcrumb, .global-search, .context-switcher");
       const closeNavigation = () => {
         toggle?.setAttribute("aria-expanded", "false");
         toggle?.setAttribute("aria-label", labels.open);
@@ -264,6 +283,12 @@ const htmlLanguage = activeReleaseContext.locale;
         if (toggle instanceof HTMLElement) toggle.focus();
       });
       navigation?.addEventListener("click", (event) => {
+        if (event.target instanceof Element && event.target.closest("[data-playlist-workspace-open]")) {
+          closeNavigation();
+          if (mobileNavigation.matches && toggle instanceof HTMLElement) toggle.focus();
+          document.dispatchEvent(new CustomEvent("playlist-workspace:open"));
+          return;
+        }
         if (event.target instanceof Element && event.target.closest("a")) {
           const workspace = event.target.closest("[data-nav-workspace]");
           closeNavigation();

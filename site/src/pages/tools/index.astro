@@ -7,14 +7,14 @@ import '../../styles/tool-directory.css';
 const en=activeReleaseContext.locale==='en',say=(zh:string,english:string)=>en?english:zh;
 const href=(p:string)=>import.meta.env.BASE_URL==='/'?p:siteHref(p,activeReleaseContext);
 const items=[
- {path:'arena',mark:'Ⅲ',title:say('舞台配队','Arena team entry'),goal:say('查看舞台条件与配队入口','Arena conditions & team entry'),description:say('按区服、赛季与乐队查看条件。抽歌后锁队，舞台计算暂未开放。','Browse conditions by server, season and band. Teams lock after song selection; calculation is not available yet.'),input:say('只查询条件，不启动普通配队','Conditions only; no ordinary team search')},
+ {path:'arena',mark:'JUST',title:say('舞台配队','Arena teams'),goal:say('JUST 竞争力与整场得分','JUST competition and total score'),description:say('使用实际养成，推荐跨曲固定队伍，比较抢名次的收益与换卡成本。','Build one fixed team for a song pool and compare ranking rewards with card trade-offs.'),input:say('三段 JUST · 舞台安排与手动试配','Three JUST sections · Scheduled or custom conditions')},
  {path:'gacha-history',mark:'✦',title:say('抽卡记录','Gacha history'),goal:say('这次是欧皇还是非酋？','How lucky was this round?'),description:say('BHK 登录查看各池记录、出货图表与趣味称号，导出分享成绩单。','Sign in with BHK to view pool history, draw charts and a shareable scorecard.'),input:say('港澳台服 BHK · 每次登录查询，不保存记录','TW/HK/MO BHK · Sign in each time; no saved history')},
  {path:'deck-builder',mark:'5＋5',title:say('卡组配队','Team builder'),goal:say('成员、留影与队长推荐','Lineup and leader recommendations'),description:say('选歌、选卡库，推荐成员、留影配对与队长。','Choose a song and card pool to compare lineups and leaders.'),input:say('使用我的卡库 / 当前队伍 / 全部卡牌','Your collection / current team / all cards')},
  {path:'song-ranking',mark:'♪',title:say('歌曲排行榜','Song rankings'),goal:say('歌曲得分与效率排行','Score and efficiency rankings'),description:say('直接比较得分、每秒效率与达档所需综合力。','Compare score, time efficiency and power needed for each grade.'),input:say('无需选卡，打开即可筛选','No team required')},
  {path:'song-calculator',mark:'分',title:say('歌曲计算','Song calculator'),goal:say('单曲分数与技能贡献','Song score and skill contributions'),description:say('带入队伍，选一首歌，查看平均分与技能贡献。','Select a team and song to see score estimates and skill contributions.'),input:say('使用已保存或配队页带入的队伍','Use a saved or linked team')},
  {path:'ap-grade',mark:'AP',title:say('队伍 AP 估分','Team AP forecast'),goal:say('多首歌曲 AP 档位预测','AP grade forecasts across songs'),description:say('一支队伍比较多首歌，按档位、时长或分数选曲。','Compare your team across songs by grade, length or score.'),input:say('保存的队伍，或直接点选卡面','Saved team or choose cards here')},
  {path:'event-efficiency',mark:'火',title:say('活动收益计算','Event rewards'),goal:say('活动收益与耗火规划','Event rewards and boost planning'),description:say('填游戏加成立即估算，或用卡库推荐队伍与歌曲。','Enter in-game bonuses, or find a team and song from your cards.'),input:say('快速计算只需加成、评分与消耗','Quick mode: bonuses, grade and boost')},
- {path:'live2d',mark:'L2D',title:say('Live2D 预览','Live2D preview'),goal:say('角色造型与动作预览','Character costumes and motions'),description:say('选择角色和服装，播放动作、切换表情。','Choose a character and costume, then play motions and expressions.'),input:say('点选预览，参数调试按需打开','Choose a preview; optional parameter controls')}
+ {path:'live2d',mark:'L2D',title:say('Live2D 预览','Live2D preview'),goal:say('角色造型与动作预览','Character costumes and motions'),description:say('选择角色和服装，播放动作、切换表情。','Choose a character and costume, then play motions and expressions.'),input:say('点选预览，参数调试按需打开','Choose a preview; optional parameter controls')},
 ];
 const browseTools = [
  {path:'/music/',kind:'chart-preview',title:say('谱面播放与分析','Chart playback and analysis'),description:say('从歌曲页选择难度，播放谱面、循环观察区段并查看音符密度。','Choose a difficulty on a song page, loop a section and inspect note density.')},
@@ -24,7 +24,7 @@ const browseTools = [
 <BaseLayout title={say('游戏工具','Game tools')}>
  <div class="tools-desk">
   <header class="tools-opening">
-   <div><a class="tools-wordmark" href={href('/tools/')}><span class="tools-signal" aria-hidden="true"><i></i><i></i><i></i><i></i></span> OTONOTE · TOOLBOX</a><h1>{say('游戏工具','Game tools')}</h1><p>{say('配队、选曲、估分与活动收益计算。','Team building, song selection, score estimates and event rewards.')}</p></div>
+
    <a class="tools-library-link" href={href('/my-growth/')}><span class="tools-library-symbol" aria-hidden="true">＋</span><div><strong>{say('我的卡库与养成','My collection and growth')}</strong><span>{say('保存养成，在各工具中直接使用','Save your cards and use them across tools')}</span></div></a>
   </header>
   <nav class="tools-task-grid" aria-label={say('可用工具','Available tools')}>

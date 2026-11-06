@@ -7,10 +7,13 @@
 .growth-kicker { margin-bottom:18px; font:600 11px var(--font-mono); letter-spacing:.1em; color:var(--lacquer); }
 .tgw-tier-picker { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
 .tgw-tier { padding:12px; border:1px solid var(--line); border-top:3px solid var(--tier-color); border-radius:10px; background:var(--paper-light); min-width:0; }
-.tgw-tier[data-tier="normal"] { --tier-color:#85919a; }
-.tgw-tier[data-tier="gold"] { --tier-color:#b48b38; }
-.tgw-tier[data-tier="platinum"] { --tier-color:#9583ae; }
-.tgw-tier[data-tier="black"] { --tier-color:#353d48; }
+.tgw-tier[data-tier="normal"] { /* Game semantics: TGW membership tier color. */ --tier-color:#85919a; }
+
+.tgw-tier[data-tier="gold"] { /* Game semantics: TGW membership tier color. */ --tier-color:#b48b38; }
+
+.tgw-tier[data-tier="platinum"] { /* Game semantics: TGW membership tier color. */ --tier-color:#9583ae; }
+
+.tgw-tier[data-tier="black"] { /* Game semantics: TGW membership tier color. */ --tier-color:#353d48; }
 .tgw-tier-heading { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
 .tgw-tier-heading img { width:48px; height:auto; }
 .tgw-tier-heading strong { font-size:12px; white-space:nowrap; }
@@ -18,9 +21,9 @@
 .tgw-tier-ranks { display:flex; gap:4px; }
 .tgw-tier-ranks button { flex:1; min-width:0; min-height:40px; padding:7px 0; background:var(--paper); border:1px solid transparent; border-radius:6px; font:600 12px var(--font-mono); color:var(--ink); cursor:pointer; }
 .tgw-tier-ranks button:hover { border-color:var(--tier-color); }
-.tgw-tier-ranks button[aria-pressed="true"] { background:var(--lacquer); color:var(--paper-light); box-shadow:0 2px 6px #3a253323; }
+.tgw-tier-ranks button[aria-pressed="true"] { background:var(--lacquer); color:var(--theme-on-accent); box-shadow:0 2px 6px color-mix(in srgb, var(--theme-shadow-color) 13.73%, transparent); }
 .growth-body .tgw-summary { padding:24px 28px; border:1px solid var(--line); border-radius:14px; background:var(--paper-light); gap:40px; }
-.tgw-card-art { position:relative; width:280px; max-width:100%; flex:none; aspect-ratio:980/630; filter:drop-shadow(0 8px 8px #251a2820); }
+.tgw-card-art { position:relative; width:280px; max-width:100%; flex:none; aspect-ratio:980/630; filter:drop-shadow(0 8px 8px color-mix(in srgb, var(--theme-shadow-color) 12.55%, transparent)); }
 .tgw-card-base { width:100%; height:100%; display:block; }
 .tgw-card-rank,.tgw-card-number { position:absolute; left:50%; transform:translateX(-50%); width:auto; object-fit:contain; }
 .tgw-card-rank { top:32%; height:6%; }

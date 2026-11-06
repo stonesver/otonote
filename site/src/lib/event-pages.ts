@@ -7,19 +7,20 @@ import { siteHref } from "./site-context";
 import { validatedEvents } from "./event-content.mjs";
 import type { EventDefinition, EventMediaMap, EventReward, EventIdentity, EventCard } from "./event-archive";
 import { collectEventCards } from "./event-card-model.mjs";
+import { resolveEventArtwork } from "./event-artwork.mjs";
 import { gallery } from "./gallery";
 const secondaryEvents=await otherEditionArtifact(activeReleaseContext.region,'projection/game-modes.json');
 export const eventRecords: EventDefinition[] = annotateOperations(validatedEvents(gameModeDatabase.events, activeReleaseContext),secondaryEvents?.events?.records??null,'events',activeReleaseContext.region,activeReleaseContext.locale);
 export const eventHref = (path: string) => import.meta.env.BASE_URL === "/" ? path : siteHref(path, activeReleaseContext);
 const assets = new Map(catalog.assets.map(asset => [asset.containerPath, asset]));
+const supportArtworks = new Map(catalog.supportCards.map(card => [card.masterId, getAsset(card.primaryAssetId)]));
 export function eventArtwork(event: EventDefinition) {
-  const get = (path?: string | null) => {
-    const asset = path ? assets.get(`Assets/AddressableResources/Image/Event/${path}.png`) : undefined;
-    return asset?.sourceReleaseId === event.sourceReleaseId ? asset.previewUrl : undefined;
-  };
-  return { cover: get(event.assets?.background), logo: get(event.assets?.logo) };
+  const get = (path?: string | null) => path ? assets.get(`Assets/AddressableResources/Image/Event/${path}.png`) : undefined;
+  return resolveEventArtwork(event, {
+    background: get(event.assets?.background), logo: get(event.assets?.logo),
+    cards: eventCards[event.id], supportArtworks,
+  });
 }
-export const eventArtworks = Object.fromEntries(eventRecords.map(event => [event.id, eventArtwork(event)]));
 
 // Resolve only assets from the selected release; unavailable images use a neutral icon.
 export const eventMedia: EventMediaMap = {};
@@ -73,3 +74,4 @@ for (const event of eventRecords) {
       href: eventHref(`/music/${track.id}/`), label: track.bandLabels.join(' / ') };
   }
 }
+export const eventArtworks = Object.fromEntries(eventRecords.map(event => [event.id, eventArtwork(event)]));

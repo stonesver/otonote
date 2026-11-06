@@ -29,7 +29,7 @@ const attr = (node,name) => node.attrs?.find(a=>a.name===name)?.value;
 const hasClass = (node,name) => attr(node,'class')?.split(/\s+/).includes(name);
 function walk(node) { return [node,...(node.childNodes??[]).flatMap(walk)]; }
 function within(node, name) {
-  for(let parent=node.parentNode;parent;parent=parent.parentNode) if(attr(parent,'data-journey-step')===name)return true;
+  for(let parent=node.parentNode;parent;parent=parent.parentNode) if(attr(parent,'data-workbench-part')===name)return true;
   return false;
 }
 
@@ -39,15 +39,14 @@ test('deck HTML already contains the current layout and no dormant legacy panels
   const {default:Component}=await import(await compile(source,child));
   const container=await experimental_AstroContainer.create();
   const html=await container.renderToString(Component),nodes=walk(parse(html));
-  assert.equal(nodes.filter(n=>hasClass(n,'calculator-journey')).length,1);
-  assert.equal(nodes.filter(n=>attr(n,'data-journey-step')!==undefined).length,4);
-  for(const [field,step] of [['data-song-select','0'],['data-team-slots','1'],['data-instrument-controls','1'],['data-search-scope','1'],['data-search-band','1'],['data-search-support-band','1'],['data-pairing-mode','2'],['data-optimize-pairing','2'],['data-pairing-results','3']]) {
+  for(const [field,part] of [['data-song-select','song'],['data-search-scope','conditions'],['data-search-band','conditions'],['data-search-support-band','conditions'],['data-pairing-mode','conditions'],['data-optimize-pairing','main'],['data-pairing-results','main']]) {
     const controls=nodes.filter(n=>attr(n,field)!==undefined);
     assert.equal(controls.length,1,`${field} must have one owner`);
-    assert.ok(within(controls[0],step),`${field} must render in its final panel`);
+    assert.ok(within(controls[0],part),`${field} belongs to its workbench fragment`);
   }
-  for(const legacy of ['calculator-guide','optimizer-panel','team-summary','workbench-share','journey-steps','journey-footer']) {
+  for(const legacy of ['calculator-journey','journey-step','journey-manual','team-workbench-grid','score-preparation']) {
     assert.ok(!nodes.some(n=>hasClass(n,legacy)),`${legacy} must be removed, not hidden`);
   }
+  for(const legacy of ['data-team-slots','data-card-results','data-instrument-controls','data-character-rank-controls']) assert.ok(!nodes.some(n=>attr(n,legacy)!==undefined),`${legacy} now belongs to the shared editor`);
   assert.doesNotMatch(html,/高级面板|data-production-breakdown|data-power-trace/);
 });

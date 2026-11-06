@@ -1,80 +1,6 @@
 import {planningUiText} from './team-planning-translations.mjs';
-/** Translate a short player-facing form into explicit, saved calculation assumptions. */
-const KINDS = new Set(['reference','selected','current','training','trial']);
-export const planningKindScope = kind => kind === 'reference' ? 'reference' : kind === 'selected' ? 'selected' : kind === 'trial' ? 'trial' : 'owned';
-export const planningObjectiveForGoal = goal => goal==='stable'?'minimum_song_score':'expected_song_score';
-export const legacyPlanningScope = (kind,trainingScope='owned') => kind === 'reference' ? 'theoretical' : kind === 'selected'||kind==='training'&&trainingScope==='selected' ? 'selected' : 'owned';
-export function defaultPlanningKind(inventory, draft) {
-  if ((inventory?.memberCardIds?.length ?? 0) + (inventory?.supportCardIds?.length ?? 0)) return 'current';
-  return draft?.slots?.some(s => s.memberCardId || s.supportCardId) ? 'selected' : 'reference';
-}
-function numeric(value, label, min, max) {
-  const n=Number(value); if(!Number.isFinite(n)||n<min||n>max)throw new Error(`${label}应在 ${min}–${max} 之间`); return n;
-}
-export function createPlanningSettings(values, {sourceReleaseId, draft}) {
-  if(!KINDS.has(values.kind))throw new Error('请重新选择配队方式');
-  const planningScenario={schemaVersion:1,sourceReleaseId,scope:values.kind==='training'&&values.trainingScope==='selected'?'selected':planningKindScope(values.kind),unknownGrowth:values.unknownGrowth==='reference'?'reference':'exclude'};
-  if(values.kind==='reference'||values.unknownGrowth==='reference'||values.kind==='trial')planningScenario.referenceGrowth='maximum';
-  if(values.kind==='selected'||values.kind==='trial'||values.kind==='training'&&values.trainingScope==='selected')planningScenario.selectedCardIds={
-    memberCardIds:[...new Set(draft.slots.map(s=>s.memberCardId).filter(Boolean))],
-    supportCardIds:[...new Set(draft.slots.map(s=>s.supportCardId).filter(Boolean))]};
-  if(values.kind==='trial') {
-    const ids=values.trialCardIds??{memberCardIds:[],supportCardIds:[]};
-    if(!ids.memberCardIds.length&&!ids.supportCardIds.length)throw new Error('先加入一张想试的卡；也可以改用参考队伍。');
-    planningScenario.trialCardIds=structuredClone(ids);
-  }
-  if(values.kind==='training') {
-    const maxTrainedCards=numeric(values.maxTrainedCards,'培养张数',1,10);
-    if(!Number.isInteger(maxTrainedCards))throw new Error('培养张数应为整数');
-    const plan={schemaVersion:1,sourceReleaseId,enabled:true,mode:values.growthMode==='maximum'?'maximum':'current-cap',maxTrainedCards};
-    if(values.allowedCardIds?.length)plan.allowedCardIds=[...new Set(values.allowedCardIds)];
-    for(const field of ['skillLevel','gekisouSkillLevel'])if(values[field]!==''&&values[field]!=null){plan[field]=numeric(values[field],'技能等级',1,5);if(!Number.isInteger(plan[field]))throw new Error('技能等级应为整数');}
-    const targets=Object.fromEntries(Object.entries(values.targets??{}).filter(([,fields])=>Object.keys(fields).length));
-    if(Object.keys(targets).length)plan.targets=structuredClone(targets);
-    planningScenario.plan=plan;
-  }
-  const profile=['ideal','steady','practice'].includes(values.profile)?values.profile:'steady';
-  const performanceScenario={profile,seed:20261004,samples:profile==='ideal'?1:3,timingBiasMs:numeric(values.timingBiasMs??0,'整体偏差',-500,500)};
-  if(values.timingSpreadMs!==''&&values.timingSpreadMs!=null)performanceScenario.timingSpreadMs=numeric(values.timingSpreadMs,'时机波动',0,500);
-  if(values.missPercent!==''&&values.missPercent!=null)performanceScenario.missRate=numeric(values.missPercent,'漏按比例',0,100)/100;
-  if(values.startSeconds!==''&&values.startSeconds!=null||values.endSeconds!==''&&values.endSeconds!=null) {
-    if(values.startSeconds===''||values.endSeconds==='')throw new Error('较难区间的开始和结束都需要填写');
-    const startMs=numeric(values.startSeconds,'开始时间',0,86400)*1000,endMs=numeric(values.endSeconds,'结束时间',0,86400)*1000;
-    if(endMs<=startMs)throw new Error('较难区间的结束时间应晚于开始时间');
-    performanceScenario.difficultRanges=[{startMs,endMs,spreadMultiplier:2}];
-  }
-  if(values.explicit?.trim()) {
-    try{performanceScenario.performance=JSON.parse(values.explicit);}catch{throw new Error('演出记录不是有效的 JSON，请检查后重试');}
-    performanceScenario.profile='explicit';performanceScenario.samples=1;
-  }
-  return {planningScenario,performanceScenario,recommendationGoal:['score','stable','missions'].includes(values.goal)?values.goal:'score'};
-}
-export function planningSettingsValues(modifiers={}, fallback='reference') {
-  const s=modifiers.planningScenario,p=modifiers.performanceScenario??{};
-  return {kind:s?.plan?.enabled!==false&&s?.plan?'training':s?.scope==='owned'?'current':KINDS.has(s?.scope)?s.scope:fallback,
-    trainingScope:s?.scope==='selected'?'selected':'owned',unknownGrowth:s?.unknownGrowth??'exclude',growthMode:s?.plan?.mode==='maximum'?'maximum':'current-cap',maxTrainedCards:s?.plan?.maxTrainedCards??1,
-    skillLevel:s?.plan?.skillLevel??'',gekisouSkillLevel:s?.plan?.gekisouSkillLevel??'',allowedCardIds:s?.plan?.allowedCardIds??[],targets:structuredClone(s?.plan?.targets??{}),
-    trialCardIds:structuredClone(s?.trialCardIds??{memberCardIds:[],supportCardIds:[]}),profile:p.profile==='explicit'?'steady':p.profile??'steady',
-    timingBiasMs:p.timingBiasMs??0,timingSpreadMs:p.timingSpreadMs??'',missPercent:p.missRate==null?'':p.missRate*100,
-    startSeconds:p.difficultRanges?.[0]?.startMs==null?'':p.difficultRanges[0].startMs/1000,endSeconds:p.difficultRanges?.[0]?.endMs==null?'':p.difficultRanges[0].endMs/1000,
-    explicit:p.profile==='explicit'?JSON.stringify(p.performance,null,2):'',goal:modifiers.recommendationGoal??'score'};
-}
-const kindLabels={reference:'参考队伍 · 卡片满养成',selected:'手选卡',current:'当前养成',training:'培养计划',trial:'试用队伍'};
-export function planningSummary(values) {
-  let text=kindLabels[values.kind]??'参考队伍';
-  if(values.kind==='training')text+=` · 最多练 ${values.maxTrainedCards} 张 · ${values.growthMode==='maximum'?'全满养成参考':'保持突破、觉醒'}`;
-  if(values.unknownGrowth==='reference'&&values.kind!=='reference')text+=' · 缺失养成按满养成参考';
-  return text;
-}
-export function updatePlanningCardPreference(constraints,{kind,id,preference}) {
-  const next=structuredClone(constraints),suffix=kind==='member'?'MemberIds':'SupportIds';
-  for(const prefix of ['required','excluded']) {
-    const key=prefix+suffix;next[key]=(next[key]??[]).filter(value=>String(value)!==String(id));
-    if((prefix==='required'&&preference==='keep')||(prefix==='excluded'&&preference==='exclude'))next[key].push(id);
-    if(!next[key].length)delete next[key];
-  }
-  return next;
-}
+import {planningKindScope,planningObjectiveForGoal,legacyPlanningScope,defaultPlanningKind,createPlanningSettings,planningSettingsValues,planningSummary,updatePlanningCardPreference} from './calculation/planning-settings.ts';
+export {planningKindScope,planningObjectiveForGoal,legacyPlanningScope,defaultPlanningKind,createPlanningSettings,planningSettingsValues,planningSummary,updatePlanningCardPreference};
 export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
   const q=s=>workbench.querySelector(s);if(!q('[data-planning-kind]'))return null;
   const ui=text=>planningUiText(text,workbench.data.locale),setText=(selector,text)=>{q(selector).textContent=ui(text);};
@@ -159,10 +85,15 @@ export function setupTeamPlanningScenarios(workbench,{getInventory,onChange}) {
     if(!root.children.length)root.append(node('p','还没有手选队伍。可先生成方案并应用，再保留喜欢的卡继续比较。'));
   }
   function refresh(){
+    const micro=q('[data-performance-profile] option[value="ap_timing"]'),gekisou=q('[data-pairing-mode]').value==='gekisou';
+    if(micro)micro.disabled=gekisou;
+    if(gekisou&&q('[data-performance-profile]').value==='ap_timing')q('[data-performance-profile]').value='steady';
     const v=values();q('[data-planning-training]').hidden=v.kind!=='training';q('[data-planning-trial]').hidden=v.kind!=='trial';q('[data-planning-missing]').hidden=v.kind==='reference';
     setText('[data-planning-note]',{reference:'不用导入卡库。先看搭配思路；结果可能包含你还没有的卡。',selected:'只比较下方选中的成员与留影。没有填写养成时，可展开下面的选项按参考值计算。',current:'使用已导入或手动填写的养成。缺少资料的卡默认不参加推荐。',training:'按所选范围比较培养后的搭配。手选卡需要填写实际养成，计划不会修改卡库。',trial:'选择想试的卡，再和已录入或手选的卡一起配队。'}[v.kind]);
     let performanceNote=v.explicit.trim()?'按填写的演出记录比较。':v.profile==='ideal'?'理想发挥：无时机偏差、无漏按，用于查看顺利发挥时的方案。':v.profile==='practice'?'参考条件：时机波动 ±110 毫秒，另有 2% 漏按；不是对你个人水平的判断。':'参考条件：时机波动 ±65 毫秒，不额外加入漏按；FC 不代表全 JUST。';
-    if(v.timingSpreadMs!==''||v.missPercent!==''||Number(v.timingBiasMs)!==0||v.startSeconds!=='')performanceNote+=' 已调整发挥条件，请展开上方设置查看。';
+    if(v.profile==='ap_timing')performanceNote='60 / 120 帧通用，优先容错较大的操作。具体按法见回放。';
+    else if(v.timingSpreadMs!==''||v.missPercent!==''||Number(v.timingBiasMs)!==0||v.startSeconds!=='')performanceNote+=' 已调整发挥条件，请展开上方设置查看。';
+    if(q('[data-performance-custom]'))q('[data-performance-custom]').hidden=v.profile==='ap_timing';
     setText('[data-performance-note]',performanceNote);
     setText('[data-planning-summary]',planningSummary(v));
     q('[data-recommendation-goal]').querySelector('[value="missions"]').disabled=q('[data-pairing-mode]').value!=='gekisou';

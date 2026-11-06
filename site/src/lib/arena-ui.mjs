@@ -145,7 +145,10 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
    <div class="arena-band-rail"><div class="arena-bands" role="group" aria-label="${t('选择乐队','Choose band')}">${arenaBandPreviews(data,location.search,{now:clock(),region}).map(bandButton).join('')}</div></div>`;
  }
  function entry() {
-  return `<aside class="arena-entry"><p>${t('成员限本团 · 留影不限团','Band members · Any support')}<strong>${t('抽歌后不能换队','Team locked after draw')}</strong></p><div class="arena-entry-action"><small id="arena-calculator-state">${t('计算暂未开放','Calculator unavailable')}</small><button class="arena-primary" type="button" disabled aria-describedby="arena-calculator-state">${t('舞台配队','Build arena team')}</button></div></aside>`;
+  const just=context.entryReady&&context.condition.missions.every(m=>m===3||m===0);
+  const ready=just&&freshness==='current';
+  const action=ready?`<a class="arena-primary" href="${escape(link('tools/arena/',arenaParams(context,{pin:true})))}">${t('JUST 配队','Build JUST team')}</a>`:`<button class="arena-primary" type="button" disabled aria-describedby="arena-calculator-state">${t('JUST 配队','Build JUST team')}</button>`;
+  return `<aside class="arena-entry"><p>${t('成员限本团 · 留影不限团','Band members · Any support')}<strong>${t('抽歌后不能换队','Team locked after draw')}</strong></p><div class="arena-entry-action"><small id="arena-calculator-state">${ready?t('比较计数与整场得分','Compare counts and total score'):just?t('确认当前资料后可配队','Confirm current data to build a team'):t('目前支持三段 JUST','Three JUST sections supported')}</small>${action}</div></aside>`;
  }
  function calendar() {
   const model=arenaCalendar(context,{now:clock(),month:calendarMonth,day:query().get('date')});

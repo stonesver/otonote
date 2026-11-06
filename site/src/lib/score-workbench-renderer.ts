@@ -179,32 +179,26 @@ export function renderScoreTrack({
 export function paintScoreTrack(
   context: CanvasRenderingContext2D,
   plan: ScoreTrackRenderPlan,
-  selectedHitKey: string | null
+  selectedHitKey: string | null,
+  palette: Record<string, string>
 ): void {
   const { width, height } = plan;
   context.clearRect(0, 0, width, height);
-  context.fillStyle = "#11131b";
+  context.fillStyle = palette.inverseSurface;
   context.fillRect(0, 0, width, height);
+  context.save();
   context.lineWidth = 1;
   for (const [index, x] of plan.laneBoundaries.entries()) {
-    context.strokeStyle =
-      index === 0 || index === plan.laneBoundaries.length - 1
-        ? "rgba(255,255,255,.28)"
-        : index === (plan.laneBoundaries.length - 1) / 2
-          ? "rgba(121,174,194,.28)"
-          : "rgba(255,255,255,.1)";
-    context.beginPath();
-    context.moveTo(x, 0);
-    context.lineTo(x, height);
-    context.stroke();
+    context.strokeStyle = index === (plan.laneBoundaries.length - 1) / 2 ? palette.secondary : palette.inverseText;
+    context.globalAlpha = index === 0 || index === plan.laneBoundaries.length - 1 || index === (plan.laneBoundaries.length - 1) / 2 ? .28 : .1;
+    context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
   }
-  context.strokeStyle = "rgba(255,255,255,.08)";
+  context.strokeStyle = palette.inverseText;
+  context.globalAlpha = .08;
   for (const y of plan.secondLines) {
-    context.beginPath();
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-    context.stroke();
+    context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
   }
+  context.restore();
 
   context.fillStyle = "rgba(121,174,194,.11)";
   for (const band of plan.feverBands) {
@@ -328,7 +322,7 @@ export function paintScoreTrack(
         markerHeight + 10,
         8
       );
-      context.strokeStyle = "#7bd7ef";
+      context.strokeStyle = palette.secondary;
       context.lineWidth = 4;
       context.stroke();
     }

@@ -3,7 +3,7 @@ home-birthdays { display:block; margin:20px 0 18px; }
 .birthday-heading { justify-content:space-between; margin-bottom:10px; }
 .birthday-heading h2 { margin:0; font-size:16px; letter-spacing:-.025em; }
 .birthday-heading-mark { color:var(--lacquer); font-size:21px; line-height:1; }
-.birthday-today { display:flex; align-items:center; gap:7px; color:#625761; font-size:10px; white-space:nowrap; }
+.birthday-today { display:flex; align-items:center; gap:7px; color:var(--theme-muted); font-size:10px; white-space:nowrap; }
 .birthday-today time { font:11px var(--font-mono); color:var(--lacquer); }
 .birthday-today small { color:var(--silver-dark); font:9px var(--font-mono); }
 .birthday-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
@@ -20,7 +20,7 @@ home-birthdays { display:block; margin:20px 0 18px; }
 .birthday-person h3 { margin:3px 0 0; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
 .birthday-person p { display:none; }
 .birthday-countdown { font-size:10px; color:var(--lacquer); }
-.birthday-related { display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; padding:7px 10px; border-top:1px dashed color-mix(in srgb,var(--birthday-color) 24%,var(--line)); color:#756a74; font-size:10px; }
+.birthday-related { display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; padding:7px 10px; border-top:1px dashed color-mix(in srgb,var(--birthday-color) 24%,var(--line)); color:var(--theme-muted); font-size:10px; }
 .birthday-related a { color:var(--lacquer); }
 .birthday-related a:hover { text-decoration:underline; }
 .birthday-related-divider { opacity:.4; }
@@ -45,10 +45,10 @@ home-birthdays { display:block; margin:20px 0 18px; }
 .birthday-countdown { display:block; line-height:1.5; }
 .birthday-occasion { display:none; font-size:9px; font-weight:600; letter-spacing:.04em; line-height:1.5; }
 .birthday-card[data-birthday-state="soon"] { border-color:color-mix(in srgb,var(--birthday-color) 45%,var(--line)); background:linear-gradient(120deg,color-mix(in srgb,var(--birthday-color) 12%,var(--paper-light)),var(--paper-light)); box-shadow:inset 3px 0 color-mix(in srgb,var(--birthday-color) 65%,var(--lacquer)); }
-.birthday-card[data-birthday-state="soon"] .birthday-portrait { outline:2px solid color-mix(in srgb,var(--birthday-color) 55%,white); outline-offset:2px; }
-.birthday-card[data-birthday-state="today"] { border-color:var(--lacquer); background:radial-gradient(circle at 93% 80%,#e6c88e40,transparent 42%),linear-gradient(115deg,#f4e3eb,var(--paper-light)); box-shadow:inset 3px 0 var(--lacquer); }
+.birthday-card[data-birthday-state="soon"] .birthday-portrait { outline:2px solid color-mix(in srgb,var(--birthday-color) 55%,var(--theme-surface)); outline-offset:2px; }
+.birthday-card[data-birthday-state="today"] { border-color:var(--lacquer); background:radial-gradient(circle at 93% 80%,color-mix(in srgb, var(--theme-warning) 25.1%, transparent),transparent 42%),linear-gradient(115deg,color-mix(in srgb, var(--theme-accent) 7%, var(--theme-surface)),var(--paper-light)); box-shadow:inset 3px 0 var(--lacquer); }
 .birthday-card[data-birthday-state="today"] .birthday-occasion--today { display:block; color:var(--lacquer); }
 .birthday-card[data-birthday-state="today"] .birthday-countdown { color:var(--lacquer); font-weight:700; }
-.birthday-card[data-birthday-state="today"] .birthday-portrait { outline:2px solid var(--lacquer); outline-offset:2px; box-shadow:0 0 0 5px #7a315512; }
-.birthday-card[data-birthday-state="today"] .birthday-date time { padding:2px 4px; border-radius:4px; color:var(--paper-light); background:var(--lacquer); }
+.birthday-card[data-birthday-state="today"] .birthday-portrait { outline:2px solid var(--lacquer); outline-offset:2px; box-shadow:0 0 0 5px color-mix(in srgb, var(--theme-accent) 7.06%, transparent); }
+.birthday-card[data-birthday-state="today"] .birthday-date time { padding:2px 4px; border-radius:4px; color:var(--theme-on-accent); background:var(--lacquer); }
 @media(max-width:600px) { .birthday-person { min-height:94px; } .birthday-card[data-birthday-state="today"] .birthday-date time { font-size:9px; } }

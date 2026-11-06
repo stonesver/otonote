@@ -93,6 +93,8 @@ def classify_path(path: str) -> str | None:
         return "outside-source-allowlist"
     if parts[0] not in SOURCE_ROOTS:
         return "outside-source-allowlist"
+    if path.startswith("site/src/components/") and p.suffix == ".svelte":
+        return None
     if p.suffix in TEXT_SUFFIXES or p.name in {"Dockerfile", "LICENSE", "pre-commit"} or p.name.startswith("Dockerfile."):
         return None
     # Static design assets only, never binaries elsewhere or game/runtime data.

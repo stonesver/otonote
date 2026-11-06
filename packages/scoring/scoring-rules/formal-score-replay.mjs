@@ -14,13 +14,14 @@ export const compareScoreFactors = (a, b) => byTime(a, b) || a.ownerId - b.owner
  * scoreNote must not accumulate side effects: a bucket may execute repeatedly.
  * External count history may change between frames, just as in the client.
  */
-export function createScoreReplay({ musicLengthMs, scoreNote, retainNotes = true }) {
+export function createScoreReplay({ musicLengthMs, scoreNote, retainNotes = true, _checkpoint }) {
   if (!Number.isSafeInteger(musicLengthMs) || musicLengthMs < 0) throw new Error('Invalid score replay length');
   const lastFrame = scoreFrame(musicLengthMs) + 49;
   const frameOf = time => Math.min(lastFrame, scoreFrame(time));
-  const buckets = [], notes = [];
-  const state = { ...emptyDelta(), general: 1 };
-  let previous = -1, changed = Infinity, total = 0, sequence = 0, pendingFixed;
+  const buckets = _checkpoint?.buckets ?? [], notes = _checkpoint?.notes ?? [];
+  const state = _checkpoint?.state ?? { ...emptyDelta(), general: 1 };
+  let previous = _checkpoint?.previous ?? -1, changed = _checkpoint?.changed ?? Infinity,
+    total = _checkpoint?.total ?? 0, sequence = _checkpoint?.sequence ?? 0, pendingFixed = _checkpoint?.pendingFixed;
   const bucketAt = frame => {
     return buckets[frame] ??= { factors: [], notes: [], delta: null, score: 0, fixed: 0 };
   };
@@ -113,7 +114,30 @@ export function createScoreReplay({ musicLengthMs, scoreNote, retainNotes = true
     if (!Number.isSafeInteger(command.timeMs) || !Number.isSafeInteger(command.score) || command.score < 0) throw new Error('Invalid fixed score');
     pendingFixed = { ...command };
   }
-  return { addFactor, addNote, addFixedScore, calculate, notes, state, get score() { return total; } };
+  return { addFactor, addNote, addFixedScore, calculate, notes, state, get score() { return total; },
+    fork({ scoreNote: nextScoreNote = scoreNote } = {}) {
+      const copied = retainNotes ? structuredClone({buckets,notes,state,previous,changed,total,sequence,pendingFixed})
+        : { buckets: Object.fromEntries(Object.entries(buckets).map(([key,bucket])=>[key,{
+          ...bucket, factors:[...bucket.factors], notes:[...bucket.notes], delta:bucket.delta&&{...bucket.delta}
+        }])), notes:[], state:{...state}, previous, changed, total, sequence, pendingFixed };
+      return createScoreReplay({musicLengthMs,scoreNote:nextScoreNote,retainNotes,_checkpoint:copied});
+    },
+    // The caller proves that no later note/factor can reach an earlier bucket.
+    // Closed score becomes an additive DP value; f32 continuation state stays.
+    sealBefore(timeMs) {
+      let settled=0;const cutoff=frameOf(timeMs);
+      for(const key of Object.keys(buckets))if(Number(key)<cutoff){settled+=buckets[key].score;delete buckets[key];}
+      total-=settled;return settled;
+    },
+    frontierKey() {
+      // Absolute command sequence numbers only break same-owner/time ties.
+      // Array order retains those ties; future commands always come last.
+      return JSON.stringify([state,previous,changed,pendingFixed,Object.entries(buckets).map(([frame,bucket])=>[
+        frame,bucket.delta,bucket.score,bucket.fixed,bucket.hasFixed,
+        bucket.factors.map(({sequence,...factor})=>factor),bucket.notes.map(note=>note.scoreIndex)
+      ])]);
+    }
+  };
 }
 
 

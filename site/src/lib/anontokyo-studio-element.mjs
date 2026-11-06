@@ -1,3 +1,4 @@
+import { readThemePalette, observeTheme } from "./theme-palette.mjs";
 import {
   applyLayoutCommand,
   validateLayoutDocument
@@ -157,9 +158,10 @@ class AnonTokyoStudioElement extends HTMLElement {
   async initPixi() {
     const PIXI = await import("pixi.js");
     this.PIXI = PIXI;
+    this.palette = readThemePalette(this);
     this.app = new PIXI.Application({
       resizeTo: this.canvasHost,
-      backgroundColor: 0x25263b,
+      backgroundColor: this.palette.inverseSurface,
       antialias: true,
       autoDensity: true,
       resolution: Math.min(devicePixelRatio || 1, 2),
@@ -174,6 +176,12 @@ class AnonTokyoStudioElement extends HTMLElement {
     this.world.addChild(this.gridLayer, this.furnitureLayer, this.ghostLayer);
     this.app.stage.addChild(this.world);
     this.resetView();
+    this.disconnectTheme = observeTheme(this, () => {
+      this.palette = readThemePalette(this);
+      this.app.renderer.background.color = this.palette.inverseSurface;
+      this.clearGhost();
+      this.render();
+    });
 
     const canvas = this.app.view;
     canvas.addEventListener("dragover", (event) => event.preventDefault());
@@ -365,8 +373,8 @@ class AnonTokyoStudioElement extends HTMLElement {
         const inside = x >= 0 && y >= 0 && x < size.width && y < size.height;
         const point = this.tileToWorld(x, y);
         const tile = new Graphics();
-        tile.lineStyle(inside ? 1.2 : 1, inside ? 0x98ded8 : 0x4a4c68, inside ? 0.72 : 0.18);
-        tile.beginFill(inside ? 0xf2fbfa : 0x30324b, inside ? 0.92 : 0.34);
+        tile.lineStyle(inside ? 1.2 : 1, inside ? this.palette.secondary : this.palette.border, inside ? 0.72 : 0.18);
+        tile.beginFill(inside ? this.palette.surface : this.palette.inverseSurface, inside ? 0.92 : 0.34);
         tile.drawPolygon([0, TILE_HEIGHT / 2, TILE_WIDTH / 2, 0, TILE_WIDTH, TILE_HEIGHT / 2, TILE_WIDTH / 2, TILE_HEIGHT]);
         tile.endFill();
         tile.position.set(point.x, point.y);
@@ -379,7 +387,7 @@ class AnonTokyoStudioElement extends HTMLElement {
       if (local.x < -2 || local.y < -2 || local.x > size.width + 2 || local.y > size.height + 2) continue;
       const point = this.tileToWorld(local.x, local.y);
       const marker = new Graphics();
-      marker.beginFill(0xec7f83, 0.35);
+      marker.beginFill(this.palette.accentBright, 0.35);
       marker.drawPolygon([0, TILE_HEIGHT / 2, TILE_WIDTH / 2, 0, TILE_WIDTH, TILE_HEIGHT / 2, TILE_WIDTH / 2, TILE_HEIGHT]);
       marker.endFill();
       marker.position.set(point.x, point.y);
@@ -403,8 +411,8 @@ class AnonTokyoStudioElement extends HTMLElement {
       const point = this.tileToWorld(placement.x, placement.y);
       const footprintGraphic = new Graphics();
       const corners = this.footprintPolygon(footprint.width, footprint.height);
-      footprintGraphic.lineStyle(2, this.selectedId === placement.instanceId ? 0xec7f83 : 0x8ad3cf, this.selectedId === placement.instanceId ? 1 : 0.45);
-      footprintGraphic.beginFill(0x8ad3cf, this.selectedId === placement.instanceId ? 0.18 : 0.06);
+      footprintGraphic.lineStyle(2, this.selectedId === placement.instanceId ? this.palette.accentBright : this.palette.secondary, this.selectedId === placement.instanceId ? 1 : 0.45);
+      footprintGraphic.beginFill(this.palette.secondary, this.selectedId === placement.instanceId ? 0.18 : 0.06);
       footprintGraphic.drawPolygon(corners);
       footprintGraphic.endFill();
       container.addChild(footprintGraphic);
@@ -435,8 +443,8 @@ class AnonTokyoStudioElement extends HTMLElement {
         container.addChild(sprite);
       } else {
         const label = new Text(furniture.name, {
-          fontFamily: "sans-serif", fontSize: 10, fill: 0xffffff,
-          stroke: 0x292b42, strokeThickness: 3,
+          fontFamily: "sans-serif", fontSize: 10, fill: this.palette.inverseText,
+          stroke: this.palette.inverseSurface, strokeThickness: 3,
         });
         label.anchor.set(0.5, 1);
         label.position.set(TILE_WIDTH / 2, TILE_HEIGHT / 2);
@@ -501,12 +509,12 @@ class AnonTokyoStudioElement extends HTMLElement {
         container.addChild(sprite);
       } else if (item.id === "warehouse") {
         const outline = new this.PIXI.Graphics();
-        outline.lineStyle(3, 0xf0c56e, 1);
-        outline.beginFill(0x30324b, 0.82);
+        outline.lineStyle(3, this.palette.warning, 1);
+        outline.beginFill(this.palette.inverseSurface, 0.82);
         outline.drawPolygon(this.footprintPolygon(footprint.width, footprint.height));
         outline.endFill();
         const label = new this.PIXI.Text("补货仓库", {
-          fontFamily: "sans-serif", fontSize: 12, fontWeight: "700", fill: 0xffffff,
+          fontFamily: "sans-serif", fontSize: 12, fontWeight: "700", fill: this.palette.inverseText,
         });
         label.anchor.set(0.5);
         label.position.set(TILE_WIDTH / 2, TILE_HEIGHT);
@@ -524,15 +532,15 @@ class AnonTokyoStudioElement extends HTMLElement {
     const point = this.tileToWorld(state.x, state.y);
     const container = new this.PIXI.Container();
     const marker = new this.PIXI.Graphics();
-    marker.beginFill(0xf0c56e, 0.98);
-    marker.lineStyle(3, 0xfff0c6, 1);
+    marker.beginFill(this.palette.warning, 0.98);
+    marker.lineStyle(3, this.palette.surface, 1);
     marker.drawCircle(0, 0, 23);
     marker.endFill();
     const icon = new this.PIXI.Text("📦", { fontSize: 20 });
     icon.anchor.set(0.5);
     const label = new this.PIXI.Text(`${option?.name ?? "配送员"} · 位置预览`, {
       fontFamily: "sans-serif", fontSize: 10, fontWeight: "700",
-      fill: 0x292b42, stroke: 0xffffff, strokeThickness: 4,
+      fill: this.palette.text, stroke: this.palette.surface, strokeThickness: 4,
     });
     label.anchor.set(0.5, 0);
     label.position.set(0, 26);
@@ -576,7 +584,8 @@ class AnonTokyoStudioElement extends HTMLElement {
       const point = this.tileToWorld(anchor.x, anchor.y);
       const container = new Container();
       const badge = new Graphics();
-      badge.beginFill(0xffffff, 0.96);
+      badge.beginFill(this.palette.surface, 0.96);
+      // Match the role identities used by the staff-assignment panel.
       badge.lineStyle(3, role === "cashier" ? 0xec7f83 : role === "sales" ? 0x8ad3cf : 0xf0c56e, 1);
       badge.drawCircle(0, 0, 27);
       badge.endFill();
@@ -588,8 +597,8 @@ class AnonTokyoStudioElement extends HTMLElement {
         fontFamily: "sans-serif",
         fontSize: 11,
         fontWeight: "700",
-        fill: 0x292b42,
-        stroke: 0xffffff,
+        fill: this.palette.text,
+        stroke: this.palette.surface,
         strokeThickness: 3,
       });
       label.anchor.set(0.5, 0);
@@ -766,7 +775,7 @@ class AnonTokyoStudioElement extends HTMLElement {
       ? { width: furniture.footprint.height, height: furniture.footprint.width }
       : furniture.footprint;
     const ghost = new this.PIXI.Graphics();
-    const color = result.ok ? 0x58d6ab : 0xff6374;
+    const color = result.ok ? this.palette.success : this.palette.danger;
     ghost.lineStyle(3, color, 1);
     ghost.beginFill(color, 0.26);
     ghost.drawPolygon(this.footprintPolygon(footprint.width, footprint.height));
@@ -1073,6 +1082,7 @@ class AnonTokyoStudioElement extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.disconnectTheme?.();
     this.pointerGesture = null;
     this.draggingId = null;
     this.canvasHost?.removeAttribute("data-panning");

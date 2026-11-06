@@ -11,19 +11,6 @@ const number = new Intl.NumberFormat("zh-CN");
 ---
 
 <BaseLayout title="乐队道具">
-  <section class="db-page-hero band-item-hero">
-    <div class="content-shell db-page-hero-grid">
-      <div>
-        <div class="eyebrow">BAND ITEMS</div>
-        <h1>乐队道具</h1>
-        <p>提升乐队全员能力。选择道具，查看各等级加成与升级材料。</p>
-      </div>
-      <div class="db-page-count">
-        <strong>{bandItemDatabase.items.length}</strong>
-        <span>件乐队道具</span>
-      </div>
-    </div>
-  </section>
 
   <section class="bi-archive">
     <div class="content-shell">
@@ -74,7 +61,7 @@ const number = new Intl.NumberFormat("zh-CN");
       const band = bandItemDatabase.bands.find((band) => band.id === item.bandId);
       return (
         <dialog class="bi-dialog" data-band-item-dialog data-item-id={item.id}
-          style={`--band-color: ${band?.mainColor ?? "#3388BB"}`} aria-labelledby={`${item.id}-dialog-title`}>
+          style={`--band-color: ${band?.mainColor ?? "var(--theme-secondary)"}`} aria-labelledby={`${item.id}-dialog-title`}>
           <div class="bi-dialog-frame">
             <button class="bi-close" type="button" data-band-item-close aria-label={`关闭${item.name}详情`} autofocus>×</button>
             <header class="bi-dialog-header">

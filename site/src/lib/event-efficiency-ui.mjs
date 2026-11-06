@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {setupTaskWorkbench} from './task-workbench.mjs';
 import {createEventTaskSelection,createEventPhaseSelection,defaultEventId} from './event-task-selection.mjs';
 import {materializeTeamAssumptions} from './workbench-team-input.mjs';
@@ -19,7 +20,7 @@ const percent=node=>{if(node.value.trim()==='')throw Error('请填写游戏显�
 class EventEfficiencyTool extends HTMLElement {
  connectedCallback(){
   if(this.ready)return;this.ready=true;
-  this.data=JSON.parse(this.querySelector('[data-event-inputs]').textContent);
+  this.data=readToolJson(this.querySelector('[data-event-inputs]'));
   this.q=s=>this.querySelector(`[data-${s}]`);
   this.draft=createTeamDraft(parseTeamDraftSearch(location.search,{memberCardIds:new Set(this.data.memberCards.map(c=>c.id)),supportCardIds:new Set(this.data.supportCards.map(c=>c.id)),musicTrackIds:new Set(this.data.tracks.map(t=>t.id))},location.hash).draft);
   this.personalGrowthStore=createPersonalGrowthStore({rules:this.data.rules,vipRanks:this.data.vipRanks});
@@ -29,6 +30,7 @@ class EventEfficiencyTool extends HTMLElement {
   const eventId=defaultEventId(this.data.rules.tables.Event??[],linked.get('eventId'));
   if(eventId!=null)this.q('event').value=eventId;
   for(const [param,field] of [['eventMode','mode'],['eventId','event'],['scoreRank','rank'],['boost','boost'],['cost','cost']]){
+   if(param==='scoreRank'&&(linked.get('apBasis')==='ap_timing'||this.draft.modifiers.performanceScenario?.profile==='ap_timing'))continue;
    const value=linked.get(param),node=this.q(field);if(value!=null&&[...node.options].some(o=>o.value===value))node.value=value;
   }
   if(['expectedScore','minimumScore','maximumScore'].includes(linked.get('apBasis')))this.q('yield-basis').value=linked.get('apBasis');
@@ -58,7 +60,8 @@ class EventEfficiencyTool extends HTMLElement {
    applyDraft:draft=>{if(this.dataset.task==='quick'){const state=selections.switchTo('team',songState());this.q('mode').value=state.mode;this.q('yield-songs').value=state.songScope;}this.draft=createTeamDraft(draft);this.q('song').value=this.draft.selectedSongId??'';this.q('bonus-source').value='team';this.dataset.task=this.dataset.task==='challenge'?'challenge':'team';for(const button of this.querySelectorAll('[data-event-task]'))button.setAttribute('aria-pressed',String(button.dataset.eventTask===this.dataset.task));this.render();}
   });
   setupTaskWorkbench(this,'event');
-  if(linked.has('apBasis'))this.q('team-status').textContent='已带入 AP 预测的队伍、歌曲和估计档位，可按实打调整。';
+  if(linked.get('apBasis')==='ap_timing'||this.draft.modifiers.performanceScenario?.profile==='ap_timing')this.q('team-status').textContent='已带入队伍和养成；收益按正拍估分。';
+  else if(linked.has('apBasis'))this.q('team-status').textContent='已带入 AP 预测的队伍、歌曲和估计档位，可按实打调整。';
  }
  disconnectedCallback(){this.taskWorkbench?.destroy();this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.challengeOptimizer?.destroy();this.yieldOptimizer?.destroy();}
  model(){return createEventEfficiency({tables:this.data.rules.tables,sourceReleaseId:this.data.rules.sourceReleaseId,eventId:Number(this.q('event').value)});}

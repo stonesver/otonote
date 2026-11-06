@@ -2,7 +2,7 @@ import { resolveSearchInput } from './scoring-rules/formation-input.mjs';
 import { createFormationCalculator } from './scoring-rules/formation-power.mjs';
 import { createFormalSkillResolver } from './scoring-rules/formal-skills.mjs';
 import { pairingProfileBound } from './scoring-rules/pairing-bound.mjs';
-import { maximumPairing } from './scoring-rules/maximum-pairing.mjs';
+import { createMaximumPairing } from './scoring-rules/maximum-pairing.mjs';
 import { compilePairingModels, draftFromPairing, compareScoredFormations } from './inventory-optimizer.mjs';
 import { createEventPipeline } from './scoring-rules/event-rules.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
@@ -55,11 +55,14 @@ export function* practicalNeighbours(draft, inventory) {
   for (const slot of [0, 1, 3, 4]) yield change('leader', slots => { [slots[2], slots[slot]] = [slots[slot], slots[2]]; });
 }
 
+/** @param {import("./calculation/optimizer-types.ts").OptimizerOptions} options
+ * @returns {Promise<import("./calculation/optimizer-types.ts").OptimizerReport>} */
 export async function optimizePractical({ rules, draft, scope = 'selected', inventory, constraints = {}, theoreticalGrowth, chart,
-  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value, finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, modelCache, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
+  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value || (b.apTimingPlan?.apMarginMs??0)-(a.apTimingPlan?.apMarginMs??0) || (a.apTimingPlan?.adjustments.length??0)-(b.apTimingPlan?.adjustments.length??0), finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, modelCache, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
   if(!Number.isInteger(finalistLimit)||finalistLimit<2||finalistLimit>24)throw Error('Invalid finalist limit');
   if(!Number.isInteger(maxWindowCards)||maxWindowCards<0||maxWindowCards>5)throw Error('扩窗卡上限应为 0–5');
   if(!Number.isInteger(resultLimit)||resultLimit<1||resultLimit>24)throw Error('Invalid result limit');
+  if(objective==='formation_power'&&performanceScenario?.profile==='ap_timing')performanceScenario=undefined;
   const input = resolveSearchInput(rules, draft, { scope, inventory, constraints, theoreticalGrowth });
   if (!['ordinary', 'gekisou'].includes(mode)) throw new Error('演出模式无效');
   const stages = [{ id: 'prepare', label: '准备卡片与技能', completed: 0, total: null },
@@ -69,6 +72,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     { id: 'final', label: '完整复算领先队伍', completed: 0, total: null }];
   const report = { plan: {...PRACTICAL_PLAN, finalists: finalistLimit}, stages, directions: [], neighbourChecks: 0, neighbourGenerated: 0, screened: 0, finalists: 0, scoreCacheHits: 0, scoreCalculations: 0, fullScoreCalculations: 0, screenScoreCalculations: 0, unsupportedPairs: [], unsupportedCandidates: [], unsupportedLeaders: [] };
   const results = [], warnings = [...input.assumptions, ...PRACTICAL_SEARCH_WARNINGS];
+  if(performanceScenario?.profile==='ap_timing')warnings[warnings.length-1]='结果限于已比较的候选队伍，未证明全局最优。';
   let baselineResult = null;
   const result = status => ({ status, searchMethod: 'practical', objective, searchScope: scope, mode,
     sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion,
@@ -128,6 +132,11 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   const finalists = [], seen = new Set();
   const choose = c => { if (c && !seen.has(signature(c.draft)) && finalists.length < finalistLimit) { seen.add(signature(c.draft)); finalists.push(c); } };
   choose(screened[0]);
+  if(performanceScenario?.profile==='ap_timing'){
+    choose(screened.find(c=>c.origins.has('current')));
+    choose(screened.find(c=>c.origins.has('cumulative')));
+    choose([...screened].sort((a,b)=>(b.apTimingScreen.score-b.apTimingScreen.onTimeScore)-(a.apTimingScreen.score-a.apTimingScreen.onTimeScore))[0]);
+  }
   if(performanceScenario)choose([...screened].sort((a,b)=>(b.scoreDistribution?.p10??b.minimumScore??b.value)-(a.scoreDistribution?.p10??a.minimumScore??a.value))[0]);
   // Always retain the current legal team so screening cannot recommend a
   // strictly worse replacement under the final scoring model.
@@ -144,6 +153,7 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     const raw = baselineResult && signature(candidate.draft) === signature(input.draft) ? baselineResult : rawScore(candidate.draft,'full');
     if (!raw) continue;
     const value = raw === baselineResult ? baselineResult : { ...transformScore(raw,candidate.draft), draft: candidate.draft };
+    if (value.apTimingPlan) value.draft = { ...value.draft, modifiers: { ...value.draft.modifiers, performanceScenario: { profile: 'ap_timing' }, apTimingPlan: value.apTimingPlan } };
     results.push({ ...value, id: signature(candidate.draft), origins: [...candidate.origins],
       delta: baselineResult ? value.value - baselineResult.value : null, comparison: compareScoredFormations(value, baselineResult) });
     report.finalists++; update(4, report.finalists, finalists.length);
@@ -228,7 +238,7 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
         report.unsupportedPairs.push({ memberCardId: m, supportCardId: s, ...skillMechanismIssue(error) });
         continue;
       }
-      features.set(`${m}|${s}`, { live: skill.liveEffects.filter(e => e.active).reduce((n, e) => n + e.rate * e.durationMs / 1000, 0),
+      features.set(`${m}|${s}`, { cumulative:skill.liveEffects.filter(e=>e.active&&e.cumulative).reduce((n,e)=>n+e.rate*e.durationMs/1000,0), live: skill.liveEffects.filter(e => e.active).reduce((n, e) => n + e.rate * e.durationMs / 1000, 0),
         extension: skill.extensionMs / 1000, attribute: members.get(m)._cardType === music?._musicType ? 1 : 0,
         missions: [0, 1, 2, 3].map(t => memberFeatures.get(m).missions[t] + supportFeatures.get(s).missions[t]) });
     }
@@ -240,11 +250,12 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
   models = models.map(model => ({ ...model, edges: model.edges.filter(e => features.has(e.key)) }));
   const scale = Math.max(1, ...(models[0]?.edges ?? []).map(e => e.weight));
   const featureMax = field => Math.max(1, ...[...features.values()].map(f => f[field]));
-  const liveMax = featureMax('live'), extensionMax = featureMax('extension');
+  const liveMax = featureMax('live'), extensionMax = featureMax('extension'), cumulativeMax=featureMax('cumulative');
   const missionMax = [0, 1, 2, 3].map(t => Math.max(1, ...[...features.values()].map(f => f.missions[t])));
   const requiredWindows = [...new Set([...input.constraints.requiredSupportIds, ...input.constraints.lockedPairs.map(p => p.supportCardId)])].filter(isWindow);
   const profiles = [{ id: 'power', label: '综合力', feature: () => 0 },
     { id: 'live', label: '普通加分技能', feature: f => f.live / liveMax },
+    ...(performanceScenario?.profile==='ap_timing'&&[...features.values()].some(f=>f.cumulative>0)?[{id:'cumulative',label:'累积技能微操潜力',featureWeight:1,feature:f=>f.cumulative/cumulativeMax}]:[]),
     ...(mode === 'ordinary' ? [{ id: 'extension', label: '留影延时', feature: f => f.extension / extensionMax }] : []),
     { id: 'attribute', label: '歌曲同属性', feature: f => f.attribute },
     ...missions.map(t => ({ id: `mission-${t}`, label: `${['', 'COMBO', 'LUCK', 'JUST'][t]} 技能${t === 3 ? (requiredWindows.length ? ' · 保留必选判卡' : ' · 无判卡') : ''}`, feature: f => f.missions[t] / missionMax[t] })),
@@ -252,6 +263,7 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
     ...(missions.includes(3) && maxWindowCards>1 ? [{id:'window-combination',label:'JUST · 多张扩窗搭配',allWindows:true,feature:f=>f.missions[3]/missionMax[3]}] : []), ...extraProfiles];
   if (requiredWindows.length > maxWindowCards) throw new Error('必选扩窗卡超过本次设置的上限，请调整配队条件。');
   const seedRows = [], screenDrafts = new Map();
+  const pairingSolvers = new Map();
   const add = (d, profile, kind) => { if (legal(d)) { const key = signature(d); const existing = screenDrafts.get(key);
     if (existing) existing.origins.add(profile.id); else screenDrafts.set(key, { draft: d, origins: new Set([profile.id]), kind }); } };
   const modelMaps = new Map(), modelsByLeader = new Map(models.map(m => [m.leader, m]));
@@ -290,8 +302,14 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
       if (best && pairingProfileBound(edges,model.leader,5,weight) <= best.weight) {
         report.prunedLeaders=(report.prunedLeaders??0)+1; await yieldControl(); continue;
       }
-      const solution = maximumPairing({ edges, weight, required: input.constraints.lockedPairs.map(p => `${p.memberCardId}|${p.supportCardId}`),
-        requiredMembers: [...input.constraints.requiredMemberIds, model.leader], requiredSupports: [...input.constraints.requiredSupportIds, ...(windowId ? [windowId] : [])] });
+      // Profiles change weights, not topology. Keep separate solvers for each
+      // leader/window constraint; solve resets all residual capacities.
+      if (!pairingSolvers.has(model)) pairingSolvers.set(model, new Map());
+      const solvers = pairingSolvers.get(model), key = JSON.stringify([windowId, [...allowedWindows].sort()]);
+      if (!solvers.has(key)) solvers.set(key, createMaximumPairing({ edges,
+        required: input.constraints.lockedPairs.map(p => `${p.memberCardId}|${p.supportCardId}`),
+        requiredMembers: [...input.constraints.requiredMemberIds, model.leader], requiredSupports: [...input.constraints.requiredSupportIds, ...(windowId ? [windowId] : [])] }));
+      const solution = solvers.get(key)(weight);
       if (solution && (!best || solution.weight > best.weight)) best = { draft: draftFromPairing(input, model.leader, solution.edges), weight: solution.weight };
       await yieldControl();
     }

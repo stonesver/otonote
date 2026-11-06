@@ -28,7 +28,7 @@ const shareCopy = getStoryShareCopy(activeReleaseContext.locale);
 const en = activeReleaseContext.locale === 'en';
 const speakers = [...new Set(lines.flatMap(line => storyLineSpeakers(line.speaker)))];
 ---
-<BaseLayout title={entry.title} description={`${storyKindLabel(kind)} · ${entry.title}`} navigationPath={entry.eventId != null ? '/stories/events/' : `/stories/${kind}/`}>
+<BaseLayout contentHeading title={entry.title} description={`${storyKindLabel(kind)} · ${entry.title}`} navigationPath={entry.eventId != null ? '/stories/events/' : `/stories/${kind}/`}>
   <article class="st-reader content-shell" id="story-top" data-text-reader data-kind={kind} data-story-id={entry.id} data-share-copy={JSON.stringify(shareCopy)} style={`--band-accent:${band?.mainColor || "var(--lacquer)"}`}>
     <a class="st-back" href={href(entry.eventId != null ? `/stories/events/${entry.eventId}/` : `/stories/${kind}/`)}><span aria-hidden="true">←</span> {copy.back}</a>
     <header class="st-reader-header">

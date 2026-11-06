@@ -1,3 +1,4 @@
+import {stableSnapshotHash} from '../../packages/scoring/scoring-engine.mjs';
 import { compileTestEffect } from './fixtures/gekisou-skill-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -197,4 +198,23 @@ test('saved scenario versions are checked and descriptions reflect normalized cu
   assert.match(scenario.description,/3.5%/);assert.match(scenario.description,/1 处难段/);assert.match(scenario.description,/2 组参考样本/);
   assert.doesNotMatch(scenario.description,/65|旧的默认说明/);
   assert.deepEqual(normalizePerformanceScenario(scenario),scenario);
+});
+
+
+test('prepared ordinary replay preserves full result identities across samples, orders and team changes',()=>{
+  // Legacy score/input identities are unchanged. Full-result hashes also cover
+  // the added input timestamps, frame phase, and score/factor playback trace;
+  // legacy fields and trace frames were compared before updating these hashes.
+  const expected={"ideal":[{"hash":"fnv1a32:253580f2","inputHash":"fnv1a32:361f9823","score":289370,"minimum":289370,"maximum":289370},{"hash":"fnv1a32:64f46688","inputHash":"fnv1a32:4eace043","score":291798,"minimum":291798,"maximum":291798},{"hash":"fnv1a32:253580f2","inputHash":"fnv1a32:361f9823","score":289370,"minimum":289370,"maximum":289370}],"steady":[{"hash":"fnv1a32:c59dbc8c","inputHash":"fnv1a32:200cf0be","score":280211.9,"minimum":274925,"maximum":284555},{"hash":"fnv1a32:d9fbf2e0","inputHash":"fnv1a32:a983d69a","score":282563.7,"minimum":277233,"maximum":286943},{"hash":"fnv1a32:c59dbc8c","inputHash":"fnv1a32:200cf0be","score":280211.9,"minimum":274925,"maximum":284555}],"practice":[{"hash":"fnv1a32:3f800658","inputHash":"fnv1a32:39899344","score":216425,"minimum":194999,"maximum":228703},{"hash":"fnv1a32:2512854a","inputHash":"fnv1a32:abf31ea8","score":218241.5,"minimum":196636,"maximum":230622},{"hash":"fnv1a32:3f800658","inputHash":"fnv1a32:39899344","score":216425,"minimum":194999,"maximum":228703}]};
+  const {r,c,d}=fixture([100,1000,1010,1100,1200,1300,1400,3100,4100,5100,6100,7100]);
+  r.tables.SupportCard.find(row=>row._id===1)._supportSkillId01=31;
+  r.tables.SupportCard.find(row=>row._id===2)._supportSkillId01=51;
+  for(const profile of ['ideal','steady','practice']) {
+    const calculator=createScenarioSongCalculator(r,c,{performanceScenario:{profile,seed:5,samples:2}});
+    const rows=[1,2,1].map(growth=>{
+      const result=calculator.calculate({...d,modifiers:{...d.modifiers,tgwCardRank:growth}},{includeTrace:true});
+      return {hash:stableSnapshotHash(result),inputHash:result.inputHash,score:result.expectedScore,minimum:result.minimumScore,maximum:result.maximumScore};
+    });
+    assert.deepEqual(rows,expected[profile]);
+  }
 });

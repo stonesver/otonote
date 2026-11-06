@@ -29,28 +29,35 @@ test("technical source notes use one native disclosure boundary", async () => {
   assert.match(source, /sourceAndLimits/);
 });
 
-test("P0 pages provide task headings and keep calculation notes in disclosures", async () => {
+test("P0 pages use the site title without duplicate module headings and retain calculation disclosures", async () => {
+  const layout = await readSource("../src/layouts/BaseLayout.astro");
+  assert.match(layout, /class="site-breadcrumb"/);
+  assert.match(layout, /<strong aria-current="page">\{currentLabel\}<\/strong>/);
+  assert.match(layout, /!Astro\.props\.contentHeading && <h1 class="sr-only">\{currentLabel\}/);
   for (const path of p0Pages) {
     const source = await readSource(path);
     if (path.endsWith("/optimizer/index.astro")) {
       assert.match(source, /Astro\.redirect\(destination \+ Astro\.url\.search \+ Astro\.url\.hash, 301\)/);
       continue;
     }
-    assert.match(source, /<h1\b|<ToolPageHeader\b/, `${path} has no visitor task heading`);
+    if (path === "../src/pages/index.astro") {
+      assert.match(source, /<h1\b/, "home retains its introductory heading");
+    } else {
+      assert.match(source, /<BaseLayout\s+title=/, `${path} must provide its title to the site frame`);
+      assert.doesNotMatch(source, /<h1\b|<ToolPageHeader\b/, `${path} duplicates the site title`);
+    }
     if (source.includes("<SourceDisclosure")) {
-      assert.ok(source.indexOf("<SourceDisclosure") > Math.max(source.indexOf("<h1"), source.indexOf("<ToolPageHeader")), `${path} puts source notes before its task heading`);
+      const taskEnd = Math.max(...["</nav>", "</MusicCatalogBrowser>", "<ScoringResearchWorkbench />"].map(marker => source.indexOf(marker)));
+      assert.ok(taskEnd >= 0 && source.indexOf("<SourceDisclosure") > taskEnd, `${path} puts technical notes before its task content`);
     }
   }
-  const header = await readSource("../src/components/ToolPageHeader.astro");
-  assert.match(header, /data-copy-layer="primary"/);
-  assert.match(header, /<h1[\s\S]*?\{title\}[\s\S]*?<p>\{description\}/);
   for (const component of ["TeamDraftWorkbench", "ScoringResearchWorkbench"]) {
     const source = await readSource(`../src/components/${component}.astro`);
     assert.match(source, /<ScoringModelNotice\s*\/>/, `${component} lacks model assumptions`);
   }
 });
 
-test("tool hero copy does not lead with implementation jargon", async () => {
+test("primary tool copy does not lead with implementation jargon", async () => {
   const paths = [
     "../src/pages/tools/index.astro",
     "../src/pages/tools/deck-builder/index.astro",
@@ -202,9 +209,14 @@ test("music and story entrances describe available content and preserve category
   const stories = await readSource("../src/pages/stories/index.astro");
   const storyCategory = await readSource("../src/components/StoryCategory.astro");
 
-  for (const term of ["演唱", "BPM", "难度", "谱面结构"]) {
-    assert.match(music, new RegExp(term));
-  }
+  const tile = await readSource("../src/components/MusicTile.astro");
+  assert.match(music, /<MusicCatalogBrowser/);
+  assert.match(music, /演唱乐队|演唱角色/);
+  assert.match(music, /<MusicTile\s+track=\{track\}/);
+  assert.match(tile, /class="music-bpm">BPM/);
+  assert.match(tile, /aria-label="四档难度"/);
+  assert.match(tile, /`\/music\/\$\{track.id\}\/`/);
+  assert.match(tile, /class="music-jacket" href=\{href\}/);
   assert.match(music, /播放已收录的歌曲音频/);
   assert.match(music, /音频是否可播放以各曲目页面为准/);
   assert.match(music, /谱面预览效果可能与实际演奏有所不同/);
@@ -217,8 +229,11 @@ test("music and story entrances describe available content and preserve category
 
 test("database entrances describe visitor-visible content", async () => {
   const database = await readSource("../src/pages/database/index.astro");
-  assert.match(database, /查找技能、道具和乐队强化/);
-  assert.match(database, /从卡牌反查/);
+  assert.match(database, /<BaseLayout title="游戏数据库">/);
+  assert.doesNotMatch(database, /<h1\b/);
+  for (const label of ["技能索引", "道具索引", "乐队强化"]) assert.match(database, new RegExp(`<h2>${label}</h2>`));
+  assert.match(database, /关联卡牌/);
+  assert.match(database, /每一级的全队参数加成/);
   for (const route of ["/database/skills/", "/database/items/", "/database/band-items/"]) {
     assert.ok(database.includes(`href="${route}"`), `database lacks ${route}`);
   }
@@ -229,7 +244,7 @@ test("tools directory exposes score estimates and pairing without an obsolete pe
   const toolPaths = [...page.matchAll(/\{path:'([^/][^']*)',mark:/g)].map((match) => match[1]);
   const renderedToolIndexes = [...(page.match(/\{\[items\[\d+\][^\n]+\.map\(item/)?.[0] ?? "").matchAll(/items\[(\d+)\]/g)]
     .map((match) => Number(match[1]));
-  assert.deepEqual(toolPaths.toSorted(), ["arena", "gacha-history", "live2d", "deck-builder", "song-ranking", "song-calculator", "ap-grade", "event-efficiency"].toSorted());
+  assert.deepEqual(toolPaths.toSorted(), ["gacha-history", "live2d", "deck-builder", "arena", "song-ranking", "song-calculator", "ap-grade", "event-efficiency"].toSorted());
   assert.deepEqual(renderedToolIndexes.toSorted((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7]);
   assert.match(page, /href=\{href\(`\/tools\/\$\{item.path\}\/`\)\}/);
   assert.deepEqual([...page.matchAll(/\{path:'(\/[^']*)',kind:/g)].map((match) => match[1]), ["/music/", "/stories/"]);
@@ -239,7 +254,7 @@ test("tools directory exposes score estimates and pairing without an obsolete pe
       readyActionTemplate: (page.match(/<a[^>]+data-tool-state="available"/g) ?? []).length,
       pendingActions: (page.match(/<a[^>]+data-tool-state="pending"/g) ?? []).length,
       pendingRows: (page.match(/<div[^>]+data-tool-state="pending"/g) ?? []).length,
-      directHeading: page.includes("<h1>") && !page.includes("page-stamp"),
+      sharedHeading: /<BaseLayout\s+title=/.test(page) && !page.includes("<h1>") && !page.includes("page-stamp"),
       noLegacyGrid: !page.includes("tool-module-grid"),
       notesAfterTools: page.indexOf('<footer class="tools-desk-note">') > page.lastIndexOf("</nav>"),
       estimateScope: page.includes("实际表现受判定与技能顺序影响")
@@ -248,7 +263,7 @@ test("tools directory exposes score estimates and pairing without an obsolete pe
       readyActionTemplate: 1,
       pendingActions: 0,
       pendingRows: 0,
-      directHeading: true,
+      sharedHeading: true,
       noLegacyGrid: true,
       notesAfterTools: true,
       estimateScope: true

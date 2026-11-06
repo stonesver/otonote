@@ -35,10 +35,13 @@ export function createCalculationWorkerPool({size,createWorker}){
  }),close};
 }
 
-export function eventYieldParallelism(input,{cores=globalThis.navigator?.hardwareConcurrency??1,memory=globalThis.navigator?.deviceMemory}={}){
- if(input.eco===true||input.searchDepth!=='full')return 1;
+export function calculationParallelism({cores=globalThis.navigator?.hardwareConcurrency??1,memory=globalThis.navigator?.deviceMemory}={}){
  // Keep one logical core for interaction; cap replicated scoring data on
  // low-memory and unknown-memory browsers rather than exhausting the device.
  const memoryLimit=Number.isFinite(memory)?memory>=32?8:memory>=16?6:memory>=8?4:2:2;
  return Math.max(1,Math.min(Number.isFinite(cores)?Math.floor(cores)-1:1,memoryLimit));
+}
+
+export function eventYieldParallelism(input,device){
+ return input.searchDepth==='full'?calculationParallelism(device):1;
 }

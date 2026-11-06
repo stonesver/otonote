@@ -1,0 +1,160 @@
+{
+  "sourceClient": "global-1.1.0-86",
+  "clientSha256": "157612380d055a604d40d294017fb1b3f27e91f01a56cd077e58db7019589f68",
+  "decodedSha256": "e647d26e05bacdf26b2735ecdc1019ee05aa67b8b7ed13740a9ced2d506fd34a",
+  "patchSha256": "79af66ff04ae4ea801a7976fa9718c9d57236081ea61f0c1da08b05beb7c8aa1",
+  "parsedPatchSha256": "704e4e026ffdc45001609f23e1167608c8d368e4a777e2d38dd77730548ff24a",
+  "patchFixes": 33,
+  "relevantPatchOverrides": 0,
+  "defaultCount": 1,
+  "values": [
+    {
+      "opcode": 1500,
+      "value": 0,
+      "multiplier": 1,
+      "components": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "opcode": 1500,
+      "value": 2400,
+      "multiplier": 1,
+      "components": [
+        2400,
+        2400,
+        2400
+      ]
+    },
+    {
+      "opcode": 1500,
+      "value": 10000,
+      "multiplier": 1,
+      "components": [
+        10000,
+        10000,
+        10000
+      ]
+    },
+    {
+      "opcode": 1501,
+      "value": 0,
+      "multiplier": 1,
+      "components": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "opcode": 1501,
+      "value": 2400,
+      "multiplier": 1,
+      "components": [
+        0,
+        2400,
+        0
+      ]
+    },
+    {
+      "opcode": 1501,
+      "value": 10000,
+      "multiplier": 1,
+      "components": [
+        0,
+        10000,
+        0
+      ]
+    },
+    {
+      "opcode": 1502,
+      "value": 0,
+      "multiplier": 1,
+      "components": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "opcode": 1502,
+      "value": 2400,
+      "multiplier": 1,
+      "components": [
+        0,
+        0,
+        2400
+      ]
+    },
+    {
+      "opcode": 1502,
+      "value": 10000,
+      "multiplier": 1,
+      "components": [
+        0,
+        0,
+        10000
+      ]
+    },
+    {
+      "opcode": 1503,
+      "value": 0,
+      "multiplier": 1,
+      "components": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "opcode": 1503,
+      "value": 2400,
+      "multiplier": 1,
+      "components": [
+        2400,
+        0,
+        0
+      ]
+    },
+    {
+      "opcode": 1503,
+      "value": 10000,
+      "multiplier": 1,
+      "components": [
+        10000,
+        0,
+        0
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "memberMission": 0,
+      "targetMission": 2,
+      "matched": false
+    },
+    {
+      "memberMission": 1,
+      "targetMission": 2,
+      "matched": false
+    },
+    {
+      "memberMission": 2,
+      "targetMission": 2,
+      "matched": true
+    },
+    {
+      "memberMission": 3,
+      "targetMission": 2,
+      "matched": false
+    }
+  ],
+  "substitutions": [
+    "IL2CPP metadata setup",
+    "no relevant IFix replacement, checked against pinned patch",
+    "synthetic member interface getters; native category/mission comparison intact"
+  ],
+  "scope": "ID=0 short circuit, native GetEffectValue/AccumulateEffectBP and single mission target; not full formation or Unity gameplay"
+}

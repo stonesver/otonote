@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {setupInventoryEditor} from './inventory-editor-ui.mjs';
 import {createTeamDraft} from './team-draft.mjs';
 import {gameServer, currentServerContext} from './game-servers.mjs';
@@ -8,7 +9,7 @@ import {bandItemMaxLevel} from '../../../packages/scoring/scoring-rules/band-ite
 class PersonalGrowthWorkbench extends HTMLElement {
  connectedCallback() {
   if(this.ready)return;this.ready=true;
-  this.data=JSON.parse(this.querySelector('[data-personal-growth-data]').textContent);
+  this.data=readToolJson(this.querySelector('[data-personal-growth-data]'));
   this.draft=createTeamDraft();
   const q=s=>this.querySelector(s),context=currentServerContext();
   q('[data-profile-server]').textContent=gameServer(context.serverId)?.label??'请先选择区服';

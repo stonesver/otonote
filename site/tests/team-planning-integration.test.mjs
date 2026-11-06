@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.mjs';
+import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.ts';
 import { refreshPlanningPreset, evaluatePresetPool } from '../src/lib/preset-portfolio.mjs';
 import { generatePresetCandidates } from '../src/lib/preset-candidates.mjs';
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
@@ -311,4 +311,22 @@ test('manual actual growth supports same-team comparison without inventing owner
     assert.equal(row.delta, null);
     assert.equal(row.planning.ownershipUnknown.length,10);
   }
+});
+
+
+test('planning publishes fully scored candidates with their growth scope before completion', async () => {
+  const context = fixture(), progress = [];
+  const report = await run(context, { planningScenario: context.planningScenario,
+    onProgress: row => { if (row.phase === 'planning-result') progress.push(structuredClone(row)); } });
+  assert.ok(progress.length > 0);
+  for (const { bestCandidate: row } of progress) {
+    assert.equal(row.value, context.calculator.calculate(row.draft).total.total);
+    assert.ok(row.planning.label);
+    assert.ok(row.growthComparison);
+    assert.equal(row.planning.plannedTeamCurrentValue, null, 'live candidates do not invent a baseline');
+    assert.deepEqual(row.draft.modifiers.planningResult.selectedTrainingCardIds,
+      row.planning.trainingChanges.map(change => change.id));
+  }
+  assert.ok(report.results.length > 0);
+  assert.ok(report.results.some(row => row.planning.plannedTeamCurrentValue != null));
 });

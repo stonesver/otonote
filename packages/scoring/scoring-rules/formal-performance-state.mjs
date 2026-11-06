@@ -154,17 +154,20 @@ export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, c
       }
       // UpdateStay and UpdateExecuteFrame both accumulate. Release is checked
       // only in UpdateExecuting, beginning two frames after activation.
-      for (const state of scores.filter(s => s.active)) {
+      for (const state of scores) {
+        if (!state.active) continue;
         const { effect } = state;
-        const released = frame > state.startFrame + 1 && effect.release
-          ? notes.filter(note => effect.release.includes(note.judgement)).at(-1) : null;
+        let released = null;
+        if (frame > state.startFrame + 1 && effect.release) {
+          for (const note of notes) if (effect.release.includes(note.judgement)) released = note;
+        }
         if (released) {
           addFactor({ timeMs: released.timeMs, ownerId: state.ownerId,
             ...Object.fromEntries(Object.entries(state.delta).map(([key,value]) => [key,-value])) }, frame);
           state.active = false; changed = true;
           skillTrace.push({ frame, timeMs: released.timeMs, slotIndex: state.slot, effectId: effect.id, action: 'release' });
         } else if (effect.cumulative && frame < state.endFrame) {
-          state.count += notes.filter(note => effect.cumulative.targets.includes(note.judgement)).length;
+          for (const note of notes) if (effect.cumulative.targets.includes(note.judgement)) state.count++;
           const count = Math.min(effect.cumulative.maximum, Math.floor(Math.fround(Math.fround(state.count) / Math.fround(effect.cumulative.unit))));
           const raw = Math.fround(Math.min(effect.cumulative.maximumBP, Math.imul(count, effect.cumulative.stepBP)) / 10000);
           const rate = Math.fround(Math.floor(Math.fround(raw * 100000)) / 100000);

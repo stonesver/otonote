@@ -38,6 +38,7 @@
 | [JP 客户端自动升级](reference/jp-client-upgrade.md) | `reference` | `current` |
 | [两服目录身份与版本差异](reference/library-identity.md) | `reference` | `current` |
 | [演出情景与激奏机制：实现依据](reference/performance-scenarios.md) | `reference` | `current` |
+| [技能语义模型与执行契约](reference/skill-semantics.md) | `reference` | `current` |
 | [私有状态 checkpoint 与恢复](reference/private-state.md) | `reference` | `current` |
 | [浏览器截图导入](reference/screenshot-import.md) | `reference` | `current` |
 | [公告与页面更新提示](reference/site-notices.md) | `reference` | `current` |

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   inspectScoreTarget,
+  paintScoreTrack,
   renderScoreTrack
 } from "../src/lib/score-workbench-renderer.ts";
 import { getRuntimeUiLabels } from "../src/lib/runtime-ui-labels.ts";
@@ -105,4 +106,24 @@ test("future notes appear above earlier notes without reversing flick direction"
   assert.ok(plan.markers[0].y > plan.markers[1].y);
   assert.equal(plan.markers[0].direction, 'left');
   assert.equal(plan.markers[1].direction, 'right');
+});
+
+test('painting uses the current theme for the track and selection while preserving note identity', () => {
+  const plan = renderScoreTrack({ chart, width: 240, pixelsPerSecond: 100, enabled: new Set(['tap']) });
+  const fills = [], strokes = [];
+  const context = new Proxy({
+    fillRect() { fills.push(this.fillStyle); },
+    fill() { fills.push(this.fillStyle); },
+    stroke() { strokes.push(this.strokeStyle); },
+  }, { get(target, name) { return name in target ? target[name] : () => {}; } });
+  const palette = { inverseSurface: 'rgb(20, 30, 40)', inverseText: 'rgb(220, 230, 240)', secondary: 'rgb(100, 190, 220)' };
+  paintScoreTrack(context, plan, 'tap-1', palette);
+  assert.equal(fills[0], palette.inverseSurface);
+  assert.ok(strokes.includes(palette.inverseText));
+  assert.equal(strokes.at(-1), palette.secondary);
+  assert.ok(fills.includes('#dff5ff'), 'TAP keeps its gameplay color');
+  palette.inverseSurface = 'rgb(40, 20, 30)';
+  fills.length = 0;
+  paintScoreTrack(context, plan, null, palette);
+  assert.equal(fills[0], palette.inverseSurface, 'a redraw uses the changed palette');
 });

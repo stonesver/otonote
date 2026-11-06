@@ -20,7 +20,7 @@
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-secondary { display:flex; flex-wrap:wrap; gap:var(--event-space-2); margin-top:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-secondary button { border:0; background:var(--tool-tint); color:var(--tool-accent); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions { display:flex; flex-wrap:wrap; gap:var(--event-space-3); padding:0; margin:0; border:0; }
-.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary { margin-left:auto; min-width:120px; color:white; background:var(--tool-accent); border-color:var(--tool-accent); }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary { margin-left:auto; min-width:120px; color:var(--theme-on-accent); background:var(--tool-accent); border-color:var(--tool-accent); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary:hover:not(:disabled) { background:var(--tool-hover); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-condition-summary { display:flex; justify-content:space-between; align-items:center; gap:var(--event-space-3); padding:var(--event-space-3) var(--event-space-4); background:var(--tool-surface); border:1px solid var(--tool-line); border-radius:var(--event-radius); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-condition-summary div { min-width:0; }
@@ -165,7 +165,7 @@
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .task-pairing[data-uniform-source] .tw-card-source { display:none; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .event-team-source { display:block; font-size:var(--event-text-small); color:var(--tool-muted); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-meta { background:transparent; padding:0; gap:3px; max-width:calc(100% - 40px); flex-wrap:wrap; }
-.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-meta > span { position:static; margin:0; padding:1px; background:#fffffff0; border-radius:3px; min-height:0; }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-meta > span { position:static; margin:0; padding:1px; background:color-mix(in srgb, var(--theme-surface) 94.12%, transparent); border-radius:3px; min-height:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-meta img { width:17px!important; height:17px!important; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-meta .tw-card-band img { width:20px!important; height:17px!important; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-stat { font-size:10px!important; line-height:1.3; padding:2px var(--event-space-1); }
@@ -203,7 +203,7 @@ html:has(.site-event-nav) .site-header .site-event-nav a { display:flex; align-i
 html:has(.site-event-nav) .site-header .site-event-nav a[aria-current=page] { color:var(--lacquer); background:color-mix(in srgb,var(--lacquer) 9%,transparent); }
 html:has(.site-event-nav) .site-header .site-event-nav a:hover { background:color-mix(in srgb,var(--lacquer) 6%,transparent); }
 .task-studio.event-top-navigation > .catalog-section { padding-top:16px; }
-.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-default-setup { padding:0; overflow:hidden; background:var(--tool-surface); box-shadow:0 2px 8px #16132104; }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-default-setup { padding:0; overflow:hidden; background:var(--tool-surface); box-shadow:0 2px 8px color-mix(in srgb, var(--theme-shadow-color) 1.57%, transparent); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-default-fields { grid-template-columns:repeat(5,minmax(0,1fr)); padding:0 16px 16px; gap:12px 16px; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-default-fields label:has(> [data-event]) { grid-column:1/-1; flex-direction:row; align-items:center; margin:0 -16px 2px; padding:10px 16px; gap:16px; background:color-mix(in srgb,var(--tool-accent) 5%,var(--tool-surface)); border-bottom:1px solid var(--tool-line); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view [data-event] { flex:1; width:auto; font-weight:650; background:transparent; border-color:transparent; }
@@ -222,8 +222,8 @@ html:has(.site-event-nav) .site-header .site-event-nav a:hover { background:colo
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-song-copy { min-width:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-song-copy h4 { font-size:14px; line-height:1.4; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-song-meta { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:4px; font-size:12px; color:var(--tool-muted); }
-.event-difficulty { --difficulty:#697586; display:inline-flex; background:color-mix(in srgb,var(--difficulty) 10%,white); color:var(--difficulty); border:1px solid color-mix(in srgb,var(--difficulty) 25%,transparent); padding:1px 6px; border-radius:4px; font:700 11px/1.5 var(--font-body); white-space:nowrap; }
-.event-difficulty[data-difficulty=easy] { --difficulty:#317d61; }.event-difficulty[data-difficulty=normal] { --difficulty:#276b9c; }.event-difficulty[data-difficulty=hard] { --difficulty:#99640b; }.event-difficulty[data-difficulty=expert] { --difficulty:#aa365b; }
+.event-difficulty { --difficulty:var(--theme-muted); display:inline-flex; background:color-mix(in srgb,var(--difficulty) 10%,var(--theme-surface)); color:var(--difficulty); border:1px solid color-mix(in srgb,var(--difficulty) 25%,transparent); padding:1px 6px; border-radius:4px; font:700 11px/1.5 var(--font-body); white-space:nowrap; }
+.event-difficulty[data-difficulty=easy] { /* Game semantics: difficulty identity. */ --difficulty:#317d61; }.event-difficulty[data-difficulty=normal] { /* Game semantics: difficulty identity. */ --difficulty:#276b9c; }.event-difficulty[data-difficulty=hard] { /* Game semantics: difficulty identity. */ --difficulty:#99640b; }.event-difficulty[data-difficulty=expert] { /* Game semantics: difficulty identity. */ --difficulty:#aa365b; }
 .event-song-band { width:30px; height:18px; object-fit:contain; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-plan-details { margin:0; border:0; padding:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-plan-details > summary { display:list-item; min-height:0; padding:8px 0; font-size:12px; color:var(--tool-accent); }
@@ -239,7 +239,7 @@ html:has(.site-event-nav) .site-header .site-event-nav a:hover { background:colo
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-challenge-yield { background:color-mix(in srgb,var(--tool-accent) 4%,var(--tool-surface)); padding:0 12px; border-radius:6px; margin-bottom:8px; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-challenge-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-bands { position:absolute; display:flex; right:5px; bottom:28px; gap:3px; }
-.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-bands .tw-card-band { position:static; display:flex; align-items:center; padding:2px; border-radius:4px; background:#fffffff0; }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-bands .tw-card-band { position:static; display:flex; align-items:center; padding:2px; border-radius:4px; background:color-mix(in srgb, var(--theme-surface) 94.12%, transparent); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-full-team .tw-card-bands img { width:27px!important; height:18px!important; object-fit:contain; }
 @media(min-width:701px) and (max-width:1100px) {
  html:has(.site-event-nav)[data-shell=sidebar] .site-header { grid-template-columns:auto minmax(0,1fr) auto auto auto; }
@@ -257,7 +257,7 @@ html:has(.site-event-nav) .site-header .site-event-nav a:hover { background:colo
  .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-metric-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 
-.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .task-event-song-difficulty.event-difficulty { background:color-mix(in srgb,var(--difficulty) 10%,white); color:var(--difficulty); border:1px solid color-mix(in srgb,var(--difficulty) 25%,transparent); }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .task-event-song-difficulty.event-difficulty { background:color-mix(in srgb,var(--difficulty) 10%,var(--theme-surface)); color:var(--difficulty); border:1px solid color-mix(in srgb,var(--difficulty) 25%,transparent); }
 
 /* Conditions and results share the first screen; the rail owns only live inputs. */
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-setup-rail { min-width:0; }

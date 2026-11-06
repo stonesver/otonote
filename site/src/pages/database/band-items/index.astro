@@ -61,7 +61,7 @@ const number = new Intl.NumberFormat("zh-CN");
       const band = bandItemDatabase.bands.find((band) => band.id === item.bandId);
       return (
         <dialog class="bi-dialog" data-band-item-dialog data-item-id={item.id}
-          style={`--band-color: ${band?.mainColor ?? "#3388BB"}`} aria-labelledby={`${item.id}-dialog-title`}>
+          style={`--band-color: ${band?.mainColor ?? "var(--theme-secondary)"}`} aria-labelledby={`${item.id}-dialog-title`}>
           <div class="bi-dialog-frame">
             <button class="bi-close" type="button" data-band-item-close aria-label={`关闭${item.name}详情`} autofocus>×</button>
             <header class="bi-dialog-header">

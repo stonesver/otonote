@@ -4,16 +4,16 @@
 .card-artwork[data-flipped] .card-artwork-turn { transform: rotateY(180deg); min-height: 560px; }
 .card-artwork-front,
 .card-artwork-back { grid-area: 1 / 1; min-width: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 8px; overflow: hidden; }
-.card-artwork-front { position: relative; display: grid; place-items: center; width: 100%; padding: 0; background: var(--paper-deep); cursor: zoom-in; aspect-ratio: 3 / 4; box-shadow: 0 5px 18px rgb(17 19 27 / 12%); }
+.card-artwork-front { position: relative; display: grid; place-items: center; width: 100%; padding: 0; background: var(--paper-deep); cursor: zoom-in; aspect-ratio: 3 / 4; box-shadow: 0 5px 18px color-mix(in srgb, var(--theme-shadow-color) 12%, transparent); }
 .card-artwork--support .card-artwork-front { aspect-ratio: 16 / 10; }
 .card-artwork:has(.card-artwork-back) .card-artwork-front { cursor: pointer; }
 .card-artwork-front > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
-.card-artwork-back { cursor: pointer; position: absolute; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: clamp(18px, 2vw, 28px); transform: rotateY(180deg); border: 1px solid color-mix(in srgb, var(--lacquer) 22%, var(--paper-deep)); background: var(--paper-light); box-shadow: 0 5px 18px rgb(17 19 27 / 10%); }
+.card-artwork-back { cursor: pointer; position: absolute; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; padding: clamp(18px, 2vw, 28px); transform: rotateY(180deg); border: 1px solid color-mix(in srgb, var(--lacquer) 22%, var(--paper-deep)); background: var(--paper-light); box-shadow: 0 5px 18px color-mix(in srgb, var(--theme-shadow-color) 10%, transparent); }
 .card-artwork-back > header { display: grid; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 .card-artwork-back > header > span { color: var(--lacquer); font: 10px var(--font-mono); letter-spacing: .18em; }
 .card-artwork-back > header > strong { font: 600 18px/1.4 var(--font-display); }
 .card-artwork-diary { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--silver) transparent; }
-.card-artwork-diary > p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.9 var(--font-display); color: #51464d; }
+.card-artwork-diary > p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.9 var(--font-display); color: var(--theme-muted); }
 .card-artwork-back-mark { color: var(--silver-dark); font: italic 13px var(--font-display); text-align: right; }
 .card-artwork-tools { display: flex; justify-content: center; gap: 8px; padding: 0 14px 8px; }
 .card-artwork-tools > button { display: flex; justify-content: center; align-items: center; gap: 7px; flex: 1; min-height: 40px; padding: 8px 10px; border: 0; border-radius: 5px; color: var(--silver-dark); background: transparent; cursor: pointer; font-size: 12px; }
@@ -22,25 +22,25 @@
 .card-artwork-tools button[aria-pressed="true"] { color: var(--lacquer); border-color: var(--lacquer); background: color-mix(in srgb, var(--lacquer) 5%, var(--paper-light)); }
 .card-artwork button:focus-visible { outline-offset: -3px; }
 
-.card-art-lightbox { width: calc(100vw - 32px); max-width: 1600px; height: calc(100dvh - 32px); max-height: 1200px; margin: auto; padding: 0; overflow: hidden; border: 1px solid rgb(255 255 255 / 16%); border-radius: 14px; color: white; background: var(--stage-ink); box-shadow: 0 30px 100px rgb(0 0 0 / 45%); }
-.card-art-lightbox::backdrop { background: rgb(10 11 15 / 85%); backdrop-filter: blur(8px); }
+.card-art-lightbox { width: calc(100vw - 32px); max-width: 1600px; height: calc(100dvh - 32px); max-height: 1200px; margin: auto; padding: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--theme-media-text) 16%, transparent); border-radius: 14px; color: var(--theme-media-text); background: var(--theme-media-shade); box-shadow: 0 30px 100px color-mix(in srgb, var(--theme-shadow-color) 45%, transparent); }
+.card-art-lightbox::backdrop { background: color-mix(in srgb, var(--theme-media-shade) 85%, transparent); backdrop-filter: blur(8px); }
 .card-lightbox-frame { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
-.card-lightbox-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--line-light); }
+.card-lightbox-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 12px 20px; border-bottom: 1px solid color-mix(in srgb, var(--theme-media-text) 16%, transparent); }
 .card-lightbox-header > div { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
 .card-lightbox-header span { color: var(--gel-blue); font: 10px var(--font-mono); letter-spacing: .1em; }
 .card-lightbox-header strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-lightbox-header button { flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--line-light); border-radius: 8px; background: transparent; color: white; cursor: pointer; font-size: 24px; }
-.card-lightbox-stage { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--stage-ink-soft); touch-action: pan-x pan-y; }
+.card-lightbox-header button { flex-shrink: 0; width: 40px; height: 40px; border: 1px solid color-mix(in srgb, var(--theme-media-text) 16%, transparent); border-radius: 8px; background: transparent; color: var(--theme-media-text); cursor: pointer; font-size: 24px; }
+.card-lightbox-stage { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--theme-media-shade); touch-action: pan-x pan-y; }
 .card-lightbox-surface { display: grid; place-items: center; min-width: 100%; min-height: 100%; padding: 16px; }
 .card-lightbox-surface > img { display: block; max-width: none; max-height: none; object-fit: contain; user-select: none; }
 .card-lightbox-stage[data-zoomed] { cursor: grab; }
 .card-lightbox-stage[data-dragging] { cursor: grabbing; }
-.card-lightbox-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line-light); font-size: 12px; }
-.card-lightbox-toolbar > span { color: var(--silver); }
+.card-lightbox-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 20px; border-top: 1px solid color-mix(in srgb, var(--theme-media-text) 16%, transparent); font-size: 12px; }
+.card-lightbox-toolbar > span { color: color-mix(in srgb, var(--theme-media-text) 70%, transparent); }
 .card-lightbox-toolbar > a { color: var(--gel-blue); }
 .card-lightbox-zoom { display: flex; align-items: center; gap: 6px; }
-.card-lightbox-zoom > button { min-width: 40px; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line-light); border-radius: 6px; color: white; background: transparent; cursor: pointer; }
-.card-lightbox-zoom > button:hover:not(:disabled) { background: rgb(255 255 255 / 10%); }
+.card-lightbox-zoom > button { min-width: 40px; min-height: 40px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--theme-media-text) 16%, transparent); border-radius: 6px; color: var(--theme-media-text); background: transparent; cursor: pointer; }
+.card-lightbox-zoom > button:hover:not(:disabled) { background: color-mix(in srgb, var(--theme-media-text) 10%, transparent); }
 .card-lightbox-zoom > button:disabled { opacity: .35; cursor: default; }
 .card-lightbox-zoom > output { width: 48px; text-align: center; font-family: var(--font-mono); }
 @media (max-width: 600px) {

@@ -49,17 +49,17 @@
   padding: 10px;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgb(17 19 27 / 8%);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 8%, transparent);
   border-radius: 10px;
   background: var(--paper-light);
-  box-shadow: 0 3px 10px rgb(41 29 37 / 4%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent);
   transition: translate .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
 .character-music-card:hover,
 .character-music-card:focus-visible {
   translate: 0 -3px;
   border-color: color-mix(in srgb, var(--character-color) 65%, var(--line));
-  box-shadow: 0 8px 22px rgb(41 29 37 / 10%);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-shadow-color) 10%, transparent);
 }
 .character-music-card:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .character-music-card__artwork { aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: var(--paper-deep); }

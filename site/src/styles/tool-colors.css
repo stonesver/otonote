@@ -167,7 +167,7 @@ html[data-shell="sidebar"][data-shell] body {
   }
 
   :is(.tw-panel, .task-dialog)::backdrop { background: var(--theme-backdrop); }
-  .tw-launcher { background: var(--stage-ink); border-color: var(--stage-ink); }
+  .tw-launcher { background: var(--theme-inverse-surface); border-color: var(--theme-inverse-surface); color: var(--theme-inverse-text); }
   .tw-panel :is(button, input, select, .tw-current, .tw-saved-team, .tw-editor,
       .tw-edit-pair, .tw-inventory-card, .tw-inventory-extra-filters,
       .tw-inventory-editor, .ux-card-picker, .tw-card-view--compact) {
@@ -346,6 +346,7 @@ html[data-tool-theme="site"][data-tool-theme] body {
 /* Track, chart and rarity identities remain distinct; UI chrome uses the site palette. */
 html[data-tool-theme="site"][data-tool-theme] body {
   :is(skill-activation, .task-dialog-body) {
+    /* Game semantics: five skill-track identities. */
     --activation-0: #315f73; --activation-1: #176c58; --activation-2: #7250a3;
     --activation-3: #80551d; --activation-4: #7a3155;
     --activation-ink: var(--tool-ink); --activation-muted: var(--tool-muted);

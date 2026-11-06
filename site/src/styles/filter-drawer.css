@@ -10,7 +10,7 @@
 }
 [data-shell] :is(.catalog-controls, .music-controls, .db-controls, .st-filters, .filter-toolbar, .gallery-filters)[data-filter-stuck]:has(> .filter-panel.filter-panel--drawer) {
   background: var(--paper);
-  box-shadow: 0 8px 12px -12px rgb(41 29 37 / 25%);
+  box-shadow: 0 8px 12px -12px color-mix(in srgb, var(--theme-shadow-color) 25%, transparent);
 }
 /* Dialogs have their own scroll viewport, without the page navigation offset. */
 [data-shell] dialog .filter-toolbar:has(> .filter-panel.filter-panel--drawer) { top: 0; z-index: 2; }
@@ -50,7 +50,7 @@
   border-radius: 12px;
   color: var(--lacquer);
   background: var(--paper-light);
-  box-shadow: 0 2px 5px rgb(41 29 37 / 3%);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--theme-shadow-color) 3%, transparent);
   font: 600 13px var(--font-body);
   cursor: pointer;
 }
@@ -82,10 +82,10 @@ html:has(.filter-drawer-dialog[open]) { overflow: hidden; }
   border-radius: 24px 0 0 24px;
   color: var(--stage-ink);
   background: var(--paper-light);
-  box-shadow: -12px 0 48px rgb(41 29 37 / 10%), -1px 0 8px rgb(41 29 37 / 4%);
+  box-shadow: -12px 0 48px color-mix(in srgb, var(--theme-shadow-color) 10%, transparent), -1px 0 8px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent);
 }
 .filter-drawer-dialog[open] { display: flex; flex-direction: column; }
-.filter-drawer-dialog::backdrop { background: rgb(17 19 27 / 24%); }
+.filter-drawer-dialog::backdrop { background: var(--theme-backdrop); }
 .filter-drawer-header {
   display: flex;
   align-items: start;
@@ -157,7 +157,7 @@ html:has(.filter-drawer-dialog[open]) { overflow: hidden; }
   padding: 16px 24px max(20px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--filter-line);
   background: var(--paper-light);
-  box-shadow: 0 -6px 20px rgb(41 29 37 / 3%);
+  box-shadow: 0 -6px 20px color-mix(in srgb, var(--theme-shadow-color) 3%, transparent);
 }
 .filter-drawer-reset { flex-shrink: 0; border: 0; padding: 10px 0; color: var(--silver-dark); background: transparent; font-size: 12px; cursor: pointer; }
 .filter-drawer-results {
@@ -172,7 +172,7 @@ html:has(.filter-drawer-dialog[open]) { overflow: hidden; }
   border-radius: 10px;
   color: var(--paper-light);
   background: var(--lacquer);
-  box-shadow: 0 3px 8px rgb(122 49 85 / 14%), inset 0 1px 0 rgb(255 255 255 / 12%);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--theme-shadow-color) 14%, transparent), inset 0 1px 0 color-mix(in srgb, var(--theme-shadow-color) 12%, transparent);
   font: 600 12px var(--font-body);
   cursor: pointer;
 }
@@ -193,7 +193,7 @@ html:has(.filter-drawer-dialog[open]) { overflow: hidden; }
     border-left: 0;
     border-top: 1px solid var(--filter-line);
     border-radius: 24px 24px 0 0;
-    box-shadow: 0 -12px 40px rgb(41 29 37 / 12%);
+    box-shadow: 0 -12px 40px color-mix(in srgb, var(--theme-shadow-color) 12%, transparent);
   }
   .filter-drawer-header { padding: 20px 18px 16px; }
   .filter-drawer-header h2 { font-size: 19px; }

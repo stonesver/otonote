@@ -9,7 +9,7 @@ html[data-navigation-phase] dialog:not([open]) { display: none !important; }
 [data-navigation-wait] {
   position: fixed; inset: var(--header-height, 68px) 0 0 var(--sidebar-width, 236px);
   margin: 0; width: auto; min-height: 0;
-  z-index: 35; overflow: auto; background: var(--paper, #f0eee8); color: var(--ink, #11131b);
+  z-index: 35; overflow: auto; background: var(--paper, var(--theme-surface)); color: var(--ink, var(--theme-text));
   border: 0; border-radius: 0; box-shadow: none;
   outline: none; overscroll-behavior: contain;
 }

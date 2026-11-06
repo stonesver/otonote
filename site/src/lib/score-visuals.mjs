@@ -12,9 +12,9 @@ export function scoreComposition(sections, expectedScore) {
   root.append(el('h4', '分数从哪里来'));
   if (!sections?.length || !(expectedScore > 0)) return root;
   const sum = sections.reduce((n, s) => n + s.totalScore, 0);
-  const parts = [{ label: '非激奏段', value: Math.max(0, expectedScore - sum), color: '#9da5b5' },
+  const parts = [{ label: '非激奏段', value: Math.max(0, expectedScore - sum), color: 'var(--theme-muted)' },
     ...sections.map((s, i) => ({ label: `第 ${s.index ?? i + 1} 段 · ${mission(s.missionType)}`, value: s.totalScore,
-      color: ['#9b587e', '#4c8588', '#b88835'][i % 3] }))];
+      color: ['var(--theme-chart-1)', 'var(--theme-chart-2)', 'var(--theme-chart-3)'][i % 3] }))];
   const track = el('div', null, 'score-segments'); track.setAttribute('aria-hidden', 'true');
   const legend = el('div', null, 'score-legend');
   for (const part of parts) {

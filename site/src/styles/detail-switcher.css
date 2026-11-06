@@ -5,9 +5,9 @@
   position: sticky;
   z-index: 30;
   top: calc(var(--header-height) + env(safe-area-inset-top));
-  border-bottom: 1px solid rgb(255 255 255 / 10%);
-  background: var(--stage-ink);
-  color: white;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-inverse-text) 10%, transparent);
+  background: var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
 }
 
 .detail-switcher-bar {
@@ -24,14 +24,14 @@
   gap: 12px;
   align-items: center;
   padding: 10px 16px;
-  color: white;
+  color: var(--theme-inverse-text);
 }
 
 .detail-switcher-step {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  color: rgb(255 255 255 / 64%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 64%, transparent);
 }
 
 .detail-switcher-step--next {
@@ -57,14 +57,14 @@
 
 .detail-switcher-current {
   justify-content: center;
-  border-inline: 1px solid rgb(255 255 255 / 12%);
-  background: rgb(255 255 255 / 4%);
+  border-inline: 1px solid color-mix(in srgb, var(--theme-inverse-text) 12%, transparent);
+  background: color-mix(in srgb, var(--theme-inverse-text) 4%, transparent);
   cursor: pointer;
   text-align: left;
 }
 
 .detail-switcher-current:hover {
-  background: rgb(255 255 255 / 9%);
+  background: color-mix(in srgb, var(--theme-inverse-text) 9%, transparent);
 }
 
 .detail-switcher-current img {
@@ -104,7 +104,7 @@
 }
 
 .detail-switcher-current b {
-  color: rgb(255 255 255 / 48%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 48%, transparent);
 }
 
 .detail-switcher-dialog {
@@ -121,7 +121,7 @@
 html:has(.detail-switcher-dialog[open]) { overflow: hidden; }
 
 .detail-switcher-dialog::backdrop {
-  background: rgb(8 10 16 / 76%);
+  background: color-mix(in srgb, var(--theme-media-shade) 76%, transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -135,7 +135,7 @@ html:has(.detail-switcher-dialog[open]) { overflow: hidden; }
   scrollbar-width: thin;
   scroll-padding-top: 240px;
   background: var(--paper);
-  box-shadow: 0 40px 120px rgb(0 0 0 / 36%);
+  box-shadow: 0 40px 120px color-mix(in srgb, var(--theme-shadow-color) 36%, transparent);
 }
 
 .detail-switcher-toolbar {
@@ -167,7 +167,7 @@ html:has(.detail-switcher-dialog[open]) { overflow: hidden; }
 .detail-switcher-filter-trigger svg { width: 19px; height: 19px; }
 .detail-switcher-filter-trigger[aria-expanded=true],
 .detail-switcher-filter-trigger:has(b:not([hidden])) { border-color: var(--lacquer); background: color-mix(in srgb, var(--lacquer) 7%, var(--paper-light)); }
-.detail-switcher-filter-trigger b { padding: 1px 5px; border-radius: 5px; color: var(--paper-light); background: var(--lacquer); font: 11px/1.6 var(--font-mono); }
+.detail-switcher-filter-trigger b { padding: 1px 5px; border-radius: 5px; color: var(--theme-on-accent); background: var(--lacquer); font: 11px/1.6 var(--font-mono); }
 [data-shell] .detail-switcher-frame .detail-switcher-filter-panel { margin-top: 12px; }
 [data-shell] .detail-switcher-frame .detail-switcher-filter-panel .facet-option-list { max-height: none; overflow: visible; }
 
@@ -196,8 +196,8 @@ html:has(.detail-switcher-dialog[open]) { overflow: hidden; }
 .detail-switcher-header button {
   width: 44px;
   height: 44px;
-  background: var(--stage-ink);
-  color: white;
+  background: var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
   cursor: pointer;
   font-size: 24px;
 }
@@ -288,7 +288,7 @@ html:has(.detail-switcher-dialog[open]) { overflow: hidden; }
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--stage-ink-soft);
+  background: var(--theme-inverse-surface);
 }
 
 .detail-switcher-thumb--portrait {
@@ -309,7 +309,7 @@ html:has(.detail-switcher-dialog[open]) { overflow: hidden; }
 }
 
 .detail-switcher-thumb b {
-  color: white;
+  color: var(--theme-inverse-text);
   font-family: var(--font-mono);
   font-size: 12px;
 }

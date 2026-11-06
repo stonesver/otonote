@@ -1,6 +1,6 @@
 /* Match the OtoNote paper and plum palette; keep the next action in view. */
 [data-shell] .team-workbench {
-  --calc-accent:var(--lacquer); --calc-muted:#716b70;
+  --calc-accent:var(--lacquer); --calc-muted:var(--theme-muted);
   --calc-line:color-mix(in srgb,var(--lacquer) 15%,var(--paper-light));
   --calc-surface:var(--paper-light); --calc-tint:color-mix(in srgb,var(--lacquer) 6%,var(--paper-light));
 }
@@ -10,7 +10,7 @@
 [data-shell] .workbench-mode-choices button { background:var(--paper-light); border-radius:10px; position:relative; padding:16px 34px 16px 16px; }
 [data-shell] .workbench-mode-choices button::after { content:''; position:absolute; top:17px; right:13px; width:16px; height:16px; border-radius:50%; border:1px solid var(--calc-line); }
 [data-shell] .workbench-mode-choices [aria-pressed=true] { background:var(--calc-tint); border-color:var(--lacquer); box-shadow:none; }
-[data-shell] .workbench-mode-choices [aria-pressed=true]::after { content:'✓'; display:grid; place-items:center; background:var(--lacquer); border-color:var(--lacquer); color:var(--paper-light); font:10px var(--font-body); }
+[data-shell] .workbench-mode-choices [aria-pressed=true]::after { content:'✓'; display:grid; place-items:center; background:var(--lacquer); border-color:var(--lacquer); color:var(--theme-on-accent); font:10px var(--font-body); }
 [data-shell] .team-workbench .selection-filters--compact { padding:0; gap:8px; background:none; border:0; border-radius:0; }
 .selection-filter-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:10px; }
 [data-shell] .selection-filter-toolbar .filter-drawer-trigger { height:44px; min-height:44px; border-radius:9px; }
@@ -38,7 +38,7 @@
 [data-shell] .team-workbench .account-growth[open]>summary { margin-inline:-14px; }
 [data-shell] .team-workbench .account-growth fieldset { margin:0; padding:12px; border:1px solid var(--calc-line); border-radius:8px; }
 [data-shell] .team-workbench .account-growth legend { font-size:12px; font-weight:600; }
-[data-shell] .team-workbench .account-growth form button { background:var(--lacquer); color:var(--paper-light); padding:10px 15px; border-radius:8px; min-height:42px; }
+[data-shell] .team-workbench .account-growth form button { background:var(--lacquer); color:var(--theme-on-accent); padding:10px 15px; border-radius:8px; min-height:42px; }
 .growth-import-methods { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:24px; margin:20px 0; }
 .growth-import-method { min-width:0; }
 .growth-import-method+.growth-import-method { border-left:1px solid var(--calc-line); padding-left:24px; }

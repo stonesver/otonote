@@ -24,11 +24,11 @@ const {kind} = Astro.props;
     <div class="strategy-skill-diagram">
       <span>再看技能延时，多吃到了哪些音符</span>
       <svg viewBox="0 0 560 105" role="img" aria-label="时间轴上原本技能覆盖前半段，延长的时间覆盖后续密集音符；收益取决于新增覆盖的音符。">
-        <line x1="15" x2="545" y1="27" y2="27" stroke="#c5c8d5" stroke-width="2"/>
-        {[30,78,131,188,234,302,321,340,363,385,409,471,527].map(x=><path d={`M${x} 19l8 8-8 8-8-8Z`} fill={x>=290&&x<=425?'#287e79':'#697389'}/>)}
-        <rect x="20" y="49" width="270" height="28" rx="5" fill="#e5d7e4"/><rect x="290" y="49" width="135" height="28" rx="5" fill="#d7eee7"/>
-        <text x="155" y="68" text-anchor="middle" fill="#653452" font-size="13">原有技能时间</text><text x="357" y="68" text-anchor="middle" fill="#21675e" font-size="13">留影延长</text>
-        <text x="20" y="98" fill="#677080" font-size="11">技能发动</text><text x="440" y="98" fill="#677080" font-size="11">时间 →</text>
+        <line x1="15" x2="545" y1="27" y2="27" stroke="var(--theme-border)" stroke-width="2"/>
+        {[30,78,131,188,234,302,321,340,363,385,409,471,527].map(x=><path d={`M${x} 19l8 8-8 8-8-8Z`} fill={x>=290&&x<=425?'var(--theme-success-ink)':'var(--theme-muted)'}/>)}
+        <rect x="20" y="49" width="270" height="28" rx="5" fill="color-mix(in srgb, var(--theme-accent) 15%, var(--theme-surface))"/><rect x="290" y="49" width="135" height="28" rx="5" fill="color-mix(in srgb, var(--theme-success) 15%, var(--theme-surface))"/>
+        <text x="155" y="68" text-anchor="middle" fill="var(--theme-accent)" font-size="13">原有技能时间</text><text x="357" y="68" text-anchor="middle" fill="var(--theme-success-ink)" font-size="13">留影延长</text>
+        <text x="20" y="98" fill="var(--theme-muted)" font-size="11">技能发动</text><text x="440" y="98" fill="var(--theme-muted)" font-size="11">时间 →</text>
       </svg>
     </div>
     <figcaption>属性加成先看“跟谁搭”，延时再看“多打到多少音符”。两张留影的差距，要放进同一首歌比较。</figcaption>

@@ -117,7 +117,7 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #62606a;
+  color: var(--theme-muted);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
@@ -203,7 +203,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
     inset: calc(var(--header-height) + env(safe-area-inset-top)) 0 0;
     z-index: 39;
     display: block;
-    background: rgb(17 19 27 / 40%);
+    background: var(--theme-backdrop);
     cursor: pointer;
   }
   [data-shell="sidebar"] .nav-toggle { border: 1px solid var(--line); border-radius: 6px; }
@@ -283,7 +283,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
   min-height: 20px;
   padding: 3px 5px;
   border-radius: 3px;
-  background: rgb(255 253 247 / 92%);
+  background: color-mix(in srgb, var(--theme-surface) 92%, transparent);
 }
 [data-shell="sidebar"] .catalog-tile.compact-catalog-tile .tile-body h2 {
   margin: 0;
@@ -353,7 +353,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 
 /* A softer collection surface, with the artwork and game insignia in focus. */
 [data-shell="sidebar"] body {
-  background: radial-gradient(ellipse at 90% 0, rgb(121 174 194 / 9%), transparent 45%), var(--paper);
+  background: radial-gradient(ellipse at 90% 0, color-mix(in srgb, var(--theme-secondary) 9%, transparent), transparent 45%), var(--paper);
 }
 [data-shell="sidebar"] .nav-primary,
 [data-shell="sidebar"] .nav-home,
@@ -362,34 +362,34 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] .context-switcher summary { border-radius: 999px; }
 [data-shell="sidebar"] .card-directory-intro {
   border-bottom: 0;
-  background: linear-gradient(110deg, rgb(122 49 85 / 5%), transparent 65%);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--theme-warning) 5%, transparent), transparent 65%);
 }
 [data-shell="sidebar"] .card-directory-intro h1 { letter-spacing: -.035em; }
 [data-shell="sidebar"] .card-directory-count {
   padding: 6px 14px;
   border-radius: 999px;
   background: var(--paper-light);
-  box-shadow: 0 2px 8px rgb(17 19 27 / 3%);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-shadow-color) 3%, transparent);
   font-size: 20px;
 }
 [data-shell="sidebar"] .catalog-tile,
 [data-shell="sidebar"] .catalog-tile.compact-catalog-tile {
-  border: 1px solid rgb(17 19 27 / 8%);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 8%, transparent);
   border-radius: 14px;
-  box-shadow: 0 3px 10px rgb(41 29 37 / 4%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent);
   transition: translate .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
 [data-shell="sidebar"] .catalog-tile:hover,
 [data-shell="sidebar"] .catalog-tile:focus-within {
   translate: 0 -3px;
-  border-color: rgb(122 49 85 / 24%);
-  box-shadow: 0 8px 22px rgb(41 29 37 / 10%);
+  border-color: color-mix(in srgb, var(--theme-warning) 24%, transparent);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-shadow-color) 10%, transparent);
 }
 [data-shell="sidebar"] .catalog-tile.card-tile .tile-media { border-radius: 13px 13px 0 0; }
 [data-shell="sidebar"] .catalog-tile.card-tile .tile-body {
   gap: 5px;
   padding: 9px 11px 10px;
-  background: linear-gradient(150deg, var(--paper-light), #f8f5f1);
+  background: linear-gradient(150deg, var(--paper-light), var(--theme-surface));
 }
 [data-shell="sidebar"] .catalog-tile.card-tile .tile-icon-row {
   position: static;
@@ -417,7 +417,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] .facet-menu > summary,
 [data-shell="sidebar"] .facet-controls > label,
 [data-shell="sidebar"] .catalog-controls select { border-radius: 10px; }
-[data-shell="sidebar"] .facet-popover { border-radius: 14px; box-shadow: 0 10px 32px rgb(41 29 37 / 13%); }
+[data-shell="sidebar"] .facet-popover { border-radius: 14px; box-shadow: 0 10px 32px color-mix(in srgb, var(--theme-shadow-color) 13%, transparent); }
 [data-shell="sidebar"] .facet-check { border-radius: 7px; }
 .facet-option-label { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .facet-option-icon { width: 28px; height: 22px; object-fit: contain; flex-shrink: 0; }
@@ -475,7 +475,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] .db-catalog-section { padding-top: 24px; }
 [data-shell="sidebar"] .db-controls { border-radius: 14px; }
 [data-shell="sidebar"] .db-facets select { border-radius: 8px; }
-[data-shell="sidebar"] .db-tile { border-radius: 12px; overflow: hidden; box-shadow: 0 3px 10px rgb(41 29 37 / 4%); }
+[data-shell="sidebar"] .db-tile { border-radius: 12px; overflow: hidden; box-shadow: 0 3px 10px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent); }
 [data-shell="sidebar"] .member-card-primary-skill > span { white-space: nowrap; }
 @media (min-width: 761px) {
   [data-shell="sidebar"] .member-card-primary-skill { grid-template-columns: max-content minmax(0, 1fr) auto; gap: 12px; }

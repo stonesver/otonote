@@ -57,7 +57,7 @@
   border-radius: 7px; background: var(--paper-light); color: var(--lacquer);
   font: inherit; font-size: 12px; cursor: pointer;
 }
-.score-view-switch button[aria-pressed="true"] { background: var(--lacquer); color: white; border-color: var(--lacquer); }
+.score-view-switch button[aria-pressed="true"] { background: var(--lacquer); color: var(--theme-on-accent); border-color: var(--lacquer); }
 .score-sheet { min-width: 0; margin-top: 12px; }
 .score-workbench[data-score-mode="sheet"] .workbench-heading { display:none; }
 .score-atlas-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:20px 0 16px; }
@@ -71,11 +71,11 @@
 .score-range-form input { width:120px; min-width:0; padding:8px; border:1px solid var(--line); border-radius:5px; color:var(--ink); background:var(--paper); font:13px var(--font-mono); }
 .score-range-form > span { align-self:center; }
 .score-range-form button { padding:9px 12px; border:1px solid var(--line); border-radius:5px; background:var(--paper); color:var(--lacquer); font:12px var(--font-body); cursor:pointer; }
-.score-range-form button[type="submit"] { background:var(--lacquer); color:white; }
+.score-range-form button[type="submit"] { background:var(--lacquer); color:var(--theme-on-accent); }
 .score-range-form p { flex-basis:100%; margin:0; color:var(--silver-dark); font-size:11px; }
-.score-range-form [data-sheet-range-error] { color:#a13d44; }
+.score-range-form [data-sheet-range-error] { color:var(--theme-danger-ink); }
 .score-range-form [data-sheet-range-error]:empty { display:none; }
-.score-range-form input[aria-invalid="true"] { border-color:#a13d44; }
+.score-range-form input[aria-invalid="true"] { border-color:var(--theme-danger); }
 .score-atlas-navigation { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:12px 0; border-top:1px solid var(--line); margin-bottom:12px; }
 .score-atlas-navigation label { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--silver-dark); }
 .score-atlas-navigation select { border:1px solid var(--line); border-radius:6px; padding:8px; background:var(--paper-light); color:var(--lacquer); font:12px var(--font-mono); }
@@ -119,7 +119,7 @@
 
 .workbench-heading p {
   margin: 0;
-  color: #69645e;
+  color: var(--theme-text-soft);
 }
 
 .difficulty-tabs {
@@ -145,8 +145,8 @@
 }
 
 .difficulty-tabs button[aria-selected="true"] {
-  background: var(--stage-ink);
-  color: white;
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
 }
 
 .difficulty-tabs small {
@@ -219,7 +219,7 @@
 }
 
 .score-error {
-  color: #8d4e3a;
+  color: var(--theme-danger-ink);
 }
 
 .density-panel {
@@ -266,16 +266,17 @@
 }
 
 .density-fever {
-  fill: rgb(121 174 194 / 20%);
+  fill: color-mix(in srgb, var(--theme-muted) 20%, transparent);
 }
 
 .density-skill {
+  /* Game semantics: chart note and skill-event identity. */
   stroke: #b88434;
   stroke-width: 2;
 }
 
 .density-window {
-  fill: rgb(122 49 85 / 9%);
+  fill: color-mix(in srgb, var(--theme-accent) 9%, transparent);
   stroke: var(--lacquer);
   stroke-width: 3;
 }
@@ -292,7 +293,7 @@
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   border-left: 1px solid var(--line);
-  background: #e7e4dc;
+  background: var(--theme-canvas);
 }
 
 .workbench-controls > div,
@@ -321,7 +322,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #57534e;
+  color: var(--theme-text);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -336,25 +337,30 @@
 }
 
 .note-key--tap {
+  /* Game semantics: chart note and skill-event identity. */
   color: #79aec2;
 }
 
 .note-key--flick {
+  /* Game semantics: chart note and skill-event identity. */
   color: #b88434;
   clip-path: polygon(0 28%, 62% 28%, 62% 0, 100% 50%, 62% 100%, 62% 72%, 0 72%);
 }
 
 .note-key--trace {
+  /* Game semantics: chart note and skill-event identity. */
   background: #83d7cf;
   border-color: #d9fffb;
 }
 
 .note-key--long {
+  /* Game semantics: chart note and skill-event identity. */
   color: #a14a73;
   opacity: 0.68;
 }
 
 .note-key--event {
+  /* Game semantics: chart note and skill-event identity. */
   height: 2px;
   border: 0;
   border-radius: 0;
@@ -374,7 +380,7 @@
   margin-inline: auto;
   grid-template-columns: minmax(0, 1fr) 240px;
   scroll-margin-top: calc(var(--header-height) + 16px);
-  background: var(--stage-ink);
+  background: var(--theme-inverse-surface);
 }
 
 .track-scroll {
@@ -383,9 +389,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: rgb(121 174 194 / 72%) rgb(255 255 255 / 7%);
+  scrollbar-color: color-mix(in srgb,var(--theme-inverse-muted) 72%,transparent) color-mix(in srgb,var(--theme-inverse-text) 7%,transparent);
   scrollbar-width: thin;
-  background: var(--stage-ink);
+  background: var(--theme-inverse-surface);
 }
 
 .track-scroll::-webkit-scrollbar {
@@ -393,13 +399,13 @@
 }
 
 .track-scroll::-webkit-scrollbar-track {
-  background: rgb(255 255 255 / 7%);
+  background: color-mix(in srgb, var(--theme-inverse-text) 7%, transparent);
 }
 
 .track-scroll::-webkit-scrollbar-thumb {
-  border: 2px solid var(--stage-ink);
+  border: 2px solid var(--theme-inverse-surface);
   border-radius: 999px;
-  background: rgb(121 174 194 / 72%);
+  background: color-mix(in srgb, var(--theme-inverse-muted) 72%, transparent);
 }
 
 .track-scroll:focus-visible {
@@ -418,11 +424,11 @@
   padding-top: 6px;
   background: linear-gradient(
     180deg,
-    rgb(17 19 27 / 96%) 0%,
-    rgb(17 19 27 / 76%) 65%,
+    color-mix(in srgb, var(--theme-inverse-surface) 96%, transparent) 0%,
+    color-mix(in srgb, var(--theme-inverse-surface) 76%, transparent) 65%,
     transparent 100%
   );
-  color: rgb(255 255 255 / 38%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 38%, transparent);
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1;
@@ -431,24 +437,24 @@
 }
 
 .track-ruler span {
-  border-left: 1px solid rgb(255 255 255 / 8%);
+  border-left: 1px solid color-mix(in srgb, var(--theme-inverse-muted) 2.8%, transparent);
 }
 
 .track-ruler span:last-child {
-  border-right: 1px solid rgb(255 255 255 / 8%);
+  border-right: 1px solid color-mix(in srgb, var(--theme-inverse-muted) 2.8%, transparent);
 }
 
 .track-panel canvas {
   width: 100%;
   display: block;
-  background: var(--stage-ink);
+  background: var(--theme-inverse-surface);
 }
 
 .score-inspector {
   padding: 28px 22px;
   border-left: 1px solid var(--line-light);
-  background: var(--stage-ink-soft);
-  color: white;
+  background: color-mix(in srgb,var(--theme-inverse-surface) 92%,var(--theme-inverse-text));
+  color: var(--theme-inverse-text);
 }
 
 .score-inspector > span {
@@ -466,7 +472,7 @@
 }
 
 .score-inspector p {
-  color: rgb(255 255 255 / 55%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 55%, transparent);
   font-size: 12px;
 }
 
@@ -475,7 +481,7 @@
 }
 
 .score-inspector dd {
-  color: white;
+  color: var(--theme-inverse-text);
 }
 
 .music-workspace .score-workbench {
@@ -546,6 +552,7 @@
 
   .track-scroll {
     height: clamp(560px, 72vh, 700px);
+    scrollbar-color: color-mix(in srgb,var(--theme-inverse-muted) 72%,transparent) color-mix(in srgb,var(--theme-inverse-text) 7%,transparent);
   }
 
   .score-inspector {
@@ -577,5 +584,6 @@
 @media (prefers-reduced-motion: reduce) {
   .track-scroll {
     scroll-behavior: auto;
+    scrollbar-color: color-mix(in srgb,var(--theme-inverse-muted) 72%,transparent) color-mix(in srgb,var(--theme-inverse-text) 7%,transparent);
   }
 }

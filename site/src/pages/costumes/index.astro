@@ -50,7 +50,7 @@ const bands = catalog.bands.filter(b => costumes.some(item => item.bandId === b.
         const state = costumeState(costume.startAt, activeReleaseContext.region);
         const models = costume.models.filter(m => m.state === 'available');
         return <article class="costume-card" data-costume={costume.id} data-character={costume.characterId} data-band={costume.bandId}
-          data-search={[costume.name, character?.displayName, ...(character?.aliases ?? []), band?.displayName].join(' ')} style={`--costume-color:${character?.mainColor || '#79aec2'}`}>
+          data-search={[costume.name, character?.displayName, ...(character?.aliases ?? []), band?.displayName].join(' ')} style={`--costume-color:${character?.mainColor || 'var(--theme-secondary)'}`}>
           <div class="costume-art">
             {costume.poster ? <img class="costume-poster" src={costume.poster.url} width={costume.poster.width} height={costume.poster.height} alt={`${character?.displayName} · ${costume.name}`} loading="lazy" decoding="async" />
               : <span class="costume-image-missing">{en ? 'Full-body image pending' : '全身图片待补充'}</span>}

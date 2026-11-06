@@ -189,6 +189,7 @@ const shellCss = (await Promise.all(['theme-tokens','global','site-shell','unifi
 const css = (await transformTs(shellCss,{loader:'css',minify:true})).code;
 const shell = renderLoadingShell({css,clientScript:shellClient.outputFiles[0].text,
   appManifest,startupScript:startupClient.outputFiles[0].text,loadingArt,navigationScript,shellPreferences:await readFile(join(site,'src/lib/shell-preferences.mjs'),'utf8'),
+  themeChrome:await readFile(join(site,'src/lib/theme-chrome.mjs'),'utf8'),
   codeRoot:'/app/releases/__CODE_ID__/',boot,brandSvg:await readFile(join(site,'public/brand/ournotes-mark.svg'),'utf8')});
 // Shell-only edits must also create a new immutable code identity.
 await writeFile(join(stage,'entry-shell.json'),JSON.stringify({sha256:createHash('sha256').update(shell).digest('hex')}));

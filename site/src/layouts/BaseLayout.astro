@@ -12,6 +12,7 @@ import SiteNotifications from "../components/SiteNotifications.astro";
 import SharedPlaylistWorkspace from "../components/SharedPlaylistWorkspace.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
 import shellPreferences from "../lib/shell-preferences.mjs?raw";
+import themeChrome from "../lib/theme-chrome.mjs?raw";
 import pageFirstRenderScript from "../lib/page-first-render.mjs?raw";
 import { activeReleaseContext } from "../lib/release-context";
 import { logicalPath, siteHref } from "../lib/site-context";
@@ -86,11 +87,12 @@ const htmlLanguage = activeReleaseContext.locale;
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#11131b" />
+    <meta name="theme-color" />
     <!-- Keep the outgoing frame until streamed module HTML has been fully parsed. -->
     <link rel="expect" blocking="render" href="#page-content-ready" />
     <script is:inline set:html={pageFirstRenderScript} />
     <script is:inline set:html={shellPreferences} />
+    <script is:inline set:html={themeChrome} />
     <link rel="icon" href={href("/favicon.svg")} type="image/svg+xml" />
     <meta property="og:title" content={pageTitle(title)} />
     <meta property="og:description" content={description} />
@@ -98,7 +100,7 @@ const htmlLanguage = activeReleaseContext.locale;
     <title>{pageTitle(title)}</title>
     <style is:inline>
       /* Match the page canvas even before the shared stylesheet arrives. */
-      html { background: var(--paper, #f0eee8); }
+      html { background: var(--theme-canvas); }
       :is(team-draft-workbench, scoring-research-workbench, event-efficiency-tool):not(.task-workbench) { visibility: hidden; }
     </style>
     <script is:inline>

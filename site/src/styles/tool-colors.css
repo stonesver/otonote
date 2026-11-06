@@ -22,10 +22,6 @@
   --studio-tint: var(--tool-tint);
 }
 
-html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
-  background: var(--paper-light);
-}
-
 /* Shared workbench palette across calculator variants. */
 .tool-studio.tool-studio[data-tool-kind][data-tool-kind] {
   --task-ink: var(--stage-ink);

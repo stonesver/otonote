@@ -54,8 +54,9 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
   const card = preset => {
     const preview = ['canvas', 'surface', 'accent', 'secondary', 'text'].map(key => `--preview-${key}:${preset.tokens[key]}`).join(';');
     return `<button class="theme-picker-card" type="button" data-theme-choice="${escape(preset.id)}" aria-pressed="false">
-      <span class="theme-picker-preview" style="${escape(preview)}" aria-hidden="true">
-        <span class="theme-picker-preview__paper">Aa</span><i></i><i></i>
+      <span class="theme-picker-preview" data-preview-theme="${escape(preset.id)}" style="${escape(preview)}" aria-hidden="true">
+        <span class="theme-picker-preview__nav"><b>O</b><i></i><i></i><i></i></span>
+        <span class="theme-picker-preview__content"><span class="theme-picker-preview__header">OtoNote</span><span class="theme-picker-preview__panels"><i></i><i></i></span></span>
       </span>
       <span class="theme-picker-card__copy"><span class="theme-picker-card__name">${text(preset.name[language], preset.name.en)}</span>${text(preset.description[language], preset.description.en, ' class="theme-picker-card__description"')}</span>
       <span class="theme-picker-check" aria-hidden="true">${checkIcon}</span>

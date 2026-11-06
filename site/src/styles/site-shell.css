@@ -353,7 +353,7 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 
 /* A softer collection surface, with the artwork and game insignia in focus. */
 [data-shell="sidebar"] body {
-  background: radial-gradient(ellipse at 90% 0, color-mix(in srgb, var(--theme-secondary) 9%, transparent), transparent 45%), var(--paper);
+  background:var(--paper);
 }
 [data-shell="sidebar"] .nav-primary,
 [data-shell="sidebar"] .nav-home,
@@ -592,3 +592,26 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] :is(.gallery-heading,.costume-heading,.bgm-heading,.pr-page-heading,.tools-opening,.immersive-heading) { padding-block:12px; margin-block:0 12px; min-height:0; border:0; }
 [data-shell="sidebar"] :is(.gallery-heading,.costume-heading,.bgm-heading,.pr-page-heading,.tools-opening,.immersive-heading):empty { display:none; }
 [data-shell="sidebar"] .task-studio > .catalog-section { padding-top:16px; }
+
+/* Theme details stay in the frame, away from game artwork and data colors. */
+[data-shell="sidebar"] .site-header {
+  background:var(--theme-shell-surface);
+  box-shadow:0 8px 24px color-mix(in srgb,var(--theme-shadow-color) 6%,transparent);
+}
+[data-shell="sidebar"] .site-header::after {
+  content:""; position:absolute; inset:auto 16px 0; height:3px;
+  border-radius:3px; background:var(--theme-ribbon); pointer-events:none;
+}
+[data-shell="sidebar"] .site-nav { background:var(--theme-shell-surface); }
+[data-shell="sidebar"] :is(.nav-primary,.nav-home,.nav-submenu a)[aria-current="page"] {
+  color:var(--theme-on-accent); background:var(--theme-accent); box-shadow:none;
+}
+[data-shell="sidebar"] .nav-bottom::before {
+  content:""; display:block; height:var(--theme-ornament-space); margin-bottom:8px;
+  background:var(--theme-accent); opacity:.55;
+  mask:var(--theme-ornament-mask) center / contain no-repeat; pointer-events:none;
+}
+[data-shell="sidebar"] .site-footer { border-top-color:var(--theme-shell-edge); }
+@media(min-width:1101px) {
+  [data-shell="sidebar"] .site-brand { background:var(--theme-shell-surface); }
+}

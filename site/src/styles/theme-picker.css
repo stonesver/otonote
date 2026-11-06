@@ -70,9 +70,12 @@
 .theme-picker-preview__nav i:first-of-type { height:7px; margin-inline:-2px; border-radius:2px; background:var(--preview-accent); }
 .theme-picker-preview__nav::after { content:""; position:absolute; inset:auto 0 3px; height:min(32px,var(--theme-ornament-space)); background:var(--preview-accent); mask:var(--theme-ornament-mask) center / contain no-repeat; opacity:.6; }
 .theme-picker-preview__content { display:flex; flex-direction:column; gap:7px; min-width:0; }
-.theme-picker-preview__header { padding:6px; border-radius:4px; background:var(--theme-ribbon) bottom / 100% 2px no-repeat,var(--theme-shell-surface); font:700 9px/1 var(--font-body); }
+.theme-picker-preview__header { padding:6px; border-radius:4px; background:var(--theme-header-surface); font:700 9px/1 var(--font-body); }
 .theme-picker-preview__panels { position:relative; display:grid; grid-template-columns:1fr 1fr; flex:1; gap:6px; }
-.theme-picker-preview__panels i { border-radius:4px; background:var(--preview-surface); }
+.theme-picker-preview__panels i { position:relative; border-radius:4px; background:var(--preview-surface); }
+.theme-picker-preview__panels i:first-child { background:var(--theme-action-soft); border-top:10px solid var(--preview-secondary); }
+.theme-picker-preview__panels i:last-child::after { content:""; position:absolute; right:5px; bottom:5px; width:55%; height:9px; border-radius:2px; background:var(--preview-secondary); }
+.theme-picker-preview__panels i:last-child::before { content:""; position:absolute; inset:7px 5px auto; height:3px; box-shadow:0 7px color-mix(in srgb,var(--preview-text) 15%,transparent); background:color-mix(in srgb,var(--preview-text) 15%,transparent); }
 .theme-picker-preview__panels::after { content:""; position:absolute; inset:4px 0 auto; height:min(56px,var(--theme-ornament-space)); background:var(--preview-accent); mask:var(--theme-ornament-mask) right center / contain no-repeat; opacity:.28; }
 .theme-picker-footer { flex:none; min-height:48px; padding:10px 20px 12px; border-top:1px solid var(--theme-border); color:var(--theme-muted); font-size:11px; }
 .theme-picker-footer p { margin:0; line-height:1.5; }

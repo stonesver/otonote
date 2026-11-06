@@ -697,8 +697,8 @@ h3 {
 }
 
 .button-primary {
-  background: var(--theme-surface);
-  color: var(--stage-ink);
+  background: var(--theme-action);
+  color: var(--theme-on-action);
 }
 
 .button-secondary {
@@ -1727,7 +1727,8 @@ h3 {
 .download-button {
   width: 100%;
   border-radius: 4px;
-  background: var(--lacquer);
+  background: var(--theme-action);
+  color: var(--theme-on-action);
 }
 
 .download-note {

@@ -61,7 +61,7 @@ for (const theme of THEME_PRESETS) {
     for (const background of ['accent', 'accent-bright', 'secondary-ink', 'warning', 'success', 'danger']) {
       pairs.push(['on-accent', background]);
     }
-    pairs.push(['inverse-text', 'inverse-surface'], ['inverse-muted', 'inverse-surface'], ['media-text', 'media-shade']);
+    pairs.push(['on-secondary', 'secondary'], ['inverse-text', 'inverse-surface'], ['inverse-muted', 'inverse-surface'], ['media-text', 'media-shade']);
     for (const [foreground, background] of pairs) {
       const ratio = contrast(theme.tokens[foreground], theme.tokens[background]);
       assert.ok(ratio >= 4.5, `${theme.id}: ${foreground} / ${background} = ${ratio.toFixed(2)}:1`);

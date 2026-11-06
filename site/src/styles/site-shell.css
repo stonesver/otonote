@@ -593,15 +593,12 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] :is(.gallery-heading,.costume-heading,.bgm-heading,.pr-page-heading,.tools-opening,.immersive-heading):empty { display:none; }
 [data-shell="sidebar"] .task-studio > .catalog-section { padding-top:16px; }
 
-/* Theme details stay in the frame, away from game artwork and data colors. */
+/* Two color roles: navigation uses the accent, the top bar introduces its partner. */
 [data-shell="sidebar"] .site-header {
-  background:var(--theme-shell-surface);
+  background:var(--theme-header-surface);
   box-shadow:0 8px 24px color-mix(in srgb,var(--theme-shadow-color) 6%,transparent);
 }
-[data-shell="sidebar"] .site-header::after {
-  content:""; position:absolute; inset:auto 16px 0; height:3px;
-  border-radius:3px; background:var(--theme-ribbon); pointer-events:none;
-}
+[data-shell="sidebar"] .site-header::after { content:none; }
 [data-shell="sidebar"] .site-nav { background:var(--theme-shell-surface); }
 [data-shell="sidebar"] :is(.nav-primary,.nav-home,.nav-submenu a)[aria-current="page"] {
   color:var(--theme-on-accent); background:var(--theme-accent); box-shadow:none;
@@ -614,4 +611,9 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] .site-footer { border-top-color:var(--theme-shell-edge); }
 @media(min-width:1101px) {
   [data-shell="sidebar"] .site-brand { background:var(--theme-shell-surface); }
+}
+
+[data-shell="sidebar"] .site-header :is(.site-breadcrumb a, .theme-picker-trigger, .sidebar-collapse, .global-search-trigger, .context-switcher > summary, .context-switcher > summary strong),
+[data-shell="sidebar"] .site-nav :is(.nav-caption, .nav-bottom small, .nav-workspace, .nav-submenu a:not([aria-current])) {
+  color:var(--theme-text-soft);
 }

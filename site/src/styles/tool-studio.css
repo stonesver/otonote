@@ -10,14 +10,8 @@
  --calc-surface:#fff; --calc-tint:var(--studio-tint); --calc-positive:#327867;
 }
 .tool-studio [hidden] {display:none!important;}
-.tool-studio>.tool-page-header {background:transparent;padding:18px 0 14px;}
-.tool-studio .tool-page-header h1 {display:flex;align-items:center;gap:13px;font:700 clamp(23px,2.5vw,28px)/1.3 var(--font-body);letter-spacing:-.04em;color:var(--studio-ink);}
-.tool-studio .tool-page-back {font-size:11px;margin-bottom:9px;gap:8px;}
-.tool-studio .tool-page-back span {display:none;}.tool-studio .tool-page-back::before {content:none;}
 .tool-studio .tool-title-glyph {display:grid;place-items:center;width:34px;height:34px;flex-shrink:0;background:var(--tool-tint,#e6dce7);border:1px solid var(--tool-border,#d9c9da);border-radius:8px;color:var(--studio-accent);}
 .tool-title-glyph svg {width:24px;height:24px;}
-.tool-studio .tool-page-header p {font-size:12px;color:var(--studio-muted);margin-top:8px;}
-.tool-studio .tool-page-meta {padding:0 0 0 16px;border:0;border-left:2px solid var(--tool-border,#c8b5c9);border-radius:0;color:var(--studio-muted);font-size:10px;max-width:170px;line-height:1.8;}
 .tool-studio>.catalog-section {background:transparent;padding-top:0;padding-bottom:24px;}
 .tool-studio :is(.ranking-shell,.content-shell) {max-width:1400px;}
 .tool-studio .ranking-shell {padding-top:0;}
@@ -49,10 +43,8 @@
 .tool-studio :is(.tool-help,.calculator-notes,.scoring-snapshot-details)>summary {padding:12px 0;cursor:pointer;font-weight:550;}
 .tool-studio :is(.calculator-links,.event-links) a {display:inline-flex;align-items:center;gap:5px;padding:8px 11px;border:1px solid var(--tool-border,#e1d5e0);border-radius:8px;background:var(--tool-tint,#fcf9fc);color:var(--studio-accent);font-size:11px;text-decoration:none;line-height:1.6;}
 .tool-studio :is(.calculator-links,.event-links) a:hover {border-color:var(--tool-accent,#b496ad);background:var(--tool-tint,#f5edf2);}
-.tool-studio :is(.calculator-journey>.journey-step,.event-panel,.tool-saved-team,.tool-song-disclosure,.ranking-board,.journey-saved) {border:1px solid var(--studio-line);border-radius:10px;box-shadow:none;background:#fff;}
-.tool-studio :is(.event-panel,.tool-saved-team) {padding:16px;}
-.tool-studio :is(.event-panel h2,.tool-saved-team h2,.journey-step>h3) {font:700 18px/1.45 var(--font-body);letter-spacing:-.025em;color:var(--studio-ink);margin:0 0 12px;}
-.tool-studio :is(.event-panel>p,.tool-saved-team p,.journey-intro) {font-size:12px;line-height:1.85;color:var(--studio-muted);}
+.tool-studio :is(.event-panel) {padding:16px;}
+.tool-studio :is(.event-panel>p,.journey-intro) {font-size:12px;line-height:1.85;color:var(--studio-muted);}
 .tool-studio :is(.event-controls,.event-context) label {font-size:11px;font-weight:550;color:var(--tool-muted,#5b687a);gap:8px;}
 .tool-studio .event-controls {gap:18px 16px;}.tool-studio .event-controls label {min-width:0;flex-basis:160px;}
 .tool-studio :is(.event-primary,button[data-ap-run],button[data-optimize-pairing],button[data-yield-run]) {
@@ -61,19 +53,6 @@
 .tool-studio :is(.event-primary,button[data-ap-run],button[data-optimize-pairing],button[data-yield-run]):hover:not(:disabled) {background:var(--tool-hover,#63344e);border-color:var(--tool-hover,#63344e);box-shadow:0 5px 12px #79456024;}
 .tool-studio :is(button[data-ap-run],button[data-optimize-pairing],button[data-yield-run])::after {content:none;}
 /* Team builder: a clear song desk next to the two smaller decisions. */
-.tool-studio .calculator-journey {gap:18px;grid-template-columns:minmax(0,1.12fr) minmax(300px,1fr);}
-.tool-studio .calculator-journey>.journey-heading {padding:0 2px;color:var(--studio-muted);}.tool-studio .journey-heading>button {font-size:11px;}
-.tool-studio .calculator-journey>.journey-tasks {padding:4px;gap:4px;border:1px solid var(--tool-border,#d8dee7);border-radius:11px;background:var(--tool-page,#e8ecf2);justify-self:start;}
-.tool-studio .calculator-journey .journey-tasks button {border:0;min-height:38px;padding:8px 18px;font-size:12px;font-weight:650;color:var(--studio-muted);}
-.tool-studio .calculator-journey .journey-tasks button[aria-pressed=true] {background:white;color:var(--studio-accent);box-shadow:0 2px 5px #344d6710;}
-.tool-studio .calculator-journey>.journey-step {padding:16px;gap:8px;}
-.tool-studio .calculator-journey .journey-choices button {position:relative;padding:14px 36px 14px 15px;background:#f9fafc;border-color:var(--tool-border,#e0e5ec);border-radius:11px;}
-.tool-studio .calculator-journey .journey-choices button strong {font-size:13px;color:var(--studio-ink);margin:0 0 5px;}
-.tool-studio .calculator-journey .journey-choices button span {font-size:11px;line-height:1.7;color:var(--studio-muted);}
-.tool-studio .calculator-journey .journey-choices button[aria-pressed=true] {background:var(--studio-tint);border-color:var(--tool-accent,#b79aae);box-shadow:none;}
-.tool-studio .calculator-journey .journey-choices button::after {top:16px;right:13px;}
-.tool-studio .journey-step :is(.journey-manual,.journey-advanced) {padding:12px 14px;border-color:var(--tool-border,#e0e5ec);background:var(--tool-surface,#fafbfd);}
-.tool-studio .journey-step .calculator-start {display:block;border-top:1px solid var(--studio-line);padding-top:16px;}
 .tool-studio .calculator-start .optimizer-actions {display:flex;gap:8px;margin-top:12px;}
 .tool-studio .calculator-start .optimizer-actions [data-optimize-pairing] {width:100%;min-height:46px;font-size:13px;}
 .tool-studio .calculator-song-picker .song-selection-pin {background:#edf3f9;border:1px solid #dce7f1;border-radius:9px;padding:10px 12px;color:var(--studio-blue);}
@@ -84,15 +63,11 @@
 .tool-studio .song-picker-jacket {border-radius:8px;box-shadow:0 2px 6px #27344615;}
 .tool-studio .song-picker-difficulties>.song-difficulty {border-radius:7px;background:color-mix(in srgb,var(--difficulty-color) 5%,#fff);border-color:color-mix(in srgb,var(--difficulty-color) 22%,#fff);min-height:46px;}
 .tool-studio .song-picker-difficulties>.song-difficulty[aria-pressed=true] {color:white;background:var(--difficulty-color);border-color:var(--difficulty-color);box-shadow:none;}
-.tool-studio .calculator-journey .journey-step[data-journey-step="3"] {border-color:#cbdce9;background:var(--tool-surface,#f9fcff);}
 .tool-studio .calculator-empty {background:var(--tool-page,#eff4f9);border:1px dashed #cad7e4;}
 /* Single-song score follows the inputs in normal flow, without a floating panel. */
 .tool-studio .scoring-research-workbench {display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start;}
 .tool-studio .scoring-research-workbench>* {min-width:0;}
 .tool-studio .scoring-research-workbench>.tool-help,.tool-studio .scoring-research-workbench>.scoring-snapshot-details {grid-column:1/-1;margin:0;padding:0 4px;border-top:1px solid var(--studio-line);}
-.tool-studio .tool-saved-team {margin:0 0 16px;}
-.tool-studio .tool-saved-team h2 {font-size:17px;}.tool-studio .tool-saved-team label {font-size:11px;gap:8px;color:var(--studio-muted);}
-.tool-studio .tool-saved-team select {max-width:none;}
 .tool-studio .tool-team-strip {gap:6px;margin:16px 0;}
 .tool-studio .tool-team-strip>div {border:1px solid var(--tool-border,#e1e6ed);background:var(--tool-page,#f6f8fb);border-radius:10px;padding:7px 4px;text-align:center;}
 .tool-studio .tool-team-strip img {width:90%;height:66px;}.tool-studio .tool-team-strip img+img {height:40px;margin-top:4px;}.tool-studio .tool-team-strip small {font-size:9px;color:var(--studio-muted);line-height:1.65;margin-top:5px;}
@@ -136,7 +111,6 @@
 .tool-studio .event-context {padding:20px;border:1px solid var(--studio-line);background:#fff;border-radius:15px;grid-template-columns:minmax(200px,1.2fr) minmax(220px,1fr) minmax(200px,.9fr);gap:20px;}
 .tool-studio .event-context>label {min-width:0;}
 .tool-studio .event-hint {font-size:11px;line-height:1.8;}
-.tool-studio .event-workbench:not(.ap-workbench) .event-layout {gap:20px;}
 .tool-studio .event-summary {background:var(--tool-page,#e9f0f7);border:1px solid var(--tool-border,#cad9e6);border-radius:17px;padding:22px;box-shadow:var(--studio-shadow);}
 .tool-studio .event-summary-label {font:650 10px var(--font-mono);color:#496b88;}
 .tool-studio .event-summary-main {border-color:var(--tool-border,#cddce9);padding:20px 0;}
@@ -171,15 +145,9 @@
 .tool-studio .ux-card-picker {border-color:#d8e1eb;border-radius:18px;box-shadow:0 24px 90px #26344b40;}
 .tool-studio .ux-card-picker .ux-card-grid button {border-color:#dce4ed;background:var(--tool-surface,#f9fbfd);border-radius:11px;}
 .tool-studio .ux-card-picker .ux-card-grid button:hover:not(:disabled) {background:#f4edf4;border-color:#ac8aa6;}
-@media(min-width:1151px){.tool-studio .event-layout {grid-template-columns:minmax(0,1fr) 280px;}}
 @media(max-width:1250px){.tool-studio .scoring-research-workbench {gap:16px;}.tool-studio .score-output {padding:20px;}.tool-studio .event-context {grid-template-columns:1fr 1fr;}.tool-studio .event-context>label:first-child {grid-column:1/-1;}.tool-studio .ap-workbench .event-panel {padding:20px;}}
 @media(max-width:1050px){.tool-studio .scoring-research-workbench {grid-template-columns:1fr;}.tool-studio .score-output {position:static;}.tool-studio ap-grade-tool.ap-workbench {grid-template-columns:1fr;}.tool-studio .ap-settings-panel .event-controls {grid-template-columns:1fr 1fr;}.tool-studio .ap-settings-panel .event-controls:has([data-ap-run]) {grid-template-columns:1fr;}.tool-studio .tool-team-strip img {width:48%;height:66px;}.tool-studio .tool-team-strip img+img {height:52px;}.tool-studio .ranking-controls {flex-wrap:wrap;}}
-@media(max-width:700px){
- .tool-studio>.tool-page-header {padding:22px 0 20px;}.tool-studio .tool-page-header h1 {font-size:25px;gap:10px;}.tool-studio .tool-title-glyph {width:38px;height:38px;border-radius:11px;}.tool-studio .tool-title-glyph svg {width:26px;height:26px;}
- .tool-studio .tool-page-header p {font-size:12px;line-height:1.8;}.tool-studio .tool-page-back {margin-bottom:12px;}
- .tool-studio :is(.event-panel,.tool-saved-team,.calculator-journey>.journey-step,.score-output) {padding:18px;border-radius:14px;}
- .tool-studio .calculator-journey>.journey-tasks {align-self:stretch;}.tool-studio .calculator-journey .journey-tasks button {flex:1;font-size:12px;padding-inline:8px;}
- .tool-studio .calculator-journey .journey-choices button {padding:13px 36px 13px 13px;}
+@media(max-width:700px){.tool-studio .tool-title-glyph {width:38px;height:38px;border-radius:11px;}.tool-studio .tool-title-glyph svg {width:26px;height:26px;}
  .tool-studio .tool-options button {min-height:38px;font-size:11px;padding:8px 10px;}
  .tool-studio .calculator-song-picker .song-picker-row {padding:12px;}.tool-studio .song-picker-difficulties>.song-difficulty {min-height:42px;}
  .tool-studio .selection-filter-toolbar {gap:7px;}.tool-studio .selection-filter-toolbar .filter-drawer-trigger {font-size:11px;padding:8px 10px;}
@@ -265,16 +233,9 @@
 .tool-studio :is(.calculator-links,.event-links) a {min-height:30px;padding:4px 9px;border-radius:5px;box-shadow:none;}
 .tool-studio :is(.event-primary,button[data-ap-run],button[data-optimize-pairing],button[data-yield-run]),
 .tool-studio .calculator-start .optimizer-actions [data-optimize-pairing] {min-height:34px;padding:6px 12px;border-radius:5px;font-size:12px;box-shadow:none;}
-.tool-studio .calculator-journey>.journey-tasks {padding:2px;gap:2px;border-radius:6px;background:#f4f5f7;}
-.tool-studio .calculator-journey .journey-tasks button {min-height:30px;padding:4px 10px;border-radius:4px;font-size:12px;box-shadow:none;}
-.tool-studio .calculator-journey .journey-choices button {padding:10px 30px 10px 12px;border-radius:6px;}
-.tool-studio .calculator-journey .journey-choices button strong {font-size:12px;margin-bottom:3px;}
-.tool-studio .calculator-journey .journey-choices button span {line-height:1.5;}
 .tool-studio :is(.score-output,.calculator-extra-body)>label:has(>.tool-choice-group) {gap:6px;}
 @media(max-width:700px){
- .tool-studio>.tool-page-header {padding:16px 0 12px;}
  .tool-studio .tool-title-glyph {width:32px;height:32px;border-radius:7px;}
  .tool-studio .tool-title-glyph svg {width:23px;height:23px;}
- .tool-studio :is(.event-panel,.tool-saved-team,.calculator-journey>.journey-step,.score-output) {padding:14px;border-radius:9px;}
 }
 @media(pointer:coarse){.tool-studio {--tool-control-height:36px;}}

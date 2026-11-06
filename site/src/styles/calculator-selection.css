@@ -112,14 +112,9 @@
 .team-workbench .score-lineup {grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
 .team-workbench .score-face>.card-skill-trigger {align-self:flex-start;}
 .team-workbench .score-face>strong {font-size:12px;}
-[data-shell=sidebar] .team-workbench .team-slot-list {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;}
 [data-shell=sidebar] .team-workbench .team-slot {display:flex;flex-direction:column;gap:8px;padding:8px;}
 [data-shell=sidebar] .team-workbench .team-slot-number {padding:6px 4px;border:0;border-bottom:1px solid var(--calc-line);border-radius:0;cursor:pointer;min-height:32px;width:100%;background:transparent;color:var(--calc-accent);}
 [data-shell=sidebar] .team-workbench .team-slot-pair {display:grid;grid-template-columns:1fr;gap:10px;}
-[data-shell=sidebar] .team-workbench .team-slot-card {display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:0;border:0;}
-[data-shell=sidebar] .team-workbench .team-slot-card img {width:100%;height:75px;object-fit:contain;}
-[data-shell=sidebar] .team-workbench .team-slot-card--support img {height:45px;}
-[data-shell=sidebar] .team-workbench .team-slot-card strong {font-size:11px;}
 .team-workbench .card-preview .card-skill-trigger {margin-top:8px;}
 @media(max-width:850px) {
  .team-workbench .selection-filter-grid,.team-workbench .inventory-filters {grid-template-columns:repeat(2,minmax(0,1fr));}
@@ -132,7 +127,6 @@
  .team-workbench .selection-filters {padding:12px;}.team-workbench .inventory-grid,[data-shell=sidebar] .team-workbench .team-picker-results {grid-template-columns:1fr;}
  .team-workbench .card-identity>img,[data-shell=sidebar] .team-workbench .team-picker-tile .card-identity>img {width:50px;height:60px;}.team-workbench .selection-results-bar {flex-wrap:wrap;}
  .team-workbench .score-lineup {grid-template-columns:repeat(2,minmax(0,1fr));}
- [data-shell=sidebar] .team-workbench .team-slot-list {display:flex;overflow:auto;scroll-snap-type:x proximity;}
  [data-shell=sidebar] .team-workbench .team-slot {flex:0 0 130px;scroll-snap-align:start;}
 }
 .team-workbench :is(.selection-filters,.card-picker-workspace,.inventory-body) :is(button,input,select,summary):focus-visible,.card-skill-trigger:focus-visible,.skill-popover-close:focus-visible {outline:2px solid #763b63;outline-offset:3px;}

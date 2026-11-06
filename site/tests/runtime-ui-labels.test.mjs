@@ -47,18 +47,12 @@ test("runtime owners consume labels instead of hard-coded Chinese UI", async () 
 });
 
 test("dynamic owners explicitly mark entity-data ownership boundaries", async () => {
-  const sources = await Promise.all(
-    [
-      "../src/components/TeamDraftWorkbench.astro",
-      "../src/lib/team-draft-workbench.mjs",
-      "../src/lib/scoring-research-workbench.mjs"
-    ].map((path) =>
-      readFile(new URL(path, import.meta.url), "utf8")
-    )
-  );
-  assert.equal(
-    sources.every((source) =>
-      source.includes("uiEntity") || source.includes("data-ui-entity")),
-    true
-  );
+  const paths = [
+    "../src/lib/preset-portfolio-ui.mjs",
+    "../src/lib/scoring-research-workbench.mjs"
+  ];
+  for (const path of paths) {
+    const source = await readFile(new URL(path, import.meta.url), "utf8");
+    assert.match(source, /uiEntity|data-ui-entity/, `${path} must preserve entity text`);
+  }
 });

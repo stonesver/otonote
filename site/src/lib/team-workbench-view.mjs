@@ -27,8 +27,8 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   const events = new AbortController();
   const listen = (n,event,handler) => n.addEventListener(event,handler,{signal:events.signal});
   host.classList.add('team-builder-view');
-  const tasks=q('.journey-tasks'), saved=q('[data-journey-task="saved"]');
-  const resultStep=q('[data-journey-step="3"]'), results=q('[data-pairing-results]');
+  const tasks=q('.team-task-switch'), saved=q('[data-team-task="saved"]');
+  const resultStep=q('[data-team-results]'), results=q('[data-pairing-results]');
   const run=q('[data-optimize-pairing]'), cancel=q('[data-cancel-pairing]');
   const feedback=q('[data-calculation-progress="pairing"]'), progress=q('[data-pairing-progress]');
   const guidance=q('[data-calculator-guidance]'), notes=q('.calculator-notes');
@@ -58,7 +58,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   grid.append(goals,growth);
   context.append(node('h2','计算条件','ds-panel-title'),grid);
   if(host.calculationScope){grid.append(q('[data-playlist-task]'));context.append(host.calculationScope.root);}
-  q('.journey-choices').hidden=true;
+  q('.workbench-mode-choices').hidden=true;
   const footer=node('div',null,'team-setup-actions'), advancedSummary=node('span',null,'team-advanced-summary');
   adjust.textContent=ui('高级设置');adjust.classList.add('team-advanced-entry');
   footer.append(adjust,advancedSummary);context.append(footer,guidance);
@@ -83,7 +83,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   q('.calculator-start').hidden=true;
   aside.hidden=true;tags.hidden=true;
   enhanceTaskSwitcher(tasks,[
-    {button:q('[data-journey-task="automatic"]'),icon:'team'},
+    {button:q('[data-team-task="automatic"]'),icon:'team'},
     {button:saved,icon:'compare'},
   ]);
 
@@ -106,7 +106,6 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
 
   function refresh() {
     const comparing=saved.getAttribute('aria-pressed')==='true';
-    for(const step of [0,1,2])q(`[data-journey-step="${step}"]`).hidden=true;
     workspaceStatus.hidden=!host.teamWorkspaceContext?.error;
     setText(cancel,ui('停止'));
     const optimizer=host.optimizerState??{};
@@ -159,7 +158,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
     q('#optimizer-results').hidden=!resultCount;
     q('#optimizer-results-title').closest('header').hidden=!resultCount;
     notes.hidden=state==='running'||state==='error'||!optimizer.finished;
-    const help=q('.journey-help');if(help)help.hidden=comparing;
+    const help=q('.team-help');if(help)help.hidden=comparing;
   }
   const observer=new MutationObserver(refresh);
   observer.observe(results,{childList:true});

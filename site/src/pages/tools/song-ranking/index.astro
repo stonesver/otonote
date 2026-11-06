@@ -1,6 +1,5 @@
 ---
 import "../../../styles/tool-studio.css";
-import ToolPageHeader from "../../../components/ToolPageHeader.astro";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import ScoringModelNotice from '../../../components/ScoringModelNotice.astro';
 import { catalog } from '../../../lib/shared-catalog';
@@ -27,7 +26,7 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
 
 <BaseLayout title="歌曲排行榜">
 <div class="tool-studio" data-tool-kind="song-ranking">
-  <ToolPageHeader kind="song-ranking" title="歌曲排行榜" description="完整谱面数据 · 点表头排序 · 横向比较" />
+
   <div class="content-shell ranking-shell">
     <song-ranking class="song-ranking" data-site-edition={catalog.release.region}>
       <script is:inline type="application/json" data-ranking-data set:html={data}></script>

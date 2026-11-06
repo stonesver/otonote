@@ -1,6 +1,5 @@
 ---
 import "../../../styles/tool-studio.css";
-import ToolPageHeader from "../../../components/ToolPageHeader.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 import ScoringResearchWorkbench from "../../../components/ScoringResearchWorkbench.astro";
 import SourceDisclosure from "../../../components/SourceDisclosure.astro";
@@ -10,7 +9,7 @@ import "../../../styles/tools.css";
 
 <BaseLayout title="歌曲计算">
 <div class="tool-studio" data-tool-kind="song-calculator">
-  <ToolPageHeader kind="song-calculator" title="歌曲计算" description="带入队伍与养成，查看预估分数、技能覆盖和计分明细。" meta="平均分 · 分数范围 · 明细" />
+
   <section class="catalog-section scoring-research-section">
     <div class="content-shell">
       <ScoringResearchWorkbench />

@@ -9,6 +9,6 @@ export function getStaticPaths() { return eventRecords.filter(event => event.sto
 const event = eventRecords.find(event => String(event.id) === Astro.params.id)!;
 const copy = eventCopy(activeReleaseContext.locale);
 ---
-<BaseLayout title={`${event.name} · ${copy.stories}`}>
+<BaseLayout contentHeading title={`${event.name} · ${copy.stories}`}>
   <EventStoryCollection event={event} locale={activeReleaseContext.locale} href={eventHref} artwork={eventArtworks[event.id]} readableIds={readableEventStoryIds} />
 </BaseLayout>

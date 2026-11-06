@@ -4,7 +4,7 @@
 .workbench-route-tabs { display: flex; gap: 6px; width: fit-content; padding: 4px; border-radius: 12px; background: var(--paper-deep); }
 .workbench-route-tabs a { padding: 9px 20px; border-radius: 9px; font-size: 13px; font-weight: 700; }
 .workbench-route-tabs a[aria-current] { background: var(--paper-light); color: var(--lacquer); box-shadow: 0 2px 5px #11131b0b; }
-[data-shell="sidebar"] .team-workbench :is(.team-builder,.team-card-picker,.team-draft-settings,.production-power-panel,.tool-capability) { padding: 18px; margin: 0; min-height: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--paper-light); }
+[data-shell="sidebar"] .team-workbench :is(.team-builder,.team-draft-settings,.production-power-panel,.tool-capability) { padding: 18px; margin: 0; min-height: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--paper-light); }
 [data-shell="sidebar"] .team-workbench .tool-panel-header { margin-bottom: 14px; gap: 10px; }
 [data-shell="sidebar"] .team-workbench .tool-panel-header h2 { margin: 3px 0 0; font: 700 18px/1.4 var(--font-body); }
 [data-shell="sidebar"] .team-workbench .tool-panel-header :is(p,a) { font-size: 12px; color: var(--silver-dark); }
@@ -21,18 +21,10 @@
 [data-shell="sidebar"] .team-workbench [data-tgw-bonus-note] { grid-column: 1/-1; font-size: 11px; margin: 0; color: var(--silver-dark); }
 [data-shell="sidebar"] .team-workbench .team-validation { padding: 7px 10px; margin-top: 10px; border-radius: 6px; font-size: 12px; }
 [data-shell="sidebar"] .team-workbench .team-validation p { display: inline; margin-right: 8px; }
-[data-shell="sidebar"] .team-workbench .team-workbench-grid { grid-template-columns: minmax(0,1fr) 230px; gap: 14px; margin: 0; align-items: start; }
-[data-shell="sidebar"] .team-workbench .team-slot-list { grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; }
 [data-shell="sidebar"] .team-workbench .team-slot { display: flex; flex-direction: column; gap: 6px; padding: 8px; min-width: 0; border: 1px solid var(--line); background: var(--paper); }
 [data-shell="sidebar"] .team-workbench .team-slot.is-active { border-color: var(--lacquer); background: #f8eef2; box-shadow: 0 0 0 1px var(--lacquer); }
 [data-shell="sidebar"] .team-workbench .team-slot-number { width: auto; font: 700 10px var(--font-mono); white-space: nowrap; }
 [data-shell="sidebar"] .team-workbench .team-slot-pair { display: grid; grid-template-columns: 1fr; gap: 6px; width: 100%; }
-[data-shell="sidebar"] .team-workbench .team-slot-card { display: grid; grid-template-columns: minmax(0,1fr); min-height: 50px; padding: 4px; gap: 4px; border: 1px dashed var(--line); border-radius: 5px; min-width: 0; text-align: center; }
-[data-shell="sidebar"] .team-workbench .team-slot-card.is-empty { place-items: center; font-size: 11px; }
-[data-shell="sidebar"] .team-workbench .team-slot-card img { width: 100%; height: 64px; object-fit: contain; margin: 0; }
-[data-shell="sidebar"] .team-workbench .team-slot-card--support img { height: 37px; }
-[data-shell="sidebar"] .team-workbench .team-slot-card strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; font: 600 10px/1.4 var(--font-body); }
-[data-shell="sidebar"] .team-workbench .team-slot-card small { display: none; }
 [data-shell="sidebar"] .team-workbench summary { padding: 8px 0; cursor: pointer; font-size: 12px; font-weight: 600; }
 [data-shell="sidebar"] .team-workbench details > p { font-size: 12px; color: var(--silver-dark); }
 [data-shell="sidebar"] .team-workbench .workbench-rules { display: block; background: transparent; }
@@ -61,13 +53,8 @@
 .optimizer-result-pair img { width: 44px; height: 56px; object-fit: contain; border-radius: 5px; }
 [data-inventory-cards] { max-height: 430px; overflow: auto; }
 [data-inventory-cards] table { min-width: 580px; font-size: 12px; }
-@media(max-width:1100px) {
-  [data-shell="sidebar"] .team-workbench .team-workbench-grid { grid-template-columns: minmax(0,1fr); }
-  [data-shell="sidebar"] .team-workbench .team-workbench-grid > * { min-width: 0; }
-}
 @media(max-width:600px) {
-  [data-shell="sidebar"] .team-workbench :is(.team-builder,.team-card-picker,.team-draft-settings,.production-power-panel,.tool-capability) { padding: 13px; }
-  [data-shell="sidebar"] .team-workbench .team-slot-list { display: flex; overflow-x: auto; padding: 3px; scroll-snap-type: x proximity; }
+  [data-shell="sidebar"] .team-workbench :is(.team-builder,.team-draft-settings,.production-power-panel,.tool-capability) { padding: 13px; }
   [data-shell="sidebar"] .team-workbench .team-slot { flex: 0 0 100px; scroll-snap-align: start; }
   [data-shell="sidebar"] .team-workbench .team-context-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
   [data-shell="sidebar"] .team-workbench .team-context-controls label:first-child { grid-column: 1/-1; }

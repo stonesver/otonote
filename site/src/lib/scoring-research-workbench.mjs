@@ -59,7 +59,6 @@ class ScoringResearchWorkbench extends HTMLElement {
     if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshToolTeamGrowth(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=toolTeamInputState(this.draft,this.known).growthIsReference;}catch(error){this.scenarioError=error.message;parsed.issues.push({code:'planning_unavailable',severity:'warning',message:error.message});}
     this.inputIssues=parsed.issues;this.inputRequest=0;this.scoreRequest=0;
     this.shortcuts=setupQuickOptions(this);
-    this.querySelector('[data-score-song-picker]').open=!this.draft.selectedSongId;
 
     this.querySelector('[data-calculator-song]').value=this.draft.selectedSongId??'';
     this.querySelector('[data-calculator-difficulty]').value=this.draft.selectedDifficulty??'';
@@ -68,7 +67,6 @@ class ScoringResearchWorkbench extends HTMLElement {
     }
     this.songPicker=setupCalculatorSongPicker(this,{getCalculationScope:()=>null,getSelection:()=>this.draft,onSelect:selection=>{
       Object.assign(this.draft,selection);
-      this.querySelector('[data-score-song-picker]').open=false;
       this.querySelector('[data-calculator-song]').value=selection.selectedSongId;
       this.querySelector('[data-calculator-difficulty]').value=selection.selectedDifficulty;
       this.refreshInput();

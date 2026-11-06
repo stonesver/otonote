@@ -181,24 +181,6 @@
  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-dialog :is(select,input,textarea) { font-size:16px; }
  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-song-dialog { height:100dvh; max-height:100dvh; }
 }
-html:has(.site-tool-nav) .site-header .site-tool-nav { display:flex; align-items:center; gap:4px; min-width:0; margin:0; padding:0; border:0; background:none; box-shadow:none; }
-html:has(.site-tool-nav) .site-header .site-tool-nav a { display:flex; align-items:center; justify-content:center; min-height:36px; padding:0 12px; border:0; border-radius:6px; color:var(--silver-dark); font:600 13px/1.3 var(--font-body); white-space:nowrap; }
-html:has(.site-tool-nav) .site-header .site-tool-nav a[aria-current=page] { color:var(--lacquer); background:color-mix(in srgb,var(--lacquer) 9%,transparent); }
-html:has(.site-tool-nav) .site-header .site-tool-nav a:hover { background:color-mix(in srgb,var(--lacquer) 6%,transparent); }
-.task-studio.tool-top-navigation > .tool-page-header { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); }
-.task-studio.tool-top-navigation > .catalog-section { padding-top:16px; }
-
-@media(min-width:701px) and (max-width:1100px) {
- html:has(.site-tool-nav)[data-shell=sidebar] .site-header { grid-template-columns:auto minmax(0,1fr) auto auto auto; }
- html:has(.site-tool-nav) .site-header .site-tool-nav { justify-content:center; }
-}
-@media(max-width:700px) {
- html:has(.site-tool-nav) { --header-height:90px; }
- html:has(.site-tool-nav) .site-header .site-tool-nav { grid-column:1/-1; grid-row:2; justify-content:center; border-top:1px solid var(--line); padding-top:4px; }
- html:has(.site-tool-nav) .site-header .site-tool-nav a { flex:1; min-height:32px; padding:4px; font-size:12px; }
-}
-
-html:has(.site-tool-nav) .page-editions { display:none; }
 @media(max-width:700px) {
  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-single-summary { display:block; }
  .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-single-summary dl { margin-top:8px; }

@@ -510,14 +510,6 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
   [data-shell="sidebar"] .db-tile-kicker { flex-direction: row; align-items: center; }
 }
 
-/* Independent archive mark, shared by the browser tab and site identity. */
-[data-shell="sidebar"] .site-brand { padding-left:60px; padding-right:10px; font-size:21px; }
-.site-brand__mark { position:absolute; left:16px; top:17px; width:34px; height:34px; }
-.site-footer-brand { display:flex; align-items:center; gap:9px; }
-@media(max-width:1100px) {
- [data-shell="sidebar"] .site-brand { position:relative; padding:0 0 0 38px; }
- .site-brand__mark { left:0; top:50%; transform:translateY(-50%); width:29px; height:29px; }
-}
 /* Dense reference rows: retain readable titles and let details carry the full text. */
 [data-shell="sidebar"] .db-catalog-list { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
 [data-shell="sidebar"] .db-tile { grid-template-columns:32px minmax(0,1fr); gap:0 8px; padding:9px; border-radius:9px; box-shadow:none; }
@@ -534,3 +526,69 @@ html[data-shell="sidebar"] { scroll-padding-top: calc(var(--header-height) + 20p
 [data-shell="sidebar"] .db-controls { padding:10px; }
 @media(max-width:1250px) { [data-shell="sidebar"] .db-catalog-list { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:600px) { [data-shell="sidebar"] .db-catalog-list { grid-template-columns:minmax(0,1fr); } }
+
+/* The frame floats as two soft surfaces; the logo belongs to the navigation rail. */
+[data-shell="sidebar"] { --sidebar-width:224px; --header-height:76px; }
+[data-shell="sidebar"] .site-header {
+  grid-template-columns:auto minmax(0,1fr) auto auto;
+  margin:12px 16px 0 8px; padding:0 20px; height:56px; min-height:56px;
+  top:12px; border:0; border-radius:var(--theme-radius); box-shadow:var(--theme-shadow);
+}
+[data-shell="sidebar"] .site-brand {
+  top:12px; left:12px; width:calc(var(--sidebar-width) - 24px); height:64px;
+  flex-direction:row; gap:10px; padding:0 12px; justify-content:flex-start;
+  border:0; border-radius:var(--theme-radius) var(--theme-radius) 0 0;
+  font-family:var(--font-body); font-size:21px; letter-spacing:-.05em;
+}
+[data-shell="sidebar"] .site-brand__mark { position:static; transform:none; width:34px; height:34px; flex:none; padding:5px; border-radius:11px; background:color-mix(in srgb,var(--lacquer) 8%,var(--paper-light)); }
+[data-shell="sidebar"] .site-brand__full { display:inline; }
+[data-shell="sidebar"] .site-brand__compact { display:none; }
+[data-shell="sidebar"] .site-nav {
+  inset:76px auto 12px 12px; width:calc(var(--sidebar-width) - 24px);
+  height:calc(100dvh - 88px); padding:12px 10px; border:0;
+  border-radius:0 0 var(--theme-radius) var(--theme-radius); box-shadow:0 14px 18px color-mix(in srgb,var(--ink) 3%,transparent);
+}
+[data-shell="sidebar"] .nav-browse { border-top:0; margin-top:12px; padding-top:10px; }
+[data-shell="sidebar"] .nav-bottom { border-top:0; }
+[data-shell="sidebar"] .nav-submenu a { color:var(--silver-dark); }
+.sidebar-collapse { display:grid; place-items:center; width:40px; height:40px; border:0; border-radius:10px; color:var(--silver-dark); background:transparent; cursor:pointer; }
+.sidebar-collapse svg { width:22px; height:22px; }
+.sidebar-collapse:hover { color:var(--lacquer); background:var(--paper); }
+.sidebar-collapse:focus-visible { outline:2px solid var(--lacquer); outline-offset:3px; }
+.sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip-path:inset(50%)!important; white-space:nowrap!important; border:0!important; }
+@media(min-width:1101px) {
+  [data-sidebar-collapsed="true"] { --sidebar-width:88px; }
+  [data-sidebar-collapsed="true"] .site-brand { padding:0; justify-content:center; }
+  [data-sidebar-collapsed="true"] .site-brand__full,
+  [data-sidebar-collapsed="true"] .nav-caption,
+  [data-sidebar-collapsed="true"] .nav-bottom,
+  [data-sidebar-collapsed="true"] .nav-submenu-toggle,
+  [data-sidebar-collapsed="true"] .nav-submenu { display:none; }
+  [data-sidebar-collapsed="true"] .nav-group { grid-template-columns:1fr; }
+  [data-sidebar-collapsed="true"] :is(.nav-primary,.nav-home) { justify-content:center; padding:10px; }
+  [data-sidebar-collapsed="true"] :is(.nav-primary,.nav-home)>span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  [data-sidebar-collapsed="true"] .sidebar-collapse svg { transform:rotate(180deg); }
+}
+@media(max-width:1100px) {
+  [data-shell="sidebar"] { --shell-top:max(8px, env(safe-area-inset-top)); }
+  [data-shell="sidebar"] .site-header { grid-template-columns:auto minmax(0,1fr) auto auto auto; gap:10px; margin:var(--shell-top) 10px 0; top:var(--shell-top); padding:0 12px; }
+  [data-shell="sidebar"] .site-brand { position:static; width:32px; height:44px; padding:0; background:transparent; }
+  [data-shell="sidebar"] .site-brand__full { display:none; }
+  [data-shell="sidebar"] .site-brand__mark { width:32px; height:32px; }
+  [data-shell="sidebar"] .site-breadcrumb { display:flex; font-size:12px; }
+  [data-shell="sidebar"] .site-breadcrumb>*:not(:last-child) { display:none; }
+  [data-shell="sidebar"] .sidebar-collapse { display:none; }
+  [data-shell="sidebar"] .site-nav { top:calc(var(--shell-top) + 68px); height:calc(100dvh - var(--shell-top) - 80px); width:min(300px,calc(100vw - 40px)); border-radius:var(--theme-radius); }
+  .nav-backdrop { inset:calc(max(8px, env(safe-area-inset-top)) + 64px) 0 0; }
+}
+@media(max-width:560px) {
+  [data-shell="sidebar"] .site-header { gap:6px; }
+  [data-shell="sidebar"] .context-switcher summary { max-width:90px; }
+  [data-shell="sidebar"] .site-breadcrumb { gap:0; }
+  [data-shell="sidebar"] .site-breadcrumb>:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  [data-shell="sidebar"] .context-switcher summary strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+}
+/* Directory pages start with their controls and content. */
+[data-shell="sidebar"] :is(.gallery-heading,.costume-heading,.bgm-heading,.pr-page-heading,.tools-opening,.immersive-heading) { padding-block:12px; margin-block:0 12px; min-height:0; border:0; }
+[data-shell="sidebar"] :is(.gallery-heading,.costume-heading,.bgm-heading,.pr-page-heading,.tools-opening,.immersive-heading):empty { display:none; }
+[data-shell="sidebar"] .task-studio > .catalog-section { padding-top:16px; }

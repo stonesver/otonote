@@ -23,6 +23,10 @@
 .theme-picker-close { display:grid; place-items:center; flex:none; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--theme-muted); cursor:pointer; }
 .theme-picker-close:hover { background:var(--theme-canvas); color:var(--theme-text); }
 .theme-picker-close svg { width:20px; height:20px; }
+.theme-picker-filters { display:flex; flex:none; gap:4px; overflow-x:auto; margin:0 20px 12px; padding:3px; border-radius:12px; background:var(--theme-canvas); scrollbar-width:thin; }
+.theme-picker-filters button { flex:none; min-height:40px; padding:0 12px; border:0; border-radius:9px; background:transparent; color:var(--theme-muted); font:600 11px/1.4 var(--font-body); white-space:nowrap; cursor:pointer; }
+.theme-picker-filters button:hover { color:var(--theme-accent); }
+.theme-picker-filters button[aria-pressed="true"] { background:var(--theme-surface); color:var(--theme-accent); box-shadow:var(--theme-shadow); }
 .theme-picker-body { min-height:0; overflow:auto; overscroll-behavior:contain; padding:4px 20px 20px; scrollbar-width:thin; scrollbar-color:var(--theme-border) transparent; }
 .theme-picker-auto {
   display:flex; align-items:center; gap:12px; width:100%; min-height:76px; padding:12px;
@@ -83,6 +87,8 @@
   .theme-picker-dialog { width:calc(100vw - 20px); max-height:calc(100dvh - 32px); border-radius:16px; }
   .theme-picker-heading { padding:14px 14px 10px; }
   .theme-picker-heading h2 { font-size:18px; }
+  .theme-picker-filters { margin:0 14px 10px; }
+  .theme-picker-filters button { min-height:44px; }
   .theme-picker-body { padding:4px 14px 16px; }
   .theme-picker-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .theme-picker-auto { gap:9px; padding:10px; }

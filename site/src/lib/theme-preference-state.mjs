@@ -1,7 +1,10 @@
 /** Manual choices win; overlapping campaigns use the most recently started window. */
 export function resolveThemePreference(preference, themes, campaigns, defaultTheme, now = Date.now()) {
   const manual = themes.find(theme => theme.id === preference);
-  const windows = campaigns.filter(campaign => themes.some(theme => theme.id === campaign.theme));
+  const windows = campaigns.map(campaign => ({
+    ...campaign,
+    theme: campaign.theme ?? (campaign.attribute == null ? undefined : themes.find(theme => theme.attribute === campaign.attribute)?.id)
+  })).filter(campaign => themes.some(theme => theme.id === campaign.theme));
   const active = manual ? null : windows
     .filter(campaign => Date.parse(campaign.startsAt) <= now && now < Date.parse(campaign.endsAt))
     .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0] ?? null;

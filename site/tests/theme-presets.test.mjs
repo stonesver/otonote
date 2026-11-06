@@ -26,6 +26,31 @@ test('paper preserves the CSS defaults and every preset overrides the same base 
   }
 });
 
+test('the collection offers twelve light palettes and keeps night as the sole dark choice', () => {
+  const light = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'light');
+  const dark = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'dark');
+  assert.equal(light.length, 12);
+  assert.deepEqual(dark.map(theme => [theme.id, theme.group]), [['night', 'dark']]);
+  for (const theme of light) {
+    assert.ok(luminance(theme.tokens.canvas) >= 0.82, `${theme.id} must have a bright canvas`);
+    assert.ok(luminance(theme.tokens.surface) >= 0.93, `${theme.id} must have a bright content surface`);
+  }
+});
+
+test('attribute-inspired palettes retain the five game attribute codes and names', () => {
+  const attributes = THEME_PRESETS.filter(theme => theme.group === 'attribute');
+  const expected = [
+    ['attribute-red', 1, '红赤'], ['attribute-azure', 2, '绀碧'], ['attribute-jade', 3, '翡翠'],
+    ['attribute-gold', 4, '山吹'], ['attribute-violet', 5, '紫苑'],
+  ];
+  assert.deepEqual(attributes.map(theme => [theme.id, theme.attribute]), expected.map(([id, code]) => [id, code]));
+  for (const [id, , name] of expected) {
+    const theme = attributes.find(item => item.id === id);
+    assert.ok(theme.name['zh-CN'].includes(name));
+    assert.ok(theme.description['zh-CN'].includes(`${name}属性灵感`));
+  }
+});
+
 for (const theme of THEME_PRESETS) {
   test(`${theme.id} keeps text and solid-button labels at WCAG AA contrast`, () => {
     const pairs = [];

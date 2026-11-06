@@ -31,6 +31,16 @@ test('manual themes persist during campaigns; overlapping events pick the latest
   assert.equal(at('retired-theme','2026-12-25T12:00:00+08:00').preference,'auto');
 });
 
+test('campaign attributes choose their matching palette; an explicit theme takes priority', () => {
+  const event = {id:'attribute-event',attribute:3,name:{'zh-CN':'活动',en:'Event'},startsAt:'2026-11-01T00:00:00+08:00',endsAt:'2026-11-08T00:00:00+08:00'};
+  const now = '2026-11-06T12:00:00+08:00';
+  assert.equal(at('auto', now, [event]).theme.id, 'attribute-jade');
+  assert.equal(at('auto', now, [{...event, theme:'anniversary'}]).theme.id, 'anniversary');
+  assert.equal(at('apricot', now, [event]).theme.id, 'apricot');
+  assert.equal(at('auto', now, [{...event, attribute:99}]).theme.id, 'paper');
+  assert.equal(at('auto', event.endsAt, [event]).theme.id, 'paper');
+});
+
 function browser(preference = 'night') {
   const values = new Map([['otonote-theme-v1',preference]]), properties = new Map([['--attribute-color','#f03']]);
   let denied = false, writesDenied = false;

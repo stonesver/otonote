@@ -28,6 +28,7 @@ export function installThemePreferences(config, resolve, win = window) {
     trigger?.setAttribute('title', `${copy.open} · ${name}`);
     trigger?.setAttribute('aria-expanded', String(Boolean(query('[data-theme-picker-panel]')?.open)));
     query('[data-theme-picker-close]')?.setAttribute('aria-label', copy.close);
+    query('[data-theme-filters]')?.setAttribute('aria-label', copy.filterLabel);
     const status = query('[data-theme-status]');
     if (status) status.textContent = (state.preference === 'auto' ? copy.following : copy.manual).replace('{name}', name)
       + (state.campaign ? ` · ${state.campaign.name[lang]}` : '');
@@ -70,6 +71,12 @@ export function installThemePreferences(config, resolve, win = window) {
       dialog.querySelector('[data-theme-picker-close]')?.focus({preventScroll:true});
       dialog.querySelector('.theme-picker-body').scrollTop = 0;
     } else if (target.closest?.('[data-theme-picker-close]')) close();
+    else if (target.closest?.('[data-theme-filter]')) {
+      const filter = target.closest('[data-theme-filter]').dataset.themeFilter;
+      for (const button of doc.querySelectorAll('[data-theme-filter]')) button.setAttribute('aria-pressed', String(button.dataset.themeFilter === filter));
+      for (const section of doc.querySelectorAll('[data-theme-group]')) section.hidden = filter !== 'all' && section.dataset.themeGroup !== filter;
+      query('.theme-picker-body').scrollTop = 0;
+    }
     else if (target.closest?.('[data-theme-choice]')) choose(target.closest('[data-theme-choice]').dataset.themeChoice);
     else if (target.matches?.('[data-theme-picker-panel]')) {
       const rect = target.getBoundingClientRect();

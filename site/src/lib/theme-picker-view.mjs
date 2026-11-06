@@ -12,7 +12,9 @@ export const THEME_PICKER_COPY = {
     manual: '已固定配色 · {name}',
     saved: '已保存到此浏览器。',
     saveUnavailable: '本次已切换，但此浏览器无法保存配色。',
-    groups: { everyday: '日常配色', occasion: '节日与纪念' }
+    filterLabel: '筛选配色',
+    all: '全部',
+    groups: { everyday: '日常配色', attribute: '活动属性', occasion: '节日纪念', dark: '深色备选' }
   },
   en: {
     open: 'Appearance',
@@ -25,7 +27,9 @@ export const THEME_PICKER_COPY = {
     manual: 'Fixed palette · {name}',
     saved: 'Saved in this browser.',
     saveUnavailable: 'Applied for now. This browser could not save your palette.',
-    groups: { everyday: 'Everyday', occasion: 'Celebrations' }
+    filterLabel: 'Filter palettes',
+    all: 'All',
+    groups: { everyday: 'Everyday', attribute: 'Event attributes', occasion: 'Celebrations', dark: 'Dark' }
   }
 };
 
@@ -46,6 +50,7 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
   const text = (value, englishValue, attributes = '') => `<span${attributes}${loading ? ` data-loading-en="${escape(englishValue)}"` : ''}>${escape(value)}</span>`;
   const defaultPreset = THEME_PRESETS.find(preset => preset.id === DEFAULT_THEME);
   const currentName = defaultPreset.name[language];
+  const groups = ['everyday', 'attribute', 'occasion', 'dark'];
   const card = preset => {
     const preview = ['canvas', 'surface', 'accent', 'text'].map(key => `--preview-${key}:${preset.tokens[key]}`).join(';');
     return `<button class="theme-picker-card" type="button" data-theme-choice="${escape(preset.id)}" aria-pressed="false">
@@ -64,13 +69,17 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
         <div><h2 id="theme-picker-title">${text(copy.title, english.title)}</h2><p>${text(copy.current, english.current)}<span aria-hidden="true"> · </span>${text(currentName, defaultPreset.name.en, ' data-theme-current')}</p></div>
         <button class="theme-picker-close" type="button" data-theme-picker-close aria-label="${escape(copy.close)}" title="${escape(copy.close)}">${closeIcon}</button>
       </header>
+      <div class="theme-picker-filters" role="group" aria-label="${escape(copy.filterLabel)}" data-theme-filters>
+        <button type="button" data-theme-filter="all" aria-pressed="true">${text(copy.all, english.all)}</button>
+        ${groups.map(group => `<button type="button" data-theme-filter="${group}" aria-pressed="false">${text(copy.groups[group], english.groups[group])}</button>`).join('')}
+      </div>
       <div class="theme-picker-body">
         <button class="theme-picker-auto" type="button" data-theme-choice="auto" aria-pressed="true">
           <span class="theme-picker-auto__icon" aria-hidden="true">${eventIcon}</span>
           <span class="theme-picker-auto__copy">${text(copy.automatic, english.automatic, ' class="theme-picker-auto__name"')}${text(copy.automaticDescription, english.automaticDescription, ' class="theme-picker-auto__description"')}</span>
           <span class="theme-picker-check" aria-hidden="true">${checkIcon}</span>
         </button>
-        ${['everyday', 'occasion'].map(group => `<section class="theme-picker-group" aria-labelledby="theme-picker-${group}"><h3 id="theme-picker-${group}">${text(copy.groups[group], english.groups[group])}</h3><div class="theme-picker-grid">${THEME_PRESETS.filter(preset => preset.group === group).map(card).join('')}</div></section>`).join('')}
+        ${groups.map(group => `<section class="theme-picker-group" data-theme-group="${group}" aria-labelledby="theme-picker-${group}"><h3 id="theme-picker-${group}">${text(copy.groups[group], english.groups[group])}</h3><div class="theme-picker-grid">${THEME_PRESETS.filter(preset => preset.group === group).map(card).join('')}</div></section>`).join('')}
       </div>
       <footer class="theme-picker-footer"><p data-theme-status role="status">${text(copy.following.replace('{name}', currentName), english.following.replace('{name}', defaultPreset.name.en))}</p><p data-theme-storage-status aria-live="polite" aria-atomic="true"></p></footer>
     </dialog>`;

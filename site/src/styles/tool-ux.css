@@ -1,6 +1,4 @@
 /* A compact performance desk: card art and results lead, explanations recede. */
-.tool-page-header ~ .catalog-section {padding-top:12px;}
-.tool-page-header p {max-width:76ch;}
 .tool-options {display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0;}
 .tool-options button {min-height:36px;padding:7px 12px;border:1px solid var(--line,#d9d3dc);border-radius:7px;background:var(--paper-light,#fff);color:var(--ink,#25202a);font:500 12px/1.4 var(--font-body);cursor:pointer;}
 .tool-options button[aria-pressed=true] {background:var(--lacquer,#733954);border-color:var(--lacquer,#733954);color:white;}
@@ -24,11 +22,6 @@
 .tool-team-strip>div {min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--paper-light);}
 .tool-team-strip img {height:60px;width:48%;object-fit:contain;}
 .tool-team-strip small {display:block;font-size:11px;overflow-wrap:anywhere;}
-.tool-saved-team {padding:18px;border:1px solid var(--line);background:var(--paper-light);border-radius:12px;margin-bottom:16px;}
-.tool-saved-team h2 {font-size:17px;margin:0 0 10px;}
-.tool-saved-team label {display:grid;gap:6px;font-size:13px;}
-.tool-saved-team select {max-width:480px;width:100%;padding:10px;}
-.tool-saved-team p {font-size:13px;margin:8px 0;}
 .ux-card-picker {width:min(880px,calc(100vw - 24px));max-height:calc(100dvh - 24px);box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--paper-light);color:var(--ink);}
 .ux-card-picker::backdrop {background:#17132180;}
 .ux-card-picker header,.ux-card-picker footer {display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -71,7 +64,6 @@
 .event-workbench[data-task=quick] #event-team> :not(.event-quick-bonus):not([data-bonus]) {display:none;}
 .event-workbench[data-task=quick] .event-quick-bonus>summary,.event-workbench[data-task=quick] .event-quick-bonus>label {display:none;}
 .event-workbench[data-task=quick] .event-quick-bonus {margin:0;border:0;padding:0;}
-.event-workbench .event-panel-heading p {margin-bottom:0;}
 .event-workbench .event-summary {top:84px;}
 .event-workbench .event-summary-next {line-height:1.7;}
 .event-workbench [data-suggest] {display:none;}
@@ -93,7 +85,6 @@
  .tool-team-strip {gap:4px;}.tool-team-strip>div {padding:4px;}.tool-team-strip img {height:40px;}
  .tool-task-tabs {flex-direction:column;}
  .event-workbench .event-panel {padding:16px;}
- .tool-page-header ~ .catalog-section {padding-top:4px;}
 }
 ap-grade-tool.ap-workbench .ap-team {grid-template-columns:repeat(5,minmax(0,1fr));}
 ap-grade-tool.ap-workbench .ap-team-row {display:flex;flex-direction:column;}
@@ -117,4 +108,4 @@ ap-grade-tool.ap-workbench .ap-team-row {display:flex;flex-direction:column;}
 
 .selection-quick-grid .tool-options {flex-wrap:nowrap;overflow-x:auto;max-width:100%;padding-bottom:4px;}
 .selection-quick-grid .tool-options button {flex-shrink:0;}
-@media(max-width:700px){.team-workbench .selection-quick .compact-attribute-filter {gap:4px;flex-wrap:nowrap;}.team-workbench .selection-quick .compact-attribute-filter button {min-width:var(--tool-control-height,30px);min-height:var(--tool-control-height,30px);padding:3px;}.team-workbench .selection-quick .compact-attribute-filter img {width:20px;height:20px;}.team-workbench .selection-quick-grid .tool-options {gap:4px;}.team-workbench .selection-quick-grid .tool-options button {font-size:11px;padding:3px 7px;}.calculator-journey>.journey-heading {display:none;}}
+@media(max-width:700px){.team-workbench .selection-quick .compact-attribute-filter {gap:4px;flex-wrap:nowrap;}.team-workbench .selection-quick .compact-attribute-filter button {min-width:var(--tool-control-height,30px);min-height:var(--tool-control-height,30px);padding:3px;}.team-workbench .selection-quick .compact-attribute-filter img {width:20px;height:20px;}.team-workbench .selection-quick-grid .tool-options {gap:4px;}.team-workbench .selection-quick-grid .tool-options button {font-size:11px;padding:3px 7px;}}

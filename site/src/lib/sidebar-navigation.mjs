@@ -43,19 +43,19 @@ export function renderSidebarNavigation({ui, englishUi = ui, locale = 'zh-CN', p
   const selected = sidebarSelection(pathname);
   const text = (zh, en) => `<span data-loading-en="${escape(en)}">${escape(english ? en : zh)}</span>`;
   const label = key => text(ui[key], englishUi[key]);
-  const link = (path, content, classes = '', extra = '') => `<a class="${classes}" href="${escape(href(path))}" data-loading-route="${escape(path)}"${selected.route === path ? ' aria-current="page"' : ''}${extra}>${content}</a>`;
+  const link = (path, content, classes = '', extra = '', title = '') => `<a class="${classes}" href="${escape(href(path))}" data-loading-route="${escape(path)}"${selected.route === path ? ' aria-current="page"' : ''}${title ? ` title="${escape(title)}"` : ''}${extra}>${content}</a>`;
   return `<div class="nav-section nav-my-tools" aria-label="${english ? 'My tools' : '我的工具'}">
     <p class="nav-caption">${text('我的工具', 'MY TOOLS')}</p>
-    ${SIDEBAR_TOOLS.map(item => link(item.href, svg(item.href) + text(...item.title), 'nav-primary nav-tool')).join('')}
-    ${link('/tools/deck-builder/?workspace=1', svg('workspace') + text('卡库与队伍', 'Cards & teams'), 'nav-primary nav-workspace', ' data-nav-workspace aria-haspopup="dialog"')}
+    ${SIDEBAR_TOOLS.map(item => link(item.href, svg(item.href) + text(...item.title), 'nav-primary nav-tool', '', item.title[english ? 1 : 0])).join('')}
+    ${link('/tools/deck-builder/?workspace=1', svg('workspace') + text('卡库与队伍', 'Cards & teams'), 'nav-primary nav-workspace', ' data-nav-workspace aria-haspopup="dialog"', english ? 'Cards & teams' : '卡库与队伍')}
   </div>
   <div class="nav-section nav-browse" aria-label="${english ? 'Browse' : '浏览'}">
     <p class="nav-caption">${text('浏览', 'BROWSE')}</p>
-    ${link('/', svg('home') + text('首页概览', 'Overview'), 'nav-home')}
+    ${link('/', svg('home') + text('首页概览', 'Overview'), 'nav-home', '', english ? 'Overview' : '首页概览')}
     ${SIDEBAR_GROUPS.map(group => {
       const active = selected.groupId === group.id;
       return `<div class="nav-group" data-loading-group="${group.id}"${active ? ' data-active' : ''}>
-        ${link(group.href, svg(group.id) + text(...group.title), 'nav-primary')}
+        ${link(group.href, svg(group.id) + text(...group.title), 'nav-primary', '', group.title[english ? 1 : 0])}
         <button class="nav-submenu-toggle" type="button" aria-expanded="${active}" aria-controls="nav-submenu-${group.id}" aria-label="${escape((active ? ui.collapseNavigationGroup : ui.expandNavigationGroup) + group.title[english ? 1 : 0])}" data-nav-submenu-toggle data-nav-group-id="${group.id}" data-loading-toggle="${group.id}"><span aria-hidden="true">${active ? '−' : '+'}</span></button>
         <div class="nav-submenu" id="nav-submenu-${group.id}" data-nav-submenu${active ? '' : ' hidden inert'}>${group.children.filter(child => child.href !== group.href).map(child => link(child.href, label(child.labelKey))).join('')}</div>
       </div>`;

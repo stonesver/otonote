@@ -224,13 +224,7 @@
   color: #944b39;
 }
 
-.team-workbench-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.65fr);
-  gap: 18px;
-}
-
-.team-builder,.team-card-picker,.team-draft-settings {
+.team-builder,.team-draft-settings {
   border: 1px solid var(--line);
   background: var(--paper-light);
   box-shadow: 0 14px 38px rgb(17 19 27 / 7%);
@@ -286,11 +280,6 @@
   color: var(--lacquer);
 }
 
-.team-slot-list {
-  display: grid;
-  gap: 10px;
-}
-
 .team-slot {
   width: 100%;
   min-height: 104px;
@@ -326,71 +315,8 @@
   gap: 8px;
 }
 
-.team-slot-card {
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid var(--line);
-  background: white;
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-}
-
-.team-slot-card--support {
-  grid-template-columns: 72px minmax(0, 1fr);
-}
-
-.team-slot-card img {
-  width: 100%;
-  height: 62px;
-  object-fit: cover;
-  object-position: top center;
-}
-
-.team-slot-card--support img {
-  height: 50px;
-}
-
-.team-slot-card span {
-  min-width: 0;
-}
-
-.team-slot-card strong,
-.team-slot-card small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.team-slot-card strong {
-  font-size: 14px;
-}
-
-.team-slot-card small {
-  margin-top: 4px;
-  color: var(--silver-dark);
-  font-size: 12px;
-}
-
-.team-slot-card.is-empty {
-  min-height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--silver-dark);
-  font-size: 13px;
-  text-align: center;
-}
-
-.team-card-picker,
 .team-draft-settings {
   margin-top: 18px;
-}
-
-.team-card-picker .tool-panel-header {
-  padding: clamp(20px, 2.6vw, 32px) clamp(20px, 2.6vw, 32px) 0;
 }
 
 .team-picker-toolbar {
@@ -864,10 +790,6 @@
   .scoring-gate-grid,
   .optimizer-roadmap,
   .scoring-research-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .team-workbench-grid {
     grid-template-columns: 1fr;
   }
 

@@ -1,25 +1,25 @@
 @charset "UTF-8";
 
 :root {
-  --stage-ink: #11131b;
-  --stage-ink-soft: #1b1e29;
+  --stage-ink: var(--theme-text);
+  --stage-ink-soft: var(--theme-text-soft);
   --ink: var(--stage-ink);
-  --paper: #f0eee8;
-  --paper-light: #fffdf7;
-  --paper-deep: #dfdcd3;
-  --lacquer: #7a3155;
-  --lacquer-bright: #a14a73;
+  --paper: var(--theme-canvas);
+  --paper-light: var(--theme-surface);
+  --paper-deep: var(--theme-surface-deep);
+  --lacquer: var(--theme-accent);
+  --lacquer-bright: var(--theme-accent-bright);
   --rose: var(--lacquer);
   --rose-light: var(--lacquer-bright);
-  --gel-blue: #79aec2;
-  --gel-blue-dark: #315f73;
-  --silver: #c5c1ba;
-  --silver-dark: #77736e;
-  --warning: #9a6a2f;
-  --success: #3e755d;
+  --gel-blue: var(--theme-secondary);
+  --gel-blue-dark: var(--theme-secondary-ink);
+  --silver: var(--theme-border);
+  --silver-dark: var(--theme-muted);
+  --warning: var(--theme-warning);
+  --success: var(--theme-success);
   --line: color-mix(in srgb, var(--stage-ink) 15%, transparent);
   --line-light: color-mix(in srgb, white 16%, transparent);
-  --shadow: 0 24px 72px rgb(17 19 27 / 16%);
+  --shadow: var(--theme-elevated-shadow);
   --font-display: "Iowan Old Style", "Yu Mincho", "Hiragino Mincho ProN",
     "Songti SC", serif;
   --font-body: "Avenir Next", "Hiragino Sans GB", "Noto Sans CJK SC",
@@ -119,11 +119,11 @@ h3 {
 
 ::selection {
   background: var(--lacquer);
-  color: white;
+  color: var(--theme-on-accent);
 }
 
 :focus-visible {
-  outline: 3px solid var(--gel-blue);
+  outline: 3px solid var(--theme-focus);
   outline-offset: 4px;
 }
 
@@ -171,7 +171,7 @@ h3 {
   gap: 26px;
   padding: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
-  background: rgb(255 253 247 / 92%);
+  background: color-mix(in srgb, var(--paper-light) 92%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -265,7 +265,7 @@ h3 {
 .context-switcher__options a:hover,
 .context-switcher__options a[aria-current="true"] {
   border-color: var(--lacquer);
-  background: rgb(122 49 85 / 9%);
+  background: color-mix(in srgb, var(--lacquer) 9%, transparent);
   color: var(--lacquer);
 }
 
@@ -277,9 +277,9 @@ h3 {
   justify-content: center;
   gap: 12px;
   padding: 10px var(--gutter);
-  border-bottom: 1px solid rgb(154 106 47 / 35%);
-  background: #f2e6ce;
-  color: #714a1e;
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background: color-mix(in srgb, var(--warning) 14%, var(--paper-light));
+  color: var(--theme-warning-ink);
   font-size: 12px;
 }
 
@@ -373,7 +373,7 @@ h3 {
   min-width: 180px;
   padding: 8px;
   border: 1px solid var(--line);
-  background: rgb(255 253 247 / 98%);
+  background: color-mix(in srgb, var(--paper-light) 98%, transparent);
   box-shadow: var(--shadow);
   opacity: 0;
   translate: -50% -6px;
@@ -402,7 +402,7 @@ h3 {
 .nav-submenu a:hover,
 .nav-submenu a:focus-visible,
 .nav-submenu a[aria-current="page"] {
-  background: rgb(122 49 85 / 9%);
+  background: color-mix(in srgb, var(--lacquer) 9%, transparent);
   color: var(--lacquer);
 }
 
@@ -445,15 +445,15 @@ h3 {
 }
 
 .status-pill--ready {
-  background: rgba(46, 102, 78, 0.12);
-  border-color: rgba(46, 102, 78, 0.6);
-  color: #1f5b40;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 60%, transparent);
+  color: var(--theme-success-ink);
 }
 
 .status-pill--pending {
-  background: rgba(122, 49, 85, 0.12);
-  border-color: rgba(122, 49, 85, 0.6);
-  color: #7a3155;
+  background: color-mix(in srgb, var(--lacquer) 12%, transparent);
+  border-color: color-mix(in srgb, var(--lacquer) 60%, transparent);
+  color: var(--lacquer);
 }
 
 .status-pill--missing,
@@ -1855,7 +1855,7 @@ h3 {
   min-height: 670px;
   overflow: hidden;
   background:
-    linear-gradient(90deg, var(--paper-light) 0%, rgb(255 253 247 / 92%) 44%, transparent 73%),
+    linear-gradient(90deg, var(--paper-light) 0%, color-mix(in srgb, var(--paper-light) 92%, transparent) 44%, transparent 73%),
     var(--gel-blue);
 }
 
@@ -2235,7 +2235,7 @@ h3 {
   .nav-primary[aria-current="page"] {
     color: var(--lacquer);
     background:
-      linear-gradient(90deg, rgb(122 49 85 / 8%), transparent 72%);
+      linear-gradient(90deg, color-mix(in srgb, var(--lacquer) 8%, transparent), transparent 72%);
   }
 
   .nav-primary:active {
@@ -2592,7 +2592,7 @@ h3 {
 .profile-layout {
   min-height: 560px;
   background:
-    linear-gradient(90deg, var(--paper-light) 0%, rgb(255 253 247 / 94%) 61%, transparent 83%),
+    linear-gradient(90deg, var(--paper-light) 0%, color-mix(in srgb, var(--paper-light) 94%, transparent) 61%, transparent 83%),
     var(--gel-blue);
 }
 

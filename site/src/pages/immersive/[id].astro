@@ -16,7 +16,7 @@ const band = catalog.bands.find(b => b.id === scene.bandId)!;
 const clientProfile = immersiveClientProfile(scene, activeReleaseContext.region);
 const verified = Reflect.get(scene, 'cameraVerified') === true || !!clientProfile;
 ---
-<BaseLayout title={name} description={verified ? say('播放已校准的沉浸式场景，收藏喜欢的画面与动态。', 'Play a verified immersive scene and export your favourite frame or animation.') : say('查看并保存游戏原图。', 'View and save the original game scene image.')}>
+<BaseLayout contentHeading title={name} description={verified ? say('播放已校准的沉浸式场景，收藏喜欢的画面与动态。', 'Play a verified immersive scene and export your favourite frame or animation.') : say('查看并保存游戏原图。', 'View and save the original game scene image.')}>
   <div class="content-shell immersive-library">
     <header class="immersive-heading"><div><p class="home-kicker">A MOMENT WITH {en ? band.nameEn : band.name}</p><h1>{name}</h1><a href={href('/immersive/')}>← {say(`全部 ${catalog.scenes.length} 个情景`, `All ${catalog.scenes.length} scenes`)}</a></div><label class="immersive-scene-select">{say('切换情景', 'Switch scene')}<select data-immersive-navigate>{catalog.bands.map(b => <optgroup label={en ? b.nameEn : b.name}>{catalog.scenes.filter(s => s.assetRoot && s.bandId === b.id).map(s => <option value={href(`/immersive/${s.id}/`)} selected={s.id === scene.id}>{en ? s.nameEn : s.name}</option>)}</optgroup>)}</select></label></header>
     <ImmersiveScene scene={scene} />

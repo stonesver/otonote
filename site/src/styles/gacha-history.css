@@ -3,7 +3,6 @@
 .gacha-tool h2,.gacha-tool h3,.gacha-tool p {margin:0;}
 .gacha-tool h2 {font:650 18px/1.5 var(--font-body);letter-spacing:-.03em;}
 .gacha-tool h3 {font:600 12px/1.6 var(--font-body);}
-.gacha-page .tool-page-heading h1 {display:flex;align-items:center;gap:12px;font-family:var(--font-body);}
 .gacha-page .tool-title-glyph {display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:#e8eef5;color:#597bac;}
 .gacha-page .tool-title-glyph svg {width:25px;height:25px;}
 .gacha-tool :is(button,a,input,select,summary,[tabindex]):focus-visible {outline:3px solid #708fb8;outline-offset:3px;}

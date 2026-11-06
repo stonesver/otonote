@@ -1,7 +1,6 @@
 ---
 import "../../../styles/tool-studio.css";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import ToolPageHeader from '../../../components/ToolPageHeader.astro';
 import {catalog,getAsset} from '../../../lib/catalog';
 import {filterVisualOptions} from '../../../lib/filter-visuals';
 import {gameModeDatabase} from '../../../lib/game-modes';
@@ -23,7 +22,7 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
 ---
 <BaseLayout title="队伍 AP 估分">
 <div class="tool-studio" data-tool-kind="ap-grade">
- <ToolPageHeader kind="ap-grade" title="队伍 AP 估分" description="选一支队伍，找出更容易打到高档位的歌曲。AP 指所有音符均为 Perfect。" meta="队伍估分 · 分档线 · 选歌" />
+
  <section class="catalog-section"><div class="content-shell">
  <p class="event-links"><a href={href('/tools/song-ranking/')+(href('/tools/song-ranking/').includes('?')?'&':'?')+'view=grade'}>无需选卡：查看各首歌的达档综合力与分数线</a></p>
  {available?<ap-grade-tool class="event-workbench ap-workbench">

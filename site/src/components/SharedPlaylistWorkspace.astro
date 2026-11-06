@@ -1,5 +1,5 @@
 ---
-import '../styles/calculator-journey.css';
+import '../styles/workbench-controls.css';
 import '../styles/playlist-workspace.css';
 ---
 <div class="personal-library-launchers" data-personal-library-launchers>
@@ -13,7 +13,7 @@ import '../styles/playlist-workspace.css';
  const teams=document.querySelector('[data-team-workspace-open]');
  if(group&&launcher){
   // Keep the existing launcher inside its owning shell for lazy workspace setup.
-  if(teams){teams.removeAttribute('hidden');teams.before(group);group.prepend(teams);}
+  if(teams && !teams.hasAttribute('hidden')){teams.before(group);group.prepend(teams);}
   let standalone:ScopeController|undefined,loading=false;
   launcher.addEventListener('click',async()=>{
    if(loading)return;

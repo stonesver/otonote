@@ -18,7 +18,7 @@ const bands = catalog.bands.filter(b => costumes.some(item => item.bandId === b.
 <BaseLayout title={copy.title} description={copy.intro}>
   <costume-library class="costume-library content-shell" data-region={activeReleaseContext.region} data-locale={activeReleaseContext.locale}>
     <header class="costume-heading">
-      <div><p class="costume-eyebrow">STAGE WARDROBE</p><h1>{copy.title}</h1><p>{copy.intro}</p></div>
+
       <a href={href('/characters/')}>{en ? 'Character profiles' : '角色资料'}</a>
     </header>
     <form class="costume-filters" role="search" aria-label={copy.title}>

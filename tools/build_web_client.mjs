@@ -185,10 +185,10 @@ const shellRenderer = await build({entryPoints:[join(site,'src/runtime/loading-s
 const {renderLoadingShell} = await import('data:text/javascript;base64,'+Buffer.from(shellRenderer.outputFiles[0].text).toString('base64'));
 const shellClient = await build({entryPoints:[join(site,'src/runtime/loading-shell-client.mjs')],bundle:true,write:false,minify:true,format:'iife',target:'es2022'});
 const startupClient = await build({entryPoints:[join(site,'src/runtime/startup-client.mjs')],bundle:true,write:false,minify:true,format:'iife',target:'es2022'});
-const shellCss = (await Promise.all(['global','site-shell','unified-search','loading-shell'].map(name=>readFile(join(site,`src/styles/${name}.css`),'utf8')))).join('\n');
+const shellCss = (await Promise.all(['theme-tokens','global','site-shell','unified-search','loading-shell'].map(name=>readFile(join(site,`src/styles/${name}.css`),'utf8')))).join('\n');
 const css = (await transformTs(shellCss,{loader:'css',minify:true})).code;
 const shell = renderLoadingShell({css,clientScript:shellClient.outputFiles[0].text,
-  appManifest,startupScript:startupClient.outputFiles[0].text,loadingArt,navigationScript,
+  appManifest,startupScript:startupClient.outputFiles[0].text,loadingArt,navigationScript,shellPreferences:await readFile(join(site,'src/lib/shell-preferences.mjs'),'utf8'),
   codeRoot:'/app/releases/__CODE_ID__/',boot,brandSvg:await readFile(join(site,'public/brand/ournotes-mark.svg'),'utf8')});
 // Shell-only edits must also create a new immutable code identity.
 await writeFile(join(stage,'entry-shell.json'),JSON.stringify({sha256:createHash('sha256').update(shell).digest('hex')}));

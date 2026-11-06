@@ -1,0 +1,24 @@
+/* Site chrome and tool aliases resolve here. Game identity colors stay separate. */
+:root {
+  --theme-text:#11131b;
+  --theme-text-soft:#1b1e29;
+  --theme-canvas:#f0eee8;
+  --theme-surface:#fffdf7;
+  --theme-surface-deep:#dfdcd3;
+  --theme-accent:#7a3155;
+  --theme-accent-bright:#a14a73;
+  --theme-secondary:#79aec2;
+  --theme-secondary-ink:#315f73;
+  --theme-border:#c5c1ba;
+  --theme-muted:#655e63;
+  --theme-on-accent:#fff;
+  --theme-warning:#9a6a2f;
+  --theme-warning-ink:#714a1e;
+  --theme-success:#3e755d;
+  --theme-success-ink:#1f5b40;
+  --theme-focus:var(--theme-secondary-ink);
+  --theme-backdrop:rgb(17 19 27 / 48%);
+  --theme-elevated-shadow:0 24px 72px color-mix(in srgb,var(--theme-text) 16%,transparent);
+  --theme-radius:18px;
+  --theme-shadow:0 5px 24px color-mix(in srgb,var(--theme-text) 5%,transparent);
+}

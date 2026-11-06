@@ -1,21 +1,15 @@
 /* Shared tool palette. Game attributes, difficulty and mission colors retain their meaning. */
-html[data-tool-theme="site"][data-tool-theme] body {
-  --tool-page: #f0eee8;
-  --tool-ink: #11131b;
-  --tool-accent: #7a3155;
-  --tool-hover: #602642;
-  --tool-focus: #315f73;
-  --paper: var(--tool-page);
-  --ink: var(--tool-ink);
-  --lacquer: #7a3155;
-  --silver-dark: #655e63;
-  --gel-blue: #315f73;
-  --line: color-mix(in srgb, var(--stage-ink) 18%, transparent);
+:root {
+  --tool-page: var(--paper);
+  --tool-ink: var(--ink);
+  --tool-accent: var(--lacquer);
+  --tool-hover: color-mix(in srgb, var(--lacquer) 80%, var(--ink));
+  --tool-focus: var(--theme-focus);
   --tool-surface: var(--paper-light);
   --tool-tint: color-mix(in srgb, var(--lacquer) 8%, var(--paper-light));
-  --tool-border: #c9c1bd;
+  --tool-border: var(--theme-border);
   --tool-line: var(--line);
-  --tool-muted: #655e63;
+  --tool-muted: var(--silver-dark);
   --tool-selected-bg: var(--tool-tint);
   --tool-selected-ink: var(--tool-accent);
   --tool-selected-border: var(--tool-accent);
@@ -26,14 +20,13 @@ html[data-tool-theme="site"][data-tool-theme] body {
   --studio-bg: var(--paper);
   --studio-paper: var(--tool-surface);
   --studio-tint: var(--tool-tint);
-  background: var(--paper);
 }
 
 html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
   background: var(--paper-light);
 }
 
-/* Match the legacy workbench specificity across all five calculators. */
+/* Shared workbench palette across calculator variants. */
 .tool-studio.tool-studio[data-tool-kind][data-tool-kind] {
   --task-ink: var(--stage-ink);
   --task-muted: var(--tool-muted);
@@ -84,7 +77,7 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
   }
 
   :is(button, a, summary, input, select, textarea):focus-visible {
-    outline: 3px solid var(--gel-blue);
+    outline: 3px solid var(--theme-focus);
     outline-offset: 3px;
   }
 
@@ -93,7 +86,7 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
     border-color: var(--lacquer);
   }
 
-  :is(.tool-options, .journey-choices, .task-tgw-options) button[aria-pressed="true"],
+  :is(.tool-options, .workbench-mode-choices, .task-tgw-options) button[aria-pressed="true"],
   .task-song-dialog .attribute-filter-options button[aria-pressed="true"] {
     color: var(--tool-selected-ink);
     background: var(--tool-selected-bg);
@@ -102,7 +95,7 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
     font-weight: 700;
   }
 
-  .journey-choices button[aria-pressed="true"] strong { color: var(--tool-selected-ink); }
+  .workbench-mode-choices button[aria-pressed="true"] strong { color: var(--tool-selected-ink); }
 
   :is(.task-subtabs, .task-candidate-tabs) button[aria-pressed="true"] {
     background: transparent;
@@ -110,9 +103,6 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
     border-bottom-color: var(--tool-selected-border);
     font-weight: 700;
   }
-
-  .task-workbench-nav { background: var(--paper-deep); border-color: var(--tool-border); }
-  .task-workbench-nav a[aria-current="page"] { color: var(--lacquer); background: var(--tool-surface); }
   .task-condition-tags { background: var(--tool-surface); border-color: var(--tool-border); }
   .task-condition-tags > span, .recommendation-scenario {
     color: var(--tool-muted);
@@ -123,15 +113,15 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
   .task-pairing .score-pair { border-color: var(--tool-border); background: var(--tool-surface); }
   .task-pairing .score-pair[data-leader="true"] { border-color: var(--lacquer); }
   .task-pairing .score-position { background: var(--paper); color: var(--tool-muted); }
-  .task-pairing [data-leader="true"] .score-position { background: var(--lacquer); color: white; font-weight: 700; }
+  .task-pairing [data-leader="true"] .score-position { background: var(--lacquer); color: var(--theme-on-accent); font-weight: 700; }
   .task-pairing :is(.score-face, .tw-card-art, .score-face--support .tw-card-art) { background: var(--paper); }
   .task-pairing .task-empty-card { color: var(--tool-muted); background: var(--paper) !important; }
   .task-pairing .tw-card-name { color: var(--stage-ink); font-size: 11px; }
   .task-pairing .tw-card-source { font-size: 10px; }
   .task-pairing .task-pair-links { background: var(--paper); border-color: var(--line); gap: 5px; }
-  .task-pair-links .task-link--attribute { color: #315f73; }
+  .task-pair-links .task-link--attribute { color: var(--gel-blue-dark); }
   .task-pair-links .task-link--band { color: var(--lacquer); }
-  .task-pair-links .task-link--mission { color: #39614d; }
+  .task-pair-links .task-link--mission { color: var(--success); }
   .task-link-icons img + img { margin-left: 0; }
 
   .calculator-start [data-optimize-pairing],
@@ -139,15 +129,15 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
   .task-dialog footer button:last-child {
     background: var(--lacquer);
     border-color: var(--lacquer);
-    color: white;
+    color: var(--theme-on-accent);
   }
 
   .calculator-start [data-optimize-pairing]:hover:not(:disabled),
   .recommendation-actions button:first-child:hover:not(:disabled),
   .task-dialog footer button:last-child:hover:not(:disabled) {
-    background: #602642;
-    border-color: #602642;
-    color: white;
+    background: var(--tool-hover);
+    border-color: var(--tool-hover);
+    color: var(--theme-on-accent);
   }
 
   :is(.task-subtabs, .task-candidate-tabs) button { background: transparent; }
@@ -166,8 +156,8 @@ html[data-tool-theme="site"][data-tool-theme] body :is(.site-nav, .site-brand) {
   }
 }
 
-/* The shared workspace lives outside the tool element; scope it through this page. */
-html[data-tool-theme="site"][data-tool-theme] body {
+/* The card workspace can also be opened from library pages. */
+html[data-shell="sidebar"][data-shell] body {
   .tw-panel {
     --accent: var(--lacquer);
     --border: var(--tool-border);
@@ -176,7 +166,7 @@ html[data-tool-theme="site"][data-tool-theme] body {
     background: var(--tool-surface);
   }
 
-  :is(.tw-panel, .task-dialog)::backdrop { background: rgb(17 19 27 / 48%); }
+  :is(.tw-panel, .task-dialog)::backdrop { background: var(--theme-backdrop); }
   .tw-launcher { background: var(--stage-ink); border-color: var(--stage-ink); }
   .tw-panel :is(button, input, select, .tw-current, .tw-saved-team, .tw-editor,
       .tw-edit-pair, .tw-inventory-card, .tw-inventory-extra-filters,
@@ -230,16 +220,16 @@ html[data-tool-theme="site"][data-tool-theme] body {
     height: 22px;
     border-radius: 50%;
     background: var(--tool-selected-ink);
-    color: white;
+    color: var(--theme-on-accent);
     font-size: 14px;
     box-shadow: 0 0 0 2px var(--tool-surface);
   }
 
-  .tw-panel :is(button, a, summary, input, select):focus-visible { outline: 3px solid var(--gel-blue); outline-offset: 3px; }
+  .tw-panel :is(button, a, summary, input, select):focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
   .tw-panel button:hover:not(:disabled) { border-color: var(--lacquer); }
   .tw-panel .tw-editor-actions button[data-variant="primary"], .tw-panel button[data-variant="primary"],
   .tw-panel .ux-card-replace, .tw-panel .ux-card-done {
-    background: var(--lacquer); color: white; border-color: var(--lacquer);
+    background: var(--lacquer); color: var(--theme-on-accent); border-color: var(--lacquer);
   }
 
   /* Keep logos on an opaque plate; do not recolor the game's attribute/band art. */
@@ -253,9 +243,9 @@ html[data-tool-theme="site"][data-tool-theme] body {
   :is(.task-pairing, .tw-panel) .tw-card-meta > span { color: var(--stage-ink); font-size: 10px; overflow-wrap: anywhere; }
   .tw-panel .ux-card-picker .tool-options button[data-round="true"]:not([data-icon]) { width: auto; height: auto; border-radius: 5px; padding: 3px 6px; }
   :is(.task-pairing, .tw-panel) .tw-card-meta .tw-card-band img { width: 22px !important; height: 20px !important; }
-  :is(.task-pairing, .tw-panel) .tw-card-view[data-source="reference"] .tw-card-source { color: #315f73; }
-  :is(.task-pairing, .tw-panel) .tw-card-view[data-source="training"] .tw-card-source { color: #80551d; }
-  :is(.task-pairing, .tw-panel) .tw-card-view[data-source="unknown"] .tw-card-source { color: #80551d; }
+  :is(.task-pairing, .tw-panel) .tw-card-view[data-source="reference"] .tw-card-source { color: var(--gel-blue-dark); }
+  :is(.task-pairing, .tw-panel) .tw-card-view[data-source="training"] .tw-card-source { color: var(--warning); }
+  :is(.task-pairing, .tw-panel) .tw-card-view[data-source="unknown"] .tw-card-source { color: var(--warning); }
 }
 
 /* Surfaces and controls shared by all tool routes and the collection workspace. */
@@ -281,10 +271,7 @@ html[data-tool-theme="site"][data-tool-theme] body {
     --calc-tint: var(--tool-tint);
   }
 
-  :is(dialog, .inventory-import-panel, .inventory-preview, .inventory-edit-dialog,
-      .task-event-current-source, .task-event-song-card, .task-event-rush-song,
-      .tool-help, .tool-saved-team, .scoring-research-panel, .score-detail-section,
-      .growth-import-method, .growth-login-note, .growth-import-download) {
+  :is(dialog,.inventory-import-panel,.inventory-preview,.inventory-edit-dialog,.task-event-current-source,.task-event-song-card,.task-event-rush-song,.tool-help,.scoring-research-panel,.score-detail-section,.growth-import-method,.growth-login-note,.growth-import-download) {
     color: var(--tool-ink);
     background-color: var(--tool-surface);
     border-color: var(--tool-border);
@@ -294,7 +281,7 @@ html[data-tool-theme="site"][data-tool-theme] body {
     color: var(--tool-selected-ink); background: var(--tool-selected-bg); border-color: var(--tool-selected-border);
     box-shadow: none; font-weight: 700;
   }
-  dialog::backdrop { background: rgb(17 19 27 / 48%); }
+  dialog::backdrop { background: var(--theme-backdrop); }
   :is(button, input, select, textarea) { accent-color: var(--tool-accent); }
   :is(button, a, summary, input, select, textarea, [tabindex]):focus-visible {
     outline: 3px solid var(--tool-focus);
@@ -307,7 +294,7 @@ html[data-tool-theme="site"][data-tool-theme] body {
   }
   :is(.tw-confirm button[data-variant="primary"], .screenshot-import .screenshot-primary,
       .growth-primary, .tw-inventory-import-actions > [data-workspace-screenshot]) {
-    background: var(--tool-accent); color: white; border-color: var(--tool-accent);
+    background: var(--tool-accent); color: var(--theme-on-accent); border-color: var(--tool-accent);
   }
   :is(.screenshot-import .screenshot-eyebrow, .screenshot-review-note,
       .screenshot-progress-label, .tw-inventory-import-entry > p) { color: var(--tool-muted); }
@@ -339,11 +326,11 @@ html[data-tool-theme="site"][data-tool-theme] body {
   .score-output [data-song-score], .task-quick-main > strong { color: var(--tool-accent); }
   :is(button[data-ap-run], button[data-yield-run], .event-primary,
       .ranking-replay-actions [data-replay-run], .task-event-song-card .task-song-entry) {
-    background: var(--tool-accent); border-color: var(--tool-accent); color: white;
+    background: var(--tool-accent); border-color: var(--tool-accent); color: var(--theme-on-accent);
   }
   :is(button[data-ap-run], button[data-yield-run], .event-primary,
       .ranking-replay-actions [data-replay-run]):hover:not(:disabled) {
-    background: var(--tool-hover); border-color: var(--tool-hover); color: white;
+    background: var(--tool-hover); border-color: var(--tool-hover); color: var(--theme-on-accent);
   }
   .task-event-rush-song[data-selected="true"], .task-event-plan-choice[aria-pressed="true"] {
     background: var(--tool-selected-bg); border-color: var(--tool-selected-border);
@@ -393,37 +380,36 @@ html[data-tool-theme="site"][data-tool-theme] body {
   .gacha-tool :is(.gacha-panel, .gacha-kind-chart, .gacha-share-dialog > header,
       .gacha-share-dialog > footer, input, select, button) { background-color: var(--tool-surface); }
   .gacha-tool :is(.gacha-segmented, .gacha-bar-track, .gacha-card-art) { background: var(--paper); border-color: var(--tool-border); }
-  .gacha-tool.gacha-tool .gacha-primary { background: var(--tool-accent); border-color: var(--tool-accent); color: white; }
+  .gacha-tool.gacha-tool .gacha-primary { background: var(--tool-accent); border-color: var(--tool-accent); color: var(--theme-on-accent); }
   .gacha-tool.gacha-tool .gacha-primary:hover:not(:disabled) { background: var(--tool-hover); }
   .gacha-tool .gacha-segmented button[aria-pressed="true"] { border-color: var(--tool-selected-border); color: var(--tool-selected-ink); background: var(--tool-selected-bg); box-shadow: none; }
   .gacha-tool input::placeholder { color: var(--tool-muted); }
 
   .tools-desk { --desk-blue: var(--tool-accent); --desk-berry: var(--tool-accent); --desk-ink: var(--tool-ink); --desk-muted: var(--tool-muted); }
-  .tools-desk .tools-task { border-color: var(--tool-border); background: var(--tool-surface); }
-  .tools-desk .tools-task--deck-builder {
-    --tile-accent: #526357; --tile-tint: #d8e0d5;
-    color: var(--tool-ink); background: #e7ebe2; border-color: #c7cec1;
+  .tools-desk .tools-task {
+    --tile-accent: var(--tool-accent);
+    --tile-tint: color-mix(in srgb, var(--tile-accent) 14%, var(--tool-surface));
+    color: var(--tool-ink);
+    border-color: var(--tool-border);
+    background: color-mix(in srgb, var(--tile-accent) 6%, var(--tool-surface));
   }
-  .tools-desk .tools-task--deck-builder :is(p, small, .tools-lineup-caption) { color: #586153; }
-  .tools-desk .tools-task--deck-builder .tools-task-open { color: #3e5144; background: #f5f6ef; border-color: #bcc6b6; }
-  .tools-desk .tools-task--event-efficiency { --tile-accent: #7a624b; --tile-tint: #e8ddce; background: #f3ede3; }
-  .tools-desk .tools-task--gacha-history { --tile-accent: #796849; --tile-tint: #eae1cc; background: #f7f3e8; }
-  .tools-desk .tools-task--song-calculator { --tile-accent: #536575; --tile-tint: #dfe7ea; background: #eef2f2; }
-  .tools-desk .tools-task--song-ranking { --tile-accent: #52665d; --tile-tint: #dde6de; background: #eff2eb; }
-  .tools-desk .tools-task--ap-grade { --tile-accent: #745d67; --tile-tint: #e7dce0; background: #f4edef; }
-  .tools-desk .tools-task--live2d { --tile-accent: #655e71; --tile-tint: #e2dee7; background: #efedf2; }
-  .tools-desk .tools-lineup-cards > span { background: #f5f5ef; color: #617063; border-color: #fafbf6; box-shadow: 0 5px 12px #26382b18; }
-  .tools-desk .tools-lineup-cards > span:nth-child(3) { background: #d1dccc; color: #405642; }
-  .tools-desk .tools-lineup-cards i { background: #e0e6db; }
-  .tools-desk .tools-lineup-cards > span:nth-child(3) i { background: #edf1e8; }
-  .tools-desk .tools-lineup-cards small { background: #dfe5d9; color: #586153; }
+  .tools-desk :is(.tools-task--deck-builder, .tools-task--song-ranking) { --tile-accent: var(--success); }
+  .tools-desk :is(.tools-task--event-efficiency, .tools-task--gacha-history) { --tile-accent: var(--warning); }
+  .tools-desk .tools-task--song-calculator { --tile-accent: var(--gel-blue-dark); }
+  .tools-desk .tools-task--deck-builder :is(p, small, .tools-lineup-caption) { color: var(--tool-muted); }
+  .tools-desk .tools-task--deck-builder .tools-task-open { color: var(--tile-accent); background: var(--tool-surface); border-color: var(--tool-border); }
+  .tools-desk .tools-lineup-cards > span { background: var(--tool-surface); color: var(--tool-muted); border-color: var(--tool-border); box-shadow: var(--theme-shadow); }
+  .tools-desk .tools-lineup-cards > span:nth-child(3) { background: var(--tile-tint); color: var(--tile-accent); }
+  .tools-desk .tools-lineup-cards i { background: var(--tile-tint); }
+  .tools-desk .tools-lineup-cards > span:nth-child(3) i { background: var(--tool-surface); }
+  .tools-desk .tools-lineup-cards small { background: var(--tile-tint); color: var(--tool-muted); }
   .tools-desk :is(.tools-browse-link, .tools-workflow) { background: var(--tool-surface); border-color: var(--tool-border); }
   .tools-desk :is(.tools-library-link, .tools-task-open, .tools-library-symbol) { border-color: var(--tool-border); }
 
   .l2d { --l2d-accent: var(--tool-accent); background: var(--tool-surface); }
   .l2d :is(button, select, .l2d-search, .l2d-picker, .l2d-load-card) { background: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border); }
   .l2d :is(.l2d-controls, .l2d-panel-switch, .l2d-roster, .l2d-viewbar) { background: var(--paper); border-color: var(--tool-border); }
-  .l2d :is(button[data-open], .l2d-play-actions [data-play]) { background: var(--tool-accent); border-color: var(--tool-accent); color: white; }
+  .l2d :is(button[data-open], .l2d-play-actions [data-play]) { background: var(--tool-accent); border-color: var(--tool-accent); color: var(--theme-on-accent); }
   .l2d :is(button[data-open], .l2d-play-actions [data-play]):hover:not(:disabled) { background: var(--tool-hover); }
   .l2d button[aria-pressed="true"] { background: var(--tool-selected-bg); border-color: var(--tool-selected-border); color: var(--tool-selected-ink); }
   .l2d :is(.l2d-load-card p, .l2d-progress-meta, .l2d-look-tag) { color: var(--tool-muted); }
@@ -434,5 +420,4 @@ html[data-tool-theme="site"][data-tool-theme] body {
 /* Written labels carry navigation; avoid decorative arrows throughout tools. */
 html[data-tool-theme="site"][data-tool-theme] body {
   .task-studio.task-studio .task-conditions-collapsed .task-condition-toggle { font-size: 11px; }
-  .archive-footer__about > span[aria-hidden="true"], .archive-footer__top > svg { display: none; }
 }

@@ -31,8 +31,14 @@ const cardData=JSON.stringify({region:activeReleaseContext.region,member:cards('
   <div class="content-shell player-rankings" data-player-rankings data-locale={activeReleaseContext.locale}>
     <script is:inline type="application/json" data-rank-cards set:html={cardData}></script>
     <script is:inline type="application/json" data-rank-context set:html={eventData}></script>
-    <header class="pr-page-heading"><div><div class="eyebrow">PLAYER RANKINGS</div><h1>{en?'Player rankings':'玩家排行榜'}</h1><p>{en?'See the scores. Explore the teams behind them.':'看成绩，也看高分背后的编成。'}</p></div><span class="pr-update-note">{en?'Updated about every 10 minutes':'约每 10 分钟更新'}</span></header>
-    <nav class="page-editions" aria-label={en?'Game server':'游戏区服'}><div>{GAME_SERVERS.map(server=><a data-ranking-server={server.id} href={`/${server.region}/${activeReleaseContext.locale}/rankings/?server=${server.id}&view=page`} aria-current={context.serverId===server.id?'page':undefined}>{en?server.englishLabel:server.label}</a>)}</div></nav>
+    <div class="pr-toolbar">
+      <nav class="page-editions ranking-servers" aria-label={en?'Game server':'游戏区服'}>
+        <div>{GAME_SERVERS.map(server=><a data-ranking-server={server.id} href={`/${server.region}/${activeReleaseContext.locale}/rankings/?server=${server.id}&view=page`} aria-current={context.serverId===server.id?'page':undefined} aria-label={en?server.englishLabel:server.label} title={en?server.englishLabel:server.label}>
+          {server.id === 'jp' ? <span class="edition-symbol" data-edition="jp" aria-hidden="true"></span> : <span aria-hidden="true">{server.id === 'global-hmt' ? (en ? 'HMT' : '港澳台') : server.id === 'global-kr' ? (en ? 'KR' : '韩服') : 'EN'}</span>}
+        </a>)}</div>
+      </nav>
+      <span class="pr-update-note">{en?'Updated about every 10 minutes':'约每 10 分钟更新'}</span>
+    </div>
     <section class="pr-board" aria-label={en?'Ranking board':'榜单'}>
       <div class="pr-filters">
         <div><label for="rank-band">{en?'Band':'乐队'}</label><select id="rank-band" data-rank-band><option value="">{en?'All bands':'全部乐队'}</option></select></div>

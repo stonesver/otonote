@@ -27,7 +27,7 @@ const categoryIds = [...new Set(entries.map(e => e.category))];
 ---
 <BaseLayout title={title} description={intro}>
   <div class="content-shell gallery-library" data-gallery data-filter-scope data-kind={kind}>
-    <header class="gallery-heading"><div><p class="gallery-eyebrow">{comic ? 'COMIC ARCHIVE' : decorations ? 'PROFILE DECORATIONS' : 'STAMP COLLECTION'}</p><h1>{title}<span>{entries.length}</span></h1><p>{intro}</p></div><nav class="gallery-siblings" aria-label={say('其他图集','Other galleries')}>{modules.filter(m=>m.kind !== kind).map(m=><a class="gallery-sibling" href={href(m.path)}>{m.title} ↗</a>)}</nav></header>
+    <header class="gallery-heading"><nav class="gallery-siblings" aria-label={say('其他图集','Other galleries')}>{modules.filter(m=>m.kind !== kind).map(m=><a class="gallery-sibling" href={href(m.path)}>{m.title} ↗</a>)}</nav></header>
     {entries.length ? <>
       {decorations && <nav class="gallery-categories" aria-label={say('名片装饰分类','Decoration categories')}>
         {(['stickers','backgrounds'] as const).map(category => <a href={`?category=${category}`} data-gallery-category={category} aria-current={category === 'stickers' ? 'true' : undefined}><span>{categories[category]}</span><b>{gallery[category].length}</b></a>)}

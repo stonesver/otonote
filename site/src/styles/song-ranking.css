@@ -1,13 +1,8 @@
 /* The ranking is a data desk: compact controls above a complete, scrollable sheet. */
 .tool-studio[data-tool-kind="song-ranking"] {--rank-ink:#263448;--rank-muted:#69798b;--rank-accent:#326e88;--rank-line:#dce4ec;--rank-soft:#f2f6fa;--rank-number-width:42px;--rank-song-width:296px;}
-.tool-studio[data-tool-kind="song-ranking"]>.tool-page-header {padding:10px 0 8px;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-page-header-inner {align-items:center;}
-.tool-studio[data-tool-kind="song-ranking"] .tool-page-heading {display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-.tool-studio[data-tool-kind="song-ranking"] .tool-page-back {margin:0;font-size:11px;}
-.tool-studio[data-tool-kind="song-ranking"] .tool-page-header h1 {font-size:22px;gap:8px;letter-spacing:-.02em;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-title-glyph {width:30px;height:30px;border-radius:9px;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-title-glyph svg {width:22px;height:22px;}
-.tool-studio[data-tool-kind="song-ranking"] .tool-page-header p {margin:0;font-size:11px;}
 .tool-studio[data-tool-kind="song-ranking"] .ranking-shell {padding-block:6px 24px;}
 .tool-studio[data-tool-kind="song-ranking"] :is(.ranking-shell,.tool-page-header-inner) {width:calc(100% - 64px);max-width:none;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking {display:block;min-width:0;color:var(--rank-ink);}
@@ -183,10 +178,6 @@
 @media(max-width:700px) {
  .tool-studio[data-tool-kind="song-ranking"] :is(.ranking-shell,.tool-page-header-inner) {width:calc(100% - 40px);}
  .tool-studio[data-tool-kind="song-ranking"] {--rank-number-width:32px;--rank-song-width:clamp(168px,calc(100vw - 188px),224px);}
- .tool-studio[data-tool-kind="song-ranking"]>.tool-page-header {padding:8px 0 6px;}
- .tool-studio[data-tool-kind="song-ranking"] .tool-page-heading {gap:8px;}
- .tool-studio[data-tool-kind="song-ranking"] .tool-page-header h1 {font-size:19px;gap:6px;}
- .tool-studio[data-tool-kind="song-ranking"] .tool-page-header p {display:none;}
  .tool-studio[data-tool-kind="song-ranking"] .tool-title-glyph {width:25px;height:25px;border-radius:7px;}
  .tool-studio[data-tool-kind="song-ranking"] .ranking-shell {padding-top:3px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls {padding:9px 9px 7px;}

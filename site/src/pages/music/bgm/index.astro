@@ -35,7 +35,7 @@ const symbols: Record<string, string> = { home: '⌂', event: '✦', story: '≋
 <BaseLayout title={copy.title} description={copy.intro}>
   <bgm-library class="bgm-library content-shell" data-copy={JSON.stringify(copy)}>
     <header class="bgm-heading">
-      <div><p class="bgm-eyebrow">MUSIC ARCHIVE / BGM</p><h1>{copy.title}</h1><p class="bgm-intro">{copy.intro}</p></div>
+
       <dl class="bgm-stats"><div><dt>{copy.total}</dt><dd>{tracks.length}</dd></div><div><dt>{copy.playable}</dt><dd>{available}</dd></div></dl>
     </header>
     <nav class="bgm-subnav" aria-label={en ? 'Music sections' : '音乐资料子模块'}>

@@ -218,8 +218,7 @@
   color: var(--silver-dark);
 }
 
-.mode-detail-grid,
-.event-layout {
+.mode-detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
   gap: 28px;
@@ -724,8 +723,7 @@
 @media (max-width: 900px) {
   .mode-hero-grid,
   .event-hero-grid,
-  .mode-detail-grid,
-  .event-layout {
+  .mode-detail-grid {
     grid-template-columns: 1fr;
   }
 

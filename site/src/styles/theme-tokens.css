@@ -50,8 +50,10 @@
   --theme-action-soft:color-mix(in srgb,var(--theme-secondary) 14%,var(--theme-surface));
   --theme-action-edge:color-mix(in srgb,var(--theme-secondary) 65%,var(--theme-border));
   --theme-ornament-mask:none;
-  --theme-seasonal-scene:none;
-  --theme-seasonal-edge:none;
+  --theme-seasonal-band:none;
+  --theme-seasonal-band-mask:none;
+  --theme-seasonal-texture:none;
+  --theme-seasonal-trim:var(--theme-secondary);
   --theme-ornament-space:0px;
 }
 

@@ -1,48 +1,76 @@
-/* Seasonal illustrations use their own multicolor asset palettes. Interface colors remain token driven. */
+/* Seasonal identity belongs to the frame and component surfaces, without separate illustrations. */
 :is([data-theme="new-year"], [data-preview-theme="new-year"]) {
-  --theme-ornament-space:112px;
-  --theme-seasonal-scene:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20240%20136%22%3E%0A%3Cdefs%3E%0A%20%3ClinearGradient%20id%3D%22red%22%20x1%3D%220%22%20x2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23a13a2e%22%2F%3E%3Cstop%20offset%3D%22.48%22%20stop-color%3D%22%23df5943%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23a13a2e%22%2F%3E%3C%2FlinearGradient%3E%0A%20%3Cg%20id%3D%22lantern%22%3E%0A%0A%20%20%3Cpath%20d%3D%22M-12-25h24l3%205h-30z%22%20fill%3D%22%23f5cf6a%22%2F%3E%3Cpath%20d%3D%22M-10-23h20%22%20stroke%3D%22%23a66b34%22%20stroke-width%3D%221%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-14-20C-39-10-39%2018-13%2027H13C39%2018%2039-10%2014-20Z%22%20fill%3D%22url%28%23red%29%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-13-19C-27-7-27%2016-12%2026M0-20V27M13-19C27-7%2027%2016%2012%2026%22%20fill%3D%22none%22%20stroke%3D%22%23f5cf6a%22%20stroke-width%3D%221.2%22%20opacity%3D%22.82%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-28-4C-13-1%2013-1%2028-4M-29%2012C-13%2015%2013%2015%2029%2012%22%20fill%3D%22none%22%20stroke%3D%22%23f1b25d%22%20stroke-width%3D%22.8%22%20opacity%3D%22.55%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-14-20H14M-13%2027H13%22%20stroke%3D%22%23f9db89%22%20stroke-width%3D%222%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-13%2027H13L10%2033H-10Z%22%20fill%3D%22%23f5cf6a%22%2F%3E%3Cpath%20d%3D%22M-9%2030H9%22%20stroke%3D%22%23b57a38%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M0%2033v10%22%20stroke%3D%22%23c18c3c%22%20stroke-width%3D%221.8%22%2F%3E%0A%20%20%3Ccircle%20cy%3D%2244%22%20r%3D%223%22%20fill%3D%22%23be4532%22%2F%3E%3Cpath%20d%3D%22M-5%2048h10l3%2019H-8Z%22%20fill%3D%22%23e8b955%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-4%2050l-1%2015M0%2049v17M4%2050l1%2015%22%20stroke%3D%22%23fbdf95%22%20stroke-width%3D%221%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M-5-11C-1-15%204-13%205-10L0-3Z%22%20fill%3D%22%23f9d783%22%20opacity%3D%22.18%22%2F%3E%0A%20%3C%2Fg%3E%0A%20%3Cg%20id%3D%22blossom%22%20fill%3D%22%23d8655c%22%3E%3Cellipse%20cy%3D%22-4%22%20rx%3D%223.2%22%20ry%3D%224.2%22%2F%3E%3Cellipse%20cy%3D%22-4%22%20rx%3D%223.2%22%20ry%3D%224.2%22%20transform%3D%22rotate%2872%29%22%2F%3E%3Cellipse%20cy%3D%22-4%22%20rx%3D%223.2%22%20ry%3D%224.2%22%20transform%3D%22rotate%28144%29%22%2F%3E%3Cellipse%20cy%3D%22-4%22%20rx%3D%223.2%22%20ry%3D%224.2%22%20transform%3D%22rotate%28216%29%22%2F%3E%3Cellipse%20cy%3D%22-4%22%20rx%3D%223.2%22%20ry%3D%224.2%22%20transform%3D%22rotate%28288%29%22%2F%3E%3Ccircle%20r%3D%222%22%20fill%3D%22%23f5cf6a%22%2F%3E%3Ccircle%20r%3D%22.7%22%20fill%3D%22%239c4f2f%22%2F%3E%3C%2Fg%3E%0A%3C%2Fdefs%3E%0A%3Cpath%20d%3D%22M18%2013C72%2030%20158%209%20220%2021%22%20fill%3D%22none%22%20stroke%3D%22%23d9ad58%22%20stroke-width%3D%221.2%22%2F%3E%0A%3Cpath%20d%3D%22M42%2019v15M102%2020v10M163%2017v36%22%20stroke%3D%22%23e4b75e%22%20stroke-width%3D%221.4%22%2F%3E%0A%3Cuse%20href%3D%22%23lantern%22%20transform%3D%22translate%2842%2050%29%20scale%28.65%29%22%2F%3E%0A%3Cuse%20href%3D%22%23lantern%22%20transform%3D%22translate%28102%2055%29%22%2F%3E%0A%3Cuse%20href%3D%22%23lantern%22%20transform%3D%22translate%28163%2071%29%20scale%28.73%29%22%2F%3E%0A%3Cpath%20d%3D%22M207%20109C196%2096%20198%2083%20218%2058M202%2092l-15-12M207%2077l18-4M215%2063l-2-12%22%20fill%3D%22none%22%20stroke%3D%22%23ac7655%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%2F%3E%0A%3Cpath%20d%3D%22M201%2093c-8%201-10%205-8%208%206%200%208-3%208-8M212%2072c2-7%205-10%208-9%201%205-3%209-8%209%22%20fill%3D%22%23b79254%22%2F%3E%0A%3Cuse%20href%3D%22%23blossom%22%20transform%3D%22translate%28217%2057%29%20scale%28.85%29%22%2F%3E%3Cuse%20href%3D%22%23blossom%22%20transform%3D%22translate%28188%2081%29%20scale%28.7%29%22%2F%3E%3Cuse%20href%3D%22%23blossom%22%20transform%3D%22translate%28225%2073%29%20scale%28.66%29%22%2F%3E%0A%3Ccircle%20cx%3D%22207%22%20cy%3D%22105%22%20r%3D%222%22%20fill%3D%22%23d8655c%22%2F%3E%0A%3Cpath%20d%3D%22m18%2094%203-5%203%205-3%205zM187%2028l2-4%202%204-2%204z%22%20fill%3D%22%23e4ba64%22%2F%3E%0A%3Ccircle%20cx%3D%2276%22%20cy%3D%22112%22%20r%3D%221.5%22%20fill%3D%22%23d5a74f%22%2F%3E%3Ccircle%20cx%3D%22136%22%20cy%3D%2227%22%20r%3D%221.3%22%20fill%3D%22%23d5a74f%22%2F%3E%0A%3C%2Fsvg%3E");
-  --theme-seasonal-edge:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%2056%22%3E%0A%3Cdefs%3E%3ClinearGradient%20id%3D%22r%22%20x1%3D%220%22%20x2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23a13a2e%22%2F%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23e36749%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23a13a2e%22%2F%3E%3C%2FlinearGradient%3E%0A%3Cg%20id%3D%22l%22%3E%3Cpath%20d%3D%22M-7-13H7l1.5%203h-17Z%22%20fill%3D%22%23eec464%22%2F%3E%3Cpath%20d%3D%22M-6-12H6%22%20stroke%3D%22%23b17b38%22%20stroke-width%3D%22.6%22%2F%3E%0A%3Cpath%20d%3D%22M-8-10C-23-6-23%2011-8%2015H8C23%2011%2023-6%208-10Z%22%20fill%3D%22url%28%23r%29%22%2F%3E%0A%3Cpath%20d%3D%22M-7-10C-15-3-15%208-7%2015M0-10V15M7-10C15-3%2015%208%207%2015%22%20fill%3D%22none%22%20stroke%3D%22%23f5cf6a%22%20stroke-width%3D%22.85%22%2F%3E%0A%3Cpath%20d%3D%22M-18%201Q0%205%2018%201M-18%207Q0%2011%2018%207%22%20fill%3D%22none%22%20stroke%3D%22%23efbc64%22%20stroke-width%3D%22.6%22%20opacity%3D%22.7%22%2F%3E%0A%3Cpath%20d%3D%22M-8-10H8M-8%2015H8%22%20stroke%3D%22%23ffe09a%22%20stroke-width%3D%221.2%22%2F%3E%0A%3Cpath%20d%3D%22M-8%2015H8l-2%203H-6Z%22%20fill%3D%22%23eec464%22%2F%3E%3Cpath%20d%3D%22M0%2018v5%22%20stroke%3D%22%23b77f36%22%20stroke-width%3D%221%22%2F%3E%0A%3Ccircle%20cy%3D%2224%22%20r%3D%221.7%22%20fill%3D%22%23c54836%22%2F%3E%3Cpath%20d%3D%22M-3%2026h6l2%2011H-5Z%22%20fill%3D%22%23e7b755%22%2F%3E%0A%3Cpath%20d%3D%22M-2%2027v8M0%2027v9M2%2027v8%22%20stroke%3D%22%23fce199%22%20stroke-width%3D%22.75%22%2F%3E%0A%3C%2Fg%3E%3C%2Fdefs%3E%0A%3Cpath%20d%3D%22M27%201v5M73%201v16%22%20stroke%3D%22%23c49a48%22%20stroke-width%3D%221%22%2F%3E%0A%3Cuse%20href%3D%22%23l%22%20transform%3D%22translate%2827%2019%29%22%2F%3E%0A%3Cuse%20href%3D%22%23l%22%20transform%3D%22translate%2873%2028%29%20scale%28.75%29%22%2F%3E%0A%3C%2Fsvg%3E");
+  --theme-shell-surface:color-mix(in srgb,var(--theme-secondary) 12%,var(--theme-surface));
+  --theme-seasonal-band:linear-gradient(var(--theme-secondary-ink),var(--theme-secondary-ink));
+  /* Alpha mask: a continuous fret border, tinted by the current theme. */
+  --theme-seasonal-band-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 16'%3E%3Cpath d='M0 3h8v10h16V3h-8v5h4M24 3h8v10h16V3h-8v5h4' fill='none' stroke='black' stroke-width='1.4'/%3E%3C/svg%3E");
+  --theme-seasonal-texture:repeating-linear-gradient(45deg,transparent 0 15px,color-mix(in srgb,var(--theme-secondary-ink) 9%,transparent) 15px 16px,transparent 16px 31px),repeating-linear-gradient(-45deg,transparent 0 15px,color-mix(in srgb,var(--theme-secondary-ink) 9%,transparent) 15px 16px,transparent 16px 31px);
+  --theme-seasonal-trim:var(--theme-secondary-ink);
 }
 :is([data-theme="christmas"], [data-preview-theme="christmas"]) {
-  --theme-ornament-space:112px;
-  --theme-seasonal-scene:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20240%20136%22%3E%0A%3Cdefs%3E%0A%20%3Cg%20id%3D%22sprig%22%20fill%3D%22%23347457%22%3E%3Cpath%20d%3D%22M0%200C10-3%2017-4%2025-4C18%201%209%203%200%200Z%22%2F%3E%3Cpath%20d%3D%22M12-1C17-10%2021-14%2028-17C26-9%2021-4%2012-1Z%22%2F%3E%3Cpath%20d%3D%22M17-1C24%204%2030%206%2039%205C32-1%2027-2%2017-1Z%22%2F%3E%3Cpath%20d%3D%22M27-3C31-11%2037-15%2043-17C40-9%2036-5%2027-3Z%22%2F%3E%3Cpath%20d%3D%22M31-3C39%202%2046%203%2052%201C46-3%2040-5%2031-3Z%22%2F%3E%3Cpath%20d%3D%22M40-5C47-10%2053-12%2061-11C55-6%2049-4%2040-5Z%22%2F%3E%3Cpath%20d%3D%22M0%200L56-10%22%20fill%3D%22none%22%20stroke%3D%22%23b9b16c%22%20stroke-width%3D%22.8%22%2F%3E%3C%2Fg%3E%0A%20%3Cg%20id%3D%22pine%22%20fill%3D%22%23214f3e%22%3E%3Cpath%20d%3D%22M0%200%2016-9%208-10%2027-21%2019-21%2034-32%2032-23%2038-26%2032-12%2038-15%2025-3Z%22%2F%3E%3Cpath%20d%3D%22M0%200%2024%202%2018-3%2038-2%2032-7%2047-8%2039-12%2043-17%2028-11Z%22%2F%3E%3Cpath%20d%3D%22M0%200%2035-24%22%20stroke%3D%22%236c9270%22%20stroke-width%3D%221%22%2F%3E%3C%2Fg%3E%0A%20%3ClinearGradient%20id%3D%22bauble%22%20x1%3D%220%22%20x2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23a62f35%22%2F%3E%3Cstop%20offset%3D%22.52%22%20stop-color%3D%22%23d45b55%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23b63c3e%22%2F%3E%3C%2FlinearGradient%3E%0A%3C%2Fdefs%3E%0A%3Cpath%20d%3D%22M25%2042C72%2028%20160%2038%20215%2049%22%20fill%3D%22none%22%20stroke%3D%22%23bca461%22%20stroke-width%3D%221.3%22%2F%3E%0A%3Cuse%20href%3D%22%23pine%22%20transform%3D%22translate%2876%2046%29%20rotate%28-172%29%20scale%28.9%29%22%2F%3E%0A%3Cuse%20href%3D%22%23pine%22%20transform%3D%22translate%2886%2042%29%20rotate%28-150%29%20scale%28.9%29%22%2F%3E%0A%3Cuse%20href%3D%22%23sprig%22%20transform%3D%22translate%28109%2038%29%20rotate%28-164%29%22%2F%3E%0A%3Cuse%20href%3D%22%23sprig%22%20transform%3D%22translate%2882%2045%29%20rotate%28166%29%20scale%28.82%29%22%2F%3E%0A%3Cuse%20href%3D%22%23pine%22%20transform%3D%22translate%28143%2043%29%20rotate%28-12%29%20scale%28.95%29%22%2F%3E%0A%3Cuse%20href%3D%22%23sprig%22%20transform%3D%22translate%28135%2040%29%20rotate%285%29%22%2F%3E%0A%3Cuse%20href%3D%22%23sprig%22%20transform%3D%22translate%28161%2045%29%20rotate%2825%29%20scale%28.9%29%22%2F%3E%0A%3Cuse%20href%3D%22%23pine%22%20transform%3D%22translate%28176%2048%29%20rotate%2827%29%20scale%28.75%29%22%2F%3E%0A%3Cpath%20d%3D%22M66%2044v29M168%2048v34M102%2043v43%22%20stroke%3D%22%23d2b36b%22%20stroke-width%3D%221.2%22%2F%3E%0A%3Cpath%20d%3D%22M61%2072h10v6H61z%22%20fill%3D%22%23d8ba72%22%2F%3E%3Ccircle%20cx%3D%2266%22%20cy%3D%2293%22%20r%3D%2218%22%20fill%3D%22url%28%23bauble%29%22%2F%3E%0A%3Cpath%20d%3D%22M50%2088c10%204%2022%204%2032%200M50%2097c10%204%2022%204%2032%200%22%20fill%3D%22none%22%20stroke%3D%22%23efd38b%22%20stroke-width%3D%221.1%22%2F%3E%0A%3Cellipse%20cx%3D%2260%22%20cy%3D%2284%22%20rx%3D%223%22%20ry%3D%225%22%20fill%3D%22%23f7d8b9%22%20opacity%3D%22.58%22%20transform%3D%22rotate%2830%2060%2084%29%22%2F%3E%0A%3Cpath%20d%3D%22M164%2080h8v5h-8z%22%20fill%3D%22%23c7a559%22%2F%3E%3Ccircle%20cx%3D%22168%22%20cy%3D%2298%22%20r%3D%2215%22%20fill%3D%22%23d9b765%22%2F%3E%0A%3Cpath%20d%3D%22m168%2089%202.4%206.5%207%20.3-5.5%204.3%201.9%206.8-5.8-3.9-5.8%203.9%201.9-6.8-5.5-4.3%207-.3z%22%20fill%3D%22%23fff0c0%22%2F%3E%0A%3Cellipse%20cx%3D%22162%22%20cy%3D%2291%22%20rx%3D%222%22%20ry%3D%223.5%22%20fill%3D%22%23fff3cc%22%20opacity%3D%22.7%22%20transform%3D%22rotate%2830%20162%2091%29%22%2F%3E%0A%3Cpath%20d%3D%22M99%2085h6v4h-6z%22%20fill%3D%22%23dfc47c%22%2F%3E%3Ccircle%20cx%3D%22102%22%20cy%3D%2298%22%20r%3D%2210%22%20fill%3D%22%235a8669%22%2F%3E%3Cpath%20d%3D%22M95%2094l14%208M94%2099l12%206%22%20stroke%3D%22%23d7dbc0%22%20stroke-width%3D%221.4%22%2F%3E%0A%3Cpath%20d%3D%22M117%2040C105%2022%2088%2020%2087%2032C87%2042%20103%2047%20117%2043Z%22%20fill%3D%22%23bd403f%22%2F%3E%0A%3Cpath%20d%3D%22M123%2040C137%2021%20152%2023%20152%2035C152%2045%20134%2048%20123%2044Z%22%20fill%3D%22%23ce5450%22%2F%3E%0A%3Cpath%20d%3D%22M115%2044C108%2058%20105%2063%2095%2072L106%2070%20112%2077C118%2065%20121%2055%20121%2044Z%22%20fill%3D%22%23b23638%22%2F%3E%0A%3Cpath%20d%3D%22M122%2044C127%2056%20134%2062%20147%2065L139%2069%20139%2078C125%2069%20120%2055%20120%2044Z%22%20fill%3D%22%23ca4c48%22%2F%3E%0A%3Cpath%20d%3D%22M92%2031C98%2030%20106%2035%20115%2040M128%2040c9-6%2015-8%2019-7%22%20fill%3D%22none%22%20stroke%3D%22%23ed9b83%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22round%22%2F%3E%0A%3Cpath%20d%3D%22M115%2036h10l3%2011-12%202-4-8z%22%20fill%3D%22%23a83235%22%2F%3E%3Cpath%20d%3D%22M117%2038l7-1%201%209-7%201z%22%20fill%3D%22%23d65b52%22%2F%3E%0A%3Cg%20fill%3D%22%23ba3c3e%22%3E%3Ccircle%20cx%3D%2241%22%20cy%3D%2249%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%2249%22%20cy%3D%2252%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2258%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%22194%22%20cy%3D%2255%22%20r%3D%223.5%22%2F%3E%3Ccircle%20cx%3D%22201%22%20cy%3D%2258%22%20r%3D%223.5%22%2F%3E%3C%2Fg%3E%0A%3Cg%20fill%3D%22%23ebc573%22%3E%3Cpath%20d%3D%22m27%2083%202-5%202%205%205%202-5%202-2%205-2-5-5-2zM211%2091l1.5-4%201.5%204%204%201.5-4%201.5-1.5%204-1.5-4-4-1.5z%22%2F%3E%3Ccircle%20cx%3D%22137%22%20cy%3D%22107%22%20r%3D%221.5%22%2F%3E%3Ccircle%20cx%3D%22187%22%20cy%3D%22112%22%20r%3D%221.5%22%2F%3E%3C%2Fg%3E%0A%3C%2Fsvg%3E");
-  --theme-seasonal-edge:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20130%2040%22%3E%0A%3Cpath%20d%3D%22M7%2021Q63%2011%20123%2022%22%20fill%3D%22none%22%20stroke%3D%22%23b79d58%22%20stroke-width%3D%22.8%22%2F%3E%0A%3Cg%20fill%3D%22%23285c43%22%3E%3Cpath%20d%3D%22M59%2020C42%2017%2029%2020%209%2022L20%2017%2012%2016%2027%2012%2020%208%2037%2011%2034%205%2047%2013%2049%207Z%22%2F%3E%3Cpath%20d%3D%22M72%2020C90%2015%20106%2018%20124%2024L113%2018%20121%2016%20106%2013%20112%209%2096%2012%2097%205%2083%2013%2081%208Z%22%2F%3E%3C%2Fg%3E%0A%3Cg%20fill%3D%22%234a8060%22%3E%3Cpath%20d%3D%22M55%2018%2031%2010%2036%2015%2021%2014%2028%2019%2016%2021%2040%2022Z%22%2F%3E%3Cpath%20d%3D%22M76%2018%2099%2010%2096%2015%20110%2013%20105%2019%20117%2022%2094%2022Z%22%2F%3E%3C%2Fg%3E%0A%3Cpath%20d%3D%22M17%2021%2056%2018M77%2018l38%205%22%20stroke%3D%22%23a0ad70%22%20stroke-width%3D%22.6%22%2F%3E%0A%3Cg%20fill%3D%22%23b73c3c%22%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2224%22%20r%3D%222.8%22%2F%3E%3Ccircle%20cx%3D%2226%22%20cy%3D%2225%22%20r%3D%222.8%22%2F%3E%3Ccircle%20cx%3D%2223%22%20cy%3D%2229%22%20r%3D%222.8%22%2F%3E%3Ccircle%20cx%3D%22106%22%20cy%3D%2224%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%22112%22%20cy%3D%2226%22%20r%3D%222.5%22%2F%3E%3C%2Fg%3E%0A%3Cpath%20d%3D%22M62%2017C54%205%2044%207%2046%2014C47%2020%2055%2022%2063%2020Z%22%20fill%3D%22%23be403f%22%2F%3E%0A%3Cpath%20d%3D%22M67%2017C75%205%2085%207%2084%2014C83%2020%2075%2022%2067%2020Z%22%20fill%3D%22%23d65c52%22%2F%3E%0A%3Cpath%20d%3D%22M62%2020C59%2028%2057%2030%2051%2034l7-1%204%205C66%2030%2067%2024%2065%2019Z%22%20fill%3D%22%23ad3437%22%2F%3E%0A%3Cpath%20d%3D%22M67%2020C71%2029%2075%2031%2083%2033l-6%202-1%204C69%2034%2065%2026%2065%2020Z%22%20fill%3D%22%23c74943%22%2F%3E%0A%3Cpath%20d%3D%22M49%2012q5-1%2012%206M69%2018q7-6%2012-6%22%20fill%3D%22none%22%20stroke%3D%22%23efa286%22%20stroke-width%3D%22.8%22%2F%3E%0A%3Cpath%20d%3D%22M61%2015h7l2%207-8%201-3-5Z%22%20fill%3D%22%23a33033%22%2F%3E%3Cpath%20d%3D%22M63%2016h4v5h-4Z%22%20fill%3D%22%23d26050%22%2F%3E%0A%3Cpath%20d%3D%22M39%2022v7M94%2023v7%22%20stroke%3D%22%23bca15b%22%20stroke-width%3D%22.7%22%2F%3E%0A%3Ccircle%20cx%3D%2239%22%20cy%3D%2232%22%20r%3D%224%22%20fill%3D%22%23d8b762%22%2F%3E%3Cpath%20d%3D%22M36%2031l5%203%22%20stroke%3D%22%23f9e5a7%22%20stroke-width%3D%22.8%22%2F%3E%0A%3Ccircle%20cx%3D%2294%22%20cy%3D%2232%22%20r%3D%223.5%22%20fill%3D%22%23c44542%22%2F%3E%3Ccircle%20cx%3D%2293%22%20cy%3D%2231%22%20r%3D%22.9%22%20fill%3D%22%23efaa85%22%2F%3E%0A%3C%2Fsvg%3E");
+  --theme-seasonal-band:repeating-linear-gradient(45deg,var(--theme-accent) 0 14px,var(--theme-surface) 14px 20px,var(--theme-secondary) 20px 34px,var(--theme-surface) 34px 40px);
+  --theme-seasonal-texture:repeating-linear-gradient(90deg,transparent 0 17px,color-mix(in srgb,var(--theme-accent) 7%,transparent) 17px 25px,transparent 25px 34px,color-mix(in srgb,var(--theme-secondary) 10%,transparent) 34px 35px,transparent 35px 48px),repeating-linear-gradient(0deg,transparent 0 17px,color-mix(in srgb,var(--theme-accent) 7%,transparent) 17px 25px,transparent 25px 34px,color-mix(in srgb,var(--theme-secondary) 10%,transparent) 34px 35px,transparent 35px 48px);
 }
 
-/* Keep the full composition in the navigation's existing decorative slot. */
-html[data-theme="new-year"] .nav-bottom::before,
-html[data-theme="christmas"] .nav-bottom::before {
-  content:""; display:block; width:100%; height:var(--theme-ornament-space);
-  margin:0 0 12px; background:var(--theme-seasonal-scene) center / contain no-repeat;
-  mask:none; opacity:1; pointer-events:none;
+html:is([data-theme="new-year"],[data-theme="christmas"])[data-shell="sidebar"] {
+  /* The same trim follows the joined header and brand, including the mobile toolbar. */
+  .site-header::after,
+  .site-brand::after {
+    content:""; position:absolute; inset:auto 0 0; height:8px; pointer-events:none;
+    background:var(--theme-seasonal-band);
+    mask-image:var(--theme-seasonal-band-mask); mask-size:24px 8px; mask-repeat:repeat-x; mask-position:center;
+  }
+  .site-nav {
+    background-image:linear-gradient(var(--theme-shell-surface) 62%,transparent 100%),var(--theme-seasonal-texture);
+    background-color:var(--theme-shell-surface);
+  }
+  .nav-bottom { padding-top:16px; border-top:1px solid color-mix(in srgb,var(--theme-seasonal-trim) 32%,transparent); }
+  .nav-bottom::before { content:none; }
+  :is(.nav-primary,.nav-home,.nav-submenu a)[aria-current="page"] {
+    border-radius:6px;
+    box-shadow:inset 3px 0 var(--theme-secondary),inset 0 0 0 1px color-mix(in srgb,var(--theme-secondary) 45%,transparent);
+  }
+  .site-footer { background-image:var(--theme-seasonal-texture); border-top:2px solid var(--theme-seasonal-trim); }
+  .card-directory-section .filter-drawer-trigger {
+    border-radius:6px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--theme-on-secondary) 22%,transparent);
+  }
+  .card-directory-section .catalog-tile { border-color:color-mix(in srgb,var(--theme-seasonal-trim) 30%,var(--theme-border)); }
+
+  .tool-studio.tool-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench {
+    :is(.event-setup-title,.ds-panel-title,.ds-score-setup > summary,.task-condition-panel > header) {
+      background-image:var(--theme-seasonal-texture);
+      border-bottom:3px double color-mix(in srgb,var(--theme-on-secondary) 30%,transparent);
+    }
+    .event-action-dock { border-top-width:1px; border-color:color-mix(in srgb,var(--theme-seasonal-trim) 38%,var(--theme-border)); }
+    .event-action-dock::before {
+      content:""; position:absolute; inset:0 0 auto; height:6px; border-radius:8px 8px 0 0; pointer-events:none;
+      background:var(--theme-seasonal-band);
+      mask-image:var(--theme-seasonal-band-mask); mask-size:18px 6px; mask-repeat:repeat-x; mask-position:center;
+    }
+    .event-action-dock .event-primary {
+      border-radius:6px; box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--theme-on-secondary) 22%,transparent);
+    }
+  }
 }
-/* The opening ornament scrolls with the page and leaves the header controls clear. */
-html[data-theme="new-year"] #main-content::before,
-html[data-theme="christmas"] #main-content::before {
-  content:""; display:block; height:48px; margin:0 0 -18px;
-  background:var(--theme-seasonal-edge) right 20px top / 96px 48px no-repeat;
-  pointer-events:none;
+/* The toolbar owns the festive ribbon; the action dock stays quieter. */
+html[data-theme="christmas"][data-shell="sidebar"] .tool-studio.tool-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-action-dock::before {
+  height:2px; background:var(--theme-secondary); mask:none;
 }
-html[data-theme="christmas"] #main-content::before {
-  background-position:right 20px top 7px; background-size:130px 34px;
+
+/* Keep touch toolbar geometry unchanged; the brand no longer owns a separate border here. */
+@media(max-width:1100px) {
+  html:is([data-theme="new-year"],[data-theme="christmas"])[data-shell="sidebar"] .site-brand::after { content:none; }
 }
-html[data-theme="new-year"][data-shell="sidebar"] .site-header::before,
-html[data-theme="christmas"][data-shell="sidebar"] .site-header::before {
-  content:""; position:absolute; inset:auto 16px 0; height:1px;
-  background:color-mix(in srgb,var(--theme-secondary) 65%,transparent);
-  pointer-events:none;
+
+/* Preview the same surfaces, without the former floating seasonal pictures. */
+.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) {
+  .theme-picker-preview__nav { background-image:var(--theme-seasonal-texture); }
+  .theme-picker-preview__nav::after,.theme-picker-preview__panels::after { content:none; }
+  .theme-picker-preview__header { position:relative; }
+  .theme-picker-preview__header::after {
+    content:""; position:absolute; inset:auto 0 0; height:3px;
+    background:var(--theme-seasonal-band);
+    mask-image:var(--theme-seasonal-band-mask); mask-size:12px 4px; mask-repeat:repeat-x;
+  }
+  .theme-picker-preview__panels i:first-child { background-image:var(--theme-seasonal-texture); }
 }
-/* A real miniature of the same illustration, without the previous oversized ghost motif. */
-.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) .theme-picker-preview__nav::after {
-  content:""; inset:auto -3px 3px; height:30px;
-  background:var(--theme-seasonal-scene) center / contain no-repeat; mask:none; opacity:1;
-}
-.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) .theme-picker-preview__content { gap:20px; }
-.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) .theme-picker-preview__header { position:relative; }
-.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) .theme-picker-preview__header::after {
-  content:""; position:absolute; right:2px; top:100%; width:32px; height:17px;
-  background:var(--theme-seasonal-edge) center / contain no-repeat; pointer-events:none;
-}
-.theme-picker-preview[data-preview-theme="christmas"] .theme-picker-preview__header::after { top:calc(100% + 2px); width:48px; height:13px; }
-.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) .theme-picker-preview__panels::after { content:none; }

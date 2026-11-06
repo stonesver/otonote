@@ -33,7 +33,6 @@ export const englishExactTranslations: Record<string, string> = {
   "全部歌曲": "All songs",
   "当前谱面": "Current chart",
   "沿用范围": "Use the same collection",
-  "快速推荐": "Quick recommendations",
   "完整比较": "Full comparison",
   "队伍加成": "Team bonuses",
   "手动填写": "Enter manually",

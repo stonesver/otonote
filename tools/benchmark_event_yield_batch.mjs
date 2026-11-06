@@ -12,7 +12,7 @@ const {values}=parseArgs({allowNegative:true,options:{root:{type:'string',defaul
  mode:{type:'string',default:'ordinary'},goal:{type:'string',default:'both'},basis:{type:'string',default:'expectedScore'},
  difficulty:{type:'string',default:'expert'},'max-level':{type:'string',default:'40'},
  'challenge-difficulty':{type:'string',default:'expert'},'challenge-max-level':{type:'string',default:'40'},
- 'include-challenge':{type:'boolean',default:false},eco:{type:'boolean',default:true},'time-limit-ms':{type:'string',default:'120000'},
+ 'include-challenge':{type:'boolean',default:false},'time-limit-ms':{type:'string',default:'120000'},
  evaluations:{type:'string',default:'0'},'preflight-only':{type:'boolean',default:false},'individual-proofs':{type:'boolean',default:false}
  ,'cpu-limit-ms':{type:'string',default:'0'}
 }});
@@ -41,7 +41,7 @@ if(!personal.inventory)for(const kind of ['member','support'])for(const id of in
 const account=maximizeAccount({},rules);account.tgwCardRank=Math.max(...rules.tables.VipRankBonus.map(r=>r._vipRank));
 const draft=personal.draft??createTeamDraft({modifiers:personal.account??account});
 const input={draft,inventory,scope:'owned',mode:values.mode,goal:values.goal,basis:values.basis,liveBoost:1,challengeCost:200,budget:100,startingCP:0,
- includeChallenge:values['include-challenge'],challengeScope:'same',challengeBasis:values.basis,searchDepth:'full',eco:values.eco,
+ includeChallenge:values['include-challenge'],challengeScope:'same',challengeBasis:values.basis,searchDepth:'full',
  ...personal.options,maxEvaluations:Number(values.evaluations)};
 const allowed=rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(values.event)).map(r=>`music-${r._liveMusicId}`);
 const data={tracks:catalog.musicTracks,charts:catalog.musicCharts};
@@ -63,7 +63,7 @@ for(const {candidate:c} of jobs){
  charts.set(c.id,chart);chartFiles[c.id]={path:resolve(path),sha256:hash(bytes),analysisDataUrl:c.analysisDataUrl,
   releaseBinding:chart.sourceReleaseId?'payload_and_catalog':'catalog_sourceReleaseIds_and_immutable_analysisDataUrl'};
 }
-const preflight={sourceReleaseId:rules.sourceReleaseId,mode:input.mode,goal:input.goal,basis:input.basis,eco:input.eco,searchDepth:'full',
+const preflight={sourceReleaseId:rules.sourceReleaseId,mode:input.mode,goal:input.goal,basis:input.basis,searchDepth:'full',
  fullCandidateSet:true,proofTarget:values['individual-proofs']?'every_chart':'global_objective',ordinaryCandidates:input.mode==='ordinary'?selected.length:0,challengeCandidates:cycle?challenges.length:input.mode==='challenge'?selected.length:0,
  plannedCharts:jobs.length,plannedInvocations:jobs.reduce((n,j)=>n+eventYieldGoals(input.goal,j.mode).length,0),availableLocalCharts:charts.size,missing};
 if(values['preflight-only']||missing.length){writeFileSync(values.output,JSON.stringify(preflight,null,2)+'\n');console.log(JSON.stringify({...preflight,missing:missing.length}));
@@ -76,7 +76,7 @@ for(const directory of ['packages/scoring','site/src/lib'])for(const entry of re
 const sorted=Object.fromEntries(Object.entries(sources).sort(([a],[b])=>a.localeCompare(b)));
 const scoringSources=Object.fromEntries(Object.entries(sorted).filter(([p])=>p.startsWith('packages/scoring/')&&!/bound|maximum-pairing|search-queue/.test(p)||p==='site/src/lib/formation-candidate-evaluator.mjs'));
 const candidateCache=new Map(),challengePlanCache=new Map(),challengeRows=[],rows=[],samples=[],groupSamples=[],controller=new AbortController();
-const yieldControl=createCalculationScheduler({eco:input.eco}),start=performance.now(),cpu=process.cpuUsage();
+const yieldControl=createCalculationScheduler(),start=performance.now(),cpu=process.cpuUsage();
 const checkBudget=()=>{
  if(Number(values['time-limit-ms'])&&performance.now()-start>=Number(values['time-limit-ms']))controller.abort();
  const used=process.cpuUsage(cpu);if(Number(values['cpu-limit-ms'])&&(used.user+used.system)/1000>=Number(values['cpu-limit-ms']))controller.abort();

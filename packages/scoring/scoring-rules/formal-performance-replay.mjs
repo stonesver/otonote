@@ -7,7 +7,7 @@ import { calculateFormalNoteCore } from './formal-note-core.mjs';
 import { createLifeReplay, createComboReplay, createOrdinarySkillLifecycle } from './formal-performance-state.mjs';
 import { createEventPipeline } from './event-rules.mjs';
 import { summarizeScoreDistribution } from './score-distribution.mjs';
-import { stableSnapshotHash } from '../scoring-engine.mjs';
+import { createSnapshotFieldHasher } from '../scoring-engine.mjs';
 import { SCORE_MODEL_VERSION } from './model-version.mjs';
 import { TIMING_PERFORMANCE_VERSION, resolveTimingJudgement } from './performance-scenarios.mjs';
 
@@ -75,6 +75,14 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   const judgementRows = new Map(rules.tables.LiveJudgementParameter.map(row => [row._noteSimulateJudgement, row]));
   const maximumLife = setting('life_base');
   const musicLengthMs = Math.max(...timeline.events.map(event => event.timeMs), ...timeline.skillTimes);
+  // Input timing is independent of the team and skill order. Conversions,
+  // combo, life and skill activation remain part of each individual replay.
+  const arrivals = new Map();
+  for (const event of judgements) {
+    if (!arrivals.has(event.inputFrame)) arrivals.set(event.inputFrame, []);
+    arrivals.get(event.inputFrame).push({ event, originalJudgement: resolveTimingJudgement(rules, event) });
+  }
+  const lastInputFrame = Math.max(...arrivals.keys());
 
   function run(draft, { includeTrace = false, withoutSkills = false, skillOrder = input.skillOrder, prepared } = {}) {
     if (draft.slots?.length !== 5 || draft.slots.some(slot => !slot.memberCardId || !slot.supportCardId)) throw new Error('请选择五张成员卡和五张留影');
@@ -94,20 +102,18 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       return { ...comboAtScore, scoreUpFactor, score: noteValue(event, comboAtScore.comboFactor, scoreUpFactor),
         baseScore: includeTrace ? noteValue(event, comboAtScore.comboFactor, 1) : 0 };
     } });
-    const arrivals = new Map(), stateTrace = [], factorCommands = [];
+    const stateTrace = [], factorCommands = [];
     const addFactor = command => { replay.addFactor(command); if (includeTrace) factorCommands.push(command); };
-    for (const event of judgements) { if (!arrivals.has(event.inputFrame)) arrivals.set(event.inputFrame, []); arrivals.get(event.inputFrame).push(event); }
     const lifecycle = createOrdinarySkillLifecycle({ skills, skillTimes: timeline.skillTimes, skillOrder, clock, life, skillEndFrame, onFactor: addFactor, withoutSkills });
     const { converters, skillTrace } = lifecycle;
-    let lastFrame = Math.max(...arrivals.keys(), lifecycle.lastFrame), convertedCount = 0, lowestLife = maximumLife, totalDamage = 0;
+    let lastFrame = Math.max(lastInputFrame, lifecycle.lastFrame), convertedCount = 0, lowestLife = maximumLife, totalDamage = 0;
     const counts = Object.fromEntries([1,2,3,4,5,6].map(j => [j, 0]));
     const conversionCounts = new Map();
     for (let frame = 0; frame <= lastFrame; frame++) {
       const nowMs = clock.at(frame).timeMs;
       let changed = false;
       const frameNotes = [];
-      for (const inputNote of arrivals.get(frame) ?? []) {
-        const originalJudgement = resolveTimingJudgement(rules, inputNote);
+      for (const { event: inputNote, originalJudgement } of arrivals.get(frame) ?? []) {
         const { judgement, convertedBy } = lifecycle.convert(originalJudgement);
         if (convertedBy) conversionCounts.set(convertedBy.effectId, (conversionCounts.get(convertedBy.effectId) ?? 0) + 1);
         if (convertedBy) convertedCount++;
@@ -153,7 +159,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       verificationStatus: timeline.verificationStatus, scenario: performance.version === TIMING_PERFORMANCE_VERSION ? 'ordinary_raw_timing_no_assist' : 'ordinary_explicit_judgements_no_assist',
       timingModel: { frameRate: input.frameRate, clock: clock.kind, scoreBucketMs: 40 },
       sourceReleaseId: rules.sourceReleaseId, ruleSetVersion: rules.ruleSetVersion, event: eventPipeline.context,
-      inputHash: stableSnapshotHash({ draft, chartHash: timeline.chartHash, performance, skillOrder, modelVersion: SCORE_MODEL_VERSION }),
+      inputHash: prepared.hashOrder(skillOrder),
       power: power.total.total, baseScore, expectedScore: score, minimumScore: score, maximumScore: score,
       skillScoreGain: noteTotal - baseScore, eventFixedScoreGain: score - noteTotal, orderCount: 1,
       scoreDistribution: summarizeScoreDistribution([score], { complete: false }), bestOrder: skillOrder, worstOrder: skillOrder, skills,
@@ -173,7 +179,8 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   function calculateOrders(draft, { skillOrders, includeTrace = false } = {}) {
     if (!Array.isArray(skillOrders) || !skillOrders.length) throw new Error('至少需要一个技能顺序');
     skillOrders.forEach(validateOrder);
-    const prepared = { power: formation.calculate(draft), skills: resolve(draft) };
+    const prepared = { power: formation.calculate(draft), skills: resolve(draft),
+      hashOrder: createSnapshotFieldHasher({ draft, chartHash: timeline.chartHash, performance, modelVersion: SCORE_MODEL_VERSION }, 'skillOrder') };
     const baseline = run(draft, { withoutSkills: true, skillOrder: skillOrders[0], prepared });
     // A second explicit scenario removes score, conversion and recovery
     // effects together; the gain includes their resulting combo/life changes.

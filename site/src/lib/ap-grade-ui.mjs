@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {skillActivation} from './skill-activation-view.mjs';
 import {registerToolTeamContext, notifyToolTeamChanged, assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
@@ -13,7 +14,7 @@ const el=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textCo
 const fmt=n=>Number(n).toLocaleString('zh-CN',{maximumFractionDigits:0}),grade=r=>['D','C','B','A','S','SS'][r-2];
 class APGradeTool extends HTMLElement{
  connectedCallback(){
-  if(this.ready)return;this.ready=true;this.q=s=>this.querySelector(`[data-ap-${s}]`);this.data=JSON.parse(this.q('inputs').textContent);
+  if(this.ready)return;this.ready=true;this.q=s=>this.querySelector(`[data-ap-${s}]`);this.data=readToolJson(this.q('inputs'));
   const d=this.data,params=new URLSearchParams(location.search);
   const parsed=parseTeamDraftSearch(location.search,{memberCardIds:new Set(d.memberCards.map(c=>c.id)),supportCardIds:new Set(d.supportCards.map(c=>c.id)),musicTrackIds:new Set(d.tracks.map(c=>c.id))},location.hash);
   this.draft=createTeamDraft(parsed.draft);delete this.draft.modifiers.event;this.rows=null;this.page=0;
@@ -23,7 +24,7 @@ class APGradeTool extends HTMLElement{
   if([...this.q('event').options].some(o=>o.value===params.get('eventId')))this.q('event').value=params.get('eventId');
   if(AP_BASES.includes(params.get('apBasis')))this.q('basis').value=params.get('apBasis');
   this.eventContext={boost:params.get('boost')??1,cost:params.get('cost')??200};
-  for(const k of ['mode','event','difficulty','level','eco'])this.q(k).addEventListener('change',()=>this.invalidate());
+  for(const k of ['mode','event','difficulty','level'])this.q(k).addEventListener('change',()=>this.invalidate());
   for(const k of ['basis','sort'])this.q(k).addEventListener('change',()=>{this.page=0;this.renderRows();});
   this.q('query').addEventListener('input',()=>{this.page=0;this.renderRows();});
   this.q('run').addEventListener('click',()=>this.run());this.q('cancel').addEventListener('click',()=>{this.stop();this.q('status').textContent='已停止判档计算。';});
@@ -81,7 +82,7 @@ class APGradeTool extends HTMLElement{
    });
    worker.addEventListener('error',()=>{if(this.worker!==worker)return;this.stop();this.q('status').textContent='判档服务加载失败，请重试。';});
    this.q('status').textContent=`正在准备 ${candidates.length} 张谱面…`;
-   worker.postMessage({rules:this.data.rules,draft:this.draft,candidates,mode,eventId,eco:this.q('eco').checked});
+   worker.postMessage({rules:this.data.rules,draft:this.draft,candidates,mode,eventId});
   }catch(e){this.stop();this.q('status').textContent=e.message;}
  }
  renderRows(){

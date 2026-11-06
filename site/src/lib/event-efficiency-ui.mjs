@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {setupTaskWorkbench} from './task-workbench.mjs';
 import {createEventTaskSelection,createEventPhaseSelection,defaultEventId} from './event-task-selection.mjs';
 import {materializeTeamAssumptions} from './workbench-team-input.mjs';
@@ -19,7 +20,7 @@ const percent=node=>{if(node.value.trim()==='')throw Error('请填写游戏显�
 class EventEfficiencyTool extends HTMLElement {
  connectedCallback(){
   if(this.ready)return;this.ready=true;
-  this.data=JSON.parse(this.querySelector('[data-event-inputs]').textContent);
+  this.data=readToolJson(this.querySelector('[data-event-inputs]'));
   this.q=s=>this.querySelector(`[data-${s}]`);
   this.draft=createTeamDraft(parseTeamDraftSearch(location.search,{memberCardIds:new Set(this.data.memberCards.map(c=>c.id)),supportCardIds:new Set(this.data.supportCards.map(c=>c.id)),musicTrackIds:new Set(this.data.tracks.map(t=>t.id))},location.hash).draft);
   this.personalGrowthStore=createPersonalGrowthStore({rules:this.data.rules,vipRanks:this.data.vipRanks});

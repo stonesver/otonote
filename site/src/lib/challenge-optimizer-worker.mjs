@@ -31,7 +31,7 @@ self.addEventListener('message',async({data})=>{
   const response=await fetch(analysisDataUrl,{signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw Error(`谱面加载失败（${response.status}）`);
   const chart=await response.json();
-  yieldControl=createCalculationScheduler({eco:false});
+  yieldControl=createCalculationScheduler();
   startedAt=performance.now();
   let lastProgress=0,lastStage='';
   session=createChallengeSearchSession({...input,chart,yieldControl,shouldPause:()=>paused,onProgress:p=>{

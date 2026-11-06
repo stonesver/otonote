@@ -13,8 +13,6 @@
 .challenge-opt-card img{width:3.5rem;height:3rem;object-fit:contain;flex-shrink:0}
 @media(max-width:640px){.challenge-opt-pairs li{grid-template-columns:3rem 1fr}.challenge-opt-pairs li strong{grid-row:span 2}.challenge-opt-card{grid-column:2}}
 
-.event-workbench .event-eco{display:flex;align-items:center;gap:6px;margin:10px 0}.event-workbench .event-eco input{min-height:0;width:16px;height:16px;padding:0;flex:none}
-
 .tool-studio .event-workbench .event-panel{padding:16px;border-radius:8px}
 .tool-studio .event-workbench .event-panel-heading{gap:8px;margin-bottom:12px}
 .tool-studio .event-workbench .event-panel-heading p{margin-top:4px}

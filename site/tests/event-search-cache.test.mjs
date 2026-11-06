@@ -6,7 +6,7 @@ import {planEventSearch} from '../src/lib/event-search-plan.mjs';
 test('persistent partition ignores yield knobs but isolates personal data, events and rules',async()=>{
  const rules={sourceReleaseId:'global',tables:{test:[1]}},input={draft:{selectedSongId:'a',selectedDifficulty:'expert',slots:[1],modifiers:{growth:{a:1}}},inventory:{memberCardIds:[1]},scope:'owned'};
  const key=await eventSearchPartition(rules,1,input);
- assert.equal(await eventSearchPartition(rules,1,{...input,goal:'grade',budget:100,basis:'minimumScore',eco:false,searchDepth:'full',draft:{...input.draft,selectedSongId:'b',selectedDifficulty:'easy'}}),key);
+ assert.equal(await eventSearchPartition(rules,1,{...input,goal:'grade',budget:100,basis:'minimumScore',searchDepth:'full',draft:{...input.draft,selectedSongId:'b',selectedDifficulty:'easy'}}),key);
  for(const changed of [{...input,inventory:{memberCardIds:[2]}},{...input,draft:{...input.draft,slots:[2]}},{...input,draft:{...input.draft,modifiers:{growth:{a:2}}}},{...input,scope:'selected'}])assert.notEqual(await eventSearchPartition(rules,1,changed),key);
  assert.notEqual(await eventSearchPartition(rules,2,input),key);
  assert.notEqual(await eventSearchPartition({...rules,tables:{test:[2]}},1,input),key);

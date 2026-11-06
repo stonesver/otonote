@@ -39,38 +39,45 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
     }
     return actualScores.get(key);
   };
+  const prepareResult = (candidate, variant, live = false) => {
+    const prepared = prepareGrowthCandidate(rules, resolved, candidate.draft, { trainedCardIds: variant.trainedCardIds });
+    const { comparison, targetDraft, actualDraft } = prepared;
+    const current = !live && comparison.actualAvailable && actualDraft ? actualScore(actualDraft) : null;
+    if (!live && resolved.scope !== 'reference' && comparison.actualTeamAvailable && current && (!baselineResult || current.value > baselineResult.value)) baselineResult = { ...current, draft: actualDraft };
+    if (performance) targetDraft.modifiers.performanceScenario = performance;
+    targetDraft.modifiers.recommendationGoal = recommendationGoal;
+    targetDraft.modifiers.planningResult.selectedTrainingCardIds = variant.trainedCardIds.filter(id => targetDraft.slots.some(s => s.memberCardId===id || s.supportCardId===id));
+    const trainingChanges = comparison.changedCards.map(card => ({ type: card.kind, id: card.id, fields: card.changes }));
+    const hypothetical = ['reference', 'trial'].includes(resolved.scope);
+    const isTraining = !hypothetical && resolved.plan.enabled && comparison.trainedCardCount > 0;
+    const planning = { kind: isTraining ? 'training' : resolved.scope === 'owned' ? 'current' : resolved.scope,
+      label: isTraining ? `需要培养 ${comparison.trainedCardCount} 张卡` : labels[resolved.scope], trainingChanges: hypothetical ? [] : trainingChanges,
+      currentValue: baselineResult?.value ?? null, plannedTeamCurrentValue: current?.value ?? null,
+      targetValue: candidate.value, missingActual: !comparison.actualTeamAvailable, actualScoreAvailable: Boolean(current),
+      ownershipUnknown: comparison.unknownOwnershipIds, materialEstimateAvailable: false,
+      trainingCountComplete: !hypothetical && comparison.trainingCountComplete };
+    return { ...candidate, draft: targetDraft, planning, performanceScenario: performance, performanceSummary: performance?.description,
+      id: stableSnapshotHash({ slots: targetDraft.slots, growth: targetDraft.modifiers.growth }),
+      delta: baselineResult ? candidate.value - baselineResult.value : null,
+      comparison: compareScoredFormations(candidate, baselineResult), growthComparison: comparison };
+  };
   for (const variant of variants) {
     if (signal?.aborted) break;
     onProgress({ phase: 'planning', completed: completedVariants, total: Math.min(variants.totalCount ?? variantLimit, variantLimit),
       message: resolved.plan.enabled ? `比较培养方案 ${completedVariants + 1}` : '比较不同配队' });
     const report = await optimizePractical({ ...context, draft: variant.draft, scope: 'owned', inventory: variant.inventory,
       constraints, maxWindowCards, resultLimit: 24, signal, yieldControl,
-      onProgress: progress => onProgress({ ...progress, planningVariant: completedVariants + 1 }) });
+      onProgress: progress => {
+        if (progress.phase === 'practical-result' && progress.bestCandidate) {
+          onProgress({ phase: 'planning-result', bestCandidate: prepareResult(progress.bestCandidate, variant, true), planningVariant: completedVariants + 1 });
+        } else onProgress({ ...progress, planningVariant: completedVariants + 1 });
+      } });
     progressReports.push(report.practical);
     coverageReports.push(report.scoringCoverage);
     report.warnings.forEach(w => warnings.add(w));
     evaluated += report.evaluated;
     for (const candidate of report.results) {
-      const prepared = prepareGrowthCandidate(rules, resolved, candidate.draft, { trainedCardIds: variant.trainedCardIds });
-      const { comparison, targetDraft, actualDraft } = prepared;
-      const current = comparison.actualAvailable && actualDraft ? actualScore(actualDraft) : null;
-      if (resolved.scope !== 'reference' && comparison.actualTeamAvailable && current && (!baselineResult || current.value > baselineResult.value)) baselineResult = { ...current, draft: actualDraft };
-      if (performance) targetDraft.modifiers.performanceScenario = performance;
-      targetDraft.modifiers.recommendationGoal = recommendationGoal;
-      targetDraft.modifiers.planningResult.selectedTrainingCardIds = variant.trainedCardIds.filter(id => targetDraft.slots.some(s => s.memberCardId===id || s.supportCardId===id));
-      const trainingChanges = comparison.changedCards.map(card => ({ type: card.kind, id: card.id, fields: card.changes }));
-      const hypothetical = ['reference', 'trial'].includes(resolved.scope);
-      const isTraining = !hypothetical && resolved.plan.enabled && comparison.trainedCardCount > 0;
-      const planning = { kind: isTraining ? 'training' : resolved.scope === 'owned' ? 'current' : resolved.scope,
-        label: isTraining ? `需要培养 ${comparison.trainedCardCount} 张卡` : labels[resolved.scope], trainingChanges: hypothetical ? [] : trainingChanges,
-        currentValue: baselineResult?.value ?? null, plannedTeamCurrentValue: current?.value ?? null,
-        targetValue: candidate.value, missingActual: !comparison.actualTeamAvailable, actualScoreAvailable: Boolean(current),
-        ownershipUnknown: comparison.unknownOwnershipIds, materialEstimateAvailable: false,
-        trainingCountComplete: !hypothetical && comparison.trainingCountComplete };
-      const value = { ...candidate, draft: targetDraft, planning, performanceScenario: performance, performanceSummary: performance?.description,
-        id: stableSnapshotHash({ slots: targetDraft.slots, growth: targetDraft.modifiers.growth }),
-        delta: baselineResult ? candidate.value - baselineResult.value : null,
-        comparison: compareScoredFormations(candidate, baselineResult), growthComparison: comparison };
+      const value = prepareResult(candidate, variant);
       results.push(value);
       (candidate.warnings ?? []).forEach(w => warnings.add(w));
     }

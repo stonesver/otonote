@@ -16,7 +16,7 @@ function fixture(){
  const second={...structuredClone(f.chart),id:'music-chart-10003802',difficulty:'hard'};
  const charts=new Map([[f.chart.id,f.chart],[second.id,second]]);
  const candidates=[f.chart,second].map((chart,i)=>({...f.candidate,id:chart.id,difficulty:chart.difficulty,seconds:100+i,analysisDataUrl:'data:application/json,'+encodeURIComponent(JSON.stringify(chart))}));
- const input={draft:f.draft,inventory:f.inventory,scope:'owned',mode:'ordinary',basis:'expectedScore',goal:'both',searchDepth:'full',eco:false,liveBoost:1,budget:11,challengeCost:200,startingCP:0,includeChallenge:true,challengeScope:'same',challengeBasis:'expectedScore'};
+ const input={draft:f.draft,inventory:f.inventory,scope:'owned',mode:'ordinary',basis:'expectedScore',goal:'both',searchDepth:'full',liveBoost:1,budget:11,challengeCost:200,startingCP:0,includeChallenge:true,challengeScope:'same',challengeBasis:'expectedScore'};
  return {...f,input,candidates,charts};
 }
 const leaders=result=>Object.fromEntries(['badges','eventPoints'].map(goal=>[goal,result.rows.filter(r=>r.recommendationGoals.includes(goal)).map(r=>[r.song.id,r.total]).slice(0,1)]));

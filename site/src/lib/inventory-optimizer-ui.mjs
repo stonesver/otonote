@@ -129,14 +129,14 @@ export function setupInventoryOptimizer(workbench,{createScopeControls=setupTeam
         if(data.type==='progress'&&task.value==='playlist'){const p=data.progress;feedback.update({label:`逐曲推荐：${p.chartTitle??''}`,completed:p.chartDone,total:p.chartTotal,detail:p.message??p.stage??'比较本曲的队伍'});return;}
         if(data.type==='progress') {
           const p=data.progress;
-          if(p.phase!=='practical-result')feedback.update({label:ui(p.stage??p.message??({planning:'比较养成范围',placements:'比较候选站位',pair_weights:'准备卡片配对',search:'搜索更好的编成'}[p.phase]??'准备队长加成')),completed:p.completed,total:p.total,detail:ui(p.phase==='search'?'搜索分支会变化，尚不能估计总量':'当前阶段进度，完成后继续下一阶段')});
+          if(!['practical-result','planning-result'].includes(p.phase))feedback.update({label:ui(p.stage??p.message??({planning:'比较养成范围',placements:'比较候选站位',pair_weights:'准备卡片配对',search:'搜索更好的编成'}[p.phase]??'准备队长加成')),completed:p.completed,total:p.total,detail:ui(p.phase==='search'?'搜索分支会变化，尚不能估计总量':'当前阶段进度，完成后继续下一阶段')});
           if(p.phase==='planning'){progress.textContent=ui(p.message??`已比较 ${p.completed} 组培养范围`);return;}
           if(p.phase==='practical'){
             progress.textContent=(p.planningVariant?`${ui(`比较培养方案 ${p.planningVariant}`)} · `:'')+ui(`${p.stage} · ${p.completed}/${p.total}`);
             const stages=q('[data-practical-progress]');stages.replaceChildren();
             for(const stage of p.stages){const item=document.createElement('li');item.dataset.complete=String(stage.total!=null&&stage.completed===stage.total);item.textContent=ui(`${stage.label}：${stage.total==null?'待开始':`${stage.completed} / ${stage.total}`}`);stages.append(item);}return;
           }
-          if(p.phase==='practical-result'){if(p.bestCandidate&&!settings.planningScenario)renderOptimizerResults(workbench,[p.bestCandidate],{mode,objective,live:true});return;}
+          if(p.phase==='planning-result'||p.phase==='practical-result'){if(p.bestCandidate&&(p.phase==='planning-result'||!settings.planningScenario))renderOptimizerResults(workbench,[p.bestCandidate],{mode,objective,live:true});return;}
 
           if(p.phase==='fallback'){progress.textContent=ui(p.message);return;}
           progress.textContent=ui(p.phase==='search'?`已比较 ${p.completed} 组 · 当前最佳 ${format(p.best)}`:p.phase==='placements'?`正在比较候选站位 ${p.completed}/${p.total}`:`准备${p.phase==='pair_weights'?'卡片配对':'队长加成'} ${p.completed}/${p.total}`);

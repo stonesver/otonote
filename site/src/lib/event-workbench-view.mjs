@@ -14,10 +14,10 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
  const songFilters=q('[data-yield-song-filters]');autoFilters.append(q('[data-yield-difficulty]').closest('label'),q('[data-yield-level]').closest('label'),songFilters);
  const continuation=el('section',null,'task-condition-group task-event-continuation');continuation.append(el('h3','后续挑战'),q('[data-yield-challenge-settings]'));continuation.querySelector('h4')?.remove();conditionBody.insertBefore(continuation,planning);
  planning.querySelector('h3').textContent='搜索设置';planning.querySelector('#event-yield-title')?.remove();
- planning.append(q('[data-yield-depth]').closest('label'),q('[data-yield-eco]').closest('label'));planning.querySelector('.tool-help')?.remove();
+ planning.querySelector('.tool-help')?.remove();
  const advanced=el('details',null,'task-event-advanced');advanced.append(el('summary','计算范围与说明'));
  for(const s of ['[data-yield-hint]','[data-yield-goal-help]','[data-pool-hint]','[data-team-status]','[data-bonus]']){const n=q(s);if(n)advanced.append(n);}
- for(const n of [...planning.children])if(n!==planning.firstElementChild&&!n.contains(range)&&n!==songBasis&&!n.contains(q('[data-yield-depth]'))&&!n.contains(q('[data-yield-eco]'))&&!n.contains(q('[data-open-team-workspace="inventory"]')))advanced.append(n);
+ for(const n of [...planning.children])if(n!==planning.firstElementChild&&!n.contains(range)&&n!==songBasis&&!n.contains(q('[data-open-team-workspace="inventory"]')))advanced.append(n);
  planning.append(advanced);modalizeDetails(host,advanced);
  const challengeConditions=el('section',null,'task-condition-group task-challenge-conditions');challengeConditions.append(el('h3','冲榜配队条件'),q('[data-challenge-opt-scope]').closest('label'),q('[data-challenge-opt-objective]').closest('label'),el('p','活动能力加成计入出分；奖励加成不乘入歌曲分数。','task-input-note'));conditionBody.append(challengeConditions);
  const rushRewards=eventRewardOptions(host,'challengeOpt');challengeConditions.append(rushRewards.root);

@@ -2,7 +2,7 @@ import { resolveSearchInput } from './scoring-rules/formation-input.mjs';
 import { createFormationCalculator } from './scoring-rules/formation-power.mjs';
 import { createFormalSkillResolver } from './scoring-rules/formal-skills.mjs';
 import { pairingProfileBound } from './scoring-rules/pairing-bound.mjs';
-import { maximumPairing } from './scoring-rules/maximum-pairing.mjs';
+import { createMaximumPairing } from './scoring-rules/maximum-pairing.mjs';
 import { compilePairingModels, draftFromPairing, compareScoredFormations } from './inventory-optimizer.mjs';
 import { createEventPipeline } from './scoring-rules/event-rules.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
@@ -252,6 +252,7 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
     ...(missions.includes(3) && maxWindowCards>1 ? [{id:'window-combination',label:'JUST · 多张扩窗搭配',allWindows:true,feature:f=>f.missions[3]/missionMax[3]}] : []), ...extraProfiles];
   if (requiredWindows.length > maxWindowCards) throw new Error('必选扩窗卡超过本次设置的上限，请调整配队条件。');
   const seedRows = [], screenDrafts = new Map();
+  const pairingSolvers = new Map();
   const add = (d, profile, kind) => { if (legal(d)) { const key = signature(d); const existing = screenDrafts.get(key);
     if (existing) existing.origins.add(profile.id); else screenDrafts.set(key, { draft: d, origins: new Set([profile.id]), kind }); } };
   const modelMaps = new Map(), modelsByLeader = new Map(models.map(m => [m.leader, m]));
@@ -290,8 +291,14 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
       if (best && pairingProfileBound(edges,model.leader,5,weight) <= best.weight) {
         report.prunedLeaders=(report.prunedLeaders??0)+1; await yieldControl(); continue;
       }
-      const solution = maximumPairing({ edges, weight, required: input.constraints.lockedPairs.map(p => `${p.memberCardId}|${p.supportCardId}`),
-        requiredMembers: [...input.constraints.requiredMemberIds, model.leader], requiredSupports: [...input.constraints.requiredSupportIds, ...(windowId ? [windowId] : [])] });
+      // Profiles change weights, not topology. Keep separate solvers for each
+      // leader/window constraint; solve resets all residual capacities.
+      if (!pairingSolvers.has(model)) pairingSolvers.set(model, new Map());
+      const solvers = pairingSolvers.get(model), key = JSON.stringify([windowId, [...allowedWindows].sort()]);
+      if (!solvers.has(key)) solvers.set(key, createMaximumPairing({ edges,
+        required: input.constraints.lockedPairs.map(p => `${p.memberCardId}|${p.supportCardId}`),
+        requiredMembers: [...input.constraints.requiredMemberIds, model.leader], requiredSupports: [...input.constraints.requiredSupportIds, ...(windowId ? [windowId] : [])] }));
+      const solution = solvers.get(key)(weight);
       if (solution && (!best || solution.weight > best.weight)) best = { draft: draftFromPairing(input, model.leader, solution.edges), weight: solution.weight };
       await yieldControl();
     }

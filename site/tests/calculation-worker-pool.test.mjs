@@ -8,14 +8,13 @@ class WorkerStub{
  terminate(){this.terminated=true;}
  reply(result){this.listeners.message({data:{id:this.requests.at(-1).id,type:'result',result}});}
 }
-test('full speed uses a bounded hardware budget while eco and quick stay serial',()=>{
- const full={eco:false,searchDepth:'full'};
+test('complete search uses a bounded hardware budget; limited internal jobs stay serial',()=>{
+ const full={searchDepth:'full'};
  assert.equal(eventYieldParallelism(full,{cores:16,memory:8}),4);
  assert.equal(eventYieldParallelism(full,{cores:16,memory:4}),2);
  assert.equal(eventYieldParallelism(full,{cores:16}),2);
  assert.equal(eventYieldParallelism(full,{cores:2,memory:8}),1);
  assert.equal(eventYieldParallelism(full,{cores:NaN,memory:8}),1);
- assert.equal(eventYieldParallelism({...full,eco:true},{cores:16,memory:8}),1);
  assert.equal(eventYieldParallelism({...full,searchDepth:'quick'},{cores:16,memory:8}),1);
 });
 test('bounded workers keep job identities across out-of-order results and progress',async()=>{

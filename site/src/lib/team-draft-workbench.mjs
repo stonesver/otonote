@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {setupTaskWorkbench} from './task-workbench.mjs';
 import {createPersonalGrowthStore,applyPersonalGrowth} from './personal-growth-store.mjs';
 import {toolTeamLabel,registerToolTeamContext, notifyToolTeamChanged} from './shared-team-context.mjs';
@@ -22,7 +23,7 @@ import {attributeBadge} from './calculator-attribute-ui.mjs';
     connectedCallback() {
       const dataNode = this.querySelector("[data-team-draft-data]");
       if (!(dataNode instanceof HTMLScriptElement)) return;
-      this.data = JSON.parse(dataNode.textContent || "{}");
+      this.data = readToolJson(dataNode);
       this.labels = this.data.labels;
       this.memberById = new Map(this.data.memberCards.map((card) => [card.id, card]));
       this.supportById = new Map(this.data.supportCards.map((card) => [card.id, card]));

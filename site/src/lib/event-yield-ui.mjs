@@ -3,7 +3,6 @@ import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupEventScopeControls} from './tool-calculation-scopes.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
-import {planEventSearch} from './event-search-plan.mjs';
 import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
 import {EVENT_YIELD_GOAL_LABELS,orderEventYieldRows,eventYieldGaps} from './event-yield-goals.mjs';
 import {createCalculationProgress} from './calculation-progress.mjs';
@@ -58,7 +57,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
  const stop=(publish=false)=>{worker?.terminate();worker=null;updates.stop({flushResult:publish});if(publish&&result)render();q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
  function context(){return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
-   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false,searchDepth:q('depth').value,eco:q('eco').checked,goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
+   rewardCards:q('rewards')?.checked?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false,searchDepth:'full',goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
  function filters(c,challenge=false){
    const allowed=tool.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===c.eventId).map(r=>`music-${r._liveMusicId}`);
    if(challenge)return {allowedTrackIds:allowed,difficulty:c.challengeDifficulty,maxLevel:c.challengeMaxLevel};
@@ -159,10 +158,10 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    articleCache=nextArticles;viewCache=nextView;
 
  }
- function run(depth=q('depth').value){
+ function run(){
    if(worker)return;
    try{
-     const c=context();assertToolTeamCompatible(tool.teamWorkspaceContext,c.draft);c.searchDepth=depth;if(c.mode==='gekisou')throw Error('激奏请手填团队结算档位');
+     const c=context();assertToolTeamCompatible(tool.teamWorkspaceContext,c.draft);if(c.mode==='gekisou')throw Error('激奏请手填团队结算档位');
      if(c.mode==='ordinary'&&(!Number.isInteger(c.liveBoost)||c.liveBoost<1||!Number.isInteger(c.budget)||c.budget<c.liveBoost||c.budget>10000))throw Error('普通收益配队需消耗至少 1 火，预算不少于单次耗火且不超过 10000 火。');
      if(!Number.isInteger(c.startingCP)||c.startingCP<0||c.startingCP>1000000)throw Error('已有挑战 pt 需为 0 至 1000000 的整数。');
      const needsInventory=c.scope==='owned'||c.mode==='ordinary'&&c.includeChallenge&&c.challengeScope==='owned';
@@ -190,14 +189,14 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
        }else {feedback.finish('计算失败',data.message,'error');q('continue').hidden=!result;q('status').textContent=`计算失败：${data.message}${result?'；保留当前显示的方案，可重新开始完整比较。':''}`;}
      });
      worker.addEventListener('error',()=>{if(worker!==active)return;stop(true);feedback.finish('计算服务加载失败','请重试','error');q('status').textContent='计算服务加载失败，请重试。';});
-     const planned=depth==='full'?candidates.length:planEventSearch(candidates,tool.data.rules,c.draft).quick.length;
+     const planned=candidates.length;
      q('status').textContent=`${scopeSummary(runScopes.main)}。本轮主阶段计划检查 ${planned} 张谱面${challenge?'；后续挑战 '+challenge.chartCount+' 张谱面':''}。`;
      worker.postMessage({rules:tool.data.rules,eventId:c.eventId,candidates,challengeCandidates,input:c});
    }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;tool.q('team-status').textContent=error.message;}
  }
  const scopeControls=createScopeControls(tool,{getFilters:challenge=>filters(context(),challenge),onChange:()=>{sync();tool.challengeOptimizer?.sync();},getResultCharts:()=>result?.rows.map(r=>r.song).filter(Boolean)??[]});
  mainScope=scopeControls.main;challengeScope=scopeControls.challenge;
- q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run('full'));q('cancel').addEventListener('click',()=>{stop(true);const summary=eventYieldStopText(Boolean(result));feedback.finish(summary.label,summary.detail,'stopped');q('continue').hidden=!result;q('status').textContent=scopeSummary(runScopes.main)+'。'+summary.status;});
+ q('run').addEventListener('click',()=>run());q('continue').addEventListener('click',()=>run());q('cancel').addEventListener('click',()=>{stop(true);const summary=eventYieldStopText(Boolean(result));feedback.finish(summary.label,summary.detail,'stopped');q('continue').hidden=!result;q('status').textContent=scopeSummary(runScopes.main)+'。'+summary.status;});
  root.addEventListener('change',event=>{event.stopPropagation();sync();});
  return {sync,run,invalidate:()=>{key='';stop();sync();},destroy:()=>{stop();feedback.destroy();scopeControls.destroy();}};
 }

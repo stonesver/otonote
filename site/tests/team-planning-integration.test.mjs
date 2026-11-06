@@ -312,3 +312,21 @@ test('manual actual growth supports same-team comparison without inventing owner
     assert.equal(row.planning.ownershipUnknown.length,10);
   }
 });
+
+
+test('planning publishes fully scored candidates with their growth scope before completion', async () => {
+  const context = fixture(), progress = [];
+  const report = await run(context, { planningScenario: context.planningScenario,
+    onProgress: row => { if (row.phase === 'planning-result') progress.push(structuredClone(row)); } });
+  assert.ok(progress.length > 0);
+  for (const { bestCandidate: row } of progress) {
+    assert.equal(row.value, context.calculator.calculate(row.draft).total.total);
+    assert.ok(row.planning.label);
+    assert.ok(row.growthComparison);
+    assert.equal(row.planning.plannedTeamCurrentValue, null, 'live candidates do not invent a baseline');
+    assert.deepEqual(row.draft.modifiers.planningResult.selectedTrainingCardIds,
+      row.planning.trainingChanges.map(change => change.id));
+  }
+  assert.ok(report.results.length > 0);
+  assert.ok(report.results.some(row => row.planning.plannedTeamCurrentValue != null));
+});

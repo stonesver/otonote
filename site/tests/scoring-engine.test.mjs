@@ -5,7 +5,8 @@ import {
   SCORING_INPUT_SCHEMA_VERSION,
   createScoringInputSnapshot,
   evaluateScoringResearch,
-  stableSnapshotHash
+  stableSnapshotHash,
+  createSnapshotFieldHasher
 } from "../src/lib/scoring-engine.mjs";
 
 const evidence = {
@@ -128,4 +129,19 @@ test("rejects a snapshot from a different release before calculation", () => {
   assert.equal(result.status, "invalid_input");
   assert.equal(result.trace[0].code, "release_mismatch");
   assert.equal(result.score, null);
+});
+
+
+test('prepared snapshot hashes retain canonical identity for every varying-field position', () => {
+  const snapshot = { z: '尾部', a: { b: 2, a: [1, undefined, -0] }, 2: 'numeric', omitted: undefined };
+  for (const field of ['skillOrder', 'a', 'z', '0', '10', 'quoted"key']) {
+    const hash = createSnapshotFieldHasher(snapshot, field);
+    for (const value of [[0,1,2,3,4], [4,3,2,1,0], { z: 1, a: '判定' }, null, undefined]) {
+      assert.equal(hash(value), stableSnapshotHash({ ...snapshot, [field]: value }));
+    }
+  }
+  const hash = createSnapshotFieldHasher(snapshot, 'skillOrder');
+  const expected = hash([0,1,2,3,4]);
+  snapshot.a.b = 99;
+  assert.equal(hash([0,1,2,3,4]), expected, 'fixed fields belong to the captured snapshot');
 });

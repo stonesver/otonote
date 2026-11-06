@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {setupTaskWorkbench} from './task-workbench.mjs';
 import {materializeTeamAssumptions} from './workbench-team-input.mjs';
 import {createWorkbenchTeamView} from './workbench-team-view.mjs';
@@ -27,7 +28,7 @@ class ScoringResearchWorkbench extends HTMLElement {
   async connectedCallback() {
     const dataNode = this.querySelector("[data-scoring-research-data]");
     if (!(dataNode instanceof HTMLScriptElement)) return;
-    this.data = JSON.parse(dataNode.textContent || "{}");
+    this.data = readToolJson(dataNode);
     this.labels = this.data.labels;
     try {
       const {mode,scenario}=readScoringScenarioSearch(window.location.search);

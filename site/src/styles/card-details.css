@@ -11,7 +11,7 @@
   padding: clamp(20px, 2.4vw, 32px);
   border: 1px solid var(--line);
   background: var(--paper-light);
-  box-shadow: 0 6px 24px rgb(17 19 27 / 4%);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent);
 }
 
 .card-record-grid--landscape {
@@ -182,7 +182,7 @@
 .member-card-primary-skill b { color: var(--lacquer); font-size: 11px; font-weight: 500; justify-self: end; }
 .member-card-primary-skill:hover { border-color: var(--lacquer); }
 .member-card-primary-action,
-.support-card-primary-action { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-radius: 8px; background: var(--lacquer); color: white; }
+.support-card-primary-action { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-radius: 8px; background: var(--lacquer); color: var(--theme-on-accent); }
 .member-card-primary-action > span,
 .support-card-primary-action > span { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; opacity: .65; }
 .member-card-primary-action strong,
@@ -247,7 +247,7 @@
   border-radius: 2px;
   color: var(--ink);
   background: var(--paper-light);
-  box-shadow: 0 32px 100px rgb(0 0 0 / 43%);
+  box-shadow: 0 32px 100px color-mix(in srgb, var(--theme-shadow-color) 43%, transparent);
 }
 
 .card-topic-dialog--growth {
@@ -255,7 +255,7 @@
 }
 
 .card-topic-dialog::backdrop {
-  background: rgb(10 11 15 / 78%);
+  background: color-mix(in srgb, var(--theme-media-shade) 78%, transparent);
   backdrop-filter: blur(7px);
 }
 
@@ -273,7 +273,7 @@
   padding: 23px 25px 19px;
   border-bottom: 1px solid var(--line);
   background:
-    linear-gradient(100deg, rgb(153 28 40 / 8%), transparent 35%),
+    linear-gradient(100deg, color-mix(in srgb, var(--theme-accent) 8%, transparent), transparent 35%),
     var(--paper-light);
 }
 
@@ -356,7 +356,7 @@
 }
 
 .card-dialog-table th {
-  color: #77706a;
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.08em;
@@ -372,7 +372,7 @@
 .card-dialog-boundary,
 .card-dialog-profile-id {
   margin: 15px 0 0;
-  color: #817a73;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
 }
 
@@ -398,7 +398,7 @@
 
 .card-growth-counters span {
   display: block;
-  color: #877f77;
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -473,7 +473,7 @@ card-growth-simulator {
 
 .growth-controls > p {
   margin: 9px 0 17px;
-  color: #7f7871;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
   line-height: 1.6;
 }
@@ -498,7 +498,7 @@ card-growth-simulator {
 .growth-control > img.growth-control-icon--dark {
   padding: 7px;
   border-radius: 10px;
-  background: var(--stage-ink);
+  background: var(--theme-inverse-surface);
 }
 
 .growth-icon-fallback {
@@ -506,7 +506,7 @@ card-growth-simulator {
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 50%;
-  color: #817a73;
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -539,7 +539,7 @@ card-growth-simulator {
 }
 
 .growth-control > small {
-  color: #89817a;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
 }
 
@@ -554,18 +554,18 @@ card-growth-simulator {
 
 .growth-power-card {
   padding: 19px;
-  color: white;
+  color: var(--theme-inverse-text);
   background:
-    radial-gradient(circle at 90% 10%, rgb(121 174 194 / 34%), transparent 35%),
-    var(--stage-ink);
+    radial-gradient(circle at 90% 10%, color-mix(in srgb, var(--theme-secondary) 34%, transparent), transparent 35%),
+    var(--theme-inverse-surface);
 }
 
 .growth-power-card > header span {
-  color: #91c5d7;
+  color: var(--theme-secondary);
 }
 
 .growth-power-card > header small {
-  color: rgb(255 255 255 / 48%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 48%, transparent);
   font-size: var(--text-metadata-size);
 }
 
@@ -582,7 +582,7 @@ card-growth-simulator {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   margin: 12px 0 0;
-  border-top: 1px solid rgb(255 255 255 / 17%);
+  border-top: 1px solid color-mix(in srgb, var(--theme-inverse-text) 17%, transparent);
 }
 
 .growth-power-card dl > div {
@@ -590,7 +590,7 @@ card-growth-simulator {
 }
 
 .growth-power-card dt {
-  color: rgb(255 255 255 / 45%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 45%, transparent);
   font-size: var(--text-metadata-size);
 }
 
@@ -618,7 +618,7 @@ card-growth-simulator {
 
 .growth-bonus-strip span {
   display: block;
-  color: #847d76;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
 }
 
@@ -660,7 +660,7 @@ card-growth-simulator {
   align-items: start;
   padding: 11px;
   border: 1px solid var(--line);
-  background: rgb(255 255 255 / 38%);
+  background: color-mix(in srgb, var(--theme-surface) 38%, transparent);
 }
 
 .growth-skill-results article > img,
@@ -690,7 +690,7 @@ card-growth-simulator {
 
 .growth-skill-results article p {
   margin: 5px 0 0;
-  color: #77716b;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
   line-height: 1.55;
 }
@@ -700,7 +700,7 @@ card-growth-simulator {
 }
 
 .growth-material-ledger > header small {
-  color: #827b74;
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -739,7 +739,7 @@ card-growth-simulator {
 .growth-material-columns > div > span {
   display: block;
   margin-bottom: 5px;
-  color: #817a73;
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -773,7 +773,7 @@ card-growth-simulator {
 }
 
 .growth-material-columns small {
-  color: #8b847d;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
 }
 
@@ -801,7 +801,7 @@ card-growth-simulator {
 
 .card-material-sections header span,
 .card-material-sections header small {
-  color: #857e77;
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -854,7 +854,7 @@ card-growth-simulator {
 }
 
 .card-resource-ledger dt {
-  color: #7d766f;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
 }
 
@@ -876,7 +876,7 @@ card-growth-simulator {
 
 .card-dialog-empty {
   margin: 0;
-  color: #7c756e;
+  color: var(--theme-muted);
 }
 
 

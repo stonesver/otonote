@@ -11,7 +11,7 @@
   border-top: 3px solid var(--lacquer);
   border-radius: 10px;
   background: var(--paper-light);
-  box-shadow: 0 12px 40px rgb(17 19 27 / 16%);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--theme-shadow-color) 16%, transparent);
   color: var(--ink);
   view-transition-name: transition-preview;
 }

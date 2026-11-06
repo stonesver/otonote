@@ -1,3 +1,4 @@
+import {readThemePalette, observeTheme} from './theme-palette.mjs';
 import { createAutoStageFrame } from './auto-stage-layout.mjs';
 import { normalizeAutoTimeline } from './auto-timeline.mjs';
 import { createAutoScene } from './auto-stage-scene.mjs';
@@ -23,6 +24,11 @@ export function registerChartDemo() {
       const status = find('status'), retry = find('retry'), skinStatus = find('skin-status');
       if (!context) { status.textContent = en ? 'Canvas is unavailable.' : '当前浏览器不支持 Canvas。'; return; }
       const { skin, missions } = JSON.parse(find('config').textContent);
+      const applyTheme = () => {
+        const palette = readThemePalette(this);
+        Object.assign(skin.theme.palette, {top:palette.inverseSurface, middle:palette.inverseSurface, bottom:palette.inverseSurface});
+      };
+      applyTheme();
       const audio = find('audio');
       if (audio) audio.volume = Number(find('volume').value);
       const clock = audio ? createMediaClock(audio) : createDemoClock();
@@ -276,7 +282,8 @@ export function registerChartDemo() {
       listen(retry, 'click', () => { void ensureSkin(); audio?.load(); void load(); });
       listen(document, 'visibilitychange', () => { if (document.hidden) stop(); });
       const resize = new ResizeObserver(entries => { size = entries[0].contentRect; draw(); }); resize.observe(canvas);
-      this.cleanup = () => { disposed = true; stop(); request?.abort(); events.abort(); resize.disconnect(); clock.destroy?.(); };
+      const disconnectTheme = observeTheme(this, () => { applyTheme(); draw(); });
+      this.cleanup = () => { disposed = true; stop(); request?.abort(); events.abort(); resize.disconnect(); disconnectTheme(); clock.destroy?.(); };
       const requested = new URLSearchParams(location.search).get('difficulty');
       if ([...difficulty.options].some(option => option.value === requested)) difficulty.value = requested;
       if (new URLSearchParams(location.search).get('view') === 'playback') void ensureSkin();

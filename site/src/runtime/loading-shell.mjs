@@ -9,7 +9,7 @@ const card = () => `<div class="loading-card"><div class="loading-art"><span cla
 const row = () => `<div class="loading-row"><div class="loading-cover"></div><div>${line()}${line('short')}</div>${line('short')}</div>`;
 
 /** The entry is self-contained and independent of the content release. */
-export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg, appManifest, startupScript, loadingArt = {}, navigationScript = '', shellPreferences = ''}) {
+export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg, appManifest, startupScript, loadingArt = {}, navigationScript = '', shellPreferences = '', themeChrome = ''}) {
   const zh = getUi('zh-CN'), en = getUi('en');
   const label = key => `<span data-loading-en="${escape(en[key])}">${escape(zh[key])}</span>`;
   const link = (path, text, classes = '') => `<a class="${classes}" href="/global/zh-CN${path}" data-loading-route="${path}">${text}</a>`;
@@ -33,10 +33,10 @@ export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg,
     list: `<div class="loading-filters">${line()}${line()}</div><div class="loading-rows">${Array.from({length:6},row).join('')}</div>`
   };
   return `<!doctype html><html lang="zh-CN" data-tone="paper" data-shell="sidebar" data-loading="true"><head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#11131b"><title>${SITE_NAME}</title>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color"><title>${SITE_NAME}</title>
     <link rel="icon" href="${codeRoot}favicon.svg" type="image/svg+xml"><link rel="modulepreload" href="${codeRoot}${boot}">
     ${startupScript ? `<script>globalThis[Symbol.for('ournotes.code-manifest.v1')]=${JSON.stringify({...appManifest,root:codeRoot}).replace(/</g,'\\u003c')};${startupScript}</script>` : ''}
-    <script>${shellPreferences}</script><style data-loading-style>${css}</style></head><body>
+    <script>${shellPreferences}</script><style data-loading-style>${css}</style><script>${themeChrome}</script></head><body>
     <a class="skip-link" href="#main-content">${label('skipMain')}</a>
     <header class="site-header" data-site-header>
       ${link('/', `<span class="site-brand__mark" aria-hidden="true">${brandSvg}</span><span class="site-brand__full">${SITE_NAME}</span><span class="site-brand__compact" aria-hidden="true">${SITE_NAME}</span>`, 'site-brand')}

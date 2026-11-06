@@ -174,13 +174,13 @@
 
 .gekisou-team-status[data-status="rejected"],
 .gekisou-result-status[data-status="invalid_input"] {
-  border-color: #fb7185;
-  color: #fb7185;
+  border-color: var(--theme-border);
+  color: var(--theme-danger-ink);
 }
 
 .gekisou-result-status[data-status="experimental"] {
-  border-color: #c084fc;
-  color: #d8b4fe;
+  border-color: var(--theme-border);
+  color: var(--theme-accent);
 }
 
 .gekisou-experiment-panel {
@@ -322,14 +322,14 @@
   font-size: .75rem;
 }
 
-.gekisou-mission--combo { border-top-color: #60a5fa; }
-.gekisou-mission--luck { border-top-color: #f472b6; }
-.gekisou-mission--just { border-top-color: #facc15; }
+.gekisou-mission--combo { /* Game semantics: COMBO, LUCK and JUST mission identity. */ border-top-color: #60a5fa; }
+.gekisou-mission--luck { /* Game semantics: COMBO, LUCK and JUST mission identity. */ border-top-color: #f472b6; }
+.gekisou-mission--just { /* Game semantics: COMBO, LUCK and JUST mission identity. */ border-top-color: #facc15; }
 
 .gekisou-timeline-shell {
   margin: .75rem 0;
   overflow-x: auto;
-  background: #0f172a;
+  background: var(--theme-inverse-surface);
 }
 
 .gekisou-timeline-shell svg {
@@ -440,7 +440,7 @@
 }
 
 .gekisou-lab-ledger li[data-evidence="counterfactual"] {
-  border-color: #a855f7;
+  border-color: var(--theme-accent);
 }
 
 .gekisou-hash {

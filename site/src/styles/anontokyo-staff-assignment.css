@@ -2,8 +2,8 @@
   min-height: 70vh;
   padding: 20px max(18px, calc((100vw - 1180px) / 2)) 48px;
   background:
-    radial-gradient(circle at 15% 5%, rgb(236 127 131 / 13%), transparent 26%),
-    linear-gradient(135deg, #23253a 0 16%, #f5f1f3 16% 100%);
+    radial-gradient(circle at 15% 5%, color-mix(in srgb, var(--theme-warning) 13%, transparent), transparent 26%),
+    linear-gradient(135deg, var(--theme-inverse-surface) 0 16%, var(--theme-surface) 16% 100%);
 }
 
 .at-assignment {
@@ -15,9 +15,9 @@
 .at-assignment-board,
 .at-assignment-roster,
 .at-assignment-feedback {
-  border: 1px solid #d8d3d9;
-  background: rgb(255 255 255 / 96%);
-  box-shadow: 0 12px 34px rgb(26 27 44 / 14%);
+  border: 1px solid var(--theme-border);
+  background: color-mix(in srgb, var(--theme-surface) 96%, transparent);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--theme-shadow-color) 14%, transparent);
 }
 
 .at-assignment-controls {
@@ -38,7 +38,7 @@
 .at-assignment-controls legend,
 .at-assignment-level > span {
   margin-bottom: 4px;
-  color: #777481;
+  color: var(--theme-muted);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: .08em;
@@ -59,8 +59,8 @@
 .at-assignment-level select {
   min-width: 92px;
   min-height: 36px;
-  border: 1px solid #c9c4cc;
-  background: white;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
 }
 
 .at-assignment-actions {
@@ -77,24 +77,24 @@
   align-items: center;
   justify-content: center;
   padding: 6px 11px;
-  border: 1px solid #bbb5bf;
-  background: white;
-  color: #302f3d;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  color: var(--theme-text);
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
 }
 
 .at-assignment-actions a {
-  border-color: #ec7f83;
-  background: #fff3f4;
-  color: #8d3453;
+  border-color: var(--theme-warning);
+  background: var(--theme-surface);
+  color: var(--theme-warning);
 }
 
 .at-assignment-controls > p {
   max-width: 180px;
   margin: 0;
-  color: #777481;
+  color: var(--theme-muted);
   font-size: 12px;
 }
 
@@ -105,16 +105,16 @@
   justify-content: space-between;
   gap: 16px;
   padding: 13px 16px;
-  border-bottom: 1px solid #d8d3d9;
-  background: #292b42;
-  color: white;
+  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
 }
 
 .at-assignment-board > header span,
 .at-assignment-roster__head span,
 .at-assignment-role header span {
   display: block;
-  color: #8ad3cf;
+  color: var(--theme-secondary);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 800;
@@ -130,7 +130,7 @@
 
 .at-assignment-board > header p {
   margin: 0;
-  color: #d8d6df;
+  color: var(--theme-inverse-muted);
   font-size: 12px;
 }
 
@@ -142,7 +142,7 @@
   min-height: 122px;
   display: grid;
   grid-template-columns: 230px 1fr;
-  border-bottom: 1px solid #ded9df;
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .at-assignment-role:last-child {
@@ -155,13 +155,13 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  color: white;
-  background: linear-gradient(135deg, #454762, #2d2f47);
+  color: var(--theme-inverse-text);
+  background: linear-gradient(135deg, var(--theme-inverse-surface), var(--theme-inverse-surface));
 }
 
-.at-assignment-role--cashier > header { box-shadow: inset 5px 0 #ec7f83; }
-.at-assignment-role--sales > header { box-shadow: inset 5px 0 #8ad3cf; }
-.at-assignment-role--restock > header { box-shadow: inset 5px 0 #f0c56e; }
+.at-assignment-role--cashier > header { /* Game semantics: cashier, sales and restock role identities. */ box-shadow: inset 5px 0 #ec7f83; }
+.at-assignment-role--sales > header { /* Game semantics: cashier, sales and restock role identities. */ box-shadow: inset 5px 0 #8ad3cf; }
+.at-assignment-role--restock > header { /* Game semantics: cashier, sales and restock role identities. */ box-shadow: inset 5px 0 #f0c56e; }
 
 .at-assignment-role > header img {
   width: 44px;
@@ -181,27 +181,27 @@
   align-content: center;
   padding: 14px;
   background:
-    radial-gradient(circle, rgb(88 82 105 / 14%) 1px, transparent 1px) 0 0 / 8px 8px,
-    #faf8fa;
+    radial-gradient(circle, color-mix(in srgb, var(--theme-muted) 14%, transparent) 1px, transparent 1px) 0 0 / 8px 8px,
+    var(--theme-surface);
 }
 
 .at-assignment-slot,
 .at-assignment-character {
   min-height: 82px;
-  border: 1px solid #ccc6ce;
-  background: white;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
 }
 
 .at-assignment-slot {
   display: grid;
   place-content: center;
   gap: 2px;
-  color: #777481;
+  color: var(--theme-muted);
   cursor: pointer;
 }
 
 .at-assignment-slot span {
-  color: #ec7f83;
+  color: var(--theme-warning);
   font-size: 23px;
 }
 
@@ -218,9 +218,9 @@
 
 .at-assignment-character:hover,
 .at-assignment-character.is-selected {
-  border-color: #ec7f83;
-  box-shadow: inset 0 0 0 2px rgb(236 127 131 / 23%);
-  background: #fff7f8;
+  border-color: var(--theme-warning);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--theme-shadow-color) 23%, transparent);
+  background: var(--theme-surface);
 }
 
 .at-assignment-character:disabled {
@@ -234,13 +234,13 @@
   width: 64px;
   height: 64px;
   object-fit: contain;
-  background: #f3f1f4;
+  background: var(--theme-surface);
 }
 
 .at-assignment-character__fallback {
   display: grid;
   place-items: center;
-  color: #9a405f;
+  color: var(--theme-warning);
   font-family: var(--font-display);
   font-size: 24px;
 }
@@ -262,13 +262,13 @@
 
 .at-assignment-character small {
   overflow-wrap: anywhere;
-  color: #777481;
+  color: var(--theme-muted);
   font-size: 12px;
   line-height: 1.35;
 }
 
 .at-assignment-roster__head {
-  background: #404259;
+  background: var(--theme-inverse-surface);
 }
 
 .at-assignment-character-list {
@@ -279,39 +279,39 @@
 }
 
 .at-assignment-locked {
-  border-top: 1px solid #ded9df;
-  background: #f0edf0;
+  border-top: 1px solid var(--theme-border);
+  background: var(--theme-surface);
 }
 
 .at-assignment-locked h3 {
   margin: 0;
   padding: 10px 12px 0;
-  color: #74717b;
+  color: var(--theme-muted);
   font-size: 12px;
 }
 
 .at-assignment-feedback {
   margin: 0;
   padding: 11px 14px;
-  color: #4f4d5b;
+  color: var(--theme-muted);
   font-size: 12px;
 }
 
 .at-assignment-feedback[data-tone="success"] {
-  border-color: #8ad3cf;
-  background: #eff9f8;
+  border-color: var(--theme-success-ink);
+  background: color-mix(in srgb, var(--theme-success) 10%, var(--theme-surface));
 }
 
 .at-assignment-feedback[data-tone="error"] {
-  border-color: #ec7f83;
-  background: #fff1f2;
-  color: #8d3453;
+  border-color: var(--theme-danger-ink);
+  background: color-mix(in srgb, var(--theme-danger) 10%, var(--theme-surface));
+  color: var(--theme-danger-ink);
 }
 
 @media (max-width: 900px) {
   .at-assignment-main {
     padding-inline: 12px;
-    background: #f5f1f3;
+    background: var(--theme-surface);
   }
 
   .at-assignment-controls {

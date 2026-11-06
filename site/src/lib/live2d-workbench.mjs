@@ -81,7 +81,7 @@ class Live2DWorkbench extends HTMLElement {
   selectionInfo() {
     const model = this.selected;
     const character = this.config.characters.find(c => c.id === model?.characterId);
-    this.style.setProperty('--l2d-accent', character?.color || '#77bbdd');
+    this.style.setProperty('--l2d-accent', character?.color || 'var(--theme-secondary)');
     this.q('[data-stage-name]').textContent = character?.name || '';
     this.q('[data-model-info]').textContent = model?.state === 'available'
       ? `${mb(model.bytes)} · ${model.motions} ${this.say('动作', 'motions')} · ${model.expressions} ${this.say('表情', 'expressions')}${model.blockedMotions ? ` · ${model.blockedMotions} ${this.say('动作未支持', 'unsupported motions')}` : ''}`

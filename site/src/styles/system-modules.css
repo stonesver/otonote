@@ -60,7 +60,7 @@ system-browser, system-tabs, studio-practice { display:block; min-width:0; }
 .recruit-card-art { position:relative; background:var(--paper); border-radius:8px; overflow:hidden; }
 .recruit-card-art img { width:100%; aspect-ratio:3/4; object-fit:cover; display:block; }
 .recruit-card--snap .recruit-card-art img { aspect-ratio:16/9; object-fit:contain; }
-.recruit-up { position:absolute; top:5px; left:5px; padding:3px 5px; border-radius:4px; background:var(--lacquer); color:white; font:bold 9px var(--font-mono); }
+.recruit-up { position:absolute; top:5px; left:5px; padding:3px 5px; border-radius:4px; background:var(--lacquer); color:var(--theme-on-accent); font:bold 9px var(--font-mono); }
 .recruit-card-badges { display:flex; gap:4px; align-items:center; justify-content:space-between; margin:6px 0; }
 .recruit-card > strong { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:11px; line-height:1.6; }
 .recruit-card > small { display:block; color:var(--silver-dark); font-size:10px; margin-top:3px; }
@@ -73,7 +73,7 @@ system-browser, system-tabs, studio-practice { display:block; min-width:0; }
 .recruit-costs strong { font-size:13px; }.recruit-costs span { font-size:12px; color:var(--lacquer); }.recruit-costs small { font-size:10px; color:var(--silver-dark); }
 .sys-tabs { display:flex; gap:6px; padding:5px; border:1px solid var(--line); background:var(--paper); border-radius:12px; margin-bottom:22px; }
 .sys-tabs button { flex:1; padding:11px 9px; border:0; border-radius:8px; background:transparent; font:600 13px var(--font-body); color:var(--silver-dark); cursor:pointer; }
-.sys-tabs button[aria-pressed="true"] { background:var(--paper-light); color:var(--lacquer); box-shadow:0 1px 5px #2215220b; }
+.sys-tabs button[aria-pressed="true"] { background:var(--paper-light); color:var(--lacquer); box-shadow:0 1px 5px color-mix(in srgb, var(--theme-shadow-color) 4.31%, transparent); }
 .sys-rate-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
 .sys-rate-grid > div { display:flex; justify-content:space-between; gap:12px; padding:15px; border:1px solid var(--line); background:var(--paper-light); border-radius:10px; font-size:12px; }
 .sys-rate-grid strong { color:var(--lacquer); font:600 17px var(--font-mono); }
@@ -103,32 +103,32 @@ system-browser, system-tabs, studio-practice { display:block; min-width:0; }
 }
 
 /* Mission posters and recruitment catalogue share a stronger label/date hierarchy. */
-.sys-tags .sys-tag-category { background:#77445e; color:#fff; padding:4px 9px; border-radius:5px; font-size:11px; font-weight:750; letter-spacing:.03em; }
-.sys-tags .sys-tag-category[data-category="limited"] { background:#a43c58; }
-.sys-tags .sys-tag-category[data-category="event"] { background:#654888; }
-.sys-tags .sys-tag-category[data-category="daily"] { background:#287572; }
-.sys-tags .sys-tag-category[data-category="permanent"] { background:#476b8a; }
-.sys-tags .sys-tag-category[data-category="beginner"] { background:#8b6833; }
-.sys-tags .sys-tag-category[data-category="birthday"] { background:#b14981; }
-.sys-tags .sys-tag-category[data-category="ticket"],.sys-tags .sys-tag-category[data-category="pass"] { background:#79613b; }
+.sys-tags .sys-tag-category { background:var(--theme-accent); color:var(--theme-on-accent); padding:4px 9px; border-radius:5px; font-size:11px; font-weight:750; letter-spacing:.03em; }
+.sys-tags .sys-tag-category[data-category="limited"] { background:var(--theme-accent); }
+.sys-tags .sys-tag-category[data-category="event"] { background:var(--theme-accent); }
+.sys-tags .sys-tag-category[data-category="daily"] { background:color-mix(in srgb, var(--theme-success) 14%, var(--theme-surface)); color:var(--theme-success-ink); }
+.sys-tags .sys-tag-category[data-category="permanent"] { background:color-mix(in srgb, var(--theme-info) 14%, var(--theme-surface)); color:var(--theme-info-ink); }
+.sys-tags .sys-tag-category[data-category="beginner"] { background:color-mix(in srgb, var(--theme-warning) 14%, var(--theme-surface)); color:var(--theme-warning-ink); }
+.sys-tags .sys-tag-category[data-category="birthday"] { background:var(--theme-accent); }
+.sys-tags .sys-tag-category[data-category="ticket"],.sys-tags .sys-tag-category[data-category="pass"] { background:color-mix(in srgb, var(--theme-warning) 14%, var(--theme-surface)); color:var(--theme-warning-ink); }
 .sys-deadline { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:var(--silver-dark); font-size:11px; margin:12px 0; line-height:1.6; }
 .sys-deadline strong { font:600 12px var(--font-mono); margin-left:auto; }
-.sys-deadline--limited { padding:9px 10px; border:1px solid #a43c5833; border-radius:7px; background:#a43c5809; color:#92384f; }
+.sys-deadline--limited { padding:9px 10px; border:1px solid color-mix(in srgb, var(--theme-accent) 20%, transparent); border-radius:7px; background:color-mix(in srgb, var(--theme-accent) 3.53%, transparent); color:var(--theme-accent); }
 .mission-list { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
-.mission-card { overflow:hidden; min-width:0; border:1px solid var(--line); border-radius:15px; background:var(--paper-light); box-shadow:0 3px 12px #25192705; }
-.mission-banner { position:relative; min-height:104px; isolation:isolate; overflow:hidden; background:#334b64; padding:11px; display:flex; flex-direction:column; justify-content:space-between; }
-.mission-banner::before { content:""; position:absolute; width:190px; height:190px; border:28px double #ffffff13; border-radius:50%; right:-35px; top:-45px; z-index:-1; }
-.mission-card[data-category="daily"] .mission-banner { background:#286562; }
-.mission-card[data-category="pass"] .mission-banner { background:#68583f; }
-.mission-card[data-category="beginner"] .mission-banner { background:#72523e; }
-.mission-card[data-category="limited"] .mission-banner { background:#673c58; }
-.mission-card[data-category="character"] .mission-banner { background:#615078; }
-.mission-card[data-category="secret"] .mission-banner { background:#343048; }
+.mission-card { overflow:hidden; min-width:0; border:1px solid var(--line); border-radius:15px; background:var(--paper-light); box-shadow:0 3px 12px color-mix(in srgb, var(--theme-shadow-color) 1.96%, transparent); }
+.mission-banner { position:relative; min-height:104px; isolation:isolate; overflow:hidden; background:var(--theme-info-ink); padding:11px; display:flex; flex-direction:column; justify-content:space-between; }
+.mission-banner::before { content:""; position:absolute; width:190px; height:190px; border:28px double color-mix(in srgb, var(--theme-media-text) 7.45%, transparent); border-radius:50%; right:-35px; top:-45px; z-index:-1; }
+.mission-card[data-category="daily"] .mission-banner { background:var(--theme-success-ink); }
+.mission-card[data-category="pass"] .mission-banner { background:var(--theme-warning-ink); }
+.mission-card[data-category="beginner"] .mission-banner { background:var(--theme-warning-ink); }
+.mission-card[data-category="limited"] .mission-banner { background:var(--theme-accent); }
+.mission-card[data-category="character"] .mission-banner { background:var(--theme-accent); }
+.mission-card[data-category="secret"] .mission-banner { background:var(--theme-inverse-surface); }
 .mission-banner-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 35%; z-index:-3; }
-.mission-banner-shade { position:absolute; inset:0; z-index:-2; background:linear-gradient(0deg,#20182ee8 0%,#20182e40 70%,#20182e24); }
+.mission-banner-shade { position:absolute; inset:0; z-index:-2; background:linear-gradient(0deg,color-mix(in srgb, var(--theme-media-shade) 90.98%, transparent) 0%,color-mix(in srgb, var(--theme-media-shade) 25.1%, transparent) 70%,color-mix(in srgb, var(--theme-media-shade) 14.12%, transparent)); }
 .mission-banner .sys-tags { align-self:start; gap:6px; }
-.mission-banner .mission-task-count { background:#ffffffde; color:#393142; font-size:11px; font-weight:650; padding:4px 8px; }
-.mission-banner-title { max-width:90%; margin-top:12px; color:#fff; text-shadow:0 1px 7px #0004; }
+.mission-banner .mission-task-count { background:color-mix(in srgb, var(--theme-surface) 87.06%, transparent); color:var(--theme-text); font-size:11px; font-weight:650; padding:4px 8px; }
+.mission-banner-title { max-width:90%; margin-top:12px; color:var(--theme-media-text); text-shadow:0 1px 7px color-mix(in srgb, var(--theme-media-shade) 26.67%, transparent); }
 .mission-banner-title small { font:10px var(--font-mono); opacity:.75; letter-spacing:.12em; }
 .sys-body .mission-banner-title h2 { font-size:14px; line-height:1.4; margin:5px 0 0; }
 .mission-band-logo { position:absolute; top:10px; right:10px; width:65px; max-height:30px; object-fit:contain; }
@@ -167,10 +167,10 @@ button.recruit-banner-link { appearance:none; border:0; width:100%; padding:0; c
 .recruit-card--compact .recruit-card-badges { margin:3px 0; gap:2px; }
 .recruit-card--compact .recruit-card-badges img { max-height:14px; max-width:23px; }
 .recruit-cards--preview .recruit-card > strong { font-size:9px; line-height:1.4; text-align:center; -webkit-line-clamp:1; }
-.recruit-footer button { border:0; background:var(--lacquer); color:#fff; padding:8px 11px; border-radius:7px; cursor:pointer; font:650 11px var(--font-body); }
+.recruit-footer button { border:0; background:var(--lacquer); color:var(--theme-on-accent); padding:8px 11px; border-radius:7px; cursor:pointer; font:650 11px var(--font-body); }
 .recruit-footer button span { margin-left:10px; }
-.recruit-dialog { width:min(1050px,calc(100vw - 64px)); max-height:calc(100dvh - 64px); padding:0; border:1px solid var(--line); border-radius:18px; background:var(--paper-light); color:var(--ink); box-shadow:0 24px 100px #15102466; overscroll-behavior:contain; }
-.recruit-dialog::backdrop { background:#19152699; backdrop-filter:blur(5px); }
+.recruit-dialog { width:min(1050px,calc(100vw - 64px)); max-height:calc(100dvh - 64px); padding:0; border:1px solid var(--line); border-radius:18px; background:var(--paper-light); color:var(--ink); box-shadow:0 24px 100px color-mix(in srgb, var(--theme-shadow-color) 40%, transparent); overscroll-behavior:contain; }
+.recruit-dialog::backdrop { background:color-mix(in srgb, var(--theme-media-shade) 60%, transparent); backdrop-filter:blur(5px); }
 .recruit-dialog-toolbar { display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:3; padding:10px 22px; border-bottom:1px solid var(--line); background:var(--paper-light); }
 .recruit-dialog-toolbar > span { font:650 11px var(--font-body); color:var(--silver-dark); letter-spacing:.12em; }
 .recruit-dialog-toolbar button { width:36px; height:36px; padding:0; border:1px solid var(--line); border-radius:50%; background:var(--paper); color:var(--ink); font:24px var(--font-body); cursor:pointer; }
@@ -201,7 +201,7 @@ button.recruit-banner-link { appearance:none; border:0; width:100%; padding:0; c
 @media(prefers-reduced-motion:no-preference) { .recruit-dialog[open] { animation:recruit-reveal .18s ease-out; } @keyframes recruit-reveal { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } } }
 .mission-banner--native { min-height:104px; }
 .mission-banner--native .mission-banner-art { inset:0 0 0 auto; width:65%; object-fit:contain; object-position:center; z-index:-1; }
-.mission-banner--native .mission-banner-shade { background:linear-gradient(90deg,#2b183bd9,#2b183b38); }
+.mission-banner--native .mission-banner-shade { background:linear-gradient(90deg,color-mix(in srgb, var(--theme-media-shade) 85.1%, transparent),color-mix(in srgb, var(--theme-media-shade) 21.96%, transparent)); }
 .mission-banner--native .mission-banner-title { max-width:43%; }
 
 @media(max-width:760px) { .recruit-detail .recruit-costs > div { padding:10px; gap:4px; } .recruit-detail .recruit-costs :is(strong,span,small) { line-height:1.4; } }
@@ -212,7 +212,7 @@ button.recruit-banner-link { appearance:none; border:0; width:100%; padding:0; c
 .recruit-pool .recruit-banner-link { position:relative; }
 .recruit-pool .recruit-banner { aspect-ratio:2.65; object-fit:cover; }
 .recruit-cover-tags { position:absolute; top:8px; left:8px; pointer-events:none; }
-.recruit-cover-tags .sys-tag-category { box-shadow:0 1px 4px #0003; }
+.recruit-cover-tags .sys-tag-category { box-shadow:0 1px 4px color-mix(in srgb, var(--theme-shadow-color) 20%, transparent); }
 .recruit-pool-body { padding:10px; }
 .recruit-pool h2 { font-size:13px; line-height:1.4; margin:0 0 7px; }
 .mission-card .sys-deadline,.recruit-pool .sys-deadline { margin:7px 0; padding:0; border:0; background:none; font-size:10px; gap:4px; }

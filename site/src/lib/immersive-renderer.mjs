@@ -1,3 +1,4 @@
+import {readThemePalette, observeTheme} from './theme-palette.mjs';
 import * as THREE from 'three';
 import { Skeleton, RegionAttachment, MeshAttachment, AtlasAttachmentLoader, SkeletonJson, SkeletonBinary, SkeletonMesh, TextureAtlas, ThreeJsTexture } from '@esotericsoftware/spine-threejs';
 import { createSpinePoseSampler } from './immersive-pose.mjs';
@@ -11,12 +12,13 @@ export async function createImmersiveScene(host, resources, { signal, onTime = (
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.domElement.setAttribute('aria-label', host.closest('[data-immersive]')?.getAttribute('aria-label') ?? 'Animated scene');
   const scene = new THREE.Scene(), root = new THREE.Group();
-  scene.background = new THREE.Color('#282929');
+  let themePalette = readThemePalette(host);
+  scene.background = new THREE.Color(themePalette.inverseSurface);
   root.scale.z = -1; scene.add(root);
   const camera = new THREE.PerspectiveCamera(30, 16 / 9, .01, 100);
   const textures = [], materials = [], geometries = [], skeletons = [], layers = [], samplers = [], nodes = new Map();
   let frame = 0, time = 0, last = 0, paused = true, visible = true, disposed = false, exporting = false;
-  let layer = 'all', duration = 0, zoom = 1, initialZoom = 1, recordingAbort, resizeObserver, intersectionObserver, data, playback, runtimeCharacters;
+  let layer = 'all', duration = 0, zoom = 1, initialZoom = 1, recordingAbort, resizeObserver, intersectionObserver, disconnectTheme, data, playback, runtimeCharacters;
   const pan = new THREE.Vector2();
   const raycaster = new THREE.Raycaster();
   const events = new AbortController();
@@ -78,7 +80,7 @@ export async function createImmersiveScene(host, resources, { signal, onTime = (
   function dispose() {
     if (disposed) return;
     disposed = true; recordingAbort?.abort(); cancelAnimationFrame(frame);
-    events.abort(); resizeObserver?.disconnect(); intersectionObserver?.disconnect();
+    events.abort(); resizeObserver?.disconnect(); intersectionObserver?.disconnect(); disconnectTheme?.();
     skeletons.forEach(mesh => mesh.dispose()); geometries.forEach(g => g.dispose());
     materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
     renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
@@ -188,6 +190,11 @@ export async function createImmersiveScene(host, resources, { signal, onTime = (
     if (!(duration > 0)) throw Error('scene-animation-unavailable');
     signal?.throwIfAborted(); host.appendChild(renderer.domElement); pose(0); resize();
     resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host);
+    disconnectTheme = observeTheme(host, () => {
+      themePalette = readThemePalette(host);
+      if (layer !== 'characters') scene.background = new THREE.Color(themePalette.inverseSurface);
+      if (!exporting) render();
+    });
     intersectionObserver = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; schedule(); });
     intersectionObserver.observe(host);
     document.addEventListener('visibilitychange', () => { if (document.hidden) recordingAbort?.abort(); schedule(); }, { signal: events.signal });
@@ -287,7 +294,7 @@ export async function createImmersiveScene(host, resources, { signal, onTime = (
     },
     setLayer(value) {
       layer = value;
-      scene.background = value === 'characters' ? null : new THREE.Color('#282929');
+      scene.background = value === 'characters' ? null : new THREE.Color(themePalette.inverseSurface);
       for (const group of nodes.values()) {
         if (group.userData.backgroundRoot) group.visible = value !== 'characters';
         if (group.userData.source.spine) group.visible = value !== 'background';
@@ -323,7 +330,7 @@ export async function createImmersiveScene(host, resources, { signal, onTime = (
       return exportWith(async () => {
         recordingAbort = new AbortController();
         // WebM alpha playback differs by browser. Use a solid background for predictable output.
-        const previousBackground = scene.background; scene.background ??= new THREE.Color('#282929');
+        const previousBackground = scene.background; scene.background ??= new THREE.Color(themePalette.inverseSurface);
         try { return await recordCanvas(renderer.domElement, duration, { signal: recordingAbort.signal, render(t) { pose(t); render(); }, progress }); }
         finally { scene.background = previousBackground; recordingAbort = null; }
       });

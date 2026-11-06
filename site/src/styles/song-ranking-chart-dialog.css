@@ -6,7 +6,7 @@
 .ranking-chart-dialog .workbench-heading h2 {font-size:20px;}
 .ranking-chart-dialog .workbench-heading p {font-size:11px;}
 .ranking-chart-dialog .ranking-chart-status {margin:0 0 12px;padding:10px 12px;border-radius:9px;background:var(--tool-tint);color:var(--tool-muted);font-size:12px;}
-.ranking-chart-dialog[data-load-state=error] .ranking-chart-status {background:#fff0ed;color:#965f57;}
+.ranking-chart-dialog[data-load-state=error] .ranking-chart-status {background:var(--theme-surface);color:var(--theme-danger-ink);}
 .ranking-chart-dialog [data-ranking-chart-retry] {padding:6px 12px;border:1px solid var(--tool-border);border-radius:7px;background:var(--tool-surface);color:var(--tool-accent);cursor:pointer;}
 .ranking-chart-dialog .density-panel {margin-top:14px;}
 .ranking-chart-dialog :is(button,input,select):focus-visible {outline:3px solid var(--tool-focus);outline-offset:2px;}

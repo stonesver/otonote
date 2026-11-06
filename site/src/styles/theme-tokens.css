@@ -1,5 +1,6 @@
-/* Site chrome and tool aliases resolve here. Game identity colors stay separate. */
+/* Shared UI palette. Game attributes, rarity, difficulties and note identities stay separate. */
 :root {
+  --theme-color-scheme:light;
   --theme-text:#11131b;
   --theme-text-soft:#1b1e29;
   --theme-canvas:#f0eee8;
@@ -16,9 +17,24 @@
   --theme-warning-ink:#714a1e;
   --theme-success:#3e755d;
   --theme-success-ink:#1f5b40;
+  --theme-danger:#ad4259;
+  --theme-danger-ink:#8c2941;
+  --theme-info:var(--theme-secondary);
+  --theme-info-ink:var(--theme-secondary-ink);
+  --theme-inverse-surface:#1b1e29;
+  --theme-inverse-text:#fffdf7;
+  --theme-inverse-muted:#c5c1ba;
+  --theme-media-shade:#080a10;
+  --theme-media-text:#fff;
+  --theme-shadow-color:#11131b;
+  --theme-chart-1:var(--theme-accent);
+  --theme-chart-2:var(--theme-secondary-ink);
+  --theme-chart-3:var(--theme-success);
+  --theme-chart-4:var(--theme-warning);
+  --theme-chart-5:#7764a3;
   --theme-focus:var(--theme-secondary-ink);
-  --theme-backdrop:rgb(17 19 27 / 48%);
-  --theme-elevated-shadow:0 24px 72px color-mix(in srgb,var(--theme-text) 16%,transparent);
+  --theme-backdrop:color-mix(in srgb,var(--theme-shadow-color) 48%,transparent);
+  --theme-elevated-shadow:0 24px 72px color-mix(in srgb,var(--theme-shadow-color) 16%,transparent);
   --theme-radius:18px;
-  --theme-shadow:0 5px 24px color-mix(in srgb,var(--theme-text) 5%,transparent);
+  --theme-shadow:0 5px 24px color-mix(in srgb,var(--theme-shadow-color) 5%,transparent);
 }

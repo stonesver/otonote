@@ -1,5 +1,5 @@
 /* The ranking is a data desk: compact controls above a complete, scrollable sheet. */
-.tool-studio[data-tool-kind="song-ranking"] {--rank-ink:#263448;--rank-muted:#69798b;--rank-accent:#326e88;--rank-line:#dce4ec;--rank-soft:#f2f6fa;--rank-number-width:42px;--rank-song-width:296px;}
+.tool-studio[data-tool-kind="song-ranking"] {--rank-ink:var(--theme-text);--rank-muted:var(--theme-muted);--rank-accent:var(--theme-accent);--rank-line:var(--theme-border);--rank-soft:color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface));--rank-number-width:42px;--rank-song-width:296px;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-page-header-inner {align-items:center;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-title-glyph {width:30px;height:30px;border-radius:9px;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-title-glyph svg {width:22px;height:22px;}
@@ -12,68 +12,68 @@
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking :is(button,input,select,summary) {font:inherit;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking :is(button,summary) {cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking button:disabled {opacity:.4;cursor:default;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking :is(button,input,select,a,summary,[tabindex]):focus-visible {outline:3px solid #84afc9;outline-offset:2px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board {min-width:0;border:1px solid var(--rank-line);border-radius:18px;background:#fff;box-shadow:0 8px 26px #253d550b;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls {position:relative;z-index:10;padding:12px 14px 10px;background:linear-gradient(110deg,#f7f9fc,#fff 70%);border-radius:18px 18px 0 0;border-bottom:1px solid var(--rank-line);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking :is(button,input,select,a,summary,[tabindex]):focus-visible {outline:3px solid var(--theme-border);outline-offset:2px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board {min-width:0;border:1px solid var(--rank-line);border-radius:18px;background:var(--theme-surface);box-shadow:0 8px 26px color-mix(in srgb, var(--theme-shadow-color) 4.31%, transparent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls {position:relative;z-index:10;padding:12px 14px 10px;background:linear-gradient(110deg,var(--theme-surface),var(--theme-surface) 70%);border-radius:18px 18px 0 0;border-bottom:1px solid var(--rank-line);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-commandbar {position:relative;display:grid;grid-template-columns:minmax(140px,1fr) 112px minmax(140px,190px) 74px 76px 132px 34px;grid-template-areas:'search mode metric direction filters calc info';align-items:center;gap:7px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search {grid-area:search;grid-row:auto;min-height:34px;display:flex;align-items:center;gap:7px;min-width:0;padding:0 10px;background:#fff;border:1px solid #ccd7e2;border-radius:7px;color:var(--rank-muted);box-shadow:0 1px 2px #253d5506;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search:focus-within {border-color:var(--rank-accent);box-shadow:0 0 0 3px #326e8810;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search {grid-area:search;grid-row:auto;min-height:34px;display:flex;align-items:center;gap:7px;min-width:0;padding:0 10px;background:var(--theme-surface);border:1px solid var(--theme-border);border-radius:7px;color:var(--rank-muted);box-shadow:0 1px 2px color-mix(in srgb, var(--theme-shadow-color) 2.35%, transparent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search:focus-within {border-color:var(--rank-accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--theme-focus) 6.27%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search input[type=search] {box-shadow:none;width:100%;min-width:0;height:34px;border:0;outline:none;background:transparent;padding:0;color:var(--rank-ink);font-size:12px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode {grid-area:mode;display:flex;gap:2px;border:1px solid var(--rank-line);border-radius:7px;padding:3px;background:#eaf0f5;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode {grid-area:mode;display:flex;gap:2px;border:1px solid var(--rank-line);border-radius:7px;padding:3px;background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode button {flex:1;padding:5px 8px;border:0;background:transparent;color:var(--rank-muted);border-radius:4px;font-size:12px;line-height:1.4;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode button[aria-pressed=true] {background:#fff;color:var(--rank-accent);box-shadow:0 1px 4px #1d40591a;font-weight:700;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls :is(select[data-quick-native],input[type=number]) {min-width:0;width:100%;height:34px;padding:6px 9px;border:1px solid #ccd7e2;border-radius:6px;background-color:#fff;color:var(--rank-ink);font-size:12px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode button[aria-pressed=true] {background:var(--theme-surface);color:var(--rank-accent);box-shadow:0 1px 4px color-mix(in srgb, var(--theme-shadow-color) 10.2%, transparent);font-weight:700;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls :is(select[data-quick-native],input[type=number]) {min-width:0;width:100%;height:34px;padding:6px 9px;border:1px solid var(--theme-border);border-radius:6px;background-color:var(--theme-surface);color:var(--rank-ink);font-size:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls select[data-quick-native] {appearance:none;padding-right:27px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%2369798b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking select:hover {border-color:#8da7ba;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking select:hover {border-color:var(--theme-secondary);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-metric-control {grid-area:metric;position:relative;min-width:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-metric-control>.ranking-icon {position:absolute;left:9px;top:9px;color:var(--rank-accent);pointer-events:none;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-metric-control select[data-quick-native] {padding-left:31px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-direction-control {grid-area:direction;min-width:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-direction-control select[data-quick-native] {padding-left:9px;padding-right:20px;background-position:right 5px center;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel {display:contents;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel>summary {white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:34px;padding:6px 9px;border:1px solid #ccd7e2;border-radius:9px;background:#fff;color:#4d6074;font-size:12px;list-style:none;box-shadow:0 1px 2px #253d5505;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel>summary {white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:34px;padding:6px 9px;border:1px solid var(--theme-border);border-radius:9px;background:var(--theme-surface);color:var(--theme-text);font-size:12px;list-style:none;box-shadow:0 1px 2px color-mix(in srgb, var(--theme-shadow-color) 1.96%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel>summary::-webkit-details-marker {display:none;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel>summary:hover {border-color:#7e9fb5;color:var(--rank-accent);background:#f6fafd;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel[open]>summary {background:#eaf2f7;border-color:#7199b0;color:#245d77;box-shadow:0 0 0 2px #326e880b;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel>summary:hover {border-color:var(--theme-secondary);color:var(--rank-accent);background:var(--theme-surface);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel[open]>summary {background:var(--theme-surface);border-color:var(--theme-secondary);color:var(--theme-secondary-ink);box-shadow:0 0 0 2px color-mix(in srgb, var(--theme-accent) 4.31%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-panel>summary {grid-area:filters;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-calculation-panel>summary {grid-area:calc;justify-content:start;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-method>summary {grid-area:info;padding-inline:6px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel>summary small {font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--rank-muted);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking [data-filter-count] {display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border-radius:5px;background:var(--rank-accent);color:#fff;font-size:10px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-body {position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;max-height:min(68dvh,560px);overflow:auto;overscroll-behavior:contain;padding:16px;border:1px solid #bdcedb;border-radius:11px;background:#fff;box-shadow:0 16px 42px #253d552b;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking [data-filter-count] {display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border-radius:5px;background:var(--rank-accent);color:var(--theme-on-accent);font-size:10px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-body {position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;max-height:min(68dvh,560px);overflow:auto;overscroll-behavior:contain;padding:16px;border:1px solid var(--theme-border);border-radius:11px;background:var(--theme-surface);box-shadow:0 16px 42px color-mix(in srgb, var(--theme-shadow-color) 16.86%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid var(--rank-line);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading>div {display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading strong {font-size:14px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading span {font-size:11px;color:var(--rank-muted);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading button {display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:30px;min-height:30px;border:0;border-radius:6px;background:#f2f6fa;color:var(--rank-muted);font-size:11px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading button:hover {background:#e4edf5;color:var(--rank-accent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading button {display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:30px;min-height:30px;border:0;border-radius:6px;background:var(--theme-surface);color:var(--rank-muted);font-size:11px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading button:hover {background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));color:var(--rank-accent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs {display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin;white-space:nowrap;padding:9px 0 7px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs button {flex:none;min-height:28px;padding:4px 12px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--rank-muted);font-size:12px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs button:hover {color:var(--rank-accent);background:#f4f7fa;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs button[aria-pressed=true] {color:#265f78;background:#e7f0f6;border-color:#c5d8e6;font-weight:700;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs button:hover {color:var(--rank-accent);background:var(--theme-surface);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs button[aria-pressed=true] {color:var(--theme-secondary-ink);background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));border-color:var(--theme-border);font-weight:700;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip {display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:thin;white-space:nowrap;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip>label {flex:none;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip>label>select[data-quick-native] {width:auto;min-width:84px;height:28px;font-size:11px;padding-block:4px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .ranking-grouping-control {margin-left:auto;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty-options {display:flex;align-items:center;gap:8px;}
 .tool-studio[data-tool-kind="song-ranking"] .tool-options {display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
-.tool-studio[data-tool-kind="song-ranking"] .tool-options button {display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:28px;padding:4px 8px;border:1px solid #d8e1e9;border-radius:5px;background:#fff;color:#617286;font-size:11px;line-height:1.4;box-shadow:none;}
-.tool-studio[data-tool-kind="song-ranking"] .tool-options button[aria-pressed=true] {background:#eef1f8;border-color:#a5b5cc;color:#435e7b;font-weight:700;}
+.tool-studio[data-tool-kind="song-ranking"] .tool-options button {display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:28px;padding:4px 8px;border:1px solid var(--theme-border);border-radius:5px;background:var(--theme-surface);color:var(--theme-text-soft);font-size:11px;line-height:1.4;box-shadow:none;}
+.tool-studio[data-tool-kind="song-ranking"] .tool-options button[aria-pressed=true] {background:var(--theme-surface);border-color:var(--theme-border);color:var(--theme-text);font-weight:700;}
 .tool-studio[data-tool-kind="song-ranking"] .ranking-difficulty-options .tool-options {flex-wrap:nowrap;}
 .tool-studio[data-tool-kind="song-ranking"] .ranking-difficulty-options button {padding:4px 7px;border-color:transparent;background:transparent;font:10px/1.4 var(--font-mono,monospace);}
-.tool-studio[data-tool-kind="song-ranking"] .ranking-difficulty-options button[aria-pressed=true] {background:#e5edf5;border-color:#b5c8d8;color:#2e5c7a;}
+.tool-studio[data-tool-kind="song-ranking"] .ranking-difficulty-options button[aria-pressed=true] {background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));border-color:var(--theme-border);color:var(--theme-secondary-ink);}
 .tool-studio[data-tool-kind="song-ranking"] .tool-options button img {width:20px;height:20px;object-fit:contain;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-clear {display:grid;place-items:center;flex:none;width:29px;height:29px;padding:0;border:1px solid var(--rank-line);border-radius:6px;background:#fff;color:var(--rank-muted);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-clear:hover {color:#9a4b64;background:#faf1f5;border-color:#d5b5c2;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-clear {display:grid;place-items:center;flex:none;width:29px;height:29px;padding:0;border:1px solid var(--rank-line);border-radius:6px;background:var(--theme-surface);color:var(--rank-muted);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-clear:hover {color:var(--theme-accent);background:var(--theme-surface);border-color:var(--theme-border);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-tags {display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-tags button {padding:3px 7px;min-height:25px;border:1px solid #c4d7e5;border-radius:4px;background:#f1f6fa;color:#386983;font-size:10px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-tags button {padding:3px 7px;min-height:25px;border:1px solid var(--theme-border);border-radius:4px;background:var(--theme-surface);color:var(--theme-secondary-ink);font-size:10px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:13px 22px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-setting-row {display:grid;grid-template-columns:70px minmax(0,1fr);align-items:center;gap:8px;margin:0;min-width:0;font-size:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-setting-row>span {font-size:11px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-setting-row>.tool-options {grid-column:2;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-range {display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;min-width:0;margin:0;padding:9px 11px 11px;border:1px solid var(--rank-line);border-radius:7px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-range legend {padding:0 4px;font-size:11px;color:var(--rank-muted);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-range>span {color:#9aa8b6;font-size:12px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-range>span {color:var(--theme-muted);font-size:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-fields>p,.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-note {font-size:11px;line-height:1.7;color:var(--rank-muted);margin:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-note {margin-block:8px 14px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-timing-controls {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:520px;}
@@ -84,7 +84,7 @@
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-custom-skills legend {font-size:11px;padding-inline:4px;color:var(--rank-accent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-custom-skills label {display:grid;grid-template-columns:1fr;gap:4px;font-size:10px;color:var(--rank-muted);min-width:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-skill-actions {grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-skill-actions button {border:1px solid var(--rank-line);border-radius:5px;padding:6px 9px;background:#f5f8fb;color:#46647b;font-size:11px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-skill-actions button {border:1px solid var(--rank-line);border-radius:5px;padding:6px 9px;background:var(--theme-surface);color:var(--theme-text);font-size:11px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-custom-skills>p {grid-column:1/-1;margin:0;font-size:11px;line-height:1.6;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-controls {border-top:1px solid var(--rank-line);padding-top:14px;margin-top:16px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-intro strong {font-size:12px;}
@@ -93,8 +93,8 @@
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-options {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-options .ranking-setting-row {grid-template-columns:1fr;gap:5px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-actions {grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:11px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-actions button {min-height:34px;padding:6px 12px;border:1px solid #c5d5e1;border-radius:6px;background:#fff;color:var(--rank-accent);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-actions [data-replay-run] {background:var(--rank-accent);border-color:var(--rank-accent);color:#fff;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-actions button {min-height:34px;padding:6px 12px;border:1px solid var(--theme-border);border-radius:6px;background:var(--theme-surface);color:var(--rank-accent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-replay-actions [data-replay-run] {background:var(--rank-accent);border-color:var(--rank-accent);color:var(--theme-on-accent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-skill-help {margin-top:12px;font-size:11px;line-height:1.8;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-skill-help summary {cursor:pointer;font-weight:600;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-skill-help p {margin:8px 0 0;}
@@ -108,64 +108,64 @@
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance {position:relative;font-size:10px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance summary {display:flex;align-items:center;gap:3px;list-style:none;cursor:pointer;white-space:nowrap;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance summary::-webkit-details-marker {display:none;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance>div {position:absolute;right:0;top:calc(100% + 8px);width:min(640px,calc(100vw - 44px));padding:14px;border:1px solid var(--rank-line);border-radius:8px;background:#fff;box-shadow:0 12px 30px #26344820;z-index:9;overflow-wrap:anywhere;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance>div {position:absolute;right:0;top:calc(100% + 8px);width:min(640px,calc(100vw - 44px));padding:14px;border:1px solid var(--rank-line);border-radius:8px;background:var(--theme-surface);box-shadow:0 12px 30px color-mix(in srgb, var(--theme-shadow-color) 12.55%, transparent);z-index:9;overflow-wrap:anywhere;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-provenance p {font-size:11px;line-height:1.7;margin:0 0 7px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 14px;padding:0 14px 9px;font-size:10px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary p {margin:0;line-height:1.5;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary [data-context] {color:#4d667b;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table-wrap {container-type:inline-size;max-width:100%;height:min(76dvh,960px);min-height:420px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#9fb5c6 #edf2f7;border-block:1px solid #e4eaf0;background:#f4f7fa;isolation:isolate;scroll-padding-inline-start:calc(var(--rank-number-width) + var(--rank-song-width));scroll-padding-top:40px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary [data-context] {color:var(--theme-text);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table-wrap {container-type:inline-size;max-width:100%;height:min(76dvh,960px);min-height:420px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--theme-muted) var(--theme-muted);border-block:1px solid var(--theme-border);background:var(--theme-surface);isolation:isolate;scroll-padding-inline-start:calc(var(--rank-number-width) + var(--rank-song-width));scroll-padding-top:40px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table {width:calc(var(--rank-number-width) + var(--rank-song-width) + var(--ranking-data-width));min-width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0 4px;text-align:left;font-size:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-position-col {width:var(--rank-number-width);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-song-col {width:var(--rank-song-width);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th {position:sticky;top:0;z-index:5;height:40px;padding:0 12px;background:#f4f7fa;border-bottom:1px solid #cbd9e4;border-right:0;color:#5b7185;font-size:11px;font-weight:500;white-space:nowrap;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th {position:sticky;top:0;z-index:5;height:40px;padding:0 12px;background:var(--theme-surface);border-bottom:1px solid var(--theme-border);border-right:0;color:var(--theme-text-soft);font-size:11px;font-weight:500;white-space:nowrap;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th button {display:flex;align-items:center;justify-content:space-between;gap:5px;width:100%;min-height:39px;border:0;padding:0;background:transparent;text-align:left;color:inherit;font:inherit;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th i {font:12px var(--font-mono,monospace);color:#9aabba;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th[aria-sort]:not([aria-sort=none]) {color:#245e7c;background:#deedf7;font-weight:700;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th[aria-sort]:not([aria-sort=none]) i {color:#245e7c;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr {--row-bg:#fff;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr:nth-child(4n+3) {--row-bg:#fff;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td {height:64px;padding:9px 12px;vertical-align:middle;border-bottom:1px solid #e6edf370;border-right:0;background:var(--row-bg);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td[data-active] {color:#245e7c;background:#edf5fb;font-weight:700;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr:not(.ranking-detail):hover td {background:#eff5fa;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th,td).ranking-position {position:sticky;left:0;text-align:center;padding:0 4px;font:11px var(--font-mono,monospace);color:#8899a8;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th i {font:12px var(--font-mono,monospace);color:var(--theme-muted);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th[aria-sort]:not([aria-sort=none]) {color:var(--theme-secondary-ink);background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));font-weight:700;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th[aria-sort]:not([aria-sort=none]) i {color:var(--theme-secondary-ink);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr {--row-bg:var(--theme-canvas);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr:nth-child(4n+3) {--row-bg:var(--theme-canvas);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td {height:64px;padding:9px 12px;vertical-align:middle;border-bottom:1px solid color-mix(in srgb, var(--theme-border) 43.92%, transparent);border-right:0;background:var(--row-bg);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td[data-active] {color:var(--theme-secondary-ink);background:var(--theme-surface);font-weight:700;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr:not(.ranking-detail):hover td {background:var(--theme-surface);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th,td).ranking-position {position:sticky;left:0;text-align:center;padding:0 4px;font:11px var(--font-mono,monospace);color:var(--theme-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td.ranking-position {z-index:2;background:var(--row-bg);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th,td).ranking-song {position:sticky;left:var(--rank-number-width);box-shadow:6px 0 9px -8px #29445f65;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th,td).ranking-song {position:sticky;left:var(--rank-number-width);box-shadow:6px 0 9px -8px color-mix(in srgb, var(--theme-shadow-color) 39.61%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td.ranking-song {z-index:2;background:var(--row-bg);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th.ranking-position,th.ranking-song) {z-index:7;background:#f4f7fa;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th.ranking-song[aria-sort]:not([aria-sort=none]) {background:#deedf7;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tr[data-podium="1"] .ranking-position {color:#a77d25;font-weight:700;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th.ranking-position,th.ranking-song) {z-index:7;background:var(--theme-surface);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table th.ranking-song[aria-sort]:not([aria-sort=none]) {background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tr[data-podium="1"] .ranking-position {color:var(--theme-warning-ink);font-weight:700;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track {display:flex;align-items:center;gap:7px;min-width:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track img {flex:none;width:28px;height:28px;object-fit:cover;border-radius:4px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track>div {flex:1;min-width:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track strong {display:block;overflow-wrap:anywhere;font-size:12px;line-height:1.4;font-weight:650;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track small {display:block;font:9px/1.5 var(--font-mono,monospace);color:var(--rank-muted);margin-top:3px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle {flex:none;align-self:center;display:grid;place-items:center;width:25px;height:28px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:#8b9eae;font-size:17px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle:hover,.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle[aria-expanded=true] {color:var(--rank-accent);background:#e3edf5;border-color:#c5d9e7;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle {flex:none;align-self:center;display:grid;place-items:center;width:25px;height:28px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--theme-muted);font-size:17px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle:hover,.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle[aria-expanded=true] {color:var(--rank-accent);background:color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface));border-color:var(--theme-border);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-value {font:11px/1.5 var(--font-mono,monospace);font-variant-numeric:tabular-nums;white-space:nowrap;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-text-value {font-family:var(--font-body,sans-serif);font-size:11px;white-space:normal;overflow-wrap:anywhere;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty {display:inline-block;padding:3px 5px;background:#eee7f5;color:#7f5b9e;border-radius:4px;font:9px var(--font-mono,monospace);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty[data-difficulty=hard] {background:#fbf0d8;color:#967329;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty[data-difficulty=normal] {background:#e4f0fa;color:#497a9e;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty[data-difficulty=easy] {background:#e4f2e9;color:#4a8062;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state {display:inline-block;font:10px/1.5 var(--font-body,sans-serif);color:#47766d;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state::before {content:'';display:inline-block;width:5px;height:5px;margin-right:5px;background:#77a898;border-radius:50%;vertical-align:middle;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=pending] {color:#92753c;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=pending]::before {background:#c9ad72;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=unavailable] {color:#96586a;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=unavailable]::before {background:#be8596;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty {/* Game semantics: difficulty identity. */display:inline-block;padding:3px 5px;background:#eee7f5;color:#7f5b9e;border-radius:4px;font:9px var(--font-mono,monospace);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty[data-difficulty=hard] {/* Game semantics: difficulty identity. */background:#fbf0d8;color:#967329;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty[data-difficulty=normal] {/* Game semantics: difficulty identity. */background:#e4f0fa;color:#497a9e;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty[data-difficulty=easy] {/* Game semantics: difficulty identity. */background:#e4f2e9;color:#4a8062;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state {display:inline-block;font:10px/1.5 var(--font-body,sans-serif);color:var(--theme-success-ink);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state::before {content:'';display:inline-block;width:5px;height:5px;margin-right:5px;background:var(--theme-success);border-radius:50%;vertical-align:middle;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=pending] {color:var(--theme-warning-ink);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=pending]::before {background:var(--theme-warning);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=unavailable] {color:var(--theme-accent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-state[data-state=unavailable]::before {background:var(--theme-accent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail>td {padding:0!important;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-content {position:sticky;left:0;width:100cqw;max-width:100cqw;margin:0;padding:12px 16px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-pagination {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:10px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-pagination>div {display:flex;align-items:center;gap:12px;font-family:var(--font-mono,monospace);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-pagination button {display:grid;place-items:center;min-width:29px;min-height:29px;padding:4px;border:1px solid var(--rank-line);border-radius:5px;background:#fff;color:var(--rank-accent);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-scroll-hint {color:#91a1af;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-pagination button {display:grid;place-items:center;min-width:29px;min-height:29px;padding:4px;border:1px solid var(--rank-line);border-radius:5px;background:var(--theme-surface);color:var(--rank-accent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-scroll-hint {color:var(--theme-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-empty {padding:28px 16px;text-align:center;font-size:12px;color:var(--rank-muted);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-empty strong {color:var(--rank-ink);}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-empty button,.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-error button {margin:8px 4px 0;padding:7px 12px;border:1px solid #c6d6e2;border-radius:6px;background:#fff;color:var(--rank-accent);font-size:12px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-error {margin:10px 14px;padding:13px;border:1px solid #e2b9b2;border-radius:7px;background:#fff3ef;color:#8d4d42;font-size:12px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-empty button,.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-error button {margin:8px 4px 0;padding:7px 12px;border:1px solid var(--theme-border);border-radius:6px;background:var(--theme-surface);color:var(--rank-accent);font-size:12px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-error {margin:10px 14px;padding:13px;border:1px solid var(--theme-border);border-radius:7px;background:var(--theme-surface);color:var(--theme-danger-ink);font-size:12px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-error p {line-height:1.6;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-inline-error {position:sticky;top:0;z-index:2;margin:0 0 12px;padding:9px 11px;border:1px solid #e2b9b2;border-radius:6px;background:#fff3ef;color:#8d4d42;font-size:12px;line-height:1.6;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking [aria-invalid=true] {border-color:#b45b61!important;background:#fff3f2!important;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-inline-error {position:sticky;top:0;z-index:2;margin:0 0 12px;padding:9px 11px;border:1px solid var(--theme-border);border-radius:6px;background:var(--theme-surface);color:var(--theme-danger-ink);font-size:12px;line-height:1.6;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking [aria-invalid=true] {border-color:var(--theme-danger)!important;background:var(--theme-surface)!important;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-startup {padding:10px 14px;font-size:12px;}
 .song-ranking>.tool-help {margin-top:10px;font-size:11px;}
 .ranking-sr-only {position:absolute!important;left:0!important;top:0!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important;padding:0!important;}
@@ -189,7 +189,7 @@
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs button {padding:4px 9px;min-height:29px;font-size:11px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip {gap:6px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .ranking-grouping-control {margin-left:0;}
- .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .ranking-clear {position:sticky;right:0;box-shadow:-4px 0 5px #fff;}
+ .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .ranking-clear {position:sticky;right:0;box-shadow:-4px 0 5px var(--theme-surface);}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-body {padding:12px;max-height:65dvh;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading {gap:7px;margin-bottom:12px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-panel-heading span {display:none;}
@@ -224,22 +224,22 @@
 
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr:not(.ranking-detail)>td:first-child {border-radius:10px 0 0 10px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table tbody>tr:not(.ranking-detail)>td:last-child {border-radius:0 10px 10px 0;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th,td).ranking-song {box-shadow:7px 0 12px -11px #29445f65;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table :is(th,td).ranking-song {box-shadow:7px 0 12px -11px color-mix(in srgb, var(--theme-shadow-color) 39.61%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track {align-items:start;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track img {margin-top:2px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track small,.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-ssr-track>small {font:9px/1.5 var(--font-mono,monospace);color:var(--rank-muted);display:block;margin-top:3px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track-tags {display:flex;flex-wrap:wrap;gap:3px 4px;margin-top:5px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag {display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:2px 5px;border-radius:5px;background:#eef2f6;color:#61758a;font:9px/1.3 var(--font-body,sans-serif);overflow-wrap:anywhere;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--attribute {background:#f4eff8;color:#877199;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--edition {background:#edf3f8;color:#557d99;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--state {background:#edf5f2;color:#4c8474;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag {display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:2px 5px;border-radius:5px;background:var(--theme-surface);color:var(--theme-text-soft);font:9px/1.3 var(--font-body,sans-serif);overflow-wrap:anywhere;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--attribute {background:var(--theme-surface);color:var(--theme-text-soft);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--edition {background:var(--theme-surface);color:var(--theme-muted);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--state {background:var(--theme-surface);color:var(--theme-success-ink);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--state::before {content:'';width:4px;height:4px;border-radius:50%;background:currentColor;flex:none;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag[data-state=pending] {background:#faf3e5;color:#9b7e43;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag[data-state=unavailable] {background:#f8edf0;color:#a16b80;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary .ranking-explanation {flex-basis:100%;padding:5px 8px;border-radius:6px;background:#f1f6fa;color:#557890;font-size:10px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-advanced-replay {margin-top:15px;padding:10px 12px;border:1px solid #e0e7ef;border-radius:9px;background:#f8fafc;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-advanced-replay>summary {font-size:11px;font-weight:600;color:#698096;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-advanced-replay>p {font-size:11px;line-height:1.6;color:#798b9c;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag[data-state=pending] {background:color-mix(in srgb, var(--theme-warning) 8%, var(--theme-surface));color:var(--theme-warning-ink);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag[data-state=unavailable] {background:var(--theme-surface);color:var(--theme-accent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-result-summary .ranking-explanation {flex-basis:100%;padding:5px 8px;border-radius:6px;background:var(--theme-surface);color:var(--theme-muted);font-size:10px;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-advanced-replay {margin-top:15px;padding:10px 12px;border:1px solid var(--theme-border);border-radius:9px;background:var(--theme-surface);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-advanced-replay>summary {font-size:11px;font-weight:600;color:var(--theme-text-soft);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-advanced-replay>p {font-size:11px;line-height:1.6;color:var(--theme-text-soft);}
 @media(max-width:700px) {
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track-tags {gap:3px;margin-top:4px;}
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag {font-size:9px;padding:2px 4px;}
@@ -251,7 +251,7 @@
  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .ranking-clear {position:static;box-shadow:none;}
 }
 
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-cover {position:relative;display:inline-grid;place-items:center;flex:0 0 44px;width:44px;height:44px;overflow:hidden;border-radius:9px;background:linear-gradient(140deg,#e2eaf5,#eee4f2);border:1px solid #d8e0eb;color:#9a89aa;box-shadow:0 2px 6px #405c7612;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-cover {position:relative;display:inline-grid;place-items:center;flex:0 0 44px;width:44px;height:44px;overflow:hidden;border-radius:9px;background:linear-gradient(140deg,color-mix(in srgb, var(--theme-secondary) 8%, var(--theme-surface)),color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface)));border:1px solid var(--theme-border);color:var(--theme-muted);box-shadow:0 2px 6px color-mix(in srgb, var(--theme-shadow-color) 7.06%, transparent);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-cover>span {font:24px/1 Georgia,serif;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-cover>img {position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit;margin:0;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track {align-items:center;}
@@ -271,14 +271,14 @@
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--icon img {display:block;max-width:48px;max-height:22px;object-fit:contain;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--attribute.ranking-tag--icon {padding-inline:3px;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--state {padding:3px 6px;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag[data-label]:is(:hover,:focus-visible)::after {content:attr(data-label);position:absolute;left:0;bottom:calc(100% + 6px);z-index:10;width:max-content;max-width:190px;padding:5px 8px;border-radius:6px;background:#34445a;color:#fff;font:10px/1.5 var(--font-body,sans-serif);white-space:normal;box-shadow:0 4px 12px #26344820;pointer-events:none;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch {display:inline-flex;align-items:center;gap:3px;flex:none;padding:2px;border:1px solid #dce4ec;border-radius:8px;background:#edf2f7;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag[data-label]:is(:hover,:focus-visible)::after {content:attr(data-label);position:absolute;left:0;bottom:calc(100% + 6px);z-index:10;width:max-content;max-width:190px;padding:5px 8px;border-radius:6px;background:var(--theme-inverse-surface);color:var(--theme-inverse-text);font:10px/1.5 var(--font-body,sans-serif);white-space:normal;box-shadow:0 4px 12px color-mix(in srgb, var(--theme-shadow-color) 12.55%, transparent);pointer-events:none;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch {display:inline-flex;align-items:center;gap:3px;flex:none;padding:2px;border:1px solid var(--theme-border);border-radius:8px;background:var(--theme-surface);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch button {display:grid;place-items:center;width:28px;min-height:26px;padding:4px;border:1px solid transparent;border-radius:5px;background:transparent;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch button[aria-pressed=true] {background:#fff;border-color:#b8cedd;box-shadow:0 1px 4px #29445e10;}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch button:hover {background:#fff;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch button[aria-pressed=true] {background:var(--theme-surface);border-color:var(--theme-border);box-shadow:0 1px 4px color-mix(in srgb, var(--theme-shadow-color) 6.27%, transparent);}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-switch button:hover {background:var(--theme-surface);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-symbol {display:inline-block;flex:none;width:16px;height:16px;border-radius:50%;background-position:center;background-size:contain;background-repeat:no-repeat;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-symbol[data-edition=global] {background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235f879f' stroke-width='1.7'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cellipse cx='12' cy='12' rx='4' ry='9'/%3E%3Cpath d='M3 12h18M5 6.5h14M5 17.5h14'/%3E%3C/svg%3E");}
-.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-symbol[data-edition=jp] {background:radial-gradient(circle,#be6b82 0 33%,#fff 36%);border:1px solid #d9dfe7;}
+.tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-symbol[data-edition=jp] {background:radial-gradient(circle,var(--theme-accent) 0 33%,var(--theme-surface) 36%);border:1px solid var(--theme-border);}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-edition-symbol[data-edition=all] {border-radius:3px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23798aa0' stroke-width='1.7'%3E%3Crect x='3' y='3' width='13' height='13' rx='3'/%3E%3Cpath d='M9 19h10a2 2 0 0 0 2-2V9M6 9h7M9.5 6v7'/%3E%3C/svg%3E");}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--state {width:21px;height:21px;padding:2px;display:inline-grid;place-items:center;background:transparent;}
 .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag--state::before {display:none;}
@@ -313,7 +313,7 @@
   :is(.ranking-controls select[data-quick-native],.ranking-controls input[type=number],.tool-options button) {background-color:var(--tool-surface);border-color:var(--tool-border);color:var(--tool-ink);}
   select:hover {border-color:var(--tool-accent);}
   :is(.ranking-filter-tags button,.ranking-result-summary .ranking-explanation) {background:var(--tool-tint);border-color:var(--tool-border);color:var(--tool-accent);}
-  .ranking-replay-actions [data-replay-run] {color:white;background:var(--tool-accent);border-color:var(--tool-accent);}
+  .ranking-replay-actions [data-replay-run] {color:var(--theme-on-accent);background:var(--tool-accent);border-color:var(--tool-accent);}
   :is(.ranking-result-summary [data-context],.ranking-skill-actions button,.ranking-advanced-replay>summary,
       .ranking-advanced-replay>p,.ranking-table th i,.ranking-detail-toggle) {color:var(--tool-muted);}
   .ranking-table-wrap {background:var(--paper);border-color:var(--tool-border);scrollbar-color:var(--tool-border) var(--paper);}
@@ -342,4 +342,4 @@
 .tool-studio[data-tool-kind="song-ranking"] [data-load-more] {padding:6px 12px;white-space:nowrap;}
 .tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control .tool-choice-group {display:flex;gap:4px;}
 .tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control button {min-width:30px;min-height:30px;padding:4px 7px;border:1px solid var(--rank-line);border-radius:5px;background:var(--paper);color:var(--rank-muted);font-weight:600;}
-.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control button[aria-pressed=true] {background:var(--rank-accent);border-color:var(--rank-accent);color:var(--paper);}
+.tool-studio.tool-studio[data-tool-kind="song-ranking"][data-tool-kind] .song-ranking .ranking-grade-control button[aria-pressed=true] {background:var(--rank-accent);border-color:var(--rank-accent);color:var(--theme-on-accent);}

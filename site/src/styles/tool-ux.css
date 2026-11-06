@@ -1,7 +1,7 @@
 /* A compact performance desk: card art and results lead, explanations recede. */
 .tool-options {display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0;}
-.tool-options button {min-height:36px;padding:7px 12px;border:1px solid var(--line,#d9d3dc);border-radius:7px;background:var(--paper-light,#fff);color:var(--ink,#25202a);font:500 12px/1.4 var(--font-body);cursor:pointer;}
-.tool-options button[aria-pressed=true] {background:var(--lacquer,#733954);border-color:var(--lacquer,#733954);color:white;}
+.tool-options button {min-height:36px;padding:7px 12px;border:1px solid var(--line,var(--theme-border));border-radius:7px;background:var(--paper-light,var(--theme-surface));color:var(--ink,var(--theme-text));font:500 12px/1.4 var(--font-body);cursor:pointer;}
+.tool-options button[aria-pressed=true] {background:var(--lacquer,var(--theme-accent));border-color:var(--lacquer,var(--theme-accent));color:var(--theme-on-accent);}
 .tool-options button:disabled {opacity:.45;cursor:default;}
 .tool-options button:focus-visible,.ux-card-picker button:focus-visible {outline:2px solid var(--lacquer);outline-offset:3px;}
 .tool-options [hidden],select[data-quick][hidden] {display:none!important;}
@@ -10,7 +10,7 @@
 .selection-quick .compact-attribute-filter {display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
 .selection-quick .compact-attribute-filter>span {font-size:12px;}
 .selection-quick .compact-attribute-filter button {min-height:var(--tool-control-height,30px);border:1px solid var(--line);border-radius:var(--tool-control-radius,5px);background:var(--paper-light);padding:3px 6px;}
-.selection-quick .compact-attribute-filter button[aria-pressed=true] {box-shadow:inset 0 -2px var(--lacquer);background:#f5eaf1;}
+.selection-quick .compact-attribute-filter button[aria-pressed=true] {box-shadow:inset 0 -2px var(--lacquer);background:color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface));}
 .selection-quick .compact-attribute-filter img {width:22px;height:22px;}
 .selection-quick .card-attribute-badge {border:0;background:none;}
 .selection-quick-grid {display:grid;grid-template-columns:minmax(0,1fr);gap:6px;}
@@ -23,13 +23,13 @@
 .tool-team-strip img {height:60px;width:48%;object-fit:contain;}
 .tool-team-strip small {display:block;font-size:11px;overflow-wrap:anywhere;}
 .ux-card-picker {width:min(880px,calc(100vw - 24px));max-height:calc(100dvh - 24px);box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--paper-light);color:var(--ink);}
-.ux-card-picker::backdrop {background:#17132180;}
+.ux-card-picker::backdrop {background:color-mix(in srgb, var(--theme-media-shade) 50.2%, transparent);}
 .ux-card-picker header,.ux-card-picker footer {display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .ux-card-picker :is(header,footer) button {min-height:var(--tool-control-height,30px);padding:4px 8px;border-radius:var(--tool-control-radius,5px);font-size:12px;}
 .ux-card-picker h2 {margin:0;font-size:16px;}
 .ux-card-picker input[type=search] {width:100%;box-sizing:border-box;padding:4px 8px;margin:0;font-size:13px;border-radius:var(--tool-control-radius,5px);}
 .ux-card-picker .ux-card-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0;}
-.ux-card-picker .ux-card-grid button {display:flex;gap:10px;align-items:center;text-align:left;min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--ink);font-size:12px;}
+.ux-card-picker .ux-card-grid button {display:flex;gap:10px;align-items:center;text-align:left;min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--theme-surface);color:var(--ink);font-size:12px;}
 .ux-card-picker .ux-card-grid button:disabled {opacity:.4;}
 .ux-card-picker .ux-card-grid img {width:52px;height:62px;object-fit:contain;}
 .ux-card-picker .ux-card-grid span {overflow-wrap:anywhere;}
@@ -38,7 +38,7 @@
 .ux-card-picker .ux-card-filter-row {display:grid;grid-template-columns:60px minmax(0,1fr);gap:6px;align-items:center;margin:6px 0;min-width:0;font:11px/1.4 var(--font-body);}
 .ux-card-picker .ux-card-filter-row .tool-options {display:flex;flex-wrap:wrap;gap:4px;overflow:visible;}
 .ux-card-picker .ux-card-filter-row button {display:inline-flex;align-items:center;justify-content:center;min-width:var(--tool-control-height,30px);min-height:var(--tool-control-height,30px);padding:3px 6px;border-radius:var(--tool-control-radius,5px);font-size:11px;}
-.ux-card-picker .ux-card-filter-row button[aria-pressed=true] {color:var(--lacquer);background:#f5edf2;border-color:#cbb5c4;box-shadow:none;}
+.ux-card-picker .ux-card-filter-row button[aria-pressed=true] {color:var(--lacquer);background:var(--theme-surface);border-color:var(--theme-border);box-shadow:none;}
 .ux-card-picker .ux-card-filter-row button img {width:22px;height:22px;object-fit:contain;}
 .ux-card-picker .ux-card-selection-options {display:flex;flex-wrap:wrap;gap:4px 16px;padding:4px 0;border-block:1px solid var(--line);}
 .ux-card-picker .ux-card-selection-options label {display:flex;align-items:center;gap:6px;min-height:var(--tool-control-height,30px);font:11px/1.4 var(--font-body);}
@@ -59,7 +59,7 @@
 .tool-task-tabs button {flex:1;border:1px solid var(--line);padding:12px;background:var(--paper-light);border-radius:9px;color:var(--ink);text-align:left;}
 .tool-task-tabs button strong,.tool-task-tabs button small {display:block;}
 .tool-task-tabs button small {font-size:12px;margin-top:5px;line-height:1.6;}
-.tool-task-tabs button[aria-pressed=true] {border-color:var(--lacquer);box-shadow:inset 0 -3px var(--lacquer);background:#faf3f7;}
+.tool-task-tabs button[aria-pressed=true] {border-color:var(--lacquer);box-shadow:inset 0 -3px var(--lacquer);background:var(--theme-surface);}
 .event-workbench[data-task=quick] #event-song {display:none;}
 .event-workbench[data-task=quick] #event-team> :not(.event-quick-bonus):not([data-bonus]) {display:none;}
 .event-workbench[data-task=quick] .event-quick-bonus>summary,.event-workbench[data-task=quick] .event-quick-bonus>label {display:none;}
@@ -71,8 +71,8 @@
 .event-workbench .event-panel {padding:20px;}
 .event-workbench .event-grade {margin:16px 0;}
 .l2d-clip-shortcuts {display:flex;flex-wrap:wrap;gap:5px;margin:8px 0;}
-.l2d-clip-shortcuts button {padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:white;font-size:12px;}
-.l2d-clip-shortcuts button[aria-pressed=true] {border-color:var(--lacquer);background:#f5eaf1;}
+.l2d-clip-shortcuts button {padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--theme-surface);font-size:12px;}
+.l2d-clip-shortcuts button[aria-pressed=true] {border-color:var(--lacquer);background:color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface));}
 @media(max-width:700px) {
  .selection-quick-grid {grid-template-columns:1fr;gap:6px;}
  .tool-options button {min-height:40px;padding:8px 10px;}
@@ -96,7 +96,7 @@ ap-grade-tool.ap-workbench .ap-team-row {display:flex;flex-direction:column;}
 .scoring-research-workbench .scoring-research-summary {padding:18px;gap:18px;margin-top:14px;}
 .scoring-research-workbench .scoring-research-summary h2 {font-size:20px;}
 .scoring-research-workbench .scoring-research-summary p {font-size:12px;line-height:1.7;}
-.team-workbench .card-place-direct {width:100%;min-height:38px;margin-top:5px;background:var(--lacquer);color:white;border:0;border-radius:6px;font-size:12px;}
+.team-workbench .card-place-direct {width:100%;min-height:38px;margin-top:5px;background:var(--lacquer);color:var(--theme-on-accent);border:0;border-radius:6px;font-size:12px;}
 .team-workbench .card-place-direct:disabled {opacity:.4;}
 .event-workbench[data-task=quick] #event-team .event-quick-bonus {display:block;}
 .event-workbench[data-task=quick] .event-quick-bonus>h2 {font-size:18px;margin:0 0 14px;}

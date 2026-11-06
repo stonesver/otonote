@@ -1,3 +1,4 @@
+import { readThemePalette } from "./theme-palette.mjs";
 import { MAX_SHARE_LINES, selectedRange } from "./story-share-layout.mjs";
 import type { StoryShareCopy } from "./story-share-copy";
 import type { ShareLine } from "./story-share-image";
@@ -84,12 +85,13 @@ export function setupStoryShare(reader: HTMLElement) {
     const request = ++generation;
     busy = true; update();
     try {
+      const palette = readThemePalette(reader);
       const content: ShareLine[] = lines.slice(selected.start, selected.end + 1).map(line => ({
         kind: line.dataset.lineKind || "dialogue",
         speaker: line.dataset.storySpeaker || "",
         text: line.querySelector("p, h2 span")?.textContent || "",
         avatar: line.querySelector<HTMLImageElement>(".st-avatar img")?.src || "",
-        accent: getComputedStyle(line).getPropertyValue("--speaker-accent").trim() || "#526477",
+        accent: getComputedStyle(line).getPropertyValue("--speaker-accent").trim() || palette.secondaryInk,
       }));
       const { createStoryImage } = await import("./story-share-image");
       if (request !== generation) return;
@@ -99,7 +101,7 @@ export function setupStoryShare(reader: HTMLElement) {
         category: [...reader.querySelectorAll(".st-reader-kicker > span")].map(node => node.textContent).join(" · "),
         excerpt: copy.excerpt, range: describe(selected),
         source: `${location.origin}${location.pathname}#${lines[selected.start].id}`,
-        accent: getComputedStyle(reader).getPropertyValue("--band-accent").trim() || "#315f73",
+        accent: getComputedStyle(reader).getPropertyValue("--band-accent").trim() || palette.secondaryInk,
         font: getComputedStyle(reader).fontFamily, lines: content,
       });
       if (request !== generation) return;

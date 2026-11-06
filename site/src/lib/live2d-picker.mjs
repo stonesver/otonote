@@ -156,7 +156,7 @@ export class ModelPicker {
     list.replaceChildren(...matches.map(model => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'l2d-costume-card';
       button.dataset.lookChoice = model.id; button.disabled = model.state !== 'available'; button.setAttribute('aria-pressed', String(model.id === this.selected?.id));
-      button.style.setProperty('--card-accent', c?.color || '#8c98a6');
+      button.style.setProperty('--card-accent', c?.color || 'var(--theme-muted)');
       const tag = document.createElement('span'); tag.className = 'l2d-look-tag';
       tag.textContent = model.id === this.selected?.id ? this.say('✓ 当前造型', '✓ Current look') : model.isDefault ? this.say('推荐 · 默认', 'Default') : kinds.find(([id]) => id === lookKind(model))?.[1];
       const name = document.createElement('strong'); name.textContent = modelLabel(model, this.config.en);

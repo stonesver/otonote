@@ -17,7 +17,7 @@ from pathlib import Path, PurePosixPath
 import re
 import stat
 import sys
-from time import monotonic
+from time import monotonic, sleep
 from uuid import uuid4
 
 SHA256 = re.compile(r"[a-f0-9]{64}\Z")
@@ -763,7 +763,18 @@ class PrivateS3Bucket:
             raise
 
     def _stream(self, key: str, target: Path | None, sha: str, size: int, *, verification=False):
-        from botocore.exceptions import ClientError
+        from botocore.exceptions import IncompleteReadError
+        # Botocore's request retries end before the streaming body is consumed.
+        for attempt in range(3):
+            try:
+                return self._stream_once(key, target, sha, size, verification=verification)
+            except IncompleteReadError:
+                if attempt == 2:
+                    raise
+                sleep(attempt + 1)
+
+    def _stream_once(self, key: str, target: Path | None, sha: str, size: int, *, verification=False):
+        from botocore.exceptions import ClientError, IncompleteReadError
         try:
             result = self.client.get_object(Bucket=self.bucket, Key=key)
         except ClientError as error:
@@ -773,6 +784,7 @@ class PrivateS3Bucket:
         body = result["Body"]
         hasher = hashlib.sha256()
         count = 0
+        created = False
         try:
             if target is None:
                 while chunk := body.read(CHUNK):
@@ -782,12 +794,17 @@ class PrivateS3Bucket:
                         return False
             else:
                 with target.open("xb") as output:
+                    created = True
                     while chunk := body.read(CHUNK):
                         hasher.update(chunk)
                         count += len(chunk)
                         if count > size:
                             raise ValueError("private state object exceeds expected size")
                         output.write(chunk)
+        except IncompleteReadError:
+            if created:
+                target.unlink()
+            raise
         finally:
             body.close()
         if count != size or hasher.hexdigest() != sha:

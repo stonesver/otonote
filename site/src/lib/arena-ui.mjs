@@ -289,10 +289,12 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   if(!check)return;
   const request=++generation;const result=await check();
   if(request!==generation)return;
+  const previousFreshness=freshness;
   freshness=result.status;
   if(result.status==='changed'){feedback.replaceChildren(document.createTextNode(clockNotice+updateNotice+t('有新资料，重新载入后使用。','New data is available. Reload to use it.')));const reload=document.createElement('button');reload.textContent=t('重新载入','Reload');reload.dataset.action='reload';feedback.append(reload);}
   else feedback.textContent=clockNotice+updateNotice+(result.status==='current'?(manual?t('已检查，暂无新资料','Checked; no new data'):''):t('当前展示已保存资料，未能检查更新。','Showing saved data; could not check for updates.'));
   if(handoff)render(true);
+  else if(freshness!==previousFreshness){const currentEntry=body.querySelector('.arena-entry');if(currentEntry)currentEntry.outerHTML=entry();}
  }
  try {
   // Read only public content. No scoring rules, inventory, team or worker input.

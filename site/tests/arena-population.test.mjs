@@ -33,6 +33,8 @@ test('counts require matching full rank data; missing values stay unknown, maxRa
  const view=render({status:'available',data:payload()});assert.match(view,/≈ 100/);assert.match(view,/90/);assert.match(view,/90.0%/);assert.match(view,/role="img"/);assert.match(view,/并非官方人数统计/);assert.ok(!view.includes('data-field="rank-min"'));
  assert.match(render({status:'unavailable',data:null}),/暂无可用的段位人数估算/);assert.doesNotMatch(render({status:'unavailable',data:null}),/role="img"/);assert.match(render({status:'available',data:payload()},{...rankData,sourceMasterVersion:'b'.repeat(32)}),/未匹配/);
  assert.match(render({status:'stale',data:payload()}),/已过期/);
+ const republished=render({status:'stale',data:payload()},{...rankData,sourceReleaseId:'new-content-same-master'});
+ assert.match(republished,/≈ 100/);assert.match(republished,/已过期/);assert.doesNotMatch(republished,/未匹配/);
 });
 
 test('shares preserve small nonzero tiers and avoid undefined percentages for empty populations',()=>{

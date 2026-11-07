@@ -127,6 +127,19 @@ export function installSiteNotifications(container, options = {}) {
     measureTickers();
   }
 
+  async function dismissRows(rows, elements) {
+    if (doc.documentElement.dataset.motion === 'on' && !win.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const animations = elements.map(node => node.animate(
+        [{opacity:1, translate:'0 0'}, {opacity:0, translate:'0 -6px'}],
+        {duration:180, easing:'ease-out', fill:'forwards'}
+      ));
+      await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
+      animations.forEach(animation => animation.cancel());
+    }
+    rows.forEach(row => dismissed.add(`${row.id}:${row.revision}`));
+    render();
+  }
+
   function render() {
     if (stopped) return;
     const rows = activeNotices(notices, context, now()/1000, dismissed.set);
@@ -149,7 +162,7 @@ export function installSiteNotifications(container, options = {}) {
           const close = make('button', '×'); close.type = 'button'; close.className = 'site-notice-dismiss';
           close.title = say('关闭公告','Dismiss notice');
           close.setAttribute('aria-label', say('关闭公告：','Dismiss notice: ') + (en && row.titleEn || row.title));
-          close.addEventListener('click', () => {dismissed.add(`${row.id}:${row.revision}`); render();}); box.append(close);
+          close.addEventListener('click', () => {void dismissRows([row], [box]);}); box.append(close);
         }
         return box;
       }));
@@ -219,9 +232,8 @@ export function installSiteNotifications(container, options = {}) {
   const closeDetails = () => dialog.close();
   const minimize = () => {visibleKeys.forEach(key => minimized.add(key)); render(); openButton.focus({preventScroll:true});};
   const open = () => {visibleKeys.forEach(key => minimized.delete(key)); render(); minimizeButton.focus({preventScroll:true});};
-  const dismissCollapsed = () => {
-    dismissibleRows.forEach(row => dismissed.add(`${row.id}:${row.revision}`));
-    render();
+  const dismissCollapsed = async () => {
+    await dismissRows(dismissibleRows, [collapsedBox]);
     if (!noticeDock.hidden) openButton.focus({preventScroll:true});
     else if (!updateBox.hidden) laterButton.focus({preventScroll:true});
   };

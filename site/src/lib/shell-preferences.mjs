@@ -20,6 +20,7 @@
     window.__otonoteSidebarBound = true;
     document.addEventListener('click', event => {
       if (!event.target.closest?.('[data-sidebar-collapse]')) return;
+      root.dataset.sidebarInteracted = '';
       root.dataset.sidebarCollapsed = String(root.dataset.sidebarCollapsed !== 'true');
       try { localStorage.setItem(key, root.dataset.sidebarCollapsed); } catch { /* Keep working without persistence. */ }
       sync();

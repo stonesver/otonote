@@ -37,7 +37,7 @@ class EventEfficiencyTool extends HTMLElement {
 
   this.challengeOptimizer=setupChallengeOptimizer(this);
   this.yieldOptimizer=setupEventYieldOptimizer(this);
-  this.songPicker=setupCalculatorSongPicker(this,{getSelection:()=>this.draft,allowedTrackIds:()=>this.q('mode').value==='challenge'?new Set(this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`)):null,onSelect:selection=>{Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId;this.q('song-disclosure').open=false;this.render();}});
+  this.songPicker=setupCalculatorSongPicker(this,{getSelection:()=>this.draft,allowedTrackIds:()=>this.q('mode').value==='challenge'?new Set(this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`)):null,onSelect:selection=>{Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId;this.render();}});
   this.addEventListener('change',event=>{if(event.target.closest('[data-card-dialog]')||event.target.closest('[data-song-picker]'))return;if(event.target.matches('[data-mode]')&&this.dataset.task==='team'){const {mode,songScope,...selection}=this.yieldPhases.switchTo(this.q('mode').value,songState());Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId??'';this.q('yield-songs').value=songScope;}if(event.target.matches('[data-mode],[data-event]'))this.songPicker?.reset();this.render();});this.q('suggest').addEventListener('click',()=>this.suggest());
   this.q('copy-bonus').addEventListener('click',()=>{if(this.rewardBP!=null){this.q('challenge-bonus').value=this.rewardBP/100;this.q('challenge-point-bonus').value=this.eventPointBP/100;this.render();}});
   this.q('save').addEventListener('click',()=>{if(this.current){this.saved={...this.current};this.render();}});
@@ -82,7 +82,7 @@ class EventEfficiencyTool extends HTMLElement {
   this.q('rank-hint').textContent=mode==='challenge'?'填写活动内挑战的稳定评分；普通歌曲估分不包含挑战专属加成。':'填写稳定评分。可用下方分数计算辅助判断，最终以游戏内结算为准。';
   this.songPicker?.refresh();
   const allowed=mode==='challenge'?this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`):null;
-  if(allowed&&!allowed.includes(this.q('song').value)){this.q('song').value='';this.draft.selectedSongId=null;this.draft.selectedDifficulty=null;this.q('song-disclosure').open=true;this.songPicker?.sync();}
+  if(allowed&&!allowed.includes(this.q('song').value)){this.q('song').value='';this.draft.selectedSongId=null;this.draft.selectedDifficulty=null;this.songPicker?.sync();}
   this.q('selected-song').textContent=this.q('song').value?`${this.q('song').selectedOptions[0].textContent} · ${(this.draft.selectedDifficulty??'expert').toUpperCase()}`:'选择一首歌曲';
   this.q('save').disabled=true;this.q('copy-bonus').disabled=true;
   for(const key of ['value','bonus','point-bonus','badges','points','cp'])this.q('summary-'+key).textContent='—';

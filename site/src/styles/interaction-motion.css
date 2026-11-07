@@ -53,28 +53,28 @@
 
   /* Native dialog remains responsible for modality, Escape and focus handling. */
   @supports (transition-behavior: allow-discrete) {
-    [data-motion="on"] .global-search-dialog {
+    [data-motion="on"] :is(.global-search-dialog,.site-notification-dialog) {
       opacity: 0;
       transform: translateY(8px) scale(.99);
       transition: opacity 200ms ease, transform 240ms var(--motion-ease),
         display 240ms allow-discrete, overlay 240ms allow-discrete;
     }
-    [data-motion="on"] .global-search-dialog[open] {
+    [data-motion="on"] :is(.global-search-dialog,.site-notification-dialog)[open] {
       opacity: 1;
       transform: none;
     }
-    [data-motion="on"] .global-search-dialog::backdrop {
+    [data-motion="on"] :is(.global-search-dialog,.site-notification-dialog)::backdrop {
       opacity: 0;
       transition: opacity 200ms ease, display 240ms allow-discrete,
         overlay 240ms allow-discrete;
     }
-    [data-motion="on"] .global-search-dialog[open]::backdrop { opacity: 1; }
+    [data-motion="on"] :is(.global-search-dialog,.site-notification-dialog)[open]::backdrop { opacity: 1; }
     @starting-style {
-      [data-motion="on"] .global-search-dialog[open] {
+      [data-motion="on"] :is(.global-search-dialog,.site-notification-dialog)[open] {
         opacity: 0;
         transform: translateY(8px) scale(.99);
       }
-      [data-motion="on"] .global-search-dialog[open]::backdrop { opacity: 0; }
+      [data-motion="on"] :is(.global-search-dialog,.site-notification-dialog)[open]::backdrop { opacity: 0; }
     }
   }
 }
@@ -179,4 +179,34 @@
   [data-motion="on"] :is(.home-hero-actions a, .home-workbench a, .home-card, .home-track, .home-new-snaps > a):active {
     transform: scale(.98);
   }
+}
+
+/* Notice bars retain their boxes until the exit transition completes. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (transition-behavior: allow-discrete) {
+    [data-motion="on"] .site-notifications {
+      opacity:1;
+      transition:opacity 180ms ease,display 220ms allow-discrete;
+    }
+    [data-motion="on"] .site-notifications[hidden] { opacity:0; }
+    [data-motion="on"] :is(.site-notice-dock,.site-notifications-panel,.site-notifications-collapsed,.site-update) {
+      opacity:1;
+      translate:0 0;
+      transition:opacity 180ms ease,translate 220ms var(--motion-ease),display 220ms allow-discrete;
+    }
+    [data-motion="on"] :is(.site-notice-dock,.site-notifications-panel,.site-notifications-collapsed,.site-update)[hidden] {
+      opacity:0;
+      translate:0 -6px;
+    }
+    [data-motion="on"] .site-update[hidden] { translate:0 8px; }
+    @starting-style {
+      [data-motion="on"] :is(.site-notice-dock,.site-notifications-panel,.site-notifications-collapsed,.site-update):not([hidden]) { opacity:0; translate:0 -6px; }
+      [data-motion="on"] .site-update:not([hidden]) { translate:0 8px; }
+    }
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (min-width:1101px) {
+  [data-motion="on"][data-sidebar-interacted] body { transition:padding-left 240ms var(--motion-ease); }
+  [data-motion="on"][data-sidebar-interacted] :is(.site-nav,.site-brand) { transition:width 240ms var(--motion-ease),padding 240ms var(--motion-ease); }
+  [data-motion="on"] .sidebar-collapse svg { transition:transform 240ms var(--motion-ease); }
 }

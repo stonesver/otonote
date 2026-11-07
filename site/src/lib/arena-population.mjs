@@ -50,7 +50,7 @@ export function populationView({state,rankData,context,ranking,t,time}){
  const observedTime=Date.parse(state.data?.observation?.observedAt??'')||Date.now();
  const band=context?.league?.bandId,rows=(rankData?.ranks??[]).filter(r=>r.bandId===band&&(!r.opensAt?r.openingSourceText==='':Date.parse(r.opensAt)<=observedTime)),tiers=[...new Set(rows.map(r=>r.tier))].sort((a,b)=>a-b);
  const observation=state.data?.observation;
- const matched=observation&&arenaMasterVersion(rankData,context?.serverId)===observation.masterVersion&&rankData.sourceReleaseId===observation.sourceReleaseId
+ const matched=observation&&arenaMasterVersion(rankData,context?.serverId)===observation.masterVersion
   &&rankData.completeRankBands?.includes(band)&&context?.season?.id===observation.seasonId&&context.serverId===observation.serverId&&band===observation.bandId
   &&Date.parse(context.season.validFrom)<=Date.parse(observation.observedAt)&&Date.parse(observation.observedAt)<Date.parse(context.season.validUntil)
   &&observation.tiers.length===tiers.length&&observation.tiers.every(r=>r.threshold===Math.min(...rows.filter(v=>v.tier===r.tier).map(v=>v.threshold)));

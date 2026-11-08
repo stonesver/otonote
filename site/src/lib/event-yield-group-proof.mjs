@@ -9,7 +9,8 @@ import {createCandidateEvaluator} from './formation-candidate-evaluator.mjs';
 import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
 import {prepareEventSearchInput} from './event-search-input.mjs';
 import {createEventScoreCacheBinding,bindEventCandidateCache} from './event-search-cache.mjs';
-import {compareEventPlans} from './event-yield-goals.mjs';
+import {compareEventPlans,compareEventRewards} from './event-yield-goals.mjs';
+import {refineEventYieldTeams} from './event-yield-refinement.mjs';
 import {eventCandidateKey,createChallengeContinuationPlanner,createEventYieldRewardTransform,attainableBonusSums,constrainBonusCards} from './event-yield-optimizer.mjs';
 
 const HEURISTIC_SCORES_PER_CHART=48;
@@ -20,13 +21,14 @@ const HEURISTIC_SCORES_PER_CHART=48;
  * so the batch runner can retain its full individual-chart fallback. */
 export async function proveEventYieldGroups({rules,eventId,input,candidates,challengeRows=[],initialRows=[],goal,
  candidateCache=new Map(),challengePlanCache,loadChart,getScoreCache,yieldControl=async()=>{},onProgress=()=>{},signal,individualProofs=false,allowForeignSeeds=false}){
+ input={basis:'minimumScore',...input};
  await bindEventCandidateCache(candidateCache,rules);
  const stats={groups:0,groupsCompleted:0,leaders:0,visited:0,expanded:0,cardPartitions:0,chartPartitions:0,pairPartitions:0,prunedPartitions:0,
   fullScoreCalculations:0,boundScoreCalculations:0,scoreCacheHits:0,jointBoundMatchingCalls:0,powerMatchingCalls:0,
   heuristicScores:0,transferScores:0,representativeScores:0,candidateBoundPruned:0,normalizedEnvelopes:0,repeatedCandidatesSkipped:0,
   cardDomainCacheHits:0,bonusDomainCacheHits:0};
  let rows=[],covered=[];
- const compare=(a,b)=>compareEventPlans({...a,expectedScore:0,...(individualProofs?{song:{seconds:0}}:{})},{...b,expectedScore:0,...(individualProofs?{song:{seconds:0}}:{})},goal);
+ const compare=(a,b)=>compareEventRewards({...a,...(individualProofs?{song:{seconds:0}}:{})},{...b,...(individualProofs?{song:{seconds:0}}:{})},goal);
  const perChart=new Map();
  // A shared node can be excluded against the weakest incumbent among its
  // charts: beating ANY chart's incumbent also beats this lower reward tuple.
@@ -36,7 +38,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   if(individualProofs){
    const old=perChart.get(row.song.id);
    const comparison=old?compare(row,old):-1;
-   if(comparison>0||comparison===0&&row.expectedScore<=old.expectedScore)return;
+   if(comparison>0||comparison===0&&compareEventPlans(row,old,goal)>=0)return;
    perChart.set(row.song.id,row);
    rows=[...perChart.values()].sort(compare);
   }else rows=[row,...rows.filter(r=>r.id!==row.id||r.song.id!==row.song.id)].sort(compare).slice(0,12);
@@ -225,7 +227,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  const transferTeams=new Map();
  for(const target of [...new Set(['badges','eventPoints',goal])]){
   const seed=initialRows.filter(r=>seedEntry(r)&&legal(seedEntry(r),r.draft)&&r.orderCount===120)
-   .sort((a,b)=>compareEventPlans({...a,expectedScore:0},{...b,expectedScore:0},target))[0];
+   .sort((a,b)=>compareEventRewards(a,b,target))[0];
   if(!seed)continue;
   const leader=seed.draft.slots[2].memberCardId,edges=seed.draft.slots.map(s=>({member:s.memberCardId,support:s.supportCardId,key:s.memberCardId+'|'+s.supportCardId})).sort((a,b)=>a.key.localeCompare(b.key));
   transferTeams.set(leader+':'+edges.map(e=>e.key).join(';'),{leader,edges});
@@ -401,5 +403,13 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   }
   covered.push(...group.entries.map(e=>e.candidate.id));stats.groupsCompleted++;group.models=null;group.merged.clear();for(const entry of group.entries)releaseEntry(entry);
  }
- return finish(true);
+ const refined=[];
+ for(const row of rows){
+  if(signal?.aborted)return finish(false,'cancelled');
+  const entry=byId.get(row.song.id);
+  refined.push(...await refineEventYieldTeams({rules,chart:entry.chart,input:entry.resolved,results:[row],transformScore:entry.transform,goal,
+    scoreCache:await cacheFor(entry),counters:stats,signal,yieldControl,onProgress}));
+ }
+ rows=refined.sort((a,b)=>compareEventPlans(a,b,goal));
+ return finish(!signal?.aborted,signal?.aborted?'cancelled':undefined);
 }

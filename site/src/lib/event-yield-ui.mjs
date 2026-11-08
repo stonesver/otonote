@@ -1,7 +1,7 @@
 import {readCardBandConstraints,cardBandFilterSummary} from './card-band-constraints.mjs';
 import {validateEventCardPool} from './event-reward-candidates.mjs';
 import {eventYieldStageInput,eventYieldChallengeBandNote} from './event-yield-stage.mjs';
-import {eventSongHeading,eventYieldBreakdown,eventChallengeBreakdown} from './event-result-presentation.mjs';
+import {eventSongHeading,eventYieldBreakdown,eventChallengeBreakdown,eventGradeRisk} from './event-result-presentation.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {assertToolTeamCompatible} from './shared-team-context.mjs';
 import {setupEventScopeControls} from './tool-calculation-scopes.mjs';
@@ -22,7 +22,7 @@ export function eventYieldCompletionText(data){
  const individual=complete&&data.allProven===true;
  const covered=individual?`已逐曲证明 ${data.fullyOptimizedCharts} / ${data.available} 张谱面的最优收益`:data.prunedCharts?`已证明 ${data.fullyOptimizedCharts} 张谱面的单曲第一名，按全局上界覆盖 ${data.prunedCharts} 张谱面`:`已比较 ${data.done} / ${data.available} 张谱面`;
  const ties=proofs.every(p=>p.scoreTieOptimality==='proven');
- const evidence=proven?`${individual?'所选歌曲的逐曲收益均已证明，全部方案可分页查看':'所选条件的收益第一名已证明；备选供参考'}${ties?'，同收益的期望分排序已证明':'，同收益的期望分排序未证明'}`:'当前结果尚未证明所选条件下的第一名';
+ const evidence=proven?`${individual?'所选歌曲的逐曲收益均已证明，全部方案可分页查看':'所选条件的收益第一名已证明；备选供参考'}${ties?'，同收益的期望分排序已证明':'；已继续比较同收益队伍的稳定性，分数排序未证明全局最优'}`:'当前结果尚未证明所选条件下的第一名';
  const continuation=proofs.some(p=>p.scope==='all_selected_charts_given_challenge_rows')?'；后续挑战以本次已计算方案为范围':'';
  return {complete,proven,individual,label:complete?'活动收益比较完成':'活动收益推荐完成',detail:covered,
    status:`${covered}。${evidence}${continuation}。共找到 ${data.rows.length} 个队伍＋歌曲方案${data.cacheHits?`，复用 ${data.cacheHits} 次估分`:''}。${data.failures.length?'有计算失败，结果不完整。':complete?'':'可重新开始完整比较，已保存的估分缓存可复用。'}`};
@@ -36,7 +36,7 @@ export function eventYieldStopText(hasResults){
 
 const progressStages={
  practical:'准备与比较配队','practical-result':'更新当前领先方案',pair_weights:'计算成员与留影的配对能力',leader_weights:'计算队长加成',
- search:'搜索更优配队','event-exact':'验证收益第一名','event-witness':'验证全局收益上界','event-reward-exact':'验证收益配队与加成',
+ search:'搜索更优配队','event-exact':'验证收益第一名','event-witness':'验证全局收益上界','event-reward-exact':'验证收益配队与加成','event-stability':'提高同收益队伍的稳定性',
  'event-root-proof':'验证各队长的收益上界','event-group-preparation':'准备跨谱面评分上界','event-group-proof':'验证跨谱面收益第一名','event-group-seeds':'跨谱面复算合法候选'
 };
 export function eventYieldProgressText(data){
@@ -124,7 +124,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      article.append(eventYieldBreakdown(row));
      const ordinaryPanel=el('section',null,'event-stage-panel');
      ordinaryPanel.append(eventSongHeading(tool.data,row.song,{label:row.reward.mode==='ordinary'?'普通演出':'挑战演出',grade:grades[row.reward.scoreRank-2]}));
-     ordinaryPanel.append(eventTeamDetails(tool,row));
+     ordinaryPanel.append(eventGradeRisk(row),eventTeamDetails(tool,row));
      const apply=el('button',row.reward.mode==='challenge'?'使用挑战方案':'使用普通方案');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));const actions=el('div',null,'event-result-actions');actions.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));ordinaryPanel.append(actions);
      if(row.continuation){
        const section=el('section',null,'event-recommendations event-stage-panel');
@@ -137,7 +137,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
          const panel=el('section');panel.hidden=String(stage.cost)!==activeCost;stagePanels.push(panel);
          const stageTab=el('button',`${stage.cost} pt × ${stage.plays} 次`);stageTab.type='button';stageTab.dataset.yieldStageCost=String(stage.cost);stageTab.setAttribute('aria-pressed',String(String(stage.cost)===activeCost));stageTab.addEventListener('click',()=>{for(const n of stagePanels)n.hidden=n!==panel;for(const b of stageTabs.children)b.setAttribute('aria-pressed',String(b===stageTab));});stageTabs.append(stageTab);
          const r=stage.row;
-         panel.append(eventSongHeading(tool.data,r.song,{label:'挑战演出',grade:grades[r.reward.scoreRank-2],plays:stage.plays}),eventChallengeBreakdown(stage),eventTeamDetails(tool,r));
+         panel.append(eventSongHeading(tool.data,r.song,{label:'挑战演出',grade:grades[r.reward.scoreRank-2],plays:stage.plays}),eventGradeRisk(r),eventChallengeBreakdown(stage),eventTeamDetails(tool,r));
          const use=el('button','使用挑战方案');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});const stageActions=el('div',null,'event-result-actions');stageActions.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));panel.append(stageActions);section.append(panel);
        }
        const phases=el('div',null,'event-phase-tabs');phases.setAttribute('role','tablist');phases.setAttribute('aria-label','演出阶段');

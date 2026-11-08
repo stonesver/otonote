@@ -1,11 +1,11 @@
 import {optimizeEventYield,compareEventPlans} from './event-yield-optimizer.mjs';
-import {eventYieldGoals,selectEventYieldRows} from './event-yield-goals.mjs';
+import {eventYieldGoals,selectEventYieldRows,compareEventRewards} from './event-yield-goals.mjs';
 import {eventYieldStageInput} from './event-yield-stage.mjs';
 import {planEventSearch} from './event-search-plan.mjs';
 import {createCalculationScheduler} from './calculation-scheduler.mjs';
 
 const seconds=c=>c.seconds??Infinity;
-const compare=(a,b,goal)=>compareEventPlans({...a,expectedScore:0},{...b,expectedScore:0},goal);
+const compare=compareEventRewards;
 
 /** Shared demand order for the batch and its bounded network lookahead. */
 export function eventYieldChartPlan(candidates,rules,input){

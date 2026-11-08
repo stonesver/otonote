@@ -1,7 +1,13 @@
-export function compareEventPlans(a,b,goal='badges'){
+export function compareEventRewards(a,b,goal='badges'){
  if(goal==='grade'&&a.reward.scoreRank!==b.reward.scoreRank)return b.reward.scoreRank-a.reward.scoreRank;
  const metric=goal==='eventPoints'?'eventPoints':'badges',other=metric==='badges'?'eventPoints':'badges';
- return b.total[metric]-a.total[metric]||b.total[other]-a.total[other]||(a.song?.seconds??Infinity)-(b.song?.seconds??Infinity)||b.expectedScore-a.expectedScore;
+ return b.total[metric]-a.total[metric]||b.total[other]-a.total[other]||(a.song?.seconds??Infinity)-(b.song?.seconds??Infinity)||0;
+}
+
+export function compareEventPlans(a,b,goal='badges'){
+ return compareEventRewards(a,b,goal)
+  ||(a.scoreBasis==='minimumScore'&&b.scoreBasis==='minimumScore'?b.minimumScore-a.minimumScore:0)
+  ||b.expectedScore-a.expectedScore||b.power-a.power||0;
 }
 
 export const EVENT_YIELD_GOAL_LABELS={badges:'道具总收益优先',eventPoints:'活动 pt 总收益优先',grade:'先最高档位，再道具收益'};

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eventYieldBreakdown,eventChallengeBreakdown,eventSongHeading} from '../src/lib/event-result-presentation.mjs';
+import {eventYieldBreakdown,eventChallengeBreakdown,eventSongHeading,eventGradeRisk} from '../src/lib/event-result-presentation.mjs';
 class Node {
  constructor(tag){this.tagName=tag;this.children=[];this.dataset={};this.textContent='';}
  append(...nodes){this.children.push(...nodes);}
@@ -9,6 +9,15 @@ class Node {
 function documentFor(t){const prior=globalThis.document;globalThis.document={createElement:tag=>new Node(tag)};t.after(()=>{globalThis.document=prior;});}
 const all=node=>[node,...node.children.flatMap(all)];
 const row=()=>({song:{seconds:100},reward:{mode:'ordinary',badges:900,eventPoints:442,challengePoints:40},bonuses:{rewardBP:10000,eventPointBP:1800},total:{badges:316000,eventPoints:174000},normalPlays:100,spentFire:100,remainingFire:0,earnedCP:4000,startingCP:0,minimumRank:6,maximumRank:7,power:1444620,estimatedScore:8818035.9,continuation:{plays:3,badges:226000,eventPoints:129800,remainingCP:0}});
+test('farming shows the selected reward grade and skill-order drop probability',t=>{
+ documentFor(t);
+ const input={...row(),scoreBasis:'expectedScore',reward:{scoreRank:7},orderCount:120,gradeProbabilities:[{rank:7,probability:.6},{rank:6,probability:.4}]};
+ const text=r=>all(eventGradeRisk(r)).map(n=>n.textContent).join(' ');
+ assert.match(text(input),/SS 60% · S 40%/);assert.match(text(input),/掉档概率 40%/);assert.match(text(input),/120 种技能顺序等权/);
+ assert.match(text({...input,scoreBasis:'minimumScore',reward:{scoreRank:6}}),/稳定刷取 · 最低分：收益按 S 档计算/);
+ assert.match(text({...input,scoreBasis:'minimumScore',reward:{scoreRank:6}}),/掉档概率 0%/);
+ assert.match(text({...input,gradeProbabilities:undefined}),/无法计算掉档概率/);
+});
 test('breakdown preserves stage totals and separates carried challenge points from earned points',t=>{
  documentFor(t);const input=row();input.startingCP=200;const before=structuredClone(input),root=eventYieldBreakdown(input),nodes=all(root);
  const body=nodes.find(n=>n.tagName==='tbody');assert.deepEqual(body.children.map(tr=>tr.children.map(n=>n.textContent)),[

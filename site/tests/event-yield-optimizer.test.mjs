@@ -295,7 +295,9 @@ test('global grade/bonus ceiling proves reward objectives without enumerating sc
  assert.equal(result.results[0].reward.scoreRank,practical.results[0].reward.scoreRank);
  assert.equal(result.results[0].orderCount,120);
  assert.equal(result.results.length,1);
- assert.equal(result.practical.fullScoreCalculations,1);
+ assert.equal(result.practical.ceilingWitness.fullScoreCalculations,1);
+ assert.ok(result.practical.stabilityRefinement.fullyScored>0);
+ assert.ok(result.practical.fullScoreCalculations>1);
  assert.equal(result.certifiedSearch.proofTarget,'best');
  assert.equal(result.certifiedSearch.topNComplete,false);
  assert.equal(result.certifiedSearch.alternativesOptimality,'not_proven');

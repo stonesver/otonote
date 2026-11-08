@@ -1,4 +1,5 @@
 import {withAPTimingBasis} from './ap-grade.mjs';
+import {refineEventYieldTeams} from './event-yield-refinement.mjs';
 import {bindEventScoreCache,bindEventCandidateCache} from './event-search-cache.mjs';
 import {optimizePractical,PRACTICAL_SEARCH_WARNINGS} from './practical-optimizer.mjs';
 import {createEventEfficiency,createChallengeSpendingPlanner} from './scoring-rules/event-efficiency.mjs';
@@ -15,7 +16,7 @@ import {prepareEventSearchInput} from './event-search-input.mjs';
 
 import {eventGradeEstimate} from './event-song-ranking.mjs';
 import {createEventPipeline} from './scoring-rules/event-rules.mjs';
-import {compareEventPlans} from './event-yield-goals.mjs';
+import {compareEventPlans,compareEventRewards} from './event-yield-goals.mjs';
 export {compareEventPlans} from './event-yield-goals.mjs';
 
 // This cache belongs to one calculation job. Music identity/difficulty affects
@@ -39,7 +40,8 @@ export function createChallengeContinuationPlanner(model,rows,metric='badges'){
  const secondary=metric==='badges'?'eventPoints':'badges';
  const picks=modelChallengeCosts(model,rows).map(cost=>{
    const options=rows.map(row=>({row,reward:model.rewards({mode:'challenge',scoreRank:row.reward.scoreRank,...row.bonuses,challengeCost:cost})}));
-   options.sort((a,b)=>b.reward[metric]-a.reward[metric]||b.reward[secondary]-a.reward[secondary]||(a.row.song.seconds??Infinity)-(b.row.song.seconds??Infinity));
+   options.sort((a,b)=>b.reward[metric]-a.reward[metric]||b.reward[secondary]-a.reward[secondary]
+     ||compareEventPlans({...a.row,total:a.reward},{...b.row,total:b.reward},metric));
    return options[0];
  });
  const query=createChallengeSpendingPlanner(picks.map(p=>p.reward),metric);
@@ -48,7 +50,7 @@ export function createChallengeContinuationPlanner(model,rows,metric='badges'){
 // Costs are supplied by the caller's rules, not invented from reward ratios.
 function modelChallengeCosts(model,rows){return model.challengeCosts??[...new Set(rows.map(r=>r.reward.challengeCost))];}
 
-export function createEventYieldRewardTransform({model,candidate,basis,mode,liveBoost,challengeCost,budget,startingCP,includeChallenge,metric,continuationFor}){
+export function createEventYieldRewardTransform({model,candidate,basis='minimumScore',mode,liveBoost,challengeCost,budget,startingCP,includeChallenge,metric,continuationFor}){
  const plans=new Map();
  return (score,team)=>{
    const bonuses=model.teamBonus(team.slots.map(s=>({memberId:Number(s.memberCardId.split('-').at(-1)),supportId:Number(s.supportCardId.split('-').at(-1)),
@@ -69,7 +71,7 @@ export function createEventYieldRewardTransform({model,candidate,basis,mode,live
 }
 
 export async function optimizeEventYield({rules,eventId,draft,chart,candidate,scope='owned',inventory,constraints={},mode='ordinary',
- liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='expectedScore',challengeRows=[],includeChallenge=true,
+ liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='minimumScore',challengeRows=[],includeChallenge=true,
  onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,challengePlanCache,modelCache={},
  searchMethod='certified',maxEvaluations=24,refineScoreTies=false,witnessOnly=false,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}){
  draft=withAPTimingBasis(draft,'expectedScore');
@@ -148,10 +150,16 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
      const a=cardBonus('member',edge.member),b=cardBonus('support',edge.support);
      return {rewardBP:a.rewardBP+b.rewardBP,eventPointBP:a.eventPointBP+b.eventPointBP};
  };
- // Expected score remains the display tie-break. It is an optional additional
- // optimization objective, independent of proving the selected farming yield.
- const compare=(a,b)=>refineScoreTies?compareEventPlans(a,b,goal):
-   compareEventPlans({...a,expectedScore:0},{...b,expectedScore:0},goal);
+ // Reward proofs exclude score ties. The explicit diagnostic option also
+ // proves expected score; normal farming refines stability after the proof.
+ const compare=(a,b)=>compareEventRewards(a,b,goal)||(refineScoreTies?b.expectedScore-a.expectedScore:0);
+ const finish=async report=>{
+   if(!refineScoreTies&&!signal?.aborted&&report.scoringCoverage?.complete!==false){
+     report.results=await refineEventYieldTeams({rules,chart,input:resolved,eventAdapters,results:report.results,transformScore,goal,
+       scoreCache,counters:report.practical,signal,yieldControl,onProgress});
+   }
+   return report;
+ };
  let result,exact,bonusCeiling,witnessReport;
  if(searchMethod==='certified'&&!refineScoreTies&&!next.modifiers.performanceScenario){
    const input=resolved;
@@ -244,7 +252,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
    result.practical.scoreCalculations+=witnessReport.fullScoreCalculations;
    result.practical.scoreCacheHits+=witnessReport.scoreCacheHits;
  }
- if(searchMethod==='practical'||signal?.aborted||result.scoringCoverage?.complete===false)return {...result,objective:'event_yield',mode,goal,basis};
+ if(searchMethod==='practical'||signal?.aborted||result.scoringCoverage?.complete===false)return finish({...result,objective:'event_yield',mode,goal,basis});
  if(bonusCeiling&&result.results.length){
      const ceiling=upperCandidate({scoreUpper:Number.MAX_VALUE,tieScoreUpper:Number.MAX_VALUE,
        ...bonusCeiling});
@@ -268,17 +276,17 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  }
  exact??=await searchEventFormations({rules,draft:next,chart,scope,inventory,constraints,eventAdapters,boundMetric:basis,
    seeds:result.results,bonusFor:{metric:metric==='badges'?'rewardBP':'eventPointBP',pair:pairBonus,card:cardBonus},
-   upperCandidate,transformScore,compareCandidates:compare,rankCandidates:(a,b)=>compareEventPlans(a,b,goal),bonusCeiling,
+   upperCandidate,transformScore,compareCandidates:compare,rankCandidates:(a,b)=>refineScoreTies?compare(a,b):compareEventPlans(a,b,goal),bonusCeiling,
    maxEvaluations,proofCount:1,includeTieScoreBound:refineScoreTies,signal,yieldControl,onProgress,scoreCache,scoreCounters:result.practical,baselineResult:result.baselineResult,
    modelCache,pairCache:candidateCache,pairCacheKey:candidateCache?'power:'+eventCandidateKey(rules,next,inventory,scope,eventAdapters,false,constraints):null});
  exact.boundScoreCalculations=(exact.boundScoreCalculations??0)+rootBoundCalculations;
  const {results:exactResults,...certificate}=exact;
- exactResults.sort((a,b)=>compareEventPlans(a,b,goal));
- return {...result,results:exactResults,evaluated:result.evaluated+exact.evaluated,optimality:exact.optimality,
+ exactResults.sort((a,b)=>refineScoreTies?compare(a,b):compareEventPlans(a,b,goal));
+ return finish({...result,results:exactResults,evaluated:result.evaluated+exact.evaluated,optimality:exact.optimality,
    warnings:exact.searchStatus==='player_scenario_bound_unavailable'?result.warnings:
      [...result.warnings.filter(w=>!PRACTICAL_SEARCH_WARNINGS.includes(w)),
        refineScoreTies?'精确阶段同时优化收益和同收益期望分；收益差距为 0 也可能尚未证明期望分排序最优。':
-         '精确阶段优化所选收益及次级收益，只有搜索完成时才证明最优；同收益队伍按已算出的期望分排序，不保证其期望分全局最优。',
+         '收益搜索完成后继续检查两轮换卡、配对与队长调整；稳定刷取在同收益下优先最低分、平均分与综合力，分数排序未证明全局最优。',
        '后续挑战以提供的候选方案为范围。'],
    searchMethod:exact.searchStatus==='player_scenario_bound_unavailable'?'practical':'certified',
    certifiedSearch:{...certificate,globalUpperCandidate,scope:includeChallenge&&mode==='ordinary'?'team_for_chart_given_challenge_rows':'team_for_chart',
@@ -286,7 +294,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
      alternativesOptimality:'not_proven',
      scoreTieOptimality:refineScoreTies?exact.optimality:'not_proven'},
    status:exact.searchStatus==='player_scenario_bound_unavailable'?result.status:exact.searchStatus,
-   objective:'event_yield',mode,goal,basis};
+   objective:'event_yield',mode,goal,basis});
 }
 
 /** Exclude every strictly better reward tuple at every grade in every leader
@@ -337,7 +345,7 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints
    else {report[requiredScore?'partitionFullScoreCalculations':'witnessFullScoreCalculations']++;result.practical.fullScoreCalculations++;result.practical.scoreCalculations++;
      raw=evaluator.score(team);scoreCache.set(key,raw);}
    const row={...transformScore(raw,team),draft:team,id,origins:['grade-bonus-bound-witness'],delta:null,comparison:null};
-   if(compare(row,result.results[0])<0){
+   if(compareEventPlans(row,result.results[0],goal)<0){
      result.results=[row,...result.results.filter(r=>r.id!==id)].sort((a,b)=>compareEventPlans(a,b,goal)).slice(0,3);result.evaluated++;
      onProgress?.({phase:'practical-result',bestCandidate:row});
    }

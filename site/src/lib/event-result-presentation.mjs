@@ -19,7 +19,19 @@ export function eventMetricList(entries,cls=''){
 }
 export function eventPerformanceFacts(row){
  const range=row.minimumRank===row.maximumRank?rank(row.minimumRank):`${rank(row.minimumRank)}–${rank(row.maximumRank)}`;
- return eventMetricList([[row.performanceScenario?'预计得分':'AP 得分',fmt(row.estimatedScore)],['档位范围',range],['综合力',fmt(row.power)],['道具加成',`+${fmt(row.bonuses.rewardBP/100)}%`],['活动 pt 加成',`+${fmt(row.bonuses.eventPointBP/100)}%`]],'event-performance-facts');
+ const basis=row.scoreBasis==='minimumScore'?'最低分':row.scoreBasis==='maximumScore'?'最高分':'平均分';
+ return eventMetricList([[`${row.performanceScenario?'预计':'AP'} ${basis}`,fmt(row.estimatedScore)],['档位范围',range],['综合力',fmt(row.power)],['道具加成',`+${fmt(row.bonuses.rewardBP/100)}%`],['活动 pt 加成',`+${fmt(row.bonuses.eventPointBP/100)}%`]],'event-performance-facts');
+}
+export function eventGradeRisk(row){
+ const root=el('div',null,'event-grade-risk'),target=row.reward.scoreRank;
+ const basis=row.scoreBasis==='minimumScore'?'稳定刷取 · 最低分':row.scoreBasis==='maximumScore'?'最高分判档':'平均分判档';
+ root.append(el('p',`${basis}：收益按 ${rank(target)} 档计算`));
+ if(row.gradeProbabilities?.length){
+  const drop=row.gradeProbabilities.reduce((n,g)=>n+(g.rank<target?g.probability:0),0);
+  root.append(el('p',`档位概率：${row.gradeProbabilities.map(g=>`${rank(g.rank)} ${fmt(g.probability*100)}%`).join(' · ')}；低于 ${rank(target)} 的掉档概率 ${fmt(drop*100)}%`));
+  root.append(el('small',`按相同 AP 条件下全部 ${row.orderCount} 种技能顺序等权计算，不含操作失误。`));
+ }else root.append(el('small','当前结果没有完整技能顺序分布，无法计算掉档概率。'));
+ return root;
 }
 export function eventYieldBreakdown(row){
  const detail=el('details',null,'event-plan-details');detail.append(el('summary','收益明细'));

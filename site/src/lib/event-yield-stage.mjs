@@ -2,14 +2,14 @@ import {withAPTimingBasis} from './ap-grade.mjs';
 // Farming uses on-time estimates even when the imported team has a timing plan.
 // A cycle shares the collection; each stage owns its scoring basis and scope.
 export function eventYieldStageInput(input,mode){
- input={...input,draft:withAPTimingBasis(input.draft,'expectedScore')};
+ input={basis:'minimumScore',...input,draft:withAPTimingBasis(input.draft,'expectedScore')};
  if(mode!=='challenge'||input.mode!=='ordinary'||!input.includeChallenge)return {...input,mode};
  const bandScope=input.challengeBandScope??'all';
  if(!['all','same'].includes(bandScope))throw Error('无效的后续挑战乐队范围');
  const constraints={...input.constraints};
  if(bandScope!=='same'){delete constraints.bandId;delete constraints.supportBandId;}
  return {...input,mode,scope:input.challengeScope&&input.challengeScope!=='same'?input.challengeScope:input.scope,
-   constraints,basis:input.challengeBasis??input.basis};
+   constraints,basis:input.challengeBasis??'minimumScore'};
 }
 
 export function eventYieldChallengeBandNote(input,summary=''){

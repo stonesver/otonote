@@ -35,7 +35,12 @@ export function sortEventSongs(rows,metric='short') {
 export function eventGradeEstimate(model,musicId,score,basis='expectedScore'){
  if(!['expectedScore','minimumScore','maximumScore'].includes(basis))throw Error('Invalid AP score basis');
  const rank=model.scoreRank(musicId,score[basis]);
- return {scoreRank:rank,scoreBasis:basis,estimatedScore:score[basis],minimumRank:model.scoreRank(musicId,score.minimumScore),maximumRank:model.scoreRank(musicId,score.maximumScore)};
+ const distribution=score.scoreDistribution,counts=new Map();
+ if(distribution?.kind==='skill_orders'&&distribution.complete){
+  for(const outcome of distribution.outcomes){const grade=model.scoreRank(musicId,outcome.score);counts.set(grade,(counts.get(grade)??0)+outcome.count);}
+ }
+ return {scoreRank:rank,scoreBasis:basis,estimatedScore:score[basis],minimumRank:model.scoreRank(musicId,score.minimumScore),maximumRank:model.scoreRank(musicId,score.maximumScore),
+  ...(counts.size?{gradeProbabilities:[...counts].sort(([a],[b])=>b-a).map(([rank,count])=>({rank,count,probability:count/distribution.count}))}:{})};
 }
 
 // Reward rounding happens inside model.rewards BEFORE taking the expectation.

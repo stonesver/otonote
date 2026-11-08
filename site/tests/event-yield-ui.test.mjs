@@ -20,7 +20,7 @@ test('global proof status distinguishes covered charts, alternatives and expecte
  globalProofs:{badges:{bestProven:true,scope:'all_selected_charts_given_challenge_rows'}}};
  const summary=eventYieldCompletionText(data);assert.equal(summary.proven,true);
  assert.match(summary.status,/已证明 3 张谱面的单曲第一名，按全局上界覆盖 88 张/);assert.match(summary.status,/第一名已证明/);
- assert.match(summary.status,/备选供参考/);assert.match(summary.status,/期望分排序未证明/);assert.match(summary.status,/后续挑战以本次已计算方案/);
+ assert.match(summary.status,/备选供参考/);assert.match(summary.status,/分数排序未证明全局最优/);assert.match(summary.status,/后续挑战以本次已计算方案/);
  const incomplete=eventYieldCompletionText({...data,coverageComplete:false});assert.equal(incomplete.proven,false);assert.match(incomplete.status,/尚未证明/);
  assert.match(incomplete.status,/可重新开始完整比较，已保存的估分缓存可复用/);assert.doesNotMatch(incomplete.status,/已算结果会复用/);
 });

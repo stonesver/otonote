@@ -40,7 +40,7 @@ jobs:
           python3 -m unittest tests.test_global_account_reads tests.test_growth_client_version tests.test_game_service_status tests.test_gacha_history tests.test_growth_web tests.test_arena_personal tests.test_preview_growth tests.test_growth_login tests.test_system_details -q
           node --test site/tests/calculator-layout-render.test.mjs
           node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs site/tests/costumes.test.mjs site/tests/site-notifications.test.mjs site/tests/notice-admin-controls.test.mjs
-          node --test site/tests/event-song-ranking.test.mjs site/tests/event-result-presentation.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs site/tests/calculator-multiselect.test.mjs
+          node --test site/tests/event-song-ranking.test.mjs site/tests/event-result-presentation.test.mjs site/tests/event-mistake-reference.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs site/tests/calculator-multiselect.test.mjs
           node --test site/tests/tools-loading.test.mjs site/tests/web-client-dependencies.test.mjs site/tests/calculation-progress.test.mjs site/tests/challenge-optimizer-ui.test.mjs
           node --test site/tests/entity-identity.test.mjs site/tests/shared-directory-integration.test.mjs site/tests/edition-library.test.mjs site/tests/shared-song-rankings.test.mjs site/tests/card-skill-filtering.test.mjs
           node --test site/tests/loading-art-publication.test.mjs site/tests/prerender.test.mjs site/tests/navigation-feedback.test.mjs site/tests/scoring-unavailable-render.test.mjs

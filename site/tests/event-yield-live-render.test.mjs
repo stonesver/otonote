@@ -5,7 +5,7 @@ import {setupEventYieldOptimizer} from '../src/lib/event-yield-ui.mjs';
 
 function harness(t){
  class Node {
-  constructor(){this.dataset={};this.children=[];this.listeners={};this.attrs={};this.value='';this.textContent='';}
+  constructor(){this.style={};this.dataset={};this.children=[];this.listeners={};this.attrs={};this.value='';this.textContent='';}
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
   removeChild(node){this.children.splice(this.children.indexOf(node),1);}
@@ -136,8 +136,8 @@ test('combined objectives stay inside comparison controls and phase tabs preserv
  let article=q('results').querySelectorAll('.task-event-plan-result')[0];
  const tabs=article.querySelectorAll('.event-phase-tabs')[0],panels=article.children.filter(n=>n.attrs.role==='tabpanel');
  assert.deepEqual(panels.map(n=>n.hidden),[false,true]);
- const riskText=panel=>panel.querySelectorAll('.event-grade-risk').flatMap(node=>node.children.map(n=>n.textContent)).join(' ');
- assert.match(riskText(panels[0]),/A 档门槛：900 分/);assert.match(riskText(panels[1]),/A 档门槛：800 分/);
+ const riskText=panel=>panel.querySelectorAll('.event-grade-risk').flatMap(node=>node.descendants().map(n=>n.textContent)).join(' ');
+ assert.match(riskText(panels[0]),/A 档门槛 900 分/);assert.match(riskText(panels[1]),/A 档门槛 800 分/);
  tabs.children[1].listeners.click();assert.deepEqual(panels.map(n=>n.hidden),[true,false]);
  assert.equal(tabs.children[1].attrs['aria-selected'],'true');
  const costs=panels[1].querySelectorAll('.task-event-result-tabs')[0];costs.children[1].listeners.click();

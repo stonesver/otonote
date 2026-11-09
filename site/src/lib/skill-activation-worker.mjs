@@ -6,6 +6,7 @@ import {calculateSongSkillReplay} from './song-skill-replay.mjs';
 import {checkedJson} from '../runtime/content.mjs';
 import {createScenarioSongCalculator} from '../../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
 import {calculateApWindowRanges} from '../../../packages/scoring/scoring-rules/ap-window-range.mjs';
+import {calculateEventMistakeReference} from './event-mistake-reference.mjs';
 
 self.addEventListener('message', async ({data}) => {
   try {
@@ -39,6 +40,11 @@ self.addEventListener('message', async ({data}) => {
       draft.modifiers.event = {id:eventId, sourceReleaseId:rules.sourceReleaseId};
       eventAdapters = [model.challengeAdapter(rules)];
     } else delete draft.modifiers.event;
+    if(data.mistakeReference){
+      const reference=calculateEventMistakeReference(rules,chart,draft,{...data.mistakeReference,eventAdapters,
+        onProgress:referenceProgress=>self.postMessage({referenceProgress})});
+      self.postMessage({reference});return;
+    }
     if(data.apWindowOrder){
       const range=calculateApWindowRanges(rules,chart,draft,{order:data.apWindowOrder,eventAdapters,
         onProgress:rangeProgress=>self.postMessage({rangeProgress})});

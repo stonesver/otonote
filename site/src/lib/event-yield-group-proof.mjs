@@ -267,7 +267,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
    const leader=modelRow.leader,c=baseInput.constraints;
    // Chart partitions share exactly the same card/edge domain. Cache only
    // chart-independent work, scoped to this immutable power model and leader.
-   const cardDomains=new Map();
+   const cardDomains=new Map(),matchingDomains=new Map();
    const initial={leader,required:c.lockedPairs.map(p=>`${p.memberCardId}|${p.supportCardId}`),forbidden:[],
     memberRequired:[...new Set([leader,...c.requiredMemberIds,...c.lockedPairs.map(p=>p.memberCardId)])],
     supportRequired:[...new Set([...c.requiredSupportIds,...c.lockedPairs.map(p=>p.supportCardId)])],memberExcluded:[],supportExcluded:[],charts:group.entries};
@@ -352,8 +352,14 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
        if(!constrainedPower){excluded=true;break;}
        if(relaxation){
         const banned=new Set(state.forbidden),fixed=new Set(state.required),available=constrained.filter(e=>!banned.has(e.key));
+        // A bonus domain fixes edges, leader, mandatory vertices and bonuses.
+        // Reuse topology across chart envelopes, with a small per-leader cap.
+        let matchingCache=matchingDomains.get(bonusDomain);
+        if(matchingCache)matchingDomains.delete(bonusDomain);
+        else {matchingCache={};if(matchingDomains.size>=8)matchingDomains.delete(matchingDomains.keys().next().value);}
+        matchingDomains.set(bonusDomain,matchingCache);
         const before=relaxation.stats.matchingCalls;
-        const upper=relaxation(available,constrainedPower.edges.filter(e=>fixed.has(e.key)),leader,constrainedPower,0,e=>{const bp=pairBonus(e);return a*bp[primary]+b*bp[secondary];},threshold,state);
+        const upper=relaxation(available,constrainedPower.edges.filter(e=>fixed.has(e.key)),leader,constrainedPower,0,e=>{const bp=pairBonus(e);return a*bp[primary]+b*bp[secondary];},threshold,state,1,matchingCache);
         stats.jointBoundMatchingCalls+=relaxation.stats.matchingCalls-before;
         const witnesses=relaxation.witnesses.filter(w=>w.bonus>=threshold).sort((x,y)=>y.weight-x.weight);
         if(witnesses[0])await scoreWitness(group,charts,leader,witnesses[0],required,rank);

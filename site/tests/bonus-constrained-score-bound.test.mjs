@@ -94,6 +94,24 @@ test('merged normalized chart envelopes bound each chart and retain fractional p
  assert.equal(createBonusConstrainedScoreEnvelopeBound({baseCoefficient:Infinity,gainFor:()=>0}),null);
 });
 
+test('shared immutable pairing domains preserve bounds and witnesses across chart envelopes',()=>{
+ const edges=Array.from({length:6},(_,m)=>Array.from({length:6},(_,s)=>({key:`m${m}|s${s}`,member:`m${m}`,support:`s${s}`,
+  character:m===5?0:m,weight:100+(m*13+s*7)%91,bonus:(m*11+s*3)%31}))).flat();
+ for(const constraints of [{},{memberRequired:['m2'],supportRequired:['s5']},{required:['m2|s1'],forbidden:['m3|s2']}]){
+  const available=edges.filter(e=>!constraints.forbidden?.includes(e.key));
+  const solution=maximumPairing({edges:available,required:constraints.required,requiredMembers:['m0',...(constraints.memberRequired??[])],requiredSupports:constraints.supportRequired});
+  const forced=solution.edges.filter(e=>constraints.required?.includes(e.key)),cache={};
+  for(const [i,threshold] of [0,50,75,100,1000].entries()){
+   const options={baseCoefficient:1+i/10,gainFor:e=>(Number(e.support.slice(1))+i)/10,integerScore:false};
+   const cold=createBonusConstrainedScoreEnvelopeBound(options),warm=createBonusConstrainedScoreEnvelopeBound(options);
+   const args=[available,forced,'m0',solution,0,e=>e.bonus,threshold,constraints,Infinity];
+   assert.equal(warm(...args,cache),cold(...args));
+   assert.deepEqual(warm.witnesses,cold.witnesses,'reuse cannot change seed order or legal witnesses');
+   assert.equal(warm.stats.matchingCalls,cold.stats.matchingCalls-(i?1:0),'later charts reuse the exact bonus maximum');
+  }
+ }
+});
+
 test('normalized proof stops refining once a conservative bound already excludes the grade',()=>{
  const edges=Array.from({length:5},(_,i)=>({key:`m${i}|s${i}`,member:`m${i}`,support:`s${i}`,character:i,weight:100,bonus:0}));
  edges.push({key:'weak|s4',member:'weak',support:'s4',character:4,weight:1,bonus:1000});

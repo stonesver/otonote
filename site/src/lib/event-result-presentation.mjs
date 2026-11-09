@@ -44,23 +44,24 @@ export function eventGradeRisk(row,rules){
   const ceiling=Math.max(threshold,minimum),width=100*Math.min(threshold,minimum)/ceiling;
   const bar=el('div',null,'event-score-budget');bar.setAttribute('role','img');
   bar.setAttribute('aria-label',stable?`最低分高出门槛 ${fmt(margin)} 分`:`最低分还差 ${fmt(-margin)} 分`);
-  for(const [part,value] of [['covered',width],['remaining',100-width]]){const segment=el('span',null,`event-score-${part}`);segment.style.width=`${value}%`;bar.append(segment);}root.append(bar);
+  for(const [part,value] of [['covered',width],['remaining',100-width]]){const segment=el('span',null,`event-score-${part}`);segment.style.width=`${value}%`;bar.append(segment);}
   const share=margin/minimum*100;
-  root.append(el('p',margin>0?`分数余量占最低分${share<.1?'不足 0.1%':`约 ${fmt(share)}%`}`:
-   margin===0?'最低分刚好达到门槛，稳定分数余量为 0。':`最低分还差 ${fmt(-margin)} 分，暂无稳定分数余量。`,'event-budget-caption'));
+  const budget=el('div',null,'event-budget-row');budget.append(bar,el('p',margin>0?`分数余量占最低分${share<.1?'不足 0.1%':`约 ${fmt(share)}%`}`:
+   margin===0?'最低分刚好达到门槛，稳定分数余量为 0。':`最低分还差 ${fmt(-margin)} 分，暂无稳定分数余量。`,'event-budget-caption'));root.append(budget);
  }else root.append(el('p','当前已是最低奖励档位，没有更低的分数档位。','event-budget-caption'));
  if(row.gradeProbabilities?.length){
   const drop=row.gradeProbabilities.reduce((n,g)=>n+(g.rank<target?g.probability:0),0),distribution=el('div',null,'event-grade-distribution');
-  const title=el('div',null,'event-risk-heading');title.append(el('span','技能顺序 · 档位概率'),el('strong',`掉档概率 ${fmt(drop*100)}%`));distribution.append(title);
+  const title=el('div',null,'event-risk-heading');
   const chart=el('div',null,'event-probability-bar'),legend=el('div',null,'event-probability-legend');
+  legend.append(el('small','AP 档位'));
   chart.setAttribute('role','img');chart.setAttribute('aria-label',row.gradeProbabilities.map(g=>`${rank(g.rank)} ${fmt(g.probability*100)}%`).join(' · '));
   for(const g of row.gradeProbabilities){
-   const segment=el('span',g.probability>=.1?rank(g.rank):'', 'event-probability-segment');segment.dataset.rank=String(g.rank);segment.dataset.met=String(g.rank>=target);segment.style.width=`${g.probability*100}%`;chart.append(segment);
+   const segment=el('span',null,'event-probability-segment');segment.dataset.rank=String(g.rank);segment.dataset.met=String(g.rank>=target);segment.style.width=`${g.probability*100}%`;chart.append(segment);
    const chip=el('span',`${rank(g.rank)} ${fmt(g.probability*100)}%`);chip.dataset.met=String(g.rank>=target);legend.append(chip);
   }
-  distribution.append(chart,legend);root.append(distribution);
+  title.append(legend,el('strong',`掉档概率 ${fmt(drop*100)}%`));distribution.append(title,chart);root.append(distribution);
  }else root.append(el('small','当前结果没有完整技能顺序分布，无法计算掉档概率。'));
- const method=el('details',null,'event-risk-method');method.append(el('summary','分数与概率口径'));
+ const method=el('details',null,'event-risk-method');method.append(el('summary','计算说明'));
  method.append(el('p',`${row.gradeProbabilities?.length?`按相同 AP 条件下全部 ${row.orderCount} 种技能顺序等权计算，不含操作失误。`:''}分数余量是最低分到当前档位门槛的差值，失误影响随音符位置、连击与技能变化。`));root.append(method);
  if(!lowest&&stable)root.append(eventMistakeReference(row,rules));
  return root;

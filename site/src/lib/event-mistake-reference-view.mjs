@@ -5,17 +5,16 @@ export function renderMistakeReference(root,reference){
  if(reference.status!=='estimated'){
   root.append(el('p',reference.status==='lowest_grade'?'当前已是最低奖励档位。':'该技能顺序的最低分尚未达档，暂无失误余量。'));return;
  }
- const cards=el('div',null,'event-mistake-cards');
+ const cards=el('div',null,'event-mistake-cards'),notes=el('details',null,'event-risk-method');notes.append(el('summary','参考说明 · 非保底'));
  for(const result of reference.results){
   const miss=result.judgement===1,card=el('div',null,'event-mistake-card');card.dataset.risk=result.oneCanFail?'high':'reference';
   card.append(el('span',miss?'MISS':'GREAT','event-judgement-tag'));
   card.append(el('strong',result.oneCanFail?'1 次也可能掉档':`${range(result.passingRange)} 个`));
-  card.append(el('small',result.oneCanFail?(miss?'断连与技能变化可能用尽余量':'判定变化可能用尽余量'):result.allInputsPassed?'已检查的全部落点仍达标':'不同落点下的达档参考'));
-  if(result.oneCanFail)card.append(el('small',`已检查的达档样例：${range(result.passingRange)} 个；不能作为稳定上限。`));
+  if(result.oneCanFail)notes.append(el('p',`${miss?'MISS':'GREAT'}：已检查的达档样例为 ${range(result.passingRange)} 个，存在 1 次就失败的落点，不能作为稳定上限。`));
+  else if(result.allInputsPassed)notes.append(el('p',`${miss?'MISS':'GREAT'}：已检查的全部落点仍达标。`));
   cards.append(card);
  }
  root.append(cards);
- const notes=el('details',null,'event-risk-method');notes.append(el('summary','参考怎么算'));
  notes.append(el('p',`固定 AP 最低分技能顺序，分别检查 GREAT 和 MISS 的 ${reference.patternCount} 种分散／集中落点；其余判定为 PERFECT。次数为技能判定辅助处理后的结算数，已计入连击、生命与技能变化。`));
  notes.append(el('p','这是已检查样例的参考范围，不是保底次数或成功概率。长条断开造成的连带漏击、其他技能顺序和输入时机变化未穷举。'));root.append(notes);
 }
@@ -25,7 +24,7 @@ if(typeof HTMLElement!=='undefined'&&!customElements.get('event-mistake-referenc
   connectedCallback(){
    if(this.initialized)return;this.initialized=true;
    const details=el('details',null,'event-mistake-reference'),summary=el('summary'),body=el('div',null,'event-mistake-body');
-   summary.append(el('span','GREAT / MISS 容错参考'),el('span','点击估算','event-risk-chip'));details.append(summary,body);this.append(details);
+   summary.append(el('span','GREAT / MISS 容错参考'));details.append(summary,body);this.append(details);
    details.addEventListener('toggle',()=>{
     if(!details.open){this.stop();return;}
     if(this.result){renderMistakeReference(body,this.result);return;}this.load(body);

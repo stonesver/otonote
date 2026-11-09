@@ -8,15 +8,42 @@ class Node {
 }
 function documentFor(t){const prior=globalThis.document;globalThis.document={createElement:tag=>new Node(tag)};t.after(()=>{globalThis.document=prior;});}
 const all=node=>[node,...node.children.flatMap(all)];
+const rules={tables:{LiveMusic:[{_id:1,_liveScoreRankGroup:1},{_id:2,_liveScoreRankGroup:2}],LiveScoreRank:[
+ {_group:1,_liveScoreRank:2,_requiredScore:0},{_group:1,_liveScoreRank:6,_requiredScore:8000000},
+ {_group:1,_liveScoreRank:7,_requiredScore:9000000},{_group:2,_liveScoreRank:7,_requiredScore:10000000}]}};
+const riskText=r=>all(eventGradeRisk(r,rules)).map(n=>n.textContent).join(' ');
 const row=()=>({song:{seconds:100},reward:{mode:'ordinary',badges:900,eventPoints:442,challengePoints:40},bonuses:{rewardBP:10000,eventPointBP:1800},total:{badges:316000,eventPoints:174000},normalPlays:100,spentFire:100,remainingFire:0,earnedCP:4000,startingCP:0,minimumRank:6,maximumRank:7,power:1444620,estimatedScore:8818035.9,continuation:{plays:3,badges:226000,eventPoints:129800,remainingCP:0}});
 test('farming shows the selected reward grade and skill-order drop probability',t=>{
  documentFor(t);
- const input={...row(),scoreBasis:'expectedScore',reward:{scoreRank:7},orderCount:120,gradeProbabilities:[{rank:7,probability:.6},{rank:6,probability:.4}]};
- const text=r=>all(eventGradeRisk(r)).map(n=>n.textContent).join(' ');
+ const input={...row(),song:{trackId:'music-1'},minimumScore:8800000,scoreBasis:'expectedScore',reward:{scoreRank:7},orderCount:120,gradeProbabilities:[{rank:7,probability:.6},{rank:6,probability:.4}]};
+ const text=riskText;
  assert.match(text(input),/SS 60% · S 40%/);assert.match(text(input),/掉档概率 40%/);assert.match(text(input),/120 种技能顺序等权/);
  assert.match(text({...input,scoreBasis:'minimumScore',reward:{scoreRank:6}}),/稳定刷取 · 最低分：收益按 S 档计算/);
  assert.match(text({...input,scoreBasis:'minimumScore',reward:{scoreRank:6}}),/掉档概率 0%/);
  assert.match(text({...input,gradeProbabilities:undefined}),/无法计算掉档概率/);
+});
+test('score headroom uses the selected song threshold and a conservative minimum-score budget',t=>{
+ documentFor(t);
+ const input={...row(),song:{trackId:'music-1'},scoreBasis:'minimumScore',estimatedScore:9400000,minimumScore:9400000,reward:{scoreRank:7}};
+ assert.match(riskText(input),/SS 档门槛：9,000,000 分；最低分高出 400,000 分/);
+ assert.match(riskText(input),/稳定分数余量：400,000 分（占最低分约 4.3%）/);
+ assert.match(riskText({...input,song:{trackId:'music-2'},estimatedScore:10400000,minimumScore:10400000}),/SS 档门槛：10,000,000 分；最低分高出 400,000 分/);
+ assert.match(riskText({...input,estimatedScore:9000000,minimumScore:9000000}),/稳定分数余量为 0/);
+ assert.match(riskText({...input,estimatedScore:9000001,minimumScore:9000001}),/稳定分数余量：1 分（占最低分不足 0.1%）/);
+});
+test('average and best-order headroom never hides a minimum score below the reward threshold',t=>{
+ documentFor(t);
+ for(const [scoreBasis,label] of [['expectedScore','平均分'],['maximumScore','最高分']]){
+  const text=riskText({...row(),song:{trackId:'music-1'},scoreBasis,estimatedScore:9100000.9,minimumScore:8900000,reward:{scoreRank:7}});
+  assert.ok(text.includes(`${label}高出 100,000 分`));
+  assert.match(text,/最低分还差 100,000 分，暂无稳定分数余量/);
+ }
+});
+test('the lowest reward grade does not present a 100-percent loss budget',t=>{
+ documentFor(t);
+ const text=riskText({...row(),song:{trackId:'music-1'},scoreBasis:'minimumScore',estimatedScore:100,minimumScore:100,reward:{scoreRank:2}});
+ assert.match(text,/D 档门槛：0 分；最低分高出 100 分/);
+ assert.match(text,/当前已是最低奖励档位/);assert.doesNotMatch(text,/稳定分数余量|占最低分/);
 });
 test('breakdown preserves stage totals and separates carried challenge points from earned points',t=>{
  documentFor(t);const input=row();input.startingCP=200;const before=structuredClone(input),root=eventYieldBreakdown(input),nodes=all(root);

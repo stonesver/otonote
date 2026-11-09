@@ -33,11 +33,11 @@ function harness(t){
  for(const [k,v] of Object.entries({event:'3',mode:'ordinary',pool:'selected',boost:'3',cost:'200'}))node(k).value=v;
  for(const [k,v] of Object.entries({budget:'100',starting:'0',depth:'full',goal:'badges',basis:'expectedScore',stages:'direct',songs:'all',difficulty:'all',level:'40','challenge-difficulty':'all','challenge-level':'40'}))q(k).value=v;
  q('goal').querySelector=node;
- const tool={q:node,querySelector:node,draft:{slots:[],modifiers:{}},data:{rules:{tables:{ChallengeMusic:[],LiveMusic:[]}},tracks:[{id:'music-1'}],charts:[{id:'chart-1',trackId:'music-1',difficulty:'hard',level:10,analysisDataUrl:'/chart'}]}};
+ const tool={q:node,querySelector:node,draft:{slots:[],modifiers:{}},data:{rules:{tables:{ChallengeMusic:[],LiveMusic:[{_id:1,_liveScoreRankGroup:1},{_id:2,_liveScoreRankGroup:2}],LiveScoreRank:[{_group:1,_liveScoreRank:5,_requiredScore:900},{_group:2,_liveScoreRank:5,_requiredScore:800}]}},tracks:[{id:'music-1'}],charts:[{id:'chart-1',trackId:'music-1',difficulty:'hard',level:10,analysisDataUrl:'/chart'}]}};
  const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:eventScopeControls,validateCardPool:()=>{}});optimizer.sync();optimizer.run();t.after(()=>optimizer.destroy());
  assert.equal(workers.length,1);
  const send=data=>workers.at(-1).listeners.message({data});
- const partial=(value,type='partial')=>({type,done:1,total:360,available:360,rows:['one','two'].map((id,i)=>({id,song:{id,title:id,difficulty:'hard',seconds:100},total:{badges:value-i,eventPoints:100},reward:{mode:'ordinary',scoreRank:5,badges:1,eventPoints:1,challengePoints:1},draft:{slots:[]},bonuses:{rewardBP:0,eventPointBP:0},normalPlays:33,spentFire:99,remainingFire:1,earnedCP:1,expectedScore:1000,estimatedScore:1000,minimumRank:5,maximumRank:5,power:1})),failures:[],coverageComplete:true});
+ const partial=(value,type='partial')=>({type,done:1,total:360,available:360,rows:['one','two'].map((id,i)=>({id,song:{id,trackId:'music-1',title:id,difficulty:'hard',seconds:100},total:{badges:value-i,eventPoints:100},reward:{mode:'ordinary',scoreRank:5,badges:1,eventPoints:1,challengePoints:1},draft:{slots:[]},bonuses:{rewardBP:0,eventPointBP:0},normalPlays:33,spentFire:99,remainingFire:1,earnedCP:1,expectedScore:1000,estimatedScore:1000,minimumScore:950,minimumRank:5,maximumRank:5,power:1})),failures:[],coverageComplete:true});
  return {q,optimizer,send,partial,workers,tool};
 }
 
@@ -128,7 +128,7 @@ test('a complete 93-song comparison keeps every page and the final song reachabl
 test('combined objectives stay inside comparison controls and phase tabs preserve separate teams and costs',t=>{
  const {q,send,partial}=harness(t);q('goal').value='both';
  const data=partial(1000,'result'),normal=data.rows[0];
- normal.continuation={plays:4,badges:400,eventPoints:200,remainingCP:0,stages:[{cost:1600,plays:3,reward:{badges:100,eventPoints:50},row:{...normal,reward:{...normal.reward,mode:'challenge'},song:{...normal.song,title:'Challenge song'}}},{cost:200,plays:1,reward:{badges:10,eventPoints:5},row:{...normal,reward:{...normal.reward,mode:'challenge'},song:{...normal.song,title:'Remainder song'}}}]};
+ normal.continuation={plays:4,badges:400,eventPoints:200,remainingCP:0,stages:[{cost:1600,plays:3,reward:{badges:100,eventPoints:50},row:{...normal,reward:{...normal.reward,mode:'challenge'},song:{...normal.song,trackId:'music-2',title:'Challenge song'}}},{cost:200,plays:1,reward:{badges:10,eventPoints:5},row:{...normal,reward:{...normal.reward,mode:'challenge'},song:{...normal.song,title:'Remainder song'}}}]};
  send(data);
  const comparison=q('results').querySelectorAll('.event-alternatives')[0];
  assert.equal(comparison.querySelectorAll('.task-event-goal-tabs').length,1);
@@ -136,6 +136,8 @@ test('combined objectives stay inside comparison controls and phase tabs preserv
  let article=q('results').querySelectorAll('.task-event-plan-result')[0];
  const tabs=article.querySelectorAll('.event-phase-tabs')[0],panels=article.children.filter(n=>n.attrs.role==='tabpanel');
  assert.deepEqual(panels.map(n=>n.hidden),[false,true]);
+ const riskText=panel=>panel.querySelectorAll('.event-grade-risk').flatMap(node=>node.children.map(n=>n.textContent)).join(' ');
+ assert.match(riskText(panels[0]),/A 档门槛：900 分/);assert.match(riskText(panels[1]),/A 档门槛：800 分/);
  tabs.children[1].listeners.click();assert.deepEqual(panels.map(n=>n.hidden),[true,false]);
  assert.equal(tabs.children[1].attrs['aria-selected'],'true');
  const costs=panels[1].querySelectorAll('.task-event-result-tabs')[0];costs.children[1].listeners.click();

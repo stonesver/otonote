@@ -22,10 +22,23 @@ export function eventPerformanceFacts(row){
  const basis=row.scoreBasis==='minimumScore'?'最低分':row.scoreBasis==='maximumScore'?'最高分':'平均分';
  return eventMetricList([[`${row.performanceScenario?'预计':'AP'} ${basis}`,fmt(row.estimatedScore)],['档位范围',range],['综合力',fmt(row.power)],['道具加成',`+${fmt(row.bonuses.rewardBP/100)}%`],['活动 pt 加成',`+${fmt(row.bonuses.eventPointBP/100)}%`]],'event-performance-facts');
 }
-export function eventGradeRisk(row){
+export function eventGradeRisk(row,rules){
  const root=el('div',null,'event-grade-risk'),target=row.reward.scoreRank;
- const basis=row.scoreBasis==='minimumScore'?'稳定刷取 · 最低分':row.scoreBasis==='maximumScore'?'最高分判档':'平均分判档';
+ const label=row.scoreBasis==='minimumScore'?'最低分':row.scoreBasis==='maximumScore'?'最高分':'平均分';
+ const basis=row.scoreBasis==='minimumScore'?'稳定刷取 · 最低分':`${label}判档`;
  root.append(el('p',`${basis}：收益按 ${rank(target)} 档计算`));
+ const music=rules.tables.LiveMusic.find(m=>`music-${m._id}`===row.song.trackId);
+ const threshold=rules.tables.LiveScoreRank.find(r=>r._group===music._liveScoreRankGroup&&r._liveScoreRank===target)._requiredScore;
+ const distance=score=>Math.floor(score)-threshold;
+ const marginText=(name,score)=>{const margin=distance(score);return margin>0?`${name}高出 ${fmt(margin)} 分`:margin<0?`${name}还差 ${fmt(-margin)} 分`:`${name}刚好达到门槛`;};
+ root.append(el('p',`${rank(target)} 档门槛：${fmt(threshold)} 分；${marginText(label,row.estimatedScore)}。`));
+ if(target===2)root.append(el('small','当前已是最低奖励档位，没有更低的分数档位。'));
+ else{
+  const margin=distance(row.minimumScore),share=margin/row.minimumScore*100;
+  root.append(el('p',margin>0?`稳定分数余量：${fmt(margin)} 分（占最低分${share<.1?'不足 0.1%':`约 ${fmt(share)}%`}）。`:
+   margin===0?'最低分刚好达到门槛，稳定分数余量为 0。':`${marginText('最低分',row.minimumScore)}，暂无稳定分数余量。`));
+  root.append(el('small','分数余量表示最低分距离掉档门槛的差值；失误影响取决于音符位置、连击与技能。'));
+ }
  if(row.gradeProbabilities?.length){
   const drop=row.gradeProbabilities.reduce((n,g)=>n+(g.rank<target?g.probability:0),0);
   root.append(el('p',`档位概率：${row.gradeProbabilities.map(g=>`${rank(g.rank)} ${fmt(g.probability*100)}%`).join(' · ')}；低于 ${rank(target)} 的掉档概率 ${fmt(drop*100)}%`));

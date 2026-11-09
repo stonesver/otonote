@@ -124,7 +124,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      article.append(eventYieldBreakdown(row));
      const ordinaryPanel=el('section',null,'event-stage-panel');
      ordinaryPanel.append(eventSongHeading(tool.data,row.song,{label:row.reward.mode==='ordinary'?'普通演出':'挑战演出',grade:grades[row.reward.scoreRank-2]}));
-     ordinaryPanel.append(eventGradeRisk(row),eventTeamDetails(tool,row));
+     ordinaryPanel.append(eventGradeRisk(row,tool.data.rules),eventTeamDetails(tool,row));
      const apply=el('button',row.reward.mode==='challenge'?'使用挑战方案':'使用普通方案');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));const actions=el('div',null,'event-result-actions');actions.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));ordinaryPanel.append(actions);
      if(row.continuation){
        const section=el('section',null,'event-recommendations event-stage-panel');
@@ -137,7 +137,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
          const panel=el('section');panel.hidden=String(stage.cost)!==activeCost;stagePanels.push(panel);
          const stageTab=el('button',`${stage.cost} pt × ${stage.plays} 次`);stageTab.type='button';stageTab.dataset.yieldStageCost=String(stage.cost);stageTab.setAttribute('aria-pressed',String(String(stage.cost)===activeCost));stageTab.addEventListener('click',()=>{for(const n of stagePanels)n.hidden=n!==panel;for(const b of stageTabs.children)b.setAttribute('aria-pressed',String(b===stageTab));});stageTabs.append(stageTab);
          const r=stage.row;
-         panel.append(eventSongHeading(tool.data,r.song,{label:'挑战演出',grade:grades[r.reward.scoreRank-2],plays:stage.plays}),eventGradeRisk(r),eventChallengeBreakdown(stage),eventTeamDetails(tool,r));
+         panel.append(eventSongHeading(tool.data,r.song,{label:'挑战演出',grade:grades[r.reward.scoreRank-2],plays:stage.plays}),eventGradeRisk(r,tool.data.rules),eventChallengeBreakdown(stage),eventTeamDetails(tool,r));
          const use=el('button','使用挑战方案');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});const stageActions=el('div',null,'event-result-actions');stageActions.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));panel.append(stageActions);section.append(panel);
        }
        const phases=el('div',null,'event-phase-tabs');phases.setAttribute('role','tablist');phases.setAttribute('aria-label','演出阶段');

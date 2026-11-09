@@ -6,10 +6,11 @@ import {setupEventYieldOptimizer} from '../src/lib/event-yield-ui.mjs';
 function harness(t){
  class Node {
   constructor(){this.style={};this.dataset={};this.children=[];this.listeners={};this.attrs={};this.value='';this.textContent='';}
-  append(...children){this.children.push(...children);}
-  replaceChildren(...children){this.children=children;}
-  removeChild(node){this.children.splice(this.children.indexOf(node),1);}
-  insertBefore(node,anchor){if(this.children.includes(node))this.removeChild(node);this.children.splice(anchor?this.children.indexOf(anchor):this.children.length,0,node);}
+  append(...children){for(const node of children){node.parentElement=this;this.children.push(node);}}
+  replaceChildren(...children){for(const node of this.children)node.parentElement=null;this.children=[];this.append(...children);}
+  removeChild(node){this.children.splice(this.children.indexOf(node),1);node.parentElement=null;}
+  insertBefore(node,anchor){if(this.children.includes(node))this.removeChild(node);this.children.splice(anchor?this.children.indexOf(anchor):this.children.length,0,node);node.parentElement=this;}
+  closest(selector){assert.equal(selector,'[hidden]');for(let n=this;n;n=n.parentElement)if(n.hidden)return n;return null;}
   scrollIntoView(){}
   focus(){globalThis.document.activeElement=this;}
   querySelector(selector){
@@ -26,7 +27,7 @@ function harness(t){
   querySelectorAll(selector){return this.children.flatMap(n=>[...(n.className?.split(' ').includes(selector.slice(1))?[n]:[]),...n.querySelectorAll(selector)]);}
  }
  const prior={document:globalThis.document,Worker:globalThis.Worker},nodes=new Map(),workers=[];
- globalThis.document={documentElement:{lang:'zh-CN'},createElement:()=>new Node()};
+ globalThis.document={documentElement:{lang:'zh-CN'},createElement:tag=>{const n=new Node();if(tag==='event-mistake-reference')n.setActive=active=>{n.active=active;};return n;}};
  globalThis.Worker=class extends Node {constructor(){super();workers.push(this);}postMessage(input){this.input=input;}terminate(){this.terminated=true;}};
  t.after(()=>{for(const [k,v] of Object.entries(prior)){if(v===undefined)delete globalThis[k];else globalThis[k]=v;}});
  const node=k=>{if(!nodes.has(k))nodes.set(k,new Node());return nodes.get(k);},q=k=>node(`[data-yield-${k}]`);
@@ -59,6 +60,7 @@ test('new candidates publish automatically, reuse unchanged teams and preserve t
  send({type:'progress',stage:'event-group-proof',title:'全曲谱',done:1,total:360,detail:'已验证 100 个分支'});
  const heading=q('status').beforeNode.children[0].children[0],initialHeading=heading.textContent;
  send(partial(1000));const visible=q('results').children.slice();
+ assert.ok(q('results').querySelectorAll('.event-mistake-reference').every(n=>!n.active),'unselected live candidates do not compete with the search');
  send(partial(1100));send(partial(1200));
  assert.deepEqual(q('results').children,visible,'coalesce a burst instead of rebuilding for every message');
  assert.equal(heading.textContent,initialHeading);
@@ -66,6 +68,7 @@ test('new candidates publish automatically, reuse unchanged teams and preserve t
  assert.notEqual(q('results').children[0],visible[0],'latest improvement appears automatically');
  const articles=q('results').querySelectorAll('.task-event-plan-result');
  const tabs=q('results').querySelectorAll('.task-event-result-tabs').find(n=>n.attrs['aria-label']==='收益方案');tabs.children[1].listeners.click();
+ assert.deepEqual(q('results').querySelectorAll('.event-mistake-reference').map(n=>n.active),[false,true],'explicit selection starts only its reference during search');
  const updated=partial(1200);updated.rows[0].search={bestProven:true};send(updated);
  await new Promise(resolve=>setTimeout(resolve,780));
  assert.deepEqual(q('results').querySelectorAll('.task-event-plan-result'),articles,'proof-only changes preserve cards and playback DOM');
@@ -73,6 +76,7 @@ test('new candidates publish automatically, reuse unchanged teams and preserve t
  send(partial(1300,'result'));
  assert.equal(q('results').querySelectorAll('.task-event-plan-result')[1].hidden,false,'completion preserves the selected plan');
  assert.equal(q('status').beforeNode.dataset.state,'complete');
+ assert.deepEqual(q('results').querySelectorAll('.event-mistake-reference').map(n=>n.active),[false,true]);
 });
 
 test('stopping publishes the latest candidates; old workers cannot replace them',t=>{
@@ -134,14 +138,18 @@ test('combined objectives stay inside comparison controls and phase tabs preserv
  assert.equal(comparison.querySelectorAll('.task-event-goal-tabs').length,1);
  assert.equal(q('results').children.some(n=>n.className?.includes('task-event-goal-tabs')),false);
  let article=q('results').querySelectorAll('.task-event-plan-result')[0];
+ const activeReferences=()=>q('results').querySelectorAll('.event-mistake-reference').map(n=>n.active);
+ assert.deepEqual(activeReferences(),[true,false,false,false],'completion starts only the visible ordinary plan');
  const tabs=article.querySelectorAll('.event-phase-tabs')[0],panels=article.children.filter(n=>n.attrs.role==='tabpanel');
  assert.deepEqual(panels.map(n=>n.hidden),[false,true]);
  const riskText=panel=>panel.querySelectorAll('.event-grade-risk').flatMap(node=>node.descendants().map(n=>n.textContent)).join(' ');
  assert.match(riskText(panels[0]),/A 档门槛 900 分/);assert.match(riskText(panels[1]),/A 档门槛 800 分/);
  tabs.children[1].listeners.click();assert.deepEqual(panels.map(n=>n.hidden),[true,false]);
  assert.equal(tabs.children[1].attrs['aria-selected'],'true');
+ assert.deepEqual(activeReferences(),[false,true,false,false]);
  const costs=panels[1].querySelectorAll('.task-event-result-tabs')[0];costs.children[1].listeners.click();
  assert.equal(costs.children[1].attrs['aria-pressed'],'true');
+ assert.deepEqual(activeReferences(),[false,false,true,false]);
  const changed={...data,rows:data.rows.map((row,i)=>i?row:{...row,total:{...row.total,badges:1100}})};send(changed);
  article=q('results').querySelectorAll('.task-event-plan-result')[0];
  assert.equal(article.querySelector('[data-yield-phase][aria-selected="true"]').dataset.yieldPhase,'challenge');

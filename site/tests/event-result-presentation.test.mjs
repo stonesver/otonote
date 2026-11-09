@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {renderMistakeReference} from '../src/lib/event-mistake-reference-view.mjs';
-import {eventYieldBreakdown,eventChallengeBreakdown,eventSongHeading,eventGradeRisk} from '../src/lib/event-result-presentation.mjs';
+import {eventYieldBreakdown,eventChallengeBreakdown,eventSongHeading,eventGradeRisk,eventPlanHeading} from '../src/lib/event-result-presentation.mjs';
 class Node {
  constructor(tag){this.tagName=tag;this.children=[];this.dataset={};this.style={};this.textContent='';}
  append(...nodes){this.children.push(...nodes);}
  replaceChildren(...nodes){this.children=nodes;}
+ addEventListener(){}
  setAttribute(name,value){this[name]=value;}
 }
 function documentFor(t){const prior=globalThis.document;globalThis.document={createElement:tag=>new Node(tag)};t.after(()=>{globalThis.document=prior;});}
@@ -46,6 +47,21 @@ test('the lowest reward grade does not present a 100-percent loss budget',t=>{
  const text=riskText({...row(),song:{trackId:'music-1'},scoreBasis:'minimumScore',estimatedScore:100,minimumScore:100,reward:{scoreRank:2}});
  assert.match(text,/D 档门槛 0 分 AP 最低分 100 分/);
  assert.match(text,/当前已是最低奖励档位/);assert.doesNotMatch(text,/稳定分数余量|占最低分/);
+});
+test('song summary exposes headroom and drop risk while keeping exact metrics in details',t=>{
+ documentFor(t);
+ const input={...row(),song:{trackId:'music-1'},draft:{slots:[]},scoreBasis:'minimumScore',minimumScore:9400000,reward:{scoreRank:7},gradeProbabilities:[{rank:7,probability:1}]};
+ const summary=r=>all(eventPlanHeading({rules},r)).find(n=>n.className==='event-plan-summary');
+ const chips=r=>summary(r).children.filter(n=>n.className==='event-summary-chip').map(n=>n.children.map(c=>c.textContent).join(' '));
+ assert.deepEqual(chips(input),['余量 +4.3%','AP 掉档 0%']);
+ const root=summary(input),details=root.children.find(n=>n.tagName==='details');
+ assert.ok(!details.open);assert.match(all(details).map(n=>n.textContent).join(' '),/SS 档门槛 9,000,000 分/);
+ assert.ok(root.children.some(n=>n.tagName==='event-mistake-reference'));
+ const risk={...input,scoreBasis:'expectedScore',minimumScore:8900000,gradeProbabilities:[{rank:6,probability:.4},{rank:7,probability:.6}]};
+ assert.deepEqual(chips(risk),['缺口 −1.1%','AP 掉档 40%']);
+ assert.ok(!summary(risk).children.some(n=>n.tagName==='event-mistake-reference'));
+ assert.deepEqual(chips({...input,reward:{scoreRank:2}}),['最低档位 D 档','AP 掉档 0%']);
+ assert.equal(chips({...input,gradeProbabilities:[]})[1],'AP 掉档 未知');
 });
 test('breakdown preserves stage totals and separates carried challenge points from earned points',t=>{
  documentFor(t);const input=row();input.startingCP=200;const before=structuredClone(input),root=eventYieldBreakdown(input),nodes=all(root);

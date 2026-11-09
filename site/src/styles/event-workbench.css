@@ -22,6 +22,32 @@
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions { display:flex; flex-wrap:wrap; gap:var(--event-space-3); padding:0; margin:0; border:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary { margin-left:auto; min-width:120px; color:var(--theme-on-action); background:var(--theme-action); border-color:var(--theme-action); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary:is(:hover,:focus-visible):not(:disabled) { background:var(--theme-action); border-color:var(--theme-action); color:var(--theme-on-action); }
+/* Reward stability shares the song heading; the full readout is a disclosure. */
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-plan-heading { flex-wrap:wrap; align-items:center; gap:6px 10px; padding:10px 0; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-plan-heading .event-song-copy { flex:1; display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px; }
+.event-plan-heading .event-song-grade { display:inline-flex; padding:1px 6px; border-radius:4px; color:var(--tool-accent); background:var(--tool-tint); font-size:11px; font-weight:600; }
+.event-plan-summary { display:flex; align-items:center; flex-wrap:wrap; flex-basis:100%; gap:6px; position:relative; font-size:12px; line-height:20px; }
+.event-summary-chip { display:inline-flex; align-items:center; gap:5px; padding:2px 7px; border-radius:4px; color:var(--tool-muted); background:color-mix(in srgb,var(--tool-tint) 50%,var(--tool-surface)); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.event-summary-chip b { font-weight:650; color:var(--tool-ink); }
+.event-summary-chip[data-tone="good"] { color:var(--theme-success); background:color-mix(in srgb,var(--theme-success) 9%,var(--tool-surface)); }
+.event-summary-chip[data-tone="warn"] { color:var(--theme-danger); background:color-mix(in srgb,var(--theme-danger) 8%,var(--tool-surface)); }
+.event-summary-chip:is([data-tone="good"],[data-tone="warn"]) b { color:inherit; }
+.event-summary-chip[data-tone="reference"] { color:var(--tool-accent); }
+.event-mistake-reference { display:contents; }
+.event-summary-note { color:var(--tool-muted); font-size:10px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-summary-details { position:static; margin:0; padding:0; border:0; background:none; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-plan-summary .event-summary-details > summary,
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-plan-summary .event-mistake-reference > button { min-height:26px; padding:2px 5px; color:var(--tool-muted); font-size:11px; line-height:22px; cursor:pointer; list-style:none; }
+.event-summary-details > summary::after { content:"⌄"; margin-left:4px; }
+.event-summary-details[open] > summary::after { content:"⌃"; }
+.event-summary-details > summary::-webkit-details-marker { display:none; }
+.event-summary-details > .event-grade-risk { position:absolute; z-index:20; right:0; top:100%; box-sizing:border-box; width:min(420px,100%); margin:6px 0 0; box-shadow:0 6px 24px color-mix(in srgb,var(--tool-ink) 14%,transparent); background:var(--tool-surface); }
+.event-reference-details { margin-top:8px; border-top:1px solid var(--tool-line); }
+@media(max-width:600px) {
+ .event-plan-summary { gap:5px; font-size:11px; }
+ .event-summary-chip { gap:4px; padding:1px 6px; }
+ .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-plan-heading { gap:6px 8px; }
+}
 .event-grade-risk { --risk-tone:var(--theme-success); grid-column:1/-1; min-width:0; margin:10px 0; padding:10px 12px; border:1px solid var(--tool-line); border-radius:8px; background:color-mix(in srgb,var(--tool-tint) 25%,var(--tool-surface)); font-size:12px; }
 .event-grade-risk[data-state="risk"] { --risk-tone:var(--theme-danger); }
 .event-grade-risk[data-state="neutral"] { --risk-tone:var(--tool-muted); }
@@ -52,12 +78,8 @@
 .event-risk-method { color:var(--tool-muted); font-size:12px; }
 .event-risk-method > summary { width:fit-content; cursor:pointer; }
 .event-risk-method p { margin:6px 0; line-height:1.6; }
-.task-studio.task-studio.tool-design-system[data-tool-kind="event-efficiency"][data-tool-kind] .task-workbench .event-grade-risk :is(.event-risk-method,.event-mistake-reference) { margin:0; padding:0; border:0; background:transparent; }
+.task-studio.task-studio.tool-design-system[data-tool-kind="event-efficiency"][data-tool-kind] .task-workbench .event-grade-risk .event-risk-method { margin:0; padding:0; border:0; background:transparent; }
 .task-studio.task-studio.tool-design-system[data-tool-kind="event-efficiency"][data-tool-kind] .task-workbench .event-grade-risk summary { min-height:28px; padding:3px 0; font-size:12px; line-height:22px; }
-.event-mistake-reference > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; font-weight:600; }
-.event-mistake-reference > summary::after { content:"⌄"; color:var(--tool-muted); }
-.event-mistake-reference[open] > summary::after { transform:rotate(180deg); }
-.event-mistake-body { margin-top:2px; }
 .event-mistake-cards { display:flex; flex-wrap:wrap; gap:6px 16px; padding:4px 0; }
 .event-mistake-card { display:flex; align-items:center; gap:8px; }
 .event-judgement-tag { width:fit-content; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--tool-accent); background:var(--tool-tint); }

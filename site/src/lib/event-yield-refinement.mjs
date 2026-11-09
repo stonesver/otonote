@@ -1,19 +1,33 @@
 import {createCandidateEvaluator} from './formation-candidate-evaluator.mjs';
 import {legalPracticalDraft,practicalNeighbours} from './practical-optimizer.mjs';
-import {compareEventPlans} from './event-yield-goals.mjs';
+import {compareEventPlans,compareEventRewards} from './event-yield-goals.mjs';
 
 const signature=draft=>draft.slots.map(s=>`${s.memberCardId}|${s.supportCardId}`).join(';');
 
 /** Improve a reward winner after grade-based pruning has finished. Two local
- * rounds screen every legal single-card, pairing and leader change. Leaders
+ * rounds screen reward-competitive legal card, pairing and leader changes. Leaders
  * and the twelve leading neighbours are replayed over all 120 orders. This
  * preserves reward certificates; it does not prove globally optimal scores. */
 export async function refineEventYieldTeams({rules,chart,input,eventAdapters=[],results,transformScore,goal,
- scoreCache=new Map(),counters={},signal,yieldControl=async()=>{},onProgress=()=>{}}){
+ scoreCache=new Map(),counters={},scoreUpperFor,signal,yieldControl=async()=>{},onProgress=()=>{}}){
  const compare=(a,b)=>compareEventPlans(a,b,goal),rows=[...results].sort(compare);
  if(!rows.length)return rows;
  const characters=new Map(rules.tables.MemberCard.map(r=>[`member-card-${r._id}`,r._characterID])),characterFor=id=>characters.get(id);
- const refinement={rounds:0,screened:0,fullyScored:0};counters.stabilityRefinement=refinement;
+ const refinement=counters.stabilityRefinement??={rounds:0,screened:0,fullyScored:0,rewardPruned:0,scorePruned:0};
+ const music=rules.tables.LiveMusic.find(m=>`music-${m._id}`===input.draft.selectedSongId);
+ const gradeScores=rules.tables.LiveScoreRank.filter(r=>r._group===music._liveScoreRankGroup).map(r=>r._requiredScore);
+ const rewardCeilings=new Map();
+ // Bonuses depend on the selected cards, not their pairing or leader. Check
+ // every grade: neither rewards nor challenge continuation need be monotone.
+ // These are reward bounds only; every retained recommendation is replayed.
+ const rewardCeiling=(draft,upper=Infinity)=>{
+  const key=draft.slots.map(s=>s.memberCardId).sort().join('|')+':'+draft.slots.map(s=>s.supportCardId).sort().join('|');
+  if(!rewardCeilings.has(key)){
+   const bounds=gradeScores.map(value=>({threshold:value,row:transformScore({minimumScore:value,expectedScore:value,maximumScore:value},draft)}));
+   rewardCeilings.set(key,bounds.sort((a,b)=>compareEventRewards(a.row,b.row,goal)));
+  }
+  return rewardCeilings.get(key).find(b=>b.threshold<=upper)?.row;
+ };
  const evaluators=new Map();
  const score=(draft,precision)=>{
   const key=precision+':'+signature(draft);
@@ -31,8 +45,18 @@ export async function refineEventYieldTeams({rules,chart,input,eventAdapters=[],
   for(const neighbour of practicalNeighbours(first.draft,input.inventory)){
    if(signal?.aborted)break;
    if(!legalPracticalDraft(neighbour.draft,input,characterFor))continue;
+   checked++;
+   if(checked%50===0){onProgress({phase:'event-stability',stage:'提高同收益队伍的稳定性',round:round+1,completed:checked});await yieldControl();}
+   if(compareEventRewards(rewardCeiling(neighbour.draft),first,goal)>0){refinement.rewardPruned++;continue;}
+   if(scoreUpperFor){
+    const upper=scoreUpperFor(neighbour.draft),ceiling=rewardCeiling(neighbour.draft,upper);
+    const rewardOrder=ceiling?compareEventRewards(ceiling,first,goal):1;
+    if(rewardOrder>0||rewardOrder===0&&upper<(first.scoreBasis==='minimumScore'?first.minimumScore:first.expectedScore)){
+     refinement.scorePruned++;continue;
+    }
+   }
    screened.push({...transformScore(score(neighbour.draft,'screen'),neighbour.draft),...neighbour});
-   checked++;refinement.screened++;
+   refinement.screened++;
    onProgress({phase:'event-stability',stage:'提高同收益队伍的稳定性',round:round+1,completed:checked});
    await yieldControl();
   }

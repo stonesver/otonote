@@ -353,7 +353,10 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints
  };
  const done=()=>{report.matchingCalls=bound.bonusConstraintStats.matchingCalls;report.boundScoreCalculations=bound.stats.fullScoreCalculations;return report;};
  const characterFor=new Map(rules.tables.MemberCard.map(r=>[`member-card-${r._id}`,r._characterID]));
- for(const modelRow of models){
+ const incumbentLeader=result.results[0].draft.slots[2].memberCardId;
+ // A strong incumbent can close later roots without enumerating pairings.
+ // Keep every leader; visit the already useful one before weaker roots.
+ for(const modelRow of [...models].sort((a,b)=>Number(b.leader===incumbentLeader)-Number(a.leader===incumbentLeader))){
    if(signal?.aborted)return done();
    const leader=modelRow.leader,c=input.constraints,states=[{leader,required:c.lockedPairs.map(p=>`${p.memberCardId}|${p.supportCardId}`),forbidden:[],
      memberRequired:[...new Set([leader,...c.requiredMemberIds,...c.lockedPairs.map(p=>p.memberCardId)])],

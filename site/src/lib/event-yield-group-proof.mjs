@@ -11,6 +11,7 @@ import {prepareEventSearchInput} from './event-search-input.mjs';
 import {createEventScoreCacheBinding,bindEventCandidateCache} from './event-search-cache.mjs';
 import {compareEventPlans,compareEventRewards} from './event-yield-goals.mjs';
 import {refineEventYieldTeams} from './event-yield-refinement.mjs';
+import {createFormationCalculator} from './scoring-rules/formation-power.mjs';
 import {eventCandidateKey,createChallengeContinuationPlanner,createEventYieldRewardTransform,attainableBonusSums,constrainBonusCards} from './event-yield-optimizer.mjs';
 
 const HEURISTIC_SCORES_PER_CHART=48;
@@ -259,7 +260,10 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
    if(!attainable)return lo;
    return attainable.find(value=>value>=lo)??null;
   };
-  for(const [leaderIndex,modelRow] of group.models.entries()){
+  const incumbentLeaders=[...new Set(rows.filter(row=>group.entries.some(e=>e.candidate.id===row.song.id)).map(row=>row.draft.slots[2].memberCardId))];
+  const leaderPriority=leader=>{const index=incumbentLeaders.indexOf(leader);return index<0?Infinity:index;};
+  const orderedModels=[...group.models].sort((a,b)=>leaderPriority(a.leader)-leaderPriority(b.leader));
+  for(const [leaderIndex,modelRow] of orderedModels.entries()){
    const leader=modelRow.leader,c=baseInput.constraints;
    // Chart partitions share exactly the same card/edge domain. Cache only
    // chart-independent work, scoped to this immutable power model and leader.
@@ -403,12 +407,19 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   }
   covered.push(...group.entries.map(e=>e.candidate.id));stats.groupsCompleted++;group.models=null;group.merged.clear();for(const entry of group.entries)releaseEntry(entry);
  }
- const refined=[];
+ const refined=[],refinementPower=createFormationCalculator(rules);
  for(const row of rows){
   if(signal?.aborted)return finish(false,'cancelled');
   const entry=byId.get(row.song.id);
+  const scoreUpperFor=team=>{
+   const envelope=boundFor(entry).normalizedPowerEnvelope(1,team.slots.map(s=>s.memberCardId));
+   if(!envelope)return Infinity;
+   return refinementPower.calculate(team).total.total*(envelope.baseCoefficient+team.slots.reduce((sum,s)=>
+    sum+envelope.gainFor({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId}),0));
+  };
   refined.push(...await refineEventYieldTeams({rules,chart:entry.chart,input:entry.resolved,results:[row],transformScore:entry.transform,goal,
-    scoreCache:await cacheFor(entry),counters:stats,signal,yieldControl,onProgress}));
+    scoreCache:await cacheFor(entry),counters:stats,scoreUpperFor,signal,yieldControl,onProgress}));
+  releaseEntry(entry);
  }
  rows=refined.sort((a,b)=>compareEventPlans(a,b,goal));
  return finish(!signal?.aborted,signal?.aborted?'cancelled':undefined);

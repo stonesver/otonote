@@ -268,19 +268,30 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   // bound: min(all orders) <= mean(orders with these members in fixed slots).
   // Choose slots using conservative per-member gains; this only tightens the
   // proof and never changes the scored orders or the candidate pool.
-  const conditionalGains=new Map();
+  const conditionalGains=new Map(),memberCosts=new Map(),memberPairs=new Map();
+  if(metric==='minimumScore')for(const pair of profiles.keys()){
+    const member=pair.split('|')[0];
+    if(!memberPairs.has(member))memberPairs.set(member,[]);
+    memberPairs.get(member).push(pair);
+  }
+  const costsFor=member=>{
+    if(memberCosts.has(member))return memberCosts.get(member);
+    const pairs=memberPairs.get(member);
+    if(!pairs)return null;
+    const values=Array(5).fill(0);
+    for(const pair of pairs){
+      const gains=bonusBound.envelope.positionGainsFor({key:pair});
+      for(let i=0;i<5;i++)values[i]=Math.max(values[i],gains[i]);
+    }
+    memberCosts.set(member,values);return values;
+  };
   const minimumGainFor=requiredMembers=>{
     const members=[...new Set(requiredMembers)].sort(),key=members.join('|');
     if(!members.length||members.length>5)return bonusBound.envelope.gainFor;
     if(conditionalGains.has(key))return conditionalGains.get(key);
-    const costs=members.map(member=>{
-      const values=Array(5).fill(0);let found=false;
-      for(const pair of profiles.keys())if(pair.startsWith(member+'|')){
-        found=true;const gains=bonusBound.envelope.positionGainsFor({key:pair});
-        for(let i=0;i<5;i++)values[i]=Math.max(values[i],gains[i]);
-      }
-      return found?values:null;
-    });
+    // The pair pool and chart gains are fixed for this bound. Only the
+    // assignment of required members to positions changes between domains.
+    const costs=members.map(costsFor);
     if(costs.some(row=>!row))return bonusBound.envelope.gainFor;
     let dp=new Map([[0,{cost:0,positions:[]}]]);
     for(const values of costs){
@@ -304,11 +315,15 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     if(conditionalGains.size>=64)conditionalGains.delete(conditionalGains.keys().next().value);
     conditionalGains.set(key,gainFor);return gainFor;
   };
+  let normalizedBase;
   bound.normalizedPowerEnvelope=(threshold,requiredMembers=[])=>{
     if(!bonusBound||!Number.isFinite(threshold)||threshold<=0)return null;
-    const absolute=5*Math.max(0,...uniqueProfiles.map(p=>p.absolute));
-    const {error}=replayError(absolute,uniqueProfiles,applicationLimit,globalBudget);
-    const baseCoefficient=bonusBound.envelope.baseCoefficient*(1+error)/threshold*(1+1e-10);
+    if(normalizedBase===undefined){
+      const absolute=5*Math.max(0,...uniqueProfiles.map(p=>p.absolute));
+      const {error}=replayError(absolute,uniqueProfiles,applicationLimit,globalBudget);
+      normalizedBase=bonusBound.envelope.baseCoefficient*(1+error);
+    }
+    const baseCoefficient=normalizedBase/threshold*(1+1e-10);
     if(!Number.isFinite(baseCoefficient))return null;
     const gainFor=metric==='minimumScore'?minimumGainFor(requiredMembers):bonusBound.envelope.gainFor;
     return {baseCoefficient,gainFor:edge=>gainFor(edge)/threshold*(1+1e-10)};

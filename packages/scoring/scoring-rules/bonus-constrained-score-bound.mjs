@@ -36,23 +36,25 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
     return gainCache.get(edge);
   };
   const stats={matchingCalls:0};
-  const bound=function(available,forced,leader,solution,error,bonusFor,minBonus,constraints={},scoreCutoff=cutoff){
+  // matchingCache belongs to one immutable edge/bonus/mandatory-vertex
+  // domain. Chart gains, thresholds and probe weights may change freely.
+  const bound=function(available,forced,leader,solution,error,bonusFor,minBonus,constraints={},scoreCutoff=cutoff,matchingCache){
     const witnesses=new Map();bound.witnesses=[];
     if(!Number.isSafeInteger(minBonus)||minBonus<0||!Number.isFinite(error)||error<0||solution.weight<=0)return Infinity;
-    const bonuses=new Map(),powers=new Float64Array(available.length),gains=new Float64Array(available.length),
+    const powers=new Float64Array(available.length),gains=new Float64Array(available.length),
       bonusValues=new Float64Array(available.length),probeWeights=new Float64Array(available.length);
     let largestPower=0,largestGain=0,largestBonus=0,index=0;
     for(const edge of available){
       const bonus=bonusFor(edge),gain=gainFor(edge);
       if(!Number.isSafeInteger(bonus)||bonus<0||!Number.isFinite(gain)||gain<0)return Infinity;
       powers[index]=edge.weight;gains[index]=gain;bonusValues[index++]=bonus;
-      bonuses.set(edge,bonus);largestBonus=Math.max(largestBonus,bonus);
+      largestBonus=Math.max(largestBonus,bonus);
       largestPower=Math.max(largestPower,Math.abs(edge.weight));largestGain=Math.max(largestGain,gain);
     }
     const options={edges:available,required:forced.map(e=>e.key),requiredMembers:[...new Set([leader,...(constraints.memberRequired??[])])],requiredSupports:constraints.supportRequired??[]};
     const remember=result=>{
       if(!result)return;
-      const row={edges:result.edges,weight:result.edges.reduce((s,e)=>s+e.weight,0),bonus:result.edges.reduce((s,e)=>s+bonuses.get(e),0)};
+      const row={edges:result.edges,weight:result.edges.reduce((s,e)=>s+e.weight,0),bonus:result.edges.reduce((s,e)=>s+bonusFor(e),0)};
       const key=row.edges.map(e=>e.key).join(';');
       if(!witnesses.has(key)){
         if(witnesses.size>=16)witnesses.delete(witnesses.keys().next().value);
@@ -60,7 +62,8 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       }
       bound.witnesses=[...witnesses.values()];return row;
     };
-    const solve=createMaximumPairing(options);
+    const solve=matchingCache?.solve??createMaximumPairing(options);
+    if(matchingCache)matchingCache.solve=solve;
     const match=weight=>{
       stats.matchingCalls++;
       // A future unsupported magnitude must loosen the bound, never silently
@@ -68,7 +71,8 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       // the normal search/fallback path.
       try{return solve(weight);}catch{return null;}
     };
-    const bonusMaximum=match(e=>bonuses.get(e));
+    const bonusMaximum=matchingCache?.bonusMaximum!==undefined?matchingCache.bonusMaximum:match(bonusValues);
+    if(matchingCache)matchingCache.bonusMaximum=bonusMaximum;
     if(!bonusMaximum)return Infinity;
     remember(bonusMaximum);
     if(bonusMaximum.weight<minBonus)return 0; // Exact infeasibility certificate.

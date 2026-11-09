@@ -1,4 +1,5 @@
 import { arenaCandidateChanges, arenaCandidateOrder } from './arena-team-preview.mjs';
+import { arenaSkillRoles } from './arena-skill-policy.mjs';
 
 const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
 const points = value => value == null ? '—' : `${(value / 10000).toFixed(1)} 万`;
@@ -25,7 +26,7 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
   element.append(header, comparisonNote, featured, dialog);
   let rows = [], selectedId = main.id, comparedId = main.id, preview, valid = true, sort = 'recommendation', page = 0, scoreContext = '';
   const pageSize = 6;
-  const name = row => row.candidate.id === main.id ? '推荐队伍' : `方案 ${row.index + 1}`;
+  const name = row => row.candidate.id === main.id ? '综合推荐' : row.candidate.id === report.preferredCandidateId ? '偏好方案' : `方案 ${row.index + 1}`;
   const delta = row => row.score == null ? '请修正对手计数' : row.candidate.id === main.id ? '推荐基准'
     : `比推荐 ${row.score >= baseline() ? '+' : '−'}${points(Math.abs(row.score - baseline()))}`;
   const baseline = () => rows.find(row => row.candidate.id === main.id).score;
@@ -125,13 +126,16 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
     const recommendation = rows.find(row => row.candidate.id === main.id), best = highest();
     const alternative = best && best !== recommendation ? best : rows.find(row => row.candidate.id !== main.id);
     featured.replaceChildren();
-    const shortlist = [recommendation, alternative].filter(Boolean);
-    if (!shortlist.some(row => row.candidate.id === selectedId)) comparedId = selectedId;
+    const preferred = rows.find(row => row.candidate.id === report.preferredCandidateId);
+    const shortlist = [{ row: recommendation, label: '综合推荐' }];
+    if (preferred) shortlist.push({ row: preferred, label: `${arenaSkillRoles[report.skillPreferences.preference]}偏好方案`, preferred: true });
+    else if (alternative) shortlist.push({ row: alternative, label: alternative === best ? unknown() ? '上限最高队' : '当前最高分' : name(alternative) });
+    if (!shortlist.some(({ row }) => row.candidate.id === selectedId)) comparedId = selectedId;
     const compared = rows.find(row => row.candidate.id === comparedId);
-    if (!shortlist.includes(compared)) shortlist.push(compared);
-    for (const row of shortlist) {
+    if (compared && !shortlist.some(({ row }) => row === compared)) shortlist.push({ row: compared, label: name(compared) });
+    for (const entry of shortlist) {
+      const { row, label } = entry;
       const button = el('button', '', 'arena-candidate-shortcut'); button.type = 'button';
-      const label = row === recommendation ? (!unknown() && best === recommendation ? '推荐 · 最高分' : '推荐队伍') : row === best ? unknown() ? '上限最高队' : '当前最高分' : name(row);
       button.setAttribute('aria-label', `选择${label}`); button.setAttribute('aria-pressed', String(row.candidate.id === selectedId));
       const title = el('span', '', 'arena-shortcut-title');
       title.append(el('b', label));
@@ -141,8 +145,19 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
       const amount = el('strong', unknown() ? `${points(row.candidate.sameRankScore).replace(' 万', '')}–${points(row.candidate.firstRankScore)}` : points(row.score));
       score.append(amount);
       if (!unknown()) score.append(el('small', delta(row), 'arena-shortcut-delta'));
+      if (entry.preferred) {
+        const role = report.skillPreferences.preference, counts = row.candidate.skillCounts;
+        score.append(el('small', `成员 ${counts.member[role]} · 留影 ${counts.support[role]} 张${arenaSkillRoles[role]}`));
+        if (row === recommendation) score.append(el('small', '与综合推荐为同一队伍'));
+        else if (unknown()) {
+          const diff = n => `${n >= 0 ? '+' : '−'}${points(Math.abs(n))}`;
+          score.append(el('small', `比综合推荐：下限 ${diff(row.candidate.sameRankScore - main.sameRankScore)} / 上限 ${diff(row.candidate.firstRankScore - main.firstRankScore)}`));
+        }
+      }
       button.append(title, roster(row.candidate, button), score); button.addEventListener('click', () => choose(row)); featured.append(button);
     }
+    if (report.skillPreferences?.preference !== 'none' && report.skillPreferences && !preferred)
+      featured.append(el('p', `本次候选中没有可用的${arenaSkillRoles[report.skillPreferences.preference]}技能，未生成偏好方案。`, 'arena-hint'));
     renderList();
   }
   return { element, update };

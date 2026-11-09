@@ -145,7 +145,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  const nodes=new Map();
  const node=key=>{
   if(!nodes.has(key))nodes.set(key,{value:'',hidden:false,disabled:false,checked:false,textContent:'',children:[],listeners:{},
-   setAttribute(){},replaceChildren(...children){this.children=children;},addEventListener(type,fn){this.listeners[type]=fn;},querySelector:node});
+   setAttribute(){},replaceChildren(...children){this.children=children;},addEventListener(type,fn){this.listeners[type]=fn;},querySelector:node,querySelectorAll(){return [];}});
   return nodes.get(key);
  };
  const q=key=>node(`[data-yield-${key}]`);

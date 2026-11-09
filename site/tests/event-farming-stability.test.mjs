@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {eventYieldOracleFixture} from './helpers/event-yield-oracle-fixture.mjs';
-import {optimizeEventYield,challengeContinuation} from '../src/lib/event-yield-optimizer.mjs';
+import {optimizeEventYield,challengeContinuation,createEventYieldRewardTransform} from '../src/lib/event-yield-optimizer.mjs';
+import {refineEventYieldTeams} from '../src/lib/event-yield-refinement.mjs';
+import {createEventEfficiency} from '../src/lib/scoring-rules/event-efficiency.mjs';
+import {resolveSearchInput} from '../src/lib/scoring-rules/formation-input.mjs';
 import {compareEventPlans,compareEventRewards} from '../src/lib/event-yield-goals.mjs';
 import {eventYieldStageInput} from '../src/lib/event-yield-stage.mjs';
 import {eventGradeEstimate} from '../src/lib/event-song-ranking.mjs';
@@ -53,4 +56,34 @@ test('a reward ceiling still refines leader and support choices using full order
  assert.equal(locked.results[0].draft.slots[2].memberCardId,'member-card-1');
  assert.equal(locked.results[0].draft.slots[2].supportCardId,'support-card-1');
  assert.ok(locked.results[0].draft.slots.some(s=>s.supportCardId==='support-card-6'));
+});
+
+test('stability refinement avoids simulating replacements that lose at every reward grade',async()=>{
+ const input=eventYieldOracleFixture();
+ input.rules.tables.LiveScoreRank.forEach(r=>r._requiredScore=r._liveScoreRank-2);
+ input.rules.tables.EventEffect=[1,2,3,4,5].map(id=>({_id:id,_eventId:1,_resourceTypeConstraint:3,_supportCardId:id,_eventBonusType:1,
+  ...Object.fromEntries([1,2,3,4,5].map(rank=>[`_rank${rank}EffectValue`,10000]))}));
+ const result=await optimizeEventYield({...input,includeChallenge:false,goal:'badges'});
+ assert.equal(result.results[0].bonuses.rewardBP,50000);
+ assert.equal(result.certifiedSearch.bestProven,true);
+ assert.ok(result.practical.stabilityRefinement.rewardPruned>=5);
+});
+
+test('reward pruning keeps a lower-bonus replacement that earns more at a nonmonotone lower grade',async()=>{
+ const f=eventYieldOracleFixture();
+ f.rules.tables.EventEffect=[1,2,3,4,5].map(id=>({_id:id,_eventId:1,_resourceTypeConstraint:3,_supportCardId:id,_eventBonusType:1,
+  ...Object.fromEntries([1,2,3,4,5].map(rank=>[`_rank${rank}EffectValue`,10000]))}));
+ f.rules.tables.LiveScoreRank.forEach(r=>r._requiredScore=r._liveScoreRank===7?218500:r._liveScoreRank-2);
+ f.rules.tables.LiveEventReward.forEach(r=>r._resourceCount=r._scoreRank===6?1000:10);
+ const constraints={leaderId:f.draft.slots[2].memberCardId,lockedPairs:f.draft.slots.filter((_,i)=>i!==1)};
+ const input=resolveSearchInput(f.rules,f.draft,{scope:'owned',inventory:f.inventory,constraints});
+ const model=createEventEfficiency({tables:f.rules.tables,sourceReleaseId:f.rules.sourceReleaseId,eventId:1});
+ const transformScore=createEventYieldRewardTransform({model,candidate:f.candidate,basis:'minimumScore',mode:'ordinary',liveBoost:1,budget:11,startingCP:0,includeChallenge:false,metric:'badges'});
+ const evaluator=createCandidateEvaluator({rules:f.rules,chart:f.chart,objective:'minimum_song_score'});
+ const first={...transformScore(evaluator.score(input.draft),input.draft),draft:input.draft,id:'initial'};
+ assert.equal(first.reward.scoreRank,7);
+ const [row]=await refineEventYieldTeams({rules:f.rules,chart:f.chart,input,results:[first],transformScore,goal:'badges'});
+ assert.equal(row.draft.slots[1].supportCardId,'support-card-6');
+ assert.equal(row.reward.scoreRank,6);
+ assert.ok(row.total.badges>first.total.badges);
 });

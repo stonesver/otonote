@@ -1,3 +1,4 @@
+import {eventMistakeReference} from './event-mistake-reference-view.mjs';
 const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(cls)node.className=cls;return node;};
 const fmt=n=>Number.isFinite(n)?n.toLocaleString('zh-CN',{maximumFractionDigits:1}):'—';
 const grades=['D','C','B','A','S','SS'];
@@ -23,27 +24,45 @@ export function eventPerformanceFacts(row){
  return eventMetricList([[`${row.performanceScenario?'预计':'AP'} ${basis}`,fmt(row.estimatedScore)],['档位范围',range],['综合力',fmt(row.power)],['道具加成',`+${fmt(row.bonuses.rewardBP/100)}%`],['活动 pt 加成',`+${fmt(row.bonuses.eventPointBP/100)}%`]],'event-performance-facts');
 }
 export function eventGradeRisk(row,rules){
- const root=el('div',null,'event-grade-risk'),target=row.reward.scoreRank;
+ const root=el('section',null,'event-grade-risk'),target=row.reward.scoreRank;
+ root.setAttribute('aria-label','奖励档位与稳定性');
  const label=row.scoreBasis==='minimumScore'?'最低分':row.scoreBasis==='maximumScore'?'最高分':'平均分';
- const basis=row.scoreBasis==='minimumScore'?'稳定刷取 · 最低分':`${label}判档`;
- root.append(el('p',`${basis}：收益按 ${rank(target)} 档计算`));
  const music=rules.tables.LiveMusic.find(m=>`music-${m._id}`===row.song.trackId);
  const threshold=rules.tables.LiveScoreRank.find(r=>r._group===music._liveScoreRankGroup&&r._liveScoreRank===target)._requiredScore;
- const distance=score=>Math.floor(score)-threshold;
- const marginText=(name,score)=>{const margin=distance(score);return margin>0?`${name}高出 ${fmt(margin)} 分`:margin<0?`${name}还差 ${fmt(-margin)} 分`:`${name}刚好达到门槛`;};
- root.append(el('p',`${rank(target)} 档门槛：${fmt(threshold)} 分；${marginText(label,row.estimatedScore)}。`));
- if(target===2)root.append(el('small','当前已是最低奖励档位，没有更低的分数档位。'));
- else{
-  const margin=distance(row.minimumScore),share=margin/row.minimumScore*100;
-  root.append(el('p',margin>0?`稳定分数余量：${fmt(margin)} 分（占最低分${share<.1?'不足 0.1%':`约 ${fmt(share)}%`}）。`:
-   margin===0?'最低分刚好达到门槛，稳定分数余量为 0。':`${marginText('最低分',row.minimumScore)}，暂无稳定分数余量。`));
-  root.append(el('small','分数余量表示最低分距离掉档门槛的差值；失误影响取决于音符位置、连击与技能。'));
+ const minimum=Math.floor(row.minimumScore),margin=minimum-threshold,lowest=target===2,stable=margin>=0;
+ root.dataset.state=lowest?'neutral':stable?'stable':'risk';
+ const head=el('div',null,'event-risk-heading'),identity=el('div',null,'event-risk-identity');
+ identity.append(el('strong',rank(target),'event-grade-badge'),el('span',row.scoreBasis==='minimumScore'?'稳定刷取 · 最低分':`${label}判档`));
+ head.append(identity,el('span',lowest?'最低奖励档位':stable?'最低分达标':'有掉档风险','event-risk-chip'));root.append(head);
+ const metrics=eventMetricList([[`${rank(target)} 档门槛`,`${fmt(threshold)} 分`],['AP 最低分',`${fmt(minimum)} 分`],
+  [lowest?'当前档位':stable?'稳定分数余量':'最低分缺口',lowest?'D 档':`${stable?'+':'−'}${fmt(Math.abs(margin))} 分`]],'event-risk-metrics');root.append(metrics);
+ if(row.scoreBasis!=='minimumScore'){
+  const difference=Math.floor(row.estimatedScore)-threshold;
+  root.append(el('p',`${label} ${fmt(row.estimatedScore)} 分 · ${difference>0?'高出 '+fmt(difference)+' 分':difference<0?'还差 '+fmt(-difference)+' 分':'刚好达到门槛'}`,'event-risk-basis'));
  }
+ if(!lowest){
+  const ceiling=Math.max(threshold,minimum),width=100*Math.min(threshold,minimum)/ceiling;
+  const bar=el('div',null,'event-score-budget');bar.setAttribute('role','img');
+  bar.setAttribute('aria-label',stable?`最低分高出门槛 ${fmt(margin)} 分`:`最低分还差 ${fmt(-margin)} 分`);
+  for(const [part,value] of [['covered',width],['remaining',100-width]]){const segment=el('span',null,`event-score-${part}`);segment.style.width=`${value}%`;bar.append(segment);}root.append(bar);
+  const share=margin/minimum*100;
+  root.append(el('p',margin>0?`分数余量占最低分${share<.1?'不足 0.1%':`约 ${fmt(share)}%`}`:
+   margin===0?'最低分刚好达到门槛，稳定分数余量为 0。':`最低分还差 ${fmt(-margin)} 分，暂无稳定分数余量。`,'event-budget-caption'));
+ }else root.append(el('p','当前已是最低奖励档位，没有更低的分数档位。','event-budget-caption'));
  if(row.gradeProbabilities?.length){
-  const drop=row.gradeProbabilities.reduce((n,g)=>n+(g.rank<target?g.probability:0),0);
-  root.append(el('p',`档位概率：${row.gradeProbabilities.map(g=>`${rank(g.rank)} ${fmt(g.probability*100)}%`).join(' · ')}；低于 ${rank(target)} 的掉档概率 ${fmt(drop*100)}%`));
-  root.append(el('small',`按相同 AP 条件下全部 ${row.orderCount} 种技能顺序等权计算，不含操作失误。`));
+  const drop=row.gradeProbabilities.reduce((n,g)=>n+(g.rank<target?g.probability:0),0),distribution=el('div',null,'event-grade-distribution');
+  const title=el('div',null,'event-risk-heading');title.append(el('span','技能顺序 · 档位概率'),el('strong',`掉档概率 ${fmt(drop*100)}%`));distribution.append(title);
+  const chart=el('div',null,'event-probability-bar'),legend=el('div',null,'event-probability-legend');
+  chart.setAttribute('role','img');chart.setAttribute('aria-label',row.gradeProbabilities.map(g=>`${rank(g.rank)} ${fmt(g.probability*100)}%`).join(' · '));
+  for(const g of row.gradeProbabilities){
+   const segment=el('span',g.probability>=.1?rank(g.rank):'', 'event-probability-segment');segment.dataset.rank=String(g.rank);segment.dataset.met=String(g.rank>=target);segment.style.width=`${g.probability*100}%`;chart.append(segment);
+   const chip=el('span',`${rank(g.rank)} ${fmt(g.probability*100)}%`);chip.dataset.met=String(g.rank>=target);legend.append(chip);
+  }
+  distribution.append(chart,legend);root.append(distribution);
  }else root.append(el('small','当前结果没有完整技能顺序分布，无法计算掉档概率。'));
+ const method=el('details',null,'event-risk-method');method.append(el('summary','分数与概率口径'));
+ method.append(el('p',`${row.gradeProbabilities?.length?`按相同 AP 条件下全部 ${row.orderCount} 种技能顺序等权计算，不含操作失误。`:''}分数余量是最低分到当前档位门槛的差值，失误影响随音符位置、连击与技能变化。`));root.append(method);
+ if(!lowest&&stable)root.append(eventMistakeReference(row,rules));
  return root;
 }
 export function eventYieldBreakdown(row){

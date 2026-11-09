@@ -22,9 +22,50 @@
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions { display:flex; flex-wrap:wrap; gap:var(--event-space-3); padding:0; margin:0; border:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary { margin-left:auto; min-width:120px; color:var(--theme-on-action); background:var(--theme-action); border-color:var(--theme-action); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-setup-actions .event-primary:is(:hover,:focus-visible):not(:disabled) { background:var(--theme-action); border-color:var(--theme-action); color:var(--theme-on-action); }
-.event-grade-risk { margin:12px 0; font-size:13px; }
-.event-grade-risk p { margin:4px 0; }
-.event-grade-risk small { color:var(--tool-muted); }
+.event-grade-risk { --risk-tone:var(--theme-success); grid-column:1/-1; min-width:0; margin:16px 0; padding:18px; border:1px solid var(--tool-line); border-radius:12px; background:color-mix(in srgb,var(--tool-tint) 35%,var(--tool-surface)); font-size:13px; }
+.event-grade-risk[data-state="risk"] { --risk-tone:var(--theme-danger); }
+.event-grade-risk[data-state="neutral"] { --risk-tone:var(--tool-muted); }
+.event-risk-heading,.event-risk-identity { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.event-risk-heading { justify-content:space-between; }
+.event-grade-badge { display:grid; place-items:center; min-width:42px; height:36px; padding:0 8px; border-radius:8px; color:var(--tool-accent); background:var(--tool-tint); font-size:22px; font-weight:800; letter-spacing:-.04em; }
+.event-risk-chip { display:inline-flex; padding:4px 9px; border-radius:999px; background:color-mix(in srgb,var(--risk-tone) 12%,var(--tool-surface)); color:var(--risk-tone); font-size:12px; font-weight:600; }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-grade-risk .event-risk-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:16px 0 12px; }
+.task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-grade-risk .event-risk-metrics dd { font-size:clamp(15px,1.6vw,20px); font-weight:700; letter-spacing:-.02em; }
+.event-risk-metrics > div:last-child dd { color:var(--risk-tone); }
+.event-score-budget { display:flex; height:10px; overflow:hidden; border-radius:6px; background:var(--tool-line); }
+.event-score-covered { background:color-mix(in srgb,var(--tool-accent) 30%,var(--tool-surface)); }
+.event-score-remaining { background:var(--risk-tone); }
+.event-grade-risk .event-budget-caption { margin:7px 0 0; color:var(--risk-tone); font-size:12px; }
+.event-risk-basis { margin:0 0 10px; color:var(--tool-muted); }
+.event-grade-distribution { margin-top:18px; padding-top:14px; border-top:1px solid var(--tool-line); }
+.event-grade-distribution .event-risk-heading { font-size:12px; }
+.event-probability-bar { display:flex; height:22px; margin-top:9px; overflow:hidden; border-radius:5px; }
+.event-probability-segment { display:grid; place-items:center; font-size:11px; font-weight:700; color:var(--tool-ink); background:color-mix(in srgb,var(--theme-success) 22%,var(--tool-surface)); }
+.event-probability-segment[data-met="false"] { background:color-mix(in srgb,var(--theme-warning) 26%,var(--tool-surface)); }
+.event-probability-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:7px; font-size:12px; }
+.event-probability-legend > span::before { content:""; display:inline-block; width:7px; height:7px; margin-right:5px; border-radius:50%; background:var(--theme-success); }
+.event-probability-legend > span[data-met="false"]::before { background:var(--theme-warning); }
+.event-risk-method { margin-top:10px; color:var(--tool-muted); font-size:12px; }
+.event-risk-method > summary { width:fit-content; cursor:pointer; }
+.event-risk-method p { margin:8px 0; line-height:1.65; }
+.event-mistake-reference { margin-top:14px; padding-top:12px; border-top:1px solid var(--tool-line); }
+.event-mistake-reference > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; font-weight:600; }
+.event-mistake-reference > summary::after { content:"⌄"; color:var(--tool-muted); }
+.event-mistake-reference[open] > summary::after { transform:rotate(180deg); }
+.event-mistake-reference[open] > summary .event-risk-chip { display:none; }
+.event-mistake-body { margin-top:12px; }
+.event-mistake-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.event-mistake-card { display:flex; flex-direction:column; gap:7px; padding:14px; border:1px solid var(--tool-line); border-radius:9px; background:var(--tool-surface); }
+.event-judgement-tag { width:fit-content; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--tool-accent); background:var(--tool-tint); }
+.event-mistake-card > strong { font-size:20px; font-variant-numeric:tabular-nums; }
+.event-mistake-card[data-risk="high"] > strong { color:var(--theme-danger); font-size:18px; }
+.event-mistake-card small { color:var(--tool-muted); line-height:1.5; }
+@media(max-width:600px) {
+ .event-grade-risk { padding:13px; }
+ .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-grade-risk .event-risk-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .event-risk-metrics > div:last-child { grid-column:1/-1; }
+ .event-mistake-cards { grid-template-columns:minmax(0,1fr); }
+}
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-condition-summary { display:flex; justify-content:space-between; align-items:center; gap:var(--event-space-3); padding:var(--event-space-3) var(--event-space-4); background:var(--tool-surface); border:1px solid var(--tool-line); border-radius:var(--event-radius); }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-condition-summary div { min-width:0; }
 .task-studio.task-studio[data-tool-kind="event-efficiency"][data-tool-kind] .event-simple-view .event-condition-summary span { display:inline; color:var(--tool-muted); font-size:var(--event-text-small); }

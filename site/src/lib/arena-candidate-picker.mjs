@@ -5,6 +5,7 @@ const points = value => value == null ? '—' : `${(value / 10000).toFixed(1)} �
 
 /** A compact shortlist opens the full, sortable candidate gallery. */
 export function createArenaCandidatePicker({ report, cards, onSelect }) {
+  const luck = report.method === 'expected_rank_envelope';
   const main = report.candidates[0], element = el('section', '', 'arena-candidate-picker');
   element.setAttribute('aria-label', '候选队伍切换');
   const header = el('header');
@@ -83,7 +84,7 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
   const value = row => unknown() ? row.candidate.firstRankScore : row.score;
   const highest = () => valid ? [...rows].sort((a, b) => value(b) - value(a) || a.index - b.index)[0] : null;
   const scoreContent = (root, row) => {
-    if (unknown()) root.append(el('small', '得分上限'), el('strong', points(row.candidate.firstRankScore)), el('small', `下限 ${points(row.candidate.sameRankScore)}`));
+    if (unknown()) root.append(el('small', luck ? '均第一平均分' : '得分上限'), el('strong', points(row.candidate.firstRankScore)), el('small', `${luck ? '均末位' : '下限'} ${points(row.candidate.sameRankScore)}`));
     else root.append(el('strong', points(row.score)), el('small', delta(row)));
   };
   const renderList = () => {
@@ -126,18 +127,20 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
     const alternative = best && best !== recommendation ? best : rows.find(row => row.candidate.id !== main.id);
     featured.replaceChildren();
     const shortlist = [recommendation, alternative].filter(Boolean);
+    const validationWinner = report.validation?.status === 'changed' ? rows.find(row => row.candidate.id === report.validation.winnerId) : null;
+    if (validationWinner && !shortlist.includes(validationWinner)) shortlist.push(validationWinner);
     if (!shortlist.some(row => row.candidate.id === selectedId)) comparedId = selectedId;
     const compared = rows.find(row => row.candidate.id === comparedId);
     if (!shortlist.includes(compared)) shortlist.push(compared);
     for (const row of shortlist) {
       const button = el('button', '', 'arena-candidate-shortcut'); button.type = 'button';
-      const label = row === recommendation ? (!unknown() && best === recommendation ? '推荐 · 最高分' : '推荐队伍') : row === best ? unknown() ? '上限最高队' : '当前最高分' : name(row);
+      const label = row === recommendation ? (!unknown() && best === recommendation ? '推荐 · 最高分' : '推荐队伍') : row === validationWinner ? '独立复核首选' : row === best ? unknown() ? '上限最高队' : '当前最高分' : name(row);
       button.setAttribute('aria-label', `选择${label}`); button.setAttribute('aria-pressed', String(row.candidate.id === selectedId));
       const title = el('span', '', 'arena-shortcut-title');
       title.append(el('b', label));
       if (row.candidate.id === selectedId) title.append(el('small', '当前查看', 'arena-shortcut-current'));
       const score = el('span', '', 'arena-shortcut-score');
-      score.append(el('small', unknown() ? '整场得分范围' : '整场得分'));
+      score.append(el('small', luck ? unknown() ? '整场平均分范围' : '整场平均分' : unknown() ? '整场得分范围' : '整场得分'));
       const amount = el('strong', unknown() ? `${points(row.candidate.sameRankScore).replace(' 万', '')}–${points(row.candidate.firstRankScore)}` : points(row.score));
       score.append(amount);
       if (!unknown()) score.append(el('small', delta(row), 'arena-shortcut-delta'));

@@ -36,9 +36,25 @@ class ArenaTeamWorkbench extends HTMLElement {
     const performanceControl = this.querySelector('.arena-performance');
     listen(document, 'click', event => { if (!performanceControl.contains(event.target)) performanceControl.open = false; });
     listen(performanceControl, 'keydown', event => { if (event.key === 'Escape') { performanceControl.open = false; performanceControl.querySelector('summary').focus(); } });
-    listen(this.q('cancel'), 'click', () => this.invalidate('已取消，可重新开始。'));
+    listen(this.q('cancel'), 'click', () => {
+      if (!this.luckRunning || !this.worker) { this.invalidate('已取消，可重新开始。'); return; }
+      this.stopRequested = true; this.q('cancel').disabled = true;
+      this.worker.postMessage({ type: 'stop' }); this.status('正在停止，保留已完成的整队比较…');
+    });
+    listen(this.q('continue'), 'click', () => {
+      this.syncStage(); if (!this.resumeWorker) return;
+      this.worker = this.resumeWorker; this.resumeWorker = null; this.luckRunning = true;
+      this.q('continue').hidden = true; this.q('run').disabled = true; this.q('cancel').hidden = false; this.q('progress').hidden = false;
+      this.status('沿用已有样本继续精算…'); this.worker.postMessage({ type: 'continue', requestId: this.generation });
+    });
     listen(this.q('edit'), 'click', () => { this.q('settings').open = true; this.q('settings').scrollIntoView({ block: 'start' }); this.q('settings').querySelector('summary').focus(); });
-    listen(this.q('method-open'), 'click', () => this.q('method-dialog').showModal());
+    listen(this.q('method-open'), 'click', () => {
+      this.q('method-intro').textContent = this.missionType === 2 ? '按随机抽样计算整场平均分，兼顾 LUCK 点数与 RUSH 得分。' : '看整场得分，也看 JUST 带来的名次奖励。';
+      this.q('method-comparison').textContent = this.missionType === 2
+        ? '每个对手成绩情景固定后，先对抽样结果逐次排名、结算并平均，再比较换成另一支固定队伍的最大平均分差。推荐在本次候选中选错损失更小的队伍，并用独立抽样复核。抽样区间不是保底，结果不表示实战胜率。'
+        : '比较不同对手计数下，换成另一支候选最多能多拿多少分。优先推荐这个差距更小的队伍。';
+      this.q('method-dialog').showModal();
+    });
     listen(this.q('method-close'), 'click', () => this.q('method-dialog').close());
     this.songPicker = createArenaSongPicker({ charts: this.data.charts, onSelect: (track, difficulty) => {
       this.songs.push({ trackId: track.id, difficulty, title: track.title, weight: 1 });
@@ -71,7 +87,9 @@ class ArenaTeamWorkbench extends HTMLElement {
     this.refreshProfile();
     this.updateSetupSummary();
   }
-  disconnectedCallback() { this.generation++; this.worker?.terminate(); this.loading?.abort(); this.events?.abort(); this.stageOptions?.destroy(); this.songPicker?.element.remove(); this.songOptions?.destroy(); clearInterval(this.stageTimer); destroySkillPopover(this); }
+  disconnectedCallback() { this.generation++; this.worker?.terminate(); this.resumeWorker?.terminate(); this.loading?.abort(); this.events?.abort(); this.stageOptions?.destroy(); this.songPicker?.element.remove(); this.songOptions?.destroy(); clearInterval(this.stageTimer); destroySkillPopover(this); }
+  get missionType() { return this.report ? (this.report.method === 'expected_rank_envelope' ? 2 : 3)
+    : this.stageMode === 'manual' ? Number(this.q('form').elements.missionType.value) : this.resolvedStage?.stage.missions.find(Boolean) ?? 3; }
   stageRequest() {
     return { ...currentServerContext(), sourceReleaseId: this.rules.sourceReleaseId,
       bandId: this.q('form').elements.bandId.value, seasonId: this.stageSeason, regulationId: this.stagePeriod };
@@ -101,7 +119,8 @@ class ArenaTeamWorkbench extends HTMLElement {
         if (this.stageLoadError) throw Error(this.stageLoadError);
         const resolved = resolveArenaStage(this.stageData, this.stageRequest()); this.resolvedStage = resolved;
         const { stage, season, status } = resolved;
-        this.stageReady = stage.missions.every(m => m === 3 || m === 0);
+        const fixed = stage.missions.filter(Boolean);
+        this.stageReady = !fixed.length || ([2, 3].includes(fixed[0]) && fixed.every(m => m === fixed[0]));
         this.q('period-label').textContent = `${this.stagePeriod ? '所选场次' : '当前舞台'} · ${arenaStageTime(stage.validFrom, this.stageData.timeZone)}`;
         const attribute = this.data.attributes.find(a => Number(a.code) === stage.musicType)?.name ?? (stage.musicType === 0 ? '原曲属性' : 'ALL');
         const heading = el('div', '', 'arena-stage-identity'), state = el('span', status === 'current' ? '进行中' : status === 'upcoming' ? '预告试配' : '历史试配', 'arena-stage-state'); state.dataset.state = status;
@@ -116,7 +135,7 @@ class ArenaTeamWorkbench extends HTMLElement {
         conditions.append(attributeNode, missions);
         const validity = el('p', '', 'arena-stage-validity'); validity.append(el('span', `${arenaStageTime(stage.validFrom, this.stageData.timeZone)} — ${arenaStageTime(stage.validUntil, this.stageData.timeZone)}`), el('small', this.stageData.timeZone === 'Asia/Tokyo' ? 'UTC+9' : this.stageData.timeZone));
         summary.append(heading, conditions, validity);
-        if (!this.stageReady) summary.append(el('p', '本期不是三段 JUST，请选择 JUST 场次。', 'arena-stage-note'));
+        if (!this.stageReady) summary.append(el('p', '请选择三段 JUST 或三段 LUCK 场次；COMBO 与混段尚未开放。', 'arena-stage-note'));
       } catch (error) { summary.append(el('p', error.message)); }
     }
     if (previous && previous !== this.resolvedStage?.stage.regulationId) this.invalidate('舞台条件已更新，请重新推荐。');
@@ -180,10 +199,15 @@ class ArenaTeamWorkbench extends HTMLElement {
         : '请从「卡库与队伍」导入养成';
     } catch (error) { this.profile = null; this.querySelector('[data-profile-status]').textContent = error.message; }
   }
-  finish() { this.worker?.terminate(); this.worker = null; this.loading = null; this.q('run').disabled = !this.stageReady; this.q('cancel').hidden = true; this.q('progress').hidden = true; }
+  finish({ retain = false } = {}) {
+    if (retain) { this.resumeWorker?.terminate(); this.resumeWorker = this.worker; } else this.worker?.terminate();
+    this.worker = null; this.loading = null; this.luckRunning = false; this.stopRequested = false;
+    this.q('run').disabled = !this.stageReady; this.q('cancel').hidden = true; this.q('cancel').disabled = false; this.q('progress').hidden = true;
+  }
   invalidate(message = '') {
-    this.generation++; this.loading?.abort(); this.finish(); this.report = null;
-    this.q('results').replaceChildren(); this.previewChanged = null; this.bestScore = null; this.preview = null; this.status(message);
+    this.generation++; this.loading?.abort(); this.finish(); this.resumeWorker?.terminate(); this.resumeWorker = null; this.report = null;
+    this.q('continue').hidden = true;
+    this.q('results').replaceChildren(); this.previewChanged = null; this.bestScore = null; this.preview = null; this.selectedCandidateId = null; this.resultTab = 0; this.status(message);
     this.updateSetupSummary();
   }
   fillDifficulties(select, trackId, selected = 'hard') {
@@ -236,10 +260,13 @@ class ArenaTeamWorkbench extends HTMLElement {
         stage = { ...resolved.stage, participantCount: Number(form.get('participantCount')) };
       } else {
         if (form.get('musicType') === '') throw Error('请选择舞台属性');
-        stage = { bandId: Number(form.get('bandId')), musicType: Number(form.get('musicType')), missions: [3, 3, 3], participantCount: Number(form.get('participantCount')) };
+        stage = { bandId: Number(form.get('bandId')), musicType: Number(form.get('musicType')), missions: Array(3).fill(Number(form.get('missionType'))), participantCount: Number(form.get('participantCount')) };
       }
       const performanceScenario = { profile: 'steady', timingSpreadMs: Number(form.get('timingSpreadMs')), missRate: 0, samples: Number(form.get('samples')), seed: 20261105 };
       const profile = structuredClone(this.profile), songs = structuredClone(this.songs);
+      const music = this.rules.tables.LiveMusic.find(m => `music-${m._id}` === songs[0].trackId);
+      this.luckRunning = stage.missions.every((m, i) => (m || music?.[`_gekisouMission${i + 1}`]) === 2);
+      this.q('cancel').textContent = this.luckRunning ? '停止' : '取消';
       this.q('run').disabled = true; this.q('cancel').hidden = false; this.loading = new AbortController();
       this.status('读取完整谱面…');
       for (const song of songs) {
@@ -259,18 +286,26 @@ class ArenaTeamWorkbench extends HTMLElement {
         if (data.requestId !== this.generation) return;
         if (data.type === 'progress') {
           const p = data.progress; this.q('progress').value = p.completed / p.total;
+          if (this.stopRequested) return;
+          const phases = { 'luck-screen': 'LUCK 初筛', 'luck-expand': '探索新的配队组合', 'luck-neighbours': '比较替换方案', 'luck-refine': 'LUCK 加深抽样', 'luck-validate': '独立抽样复核' };
           this.status(p.phase === 'generate' ? `生成候选 ${p.completed} / ${p.total} · 已保留 ${p.candidates} 队`
-            : `比较队伍 ${p.completed} / ${p.total}${p.workers ? ` · ${p.workers} 路并行` : ''}`);
-        } else if (data.type === 'result') {
+            : `${phases[p.phase] ?? '比较队伍'} ${p.completed} / ${p.total}${p.expansions ? ` · 已扩展 ${p.expansions} 轮` : ''}${p.workers ? ` · ${p.workers} 路并行` : ''}`);
+        } else if (data.type === 'result' || data.type === 'snapshot') {
           if (stage.source === 'schedule' && !this.stagePeriod) {
             try {
               if (resolveArenaStage(this.stageData, this.stageRequest()).stage.regulationId !== stage.regulationId) throw Error('舞台条件已更新');
             } catch { this.invalidate('舞台条件已更新，请重新推荐。'); this.syncStage(); return; }
           }
-          this.finish(); this.report = data.result; this.renderResults(); this.q('settings').open = false;
-          this.q('results').scrollIntoView({ block: 'start' });
-          this.status(`${data.result.candidates.length} 队 · ${((performance.now() - started) / 1000).toFixed(1)} 秒`);
-        } else { this.finish(); this.status(data.error, true); }
+          if (data.type === 'result') this.finish({ retain: data.result.method === 'expected_rank_envelope' && data.result.search.canContinue });
+          this.report = data.result;
+          if (this.report.candidates.length) { this.renderResults(); this.q('settings').open = false; }
+          if (data.type === 'result') {
+            this.q('continue').hidden = !this.resumeWorker;
+            this.q('results').scrollIntoView({ block: 'start' });
+            const seconds = (data.result.search?.elapsedMs ?? performance.now() - started) / 1000;
+            this.status(`${data.result.search?.stopped ? '已停止 · ' : data.result.search?.budgetReached ? '本轮时间已到 · ' : ''}${data.result.candidates.length} 队 · ${seconds.toFixed(1)} 秒${this.resumeWorker ? ' · 可继续精算' : ''}`);
+          }
+        } else { this.finish(); this.report = null; this.q('results').replaceChildren(); this.status(data.error, true); }
       };
       this.worker.onerror = event => { if (requestId === this.generation) { this.finish(); this.status(event.message || '计算未完成，请重新尝试。', true); } };
       const sourceLabel = this.stageMode === 'manual' ? '手动试配' : this.resolvedStage.status === 'current' ? '当前舞台' : this.resolvedStage.status === 'past' ? '历史试配' : '预告试配';
@@ -347,7 +382,7 @@ class ArenaTeamWorkbench extends HTMLElement {
         this.teams.read();
         const draft = structuredClone(candidate.draft), ids = new Set(draft.slots.flatMap(s => [s.memberCardId, s.supportCardId]));
         draft.modifiers.growth = Object.fromEntries(Object.entries(draft.modifiers.growth).filter(([id]) => ids.has(id)));
-        this.teams.saveTeam({ name: `JUST · ${title}`, draft }); save.textContent = '已保存'; save.disabled = true;
+        this.teams.saveTeam({ name: `${arenaMissionNames[this.missionType]} · ${title}`, draft }); save.textContent = '已保存'; save.disabled = true;
       } catch (error) { this.status(error.message, true); }
     });
     const actions = el('div', '', 'arena-result-actions');
@@ -356,8 +391,9 @@ class ArenaTeamWorkbench extends HTMLElement {
     root.append(preview.root);
     const skills = buildArenaTeamSkills(this.rules, candidate.draft, this.cards, candidate.songs[0].samples[0].sections.map(s => s.missionType));
     const detail = el('section', '', 'arena-song-results'), table = el('table'), head = el('tr');
-    ['歌曲 / 难度', '综合力', '第 1 段 JUST', '第 2 段 JUST', '第 3 段 JUST'].forEach(text => head.append(el('th', text))); table.append(head);
-    candidate.songs.forEach((song, i) => { const row = el('tr'); [this.report.songs[i].title + ' / ' + this.report.songs[i].difficulty.toUpperCase(), number(song.power), ...[0, 1, 2].map(j => number(mean(song.samples, sample => sample.sections[j].just)))].forEach(text => row.append(el('td', text))); table.append(row); });
+    const mission = arenaMissionNames[this.missionType], key = this.missionType === 2 ? 'luckPoints' : 'just';
+    ['歌曲 / 难度', '综合力', ...[1, 2, 3].map(n => `第 ${n} 段 ${mission}`)].forEach(text => head.append(el('th', text))); table.append(head);
+    candidate.songs.forEach((song, i) => { const row = el('tr'); [this.report.songs[i].title + ' / ' + this.report.songs[i].difficulty.toUpperCase(), number(song.power), ...[0, 1, 2].map(j => number(mean(song.samples, sample => sample.sections[j][key])))].forEach(text => row.append(el('td', text))); table.append(row); });
     const wrap = el('div', '', 'arena-table-wrap'); wrap.append(table);
     detail.append(wrap, el('p', '曲池按权重汇总，计数显示各次操作均值。', 'arena-hint'));
     const insights = el('section', '', 'arena-insights'), tabs = el('div', '', 'arena-insight-tabs');
@@ -384,10 +420,10 @@ class ArenaTeamWorkbench extends HTMLElement {
   renderResults() {
     const report = this.report, root = this.q('results'), main = report.candidates[0]; root.replaceChildren();
     this.bestScore = [...report.candidates].sort((a, b) => b.sameRankScore - a.sameRankScore)[0];
-    this.preview = { mode: 'unknown', songIndex: 0, opponents: new Map() };
-    this.resultTab = 0;
-    const content = el('div'); let selected = main;
-    const picker = createArenaCandidatePicker({ report, cards: this.cards, onSelect: candidate => render(candidate) });
+    this.preview ??= { mode: 'unknown', songIndex: 0, opponents: new Map() };
+    this.resultTab ??= 0;
+    const content = el('div'); let selected = report.candidates.find(c => c.id === this.selectedCandidateId) ?? main;
+    const picker = createArenaCandidatePicker({ report, cards: this.cards, onSelect: candidate => { this.selectedCandidateId = candidate.id; render(candidate); } });
     this.previewChanged = valid => picker.update(selected.id, this.preview, valid);
     const render = candidate => {
       closeSkillPopover(this);
@@ -396,14 +432,19 @@ class ArenaTeamWorkbench extends HTMLElement {
       content.replaceChildren(this.resultCard(candidate, title, candidate.id === main.id));
     };
     const layout = el('div', '', 'arena-results-layout'); layout.append(picker.element, content);
-    root.append(layout); render(main);
+    if (report.sampling) {
+      const validation = { pending: '独立复核尚未完成', agrees: '独立复核首选一致', changed: '独立复核首选有变化，建议继续精算并比较备选' }[report.validation.status];
+      root.append(el('p', `每队每曲 ${report.sampling.min}–${report.sampling.max} 次抽样 · 已扩展 ${report.search.expansions} 轮 · ${validation}${report.pendingCandidates ? ` · ${report.pendingCandidates} 队尚未完成比较` : ''}。`, 'arena-hint'));
+    }
+    root.append(layout); render(selected);
     if (report.omitted.length) root.append(el('p', `${report.omitted.length} 队含暂未支持的技能，未参与比较。`, 'arena-hint'));
   }
   rankPreview(candidate, comparison, primary) {
     const root = el('section', '', 'arena-rank-preview'), controls = el('div', '', 'arena-rank-controls');
     controls.append(el('span', '计分情景'));
     const modes = el('div', '', 'arena-segments'); modes.setAttribute('role', 'group'); modes.setAttribute('aria-label', '名次情景');
-    const state = this.preview, count = this.report.stage.participantCount;
+    const state = this.preview, count = this.report.stage.participantCount, luck = this.missionType === 2;
+    const mission = luck ? 'LUCK' : 'JUST', key = luck ? 'luckPoints' : 'just';
     const metrics = el('dl', '', 'arena-metrics'), scoreRow = el('div'), scoreLabel = el('dt'), scoreValue = el('dd');
     scoreRow.append(scoreLabel, scoreValue);
     const loss = el('div'); loss.append(el('dt', '选错队最大损失'), el('dd', `${(candidate.worstLoss / 10000).toFixed(1)} 万`));
@@ -418,13 +459,13 @@ class ArenaTeamWorkbench extends HTMLElement {
       for (const button of modes.children) button.setAttribute('aria-pressed', String(button.dataset.mode === state.mode));
       editor.hidden = !manual;
       const opponents = state.opponents.get(index), values = { rank: manual ? undefined : state.mode === 'first' ? 1 : count, opponents };
-      if (manual && opponents.flat().some(o => !Number.isSafeInteger(o.just) || o.just < 0 || o.just > 0x7fffffff)) {
+      if (manual && opponents.flat().some(o => !Number.isSafeInteger(o[key]) || o[key] < 0 || o[key] > 0x7fffffff)) {
         scoreValue.textContent = '—'; ranks.replaceChildren(); delta.textContent = '对手计数应为非负整数。'; this.previewChanged(false); return;
       }
       const current = arenaSongPreview(candidate.songs[index], values), other = arenaSongPreview(comparison.songs[index], values);
       const score = arenaCandidateScore(candidate, state);
       const otherScore = arenaCandidateScore(comparison, state);
-      scoreLabel.textContent = unknown ? `${this.report.songs.length > 1 ? '曲池加权' : '整场'}得分范围` : manual ? '本曲试算分' : this.report.songs.length > 1 ? '曲池参考分' : '参考整场分';
+      scoreLabel.textContent = unknown ? `${this.report.songs.length > 1 ? '曲池加权' : '整场'}${luck ? '平均分范围' : '得分范围'}` : manual ? `本曲试算${luck ? '平均' : ''}分` : this.report.songs.length > 1 ? '曲池参考分' : '参考整场分';
       scoreValue.textContent = unknown ? `${(candidate.sameRankScore / 10000).toFixed(1)}–${(candidate.firstRankScore / 10000).toFixed(1)}` : (score / 10000).toFixed(1);
       scoreValue.append(el('span', '万')); scoreValue.dataset.range = String(unknown);
       scoreValue.title = unknown ? `三段末位 ${number(candidate.sameRankScore)} → 三段第一 ${number(candidate.firstRankScore)}` : number(score);
@@ -433,13 +474,14 @@ class ArenaTeamWorkbench extends HTMLElement {
       for (const [j, section] of current.sections.entries()) {
         const tile = el('div', '', 'arena-rank'); tile.dataset.first = String(!unknown && section.maxRank === 1);
         tile.dataset.varied = String(section.minRank !== section.maxRank);
-        tile.setAttribute('aria-label', `第 ${j + 1} 段 JUST：${number(section.just)} 计数${unknown ? '' : `，${rankText(section)}`}`);
-        tile.append(el('span', `${j + 1} 段`), el('strong', unknown ? number(section.just) : rankText(section)), el('small', unknown ? 'JUST' : `${number(section.just)} 计数`));
+        tile.setAttribute('aria-label', `第 ${j + 1} 段 ${mission}：${number(section[key])} ${luck ? '平均点数' : '计数'}${unknown ? '' : `，${rankText(section)}`}`);
+        tile.append(el('span', `${j + 1} 段`), el('strong', unknown ? number(section[key]) : rankText(section)), el('small', unknown ? `${mission}${luck ? ' 平均点数' : ''}` : `${number(section[key])} ${luck ? '平均点数' : '计数'}`));
+        if (luck) tile.append(el('small', `P10–P90：${number(section.p10)}–${number(section.p90)}`));
         if (manual && candidate.id !== comparison.id) tile.append(el('small', `对照 ${rankText(other.sections[j])}`, 'arena-other-rank'));
         ranks.append(tile);
       }
       const name = primary ? '同名次高分队' : '推荐队伍';
-      delta.textContent = unknown ? '得分范围对应三段末位至三段第一；推荐顺序同时考虑计数带来的名次收益。' : candidate.id === comparison.id ? '这支队伍同时拥有最高同名次得分。'
+      delta.textContent = unknown ? luck ? '平均分范围对应三段末位至三段第一；点数 P10–P90 是本次抽样分位区间，不是保底或置信区间。' : '得分范围对应三段末位至三段第一；推荐顺序同时考虑计数带来的名次收益。' : candidate.id === comparison.id ? '这支队伍同时拥有最高同名次得分。'
         : `比${name}${score >= otherScore ? '多' : '少'} ${(Math.abs(score - otherScore) / 10000).toFixed(1)} 万分`;
       delta.dataset.ahead = String(!unknown && score >= otherScore);
       this.previewChanged(true);
@@ -452,15 +494,15 @@ class ArenaTeamWorkbench extends HTMLElement {
     const resetInputs = () => {
       const index = state.songIndex; inputs.replaceChildren();
       if (!state.opponents.has(index)) state.opponents.set(index, [0, 1, 2].map(j => {
-        const midpoint = Math.round((mean(this.report.candidates[0].songs[index].samples, s => s.sections[j].just) + mean(this.bestScore.songs[index].samples, s => s.sections[j].just)) / 2);
-        return Array.from({ length: count - 1 }, (_, n) => ({ just: Math.max(0, midpoint + n), noteScore: 0, perfectCount: 0 }));
+        const midpoint = Math.round((mean(this.report.candidates[0].songs[index].samples, s => s.sections[j][key]) + mean(this.bestScore.songs[index].samples, s => s.sections[j][key])) / 2);
+        return Array.from({ length: count - 1 }, (_, n) => ({ [key]: Math.max(0, midpoint + n), noteScore: 0, perfectCount: 0 }));
       }));
       for (let j = 0; j < 3; j++) {
-        const field = el('fieldset'); field.append(el('legend', `第 ${j + 1} 段 JUST`));
+        const field = el('fieldset'); field.append(el('legend', `第 ${j + 1} 段 ${mission}`));
         state.opponents.get(index)[j].forEach((opponent, n) => {
-          const row = el('label', `对手 ${n + 1}`), input = el('input'); input.type = 'number'; input.min = '0'; input.step = '1'; input.value = opponent.just;
-          input.setAttribute('aria-label', `第 ${j + 1} 段对手 ${n + 1} JUST 计数`);
-          input.addEventListener('input', () => { opponent.just = Number(input.value); update(); }); row.append(input); field.append(row);
+          const row = el('label', `对手 ${n + 1}`), input = el('input'); input.type = 'number'; input.min = '0'; input.step = '1'; input.value = opponent[key];
+          input.setAttribute('aria-label', `第 ${j + 1} 段对手 ${n + 1} ${mission} ${luck ? '点数' : '计数'}`);
+          input.addEventListener('input', () => { opponent[key] = Number(input.value); update(); }); row.append(input); field.append(row);
         });
         inputs.append(field);
       }

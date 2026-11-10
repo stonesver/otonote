@@ -46,8 +46,13 @@ export function arenaSongPreview(song, { rank, opponents }) {
   });
   return {
     score: samples.reduce((sum, sample) => sum + sample.score, 0) / samples.length,
-    sections: song.samples[0].sections.map((_, j) => ({
+    sections: song.samples[0].sections.map((section, j) => ({
       just: song.samples.reduce((sum, sample) => sum + sample.sections[j].just, 0) / samples.length,
+      ...(section.missionType === 2 ? (() => {
+        const points = song.samples.map(sample => sample.sections[j].luckPoints).sort((a, b) => a - b);
+        return { luckPoints: points.reduce((sum, n) => sum + n, 0) / points.length,
+          p10: points[Math.ceil(points.length * 0.1) - 1], p90: points[Math.ceil(points.length * 0.9) - 1] };
+      })() : {}),
       minRank: Math.min(...samples.map(sample => sample.ranks[j])),
       maxRank: Math.max(...samples.map(sample => sample.ranks[j]))
     }))

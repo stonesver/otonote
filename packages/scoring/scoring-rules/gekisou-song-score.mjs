@@ -95,7 +95,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     performanceInput ? (performance.version.includes('timing') ? '按相同原始偏差比较各队；判定窗口与转换技能分别生效。' : '按明确判定回放；没有原始偏差，无法据此衡量扩窗收益。') : scenario.timingOffsetMs === 0 ? 'AP＋零毫秒偏差：可判 JUST 的音符按 JUST；这比一般 AP 更理想。' : `AP＋固定 ${scenario.timingOffsetMs} 毫秒偏差；JUST 扩大和转换技能参与判定。`,
     'LUCK 按正式概率抽样，固定种子可复算；样本最低/最高分不是理论极值。至少两批才能估计抽样标准误。'];
 
-  function calculate(draft, { includeTrace = false, includeRankingSamples = false, rankingOnly = false } = {}) {
+  function calculate(draft, { includeTrace = false, includeRankingSamples = false, rankingOnly = false, samplePlan = null } = {}) {
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error('歌曲或难度与谱面不一致');
     if (referenceProfile && draft.modifiers?.event?.id != null) throw new Error('Reference profile cannot use an event');
     const referenceSkills = referenceProfile && Array.from({ length: 5 }, () => ({ liveEffects: [{ type: 2000,
@@ -119,7 +119,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const states = replay.states.map(s => ({ ...s, noteScore: 0, finalNoteScore: 0 }));
       const comboViews = states.map(() => ({ history: [], length: 0 }));
       const ordinaryCommands = replay.ordinaryCommands ?? liveSkillCommands(order, perfect, timeline.skillTimes, scenario.frameRate, just, replay.clock);
-      const commandKey = JSON.stringify(ordinaryCommands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c));
+      const commandKey = performanceInput ? null : JSON.stringify(ordinaryCommands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c));
       const cacheKey = !performanceInput && !randomSampling && !trace && !eventAdapters.length && pipeline.context.id == null
         ? (ownerSensitive ? JSON.stringify(ordinaryCommands) : commandKey) : null;
       if (cacheKey !== null && orderCache.has(cacheKey)) return orderCache.get(cacheKey);
@@ -135,7 +135,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
         return bonus.additionalScore;
       }, { confirmationDelayFrames: scenario.confirmationDelayFrames }));
       const ordinaryCombo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
-      const scoreReplay = replayScoreTimeline({ events: replay.events, commands, frameActions, frameRate: scenario.frameRate, clock: replay.clock,
+      const scoreReplay = replayScoreTimeline({ events: replay.events, commands, frameActions, frameRate: scenario.frameRate, clock: replay.clock, retainNotes: !rankingOnly || trace,
         beforeInputs: notes => { for (const note of notes) ordinaryCombo?.add(note.timeMs, note.judgement); },
         scoreNote(event, factor) {
           const s = states[event.sectionIndex - 1], judgement = event.judgement;
@@ -145,7 +145,11 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
           const comboFactor = s?.missionType === 1 ? f32(ordinaryComboFactor * gekisouComboFactor(rules, combo)) : ordinaryComboFactor;
           const scoreUpFactor = f32(factor.general + (factor[{3:'good',4:'great',5:'perfect',6:'just'}[judgement]] ?? 0));
           const luckPercent = 100 + factor.luck;
-          const params = { ...common, currentLife: event.lifeAtInput ?? common.currentLife, noteFactorPercent: event.weight, judgementFactorPercent: judgementPercent.get(judgement),
+          const params = { totalPower: common.totalPower, scoreAdjustmentFactor: common.scoreAdjustmentFactor,
+            musicScoreLevelFactor: common.musicScoreLevelFactor, convertedNoteCount: common.convertedNoteCount,
+            eventBonusFactor: common.eventBonusFactor, lifeOnusFactor: common.lifeOnusFactor,
+            assistModeNoteScoreFactor: common.assistModeNoteScoreFactor, currentLife: event.lifeAtInput ?? common.currentLife,
+            noteFactorPercent: event.weight, judgementFactorPercent: judgementPercent.get(judgement),
             comboBonusFactor: comboFactor, scoreUpFactor, luckScoreFactorPercent: Math.min(200, luckPercent) };
           const score = calculateFormalNoteCore(pipeline.apply('note_score', params, { draft, note: event, sectionIndex: s?.index })).score;
           return { score, scoreUpFactor, comboFactor, luckPercent, combo };
@@ -195,8 +199,15 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     const rankCounts = ranges.map(()=>[0,0,0,0,0]);
     const rankingSamples = [];
     let sum = 0, bonusSum = 0, minimum = Infinity, maximum = -Infinity, best, worst;
-    for (let batch = 0; batch < batches; batch++) for (const [index, order] of orders.entries()) {
-      const seed = (scenario.seed + Math.imul(batch * orders.length + index + 1, 2654435761)) >>> 0;
+    // Incremental ranking alone accepts a joint order/lottery sample plan.
+    // Full scoring retains its exhaustive orders and existing variance model.
+    function* runs() {
+      if (rankingOnly && samplePlan) { yield* samplePlan; return; }
+      for (let batch = 0; batch < batches; batch++) for (const [index, order] of orders.entries()) {
+        yield { order, seed: (scenario.seed + Math.imul(batch * orders.length + index + 1, 2654435761)) >>> 0 };
+      }
+    }
+    for (const { order, seed } of runs()) {
       const result = run(order, seed);
       if (includeRankingSamples || rankingOnly) rankingSamples.push({ noteScore: result.noteScore,
         sections: result.sections.map(({ index, missionType, noteScore, just, combo, luckPoints, perfectCount }) =>
@@ -263,5 +274,5 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       scoreUpFactor: f32(ordinaryFactor + 10 * supportBound + 1), luckScoreFactorPercent: 200,
       convertedNoteCount: timeline.convertedNoteCount, eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000 }).score, 0) * (1 + maxRank / 100));
   }
-  return { calculate, calculateRankingSamples: draft => calculate(draft, { rankingOnly: true }), timeline: { ...timeline, warnings }, scenario, upperBound };
+  return { calculate, calculateRankingSamples: (draft, { samplePlan } = {}) => calculate(draft, { rankingOnly: true, samplePlan }), timeline: { ...timeline, warnings }, scenario, upperBound };
 }

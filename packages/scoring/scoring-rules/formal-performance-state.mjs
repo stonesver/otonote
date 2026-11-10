@@ -30,7 +30,8 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
     while (lo < hi) { const mid = (lo + hi) >>> 1; if (occupied[mid] < value) lo = mid + 1; else hi = mid; }
     return lo;
   };
-  let cacheBucket = -1, cache = { life: maximumLife, guard: 0, reduction: 0 };
+  const initial = { life: maximumLife, guard: 0, reduction: 0 };
+  let cacheBucket = -1, cache = initial;
   function add(command) {
     const bucket = bucketOf(command.timeMs);
     if (!buckets.has(bucket)) {
@@ -45,14 +46,16 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
   }
   function at(timeMs) {
     const target = bucketOf(timeMs), reuse = cacheBucket >= 0 && cacheBucket < target;
-    let state = reuse ? { ...cache } : { life: maximumLife, guard: 0, reduction: 0 };
+    // applyLifeCommand returns a new state; neither commands nor callers can
+    // mutate this prefix. Repeated frame queries need no defensive copies.
+    let state = reuse ? cache : initial;
     const first = reuse ? cacheBucket + 1 : 0;
     // Empty buckets are identity transitions. Skip them without changing the
     // native cached prefix or its cursor-only invalidation after late input.
     for (let i = lowerBucket(first); i < occupied.length && occupied[i] < target; i++) {
       for (const command of buckets.get(occupied[i])) state = applyLifeCommand(state, command, maximumLife);
     }
-    if (cacheBucket < target || cacheBucket < 0) { cacheBucket = target - 1; cache = { ...state }; }
+    if (cacheBucket < target || cacheBucket < 0) { cacheBucket = target - 1; cache = state; }
     for (const command of buckets.get(target) ?? []) {
       if (command.timeMs > timeMs) break;
       state = applyLifeCommand(state, command, maximumLife);

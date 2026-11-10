@@ -5,12 +5,28 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
 import { createPerformanceTemplate, createPerformanceSongCalculator, validatePerformance } from '../../packages/scoring/scoring-rules/formal-performance-replay.mjs';
-import { createPerformanceScenario, normalizePerformanceScenario, resolveTimingJudgement } from '../../packages/scoring/scoring-rules/performance-scenarios.mjs';
+import { createPerformanceScenario, normalizePerformanceScenario, resolveTimingJudgement, createTimingJudgementResolver } from '../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { createScenarioSongCalculator } from '../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
 import { createGekisouSongCalculator } from '../../packages/scoring/scoring-rules/gekisou-song-score.mjs';
 import { replayGekisouFrames } from '../../packages/scoring/scoring-rules/gekisou-frame-replay.mjs';
 
 const rules = JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json', import.meta.url)));
+test('prepared timing windows preserve priority, critical notes, expansion and explicit outcomes', () => {
+  const resolve = createTimingJudgementResolver(rules);
+  for (const type of [1,20,21,22,40,41,42,60,61,62,63,101,102,104,105,120]) {
+    for (const critical of [false, true]) for (const justEnabled of [false, true]) {
+      for (const timingOffsetMs of [-200,-100,-50,-30,-20,-10,0,10,20,30,50,100,200]) {
+        for (const extra of [0,10]) {
+          const event = { type, critical, timingOffsetMs }, options = { justEnabled, justExpansion: () => extra };
+          assert.equal(resolve(event, options), resolveTimingJudgement(rules, event, options));
+        }
+      }
+    }
+  }
+  assert.equal(resolve({ missed: true }), 1);
+  assert.equal(resolve({ originalJudgement: 4, missed: true }), 4);
+  assert.throws(() => resolve({ type: -1, timingOffsetMs: 0 }), /Unsupported native note operate type/);
+});
 function fixture(times = [100,200,300,400,1000,1100,1200,2100,3100,4100,5100,6100,7100]) {
   const r = structuredClone(rules);
   const c = { id: 'music-chart-10000103', trackId: 'music-100001', difficulty: 'expert', bpmEvents: [{tick:0,bpm:125}],

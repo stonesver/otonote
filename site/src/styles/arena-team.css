@@ -32,12 +32,14 @@ arena-team-workbench { display:block; }
 .arena-settings-edit { margin-left:auto; font-weight:500; color:var(--arena-accent); }
 .arena-settings[open] .arena-settings-edit { font-size:0; }
 .arena-settings[open] .arena-settings-edit::after { content:'收起'; font-size:12px; }
-.arena-controls { display:grid; grid-template-columns:1fr 1fr; gap:24px; padding:6px 0 14px; }
+.arena-controls { display:grid; grid-template-columns:minmax(0,.95fr) minmax(0,1.15fr); grid-template-rows:auto 1fr; gap:20px 24px; padding:6px 0 14px; }
+.arena-controls>[data-arena-stage] { grid-column:1; grid-row:1; }
+.arena-controls>.arena-skill-settings { grid-column:1; grid-row:2; }
+.arena-controls>.arena-pool-controls { grid-column:2; grid-row:1 / span 2; border-left:1px solid var(--arena-line); padding-left:24px; }
 .arena-controls>section { min-width:0; }
 .arena-controls h2 { font-size:14px; margin:0 0 16px; }
 .arena-setup-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .arena-setup-heading h2 { margin:0; }
-.arena-controls>section+section { border-left:1px solid var(--arena-line); padding-left:24px; }
 .arena-controls label { display:grid; gap:5px; margin:8px 0; font-size:12px; color:var(--arena-muted); }
 .arena-controls :is(input,select) { color:var(--arena-ink); font-size:13px; }
 .arena-controls select,.arena-performance select { appearance:none; padding-right:28px; border-color:var(--arena-line); background:var(--tool-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%23655e63' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center; }
@@ -138,8 +140,23 @@ arena-team-workbench { display:block; }
 .arena-song-choice [aria-pressed=true] { outline:2px solid var(--arena-accent); outline-offset:1px; }
 .arena-song-dialog>header,.arena-song-batch,.arena-song-dialog>footer { flex-shrink:0; }
 .arena-pool-toolbar>div { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
-.arena-skill-settings { margin-top:14px; border-top:1px solid var(--arena-line); padding-top:12px; }
-.arena-skill-settings>summary { cursor:pointer; font-size:12px; font-weight:600; }
+.arena-skill-settings { border-top:1px solid var(--arena-line); padding-top:16px; }
+.arena-skill-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:8px 16px; margin-bottom:10px; }
+.arena-controls .arena-skill-toolbar label { margin:0; }
+.arena-skill-settings .tool-options { gap:6px; }
+.arena-studio .arena-skill-settings .tool-options button { min-height:34px; padding:6px 10px; border:1px solid var(--arena-line); font-size:12px; }
+.arena-studio .arena-skill-settings .tool-options.tool-choice-group button[aria-pressed=true] { color:white; background:var(--arena-accent); border-color:var(--arena-accent); }
+.arena-studio [data-arena-limits-open] { color:var(--arena-accent); border-color:var(--arena-accent); background:transparent; font-size:12px; }
+.arena-limits-dialog { width:560px; max-width:calc(100vw - 24px); max-height:85dvh; overflow:auto; margin:auto; padding:20px; border:1px solid var(--arena-line); border-radius:12px; background:var(--tool-surface); color:var(--arena-ink); }
+.arena-limits-dialog::backdrop { background:#11131b66; }
+.arena-limits-dialog>header,.arena-limits-dialog>footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.arena-limits-dialog>header { margin-bottom:16px; }
+.arena-limits-dialog>header h2 { margin:0; font-size:17px; }
+.arena-limits-dialog>header button { font-size:22px; padding:0 8px; }
+.arena-limits-dialog>footer { padding-top:12px; border-top:1px solid var(--arena-line); }
+.arena-limits-dialog>.arena-hint { margin:12px 0; }
+.arena-limits-dialog [data-arena-limits-error] { color:var(--color-danger,#b14858); }
+.arena-studio [data-arena-limits-apply] { color:white; background:var(--arena-accent); }
 .arena-skill-limits { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .arena-skill-limits fieldset { margin:0; padding:8px; min-width:0; border:1px solid var(--arena-line); border-radius:8px; }
 .arena-skill-limits legend { font-size:11px; color:var(--arena-muted); }
@@ -168,6 +185,14 @@ arena-team-workbench { display:block; }
 .arena-studio .arena-song-difficulties button { padding:3px 6px; min-height:24px; font-size:10px; border-radius:4px; }
 .arena-controls .arena-song-weight { display:flex; align-items:center; gap:4px; margin:0; font-size:10px; white-space:nowrap; }
 .arena-controls .arena-song-weight input { width:44px; min-height:24px; padding:2px 4px; font-size:11px; text-align:center; border-color:var(--arena-line); }
+.arena-pool-controls:not([data-custom-weights]) .arena-song-weight { display:none; }
+.arena-song-importance { margin:10px 0; font-size:12px; }
+.arena-song-importance>summary { color:var(--arena-accent); width:fit-content; padding:4px 0; }
+.arena-song-importance>summary::before { content:'▸'; margin-right:6px; }
+.arena-song-importance[open]>summary::before { content:'▾'; }
+.arena-song-importance>.arena-hint { margin:8px 0; }
+.arena-controls .arena-song-importance label { display:flex; align-items:center; gap:8px; }
+.arena-song-importance input[type=checkbox] { width:16px; height:16px; min-height:0; margin:0; accent-color:var(--arena-accent); }
 .arena-pool-controls>.arena-hint { margin:6px 0 0; }
 .arena-performance { position:relative; flex:none; }
 .arena-performance summary { display:flex; align-items:center; gap:5px; padding:4px 7px; min-height:26px; border:1px solid var(--arena-line); border-radius:5px; font-size:11px; color:var(--arena-muted); background:var(--tool-surface); }
@@ -408,7 +433,9 @@ arena-team-workbench { display:block; }
 .arena-candidate-pager span { color:var(--arena-muted); font-size:11px; }
 @media(max-width:1000px) {
   .arena-studio { padding:20px 16px 120px; }
-  .arena-controls { grid-template-columns:1fr 1fr; gap:20px; }
+  .arena-controls { grid-template-columns:1fr; grid-template-rows:auto; gap:18px; }
+  .arena-controls>[data-arena-stage],.arena-controls>.arena-skill-settings,.arena-controls>.arena-pool-controls { grid-column:1; grid-row:auto; }
+  .arena-controls>.arena-pool-controls { border-left:0; border-top:1px solid var(--arena-line); padding:16px 0 0; }
   .arena-results-layout { grid-template-columns:1fr; gap:12px; }
   .arena-candidate-picker { position:static; padding-bottom:14px; border-bottom:1px solid var(--arena-line); }
   .arena-candidate-featured { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -422,7 +449,7 @@ arena-team-workbench { display:block; }
   .arena-heading h1 { font-size:24px; }
   .arena-heading p { font-size:12px; }
   .arena-controls { grid-template-columns:1fr; gap:18px; }
-  .arena-controls>section+section { border-top:1px solid var(--arena-line); border-left:0; padding:16px 0 0; }
+  .arena-skill-limits { grid-template-columns:1fr; }
   .arena-settings-summary { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .arena-settings>summary { gap:8px; }
   .arena-settings>summary>span:first-child,.arena-settings-edit { flex:none; }

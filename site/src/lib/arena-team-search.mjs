@@ -87,35 +87,35 @@ export async function generateJustCandidates(rules, profile, context, songs, { o
 }
 
 export async function evaluateArenaCandidates({ rules, context, songs, performance, candidates }, { onProgress, yieldControl = async () => {} } = {}) {
-  const calculators = songs.map(song => {
-    return Array.from({ length: performance.samples }, (_, sample) => createGekisouSongCalculator(rules, song.chart, {
+  const evaluated = candidates.map(candidate => ({ ...candidate, songs: [] })), omitted = new Map();
+  // Retain one song's replay setup per worker, independent of pool size.
+  // Candidate/song/sample order in the returned matrix remains unchanged.
+  for (const [s, song] of songs.entries()) {
+    const calculators = Array.from({ length: performance.samples }, (_, sample) => createGekisouSongCalculator(rules, song.chart, {
       performance: createPerformanceScenario(rules, song.chart, performance, sample), performanceOrder: 'sampled',
       scenario: { ranks: Array(3).fill(context.participantCount), frameRate: performance.frameRate }, scorePrecision: 'full'
     }));
-  });
-  const evaluated = [], omitted = [];
-  for (const [index, candidate] of candidates.entries()) {
-    const rows = [];
-    try {
-      for (const [s, song] of songs.entries()) {
+    for (const [index, candidate] of evaluated.entries()) {
+      if (!omitted.has(candidate.id)) try {
         const samples = []; let power;
-        for (const calculator of calculators[s]) {
+        for (const calculator of calculators) {
           const result = calculator.calculateRankingSamples({ ...candidate.draft, selectedSongId: song.trackId, selectedDifficulty: song.difficulty });
           if (result.randomSampling) throw Error('本版 JUST 比较暂不支持带随机效果的候选');
           power = result.power;
           samples.push(...result.rankingSamples.map(sample => arenaRankingSample(rules, sample, sample.sections.map(section => section.missionType), context.participantCount)));
           await yieldControl();
         }
-        rows.push({ power, samples });
-        onProgress?.({ phase: 'evaluate', completed: index * songs.length + s + 1, total: candidates.length * songs.length, candidates: candidates.length });
+        candidate.songs.push({ power, samples });
+      } catch (error) {
+        if (!(error instanceof UnsupportedSkillMechanismError)) throw error;
+        candidate.songs = [];
+        omitted.set(candidate.id, { id: candidate.id, reason: error.message, ...error.detail });
       }
-      evaluated.push({ ...candidate, songs: rows });
-    } catch (error) {
-      if (!(error instanceof UnsupportedSkillMechanismError)) throw error;
-      omitted.push({ id: candidate.id, reason: error.message, ...error.detail });
+      onProgress?.({ phase: 'evaluate', completed: s * candidates.length + index + 1, total: candidates.length * songs.length, candidates: candidates.length });
     }
   }
-  return { evaluated, omitted };
+  return { evaluated: evaluated.filter(candidate => !omitted.has(candidate.id)),
+    omitted: candidates.filter(candidate => omitted.has(candidate.id)).map(candidate => omitted.get(candidate.id)) };
 }
 
 export async function searchArenaTeams({ rules: sourceRules, profile, stage, songs, performanceScenario, cardScope = 'owned', skillPreferences }, { onProgress, yieldControl = async () => {}, evaluateCandidates = evaluateArenaCandidates } = {}) {

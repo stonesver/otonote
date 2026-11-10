@@ -119,7 +119,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       const states = replay.states.map(s => ({ ...s, noteScore: 0, finalNoteScore: 0 }));
       const comboViews = states.map(() => ({ history: [], length: 0 }));
       const ordinaryCommands = replay.ordinaryCommands ?? liveSkillCommands(order, perfect, timeline.skillTimes, scenario.frameRate, just, replay.clock);
-      const commandKey = JSON.stringify(ordinaryCommands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c));
+      const commandKey = !performanceInput && JSON.stringify(ordinaryCommands.slice().sort(compareScoreFactors).map(({ ownerId, ...c }) => c));
       const cacheKey = !performanceInput && !randomSampling && !trace && !eventAdapters.length && pipeline.context.id == null
         ? (ownerSensitive ? JSON.stringify(ordinaryCommands) : commandKey) : null;
       if (cacheKey !== null && orderCache.has(cacheKey)) return orderCache.get(cacheKey);
@@ -136,6 +136,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       }, { confirmationDelayFrames: scenario.confirmationDelayFrames }));
       const ordinaryCombo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
       const scoreReplay = replayScoreTimeline({ events: replay.events, commands, frameActions, frameRate: scenario.frameRate, clock: replay.clock,
+        retainNotes: !rankingOnly,
         beforeInputs: notes => { for (const note of notes) ordinaryCombo?.add(note.timeMs, note.judgement); },
         scoreNote(event, factor) {
           const s = states[event.sectionIndex - 1], judgement = event.judgement;

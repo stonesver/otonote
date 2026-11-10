@@ -3,6 +3,7 @@ import { createPersonalGrowthStore } from './personal-growth-store.mjs';
 import { createTeamWorkspaceStore } from './team-workspace-store.mjs';
 import { buildArenaTeamSkills, arenaMissionNames } from './arena-team-skills.mjs';
 import { calculationParallelism } from './calculation-worker-pool.mjs';
+import { createBoundedChartLoader } from './bounded-chart-loader.mjs';
 import { arenaCandidateScore, arenaSongPreview } from './arena-team-preview.mjs';
 import { createArenaCandidatePicker } from './arena-candidate-picker.mjs';
 import { createTeamCardView } from './team-card-view.mjs';
@@ -29,7 +30,7 @@ class ArenaTeamWorkbench extends HTMLElement {
     this.events = new AbortController();
     const listen = (target, type, fn) => target.addEventListener(type, fn, { signal: this.events.signal });
     listen(this.q('form'), 'submit', event => { event.preventDefault(); this.run(); });
-    listen(this.q('form'), 'input', () => this.invalidate());
+    listen(this.q('form'), 'input', event => { if (!this.q('limits-dialog').contains(event.target)) this.invalidate(); });
     this.q('form').addEventListener('invalid', event => {
       this.q('settings').open = true;
       const details = event.target.closest('details'); if (details) details.open = true;
@@ -41,6 +42,30 @@ class ArenaTeamWorkbench extends HTMLElement {
     listen(this.q('edit'), 'click', () => { this.q('settings').open = true; this.q('settings').scrollIntoView({ block: 'start' }); this.q('settings').querySelector('summary').focus(); });
     listen(this.q('method-open'), 'click', () => this.q('method-dialog').showModal());
     listen(this.q('method-close'), 'click', () => this.q('method-dialog').close());
+    const limitsDialog = this.q('limits-dialog'), limitFields = [...limitsDialog.querySelectorAll('select')];
+    let savedLimits;
+    listen(this.q('limits-open'), 'click', () => {
+      savedLimits = limitFields.map(field => field.value);
+      this.q('limits-error').textContent = ''; limitsDialog.showModal();
+    });
+    listen(this.q('limits-close'), 'click', () => limitsDialog.close());
+    listen(limitsDialog, 'close', () => {
+      if (savedLimits) limitFields.forEach((field, i) => { field.value = savedLimits[i]; });
+      this.updateSetupSummary();
+    });
+    listen(this.q('limits-reset'), 'click', () => {
+      limitFields.forEach(field => { field.value = field.name.endsWith('-min') ? '0' : '5'; });
+      this.q('limits-error').textContent = '';
+    });
+    listen(this.q('limits-apply'), 'click', () => {
+      try {
+        this.skillPreferences(); savedLimits = null; limitsDialog.close(); this.invalidate();
+      } catch (error) { this.q('limits-error').textContent = error.message; }
+    });
+    listen(this.q('custom-weights'), 'change', () => {
+      if (!this.q('custom-weights').checked) this.songs.forEach(song => { song.weight = 1; });
+      this.renderSongs(); this.updateSetupSummary();
+    });
     this.songPicker = createArenaSongPicker({ charts: this.data.charts, onChange: songs => {
       this.songs = songs;
       this.invalidate(); this.renderSongs();
@@ -49,6 +74,7 @@ class ArenaTeamWorkbench extends HTMLElement {
     const iconRoot = `/content/releases/${bandIcons.releaseId}/public/`;
     for (const option of this.q('form').elements.bandId.options) option.dataset.icon = `${iconRoot}images/filter-bands/band-${option.value}.png`;
     this.stageOptions = setupQuickOptions(this.q('stage'));
+    this.skillOptions = setupQuickOptions(this.q('skills'));
     this.stageMode = 'schedule'; this.stageReady = false; this.q('run').disabled = true;
     const params = new URLSearchParams(location.search);
     this.stageSeason = params.get('season'); this.stagePeriod = params.get('regulation') ?? '';
@@ -77,7 +103,7 @@ class ArenaTeamWorkbench extends HTMLElement {
     this.refreshProfile();
     this.updateSetupSummary();
   }
-  disconnectedCallback() { this.generation++; this.worker?.terminate(); this.loading?.abort(); this.events?.abort(); this.stageOptions?.destroy(); this.songPicker?.element.remove(); this.songOptions?.destroy(); clearInterval(this.stageTimer); destroySkillPopover(this); }
+  disconnectedCallback() { this.generation++; this.worker?.terminate(); this.loading?.abort(); this.events?.abort(); this.stageOptions?.destroy(); this.skillOptions?.destroy(); this.songPicker?.element.remove(); this.songOptions?.destroy(); clearInterval(this.stageTimer); destroySkillPopover(this); }
   stageRequest() {
     return { ...currentServerContext(), sourceReleaseId: this.rules.sourceReleaseId,
       bandId: this.q('form').elements.bandId.value, seasonId: this.stageSeason, regulationId: this.stagePeriod };
@@ -172,7 +198,11 @@ class ArenaTeamWorkbench extends HTMLElement {
       `${form.cardScope.value === 'reference' ? '全卡库满养成' : '我的养成'} · ${this.songs.length} 首歌`;
     this.q('performance-summary').textContent = `稳定 FC · ±${form.timingSpreadMs.value || '—'}ms${form.samples.value === '1' ? '' : ` · ${form.samples.value}组`}`;
     this.q('dock-summary').textContent = `${form.bandId.selectedOptions[0]?.text ?? '选择乐队'} · ${this.songs.length ? `${this.songs.length} 首歌` : '未选歌曲'} · ${form.participantCount.value} 人`;
-    this.q('pool-hint').textContent = `已选 ${this.songs.length} 首 · 默认等权 · 人数只影响名次奖励`;
+    this.q('pool-hint').textContent = `已选 ${this.songs.length} 首 · ${form.customWeights.checked ? '自定义重要程度' : '同等重要'} · 人数只影响名次奖励`;
+    if (!this.q('limits-dialog').open) {
+      const limits = [...this.q('limits-dialog').querySelectorAll('select')].filter(field => Number(field.value) !== (field.name.endsWith('-min') ? 0 : 5)).length;
+      this.q('limits-open').textContent = `数量限制 · ${limits ? `已设 ${limits} 项` : '未设置'}`;
+    }
     this.querySelector('[data-add-song]').disabled = !this.stageTracks?.length;
     this.q('all-songs').disabled = !this.stageTracks?.length;
     this.q('song-empty').hidden = this.songs.length > 0;
@@ -208,15 +238,18 @@ class ArenaTeamWorkbench extends HTMLElement {
   }
   renderSongs() {
     this.songOptions?.destroy();
+    const customWeights = this.q('custom-weights').checked;
+    this.querySelector('.arena-pool-controls').toggleAttribute('data-custom-weights', customWeights);
     this.querySelector('[data-song-list]').replaceChildren(...this.songs.map((song, index) => {
       const row = el('li'), weight = el('input'), remove = el('button', '×'), difficulty = el('select');
-      const controls = el('div', '', 'arena-song-options'), difficultyLabel = el('div', '', 'arena-song-difficulties'), weightLabel = el('label', '权重');
+      const controls = el('div', '', 'arena-song-options'), difficultyLabel = el('div', '', 'arena-song-difficulties'), weightLabel = el('label', '重要程度');
       weightLabel.className = 'arena-song-weight';
       this.fillDifficulties(difficulty, song.trackId, song.difficulty);
       difficulty.setAttribute('aria-label', `${song.title} 统一难度`);
       difficulty.addEventListener('input', () => { song.difficulty = difficulty.value; });
       weight.type = 'number'; weight.min = '0.01'; weight.max = '10000'; weight.step = 'any'; weight.value = song.weight;
-      weight.setAttribute('aria-label', `${song.title} 歌曲权重`);
+      weight.disabled = !customWeights;
+      weight.setAttribute('aria-label', `${song.title} 重要程度`);
       weight.addEventListener('input', () => { song.weight = Number(weight.value); });
       remove.type = 'button'; remove.setAttribute('aria-label', `移除 ${song.title}`);
       remove.addEventListener('click', () => { this.songs.splice(index, 1); this.invalidate(); this.renderSongs(); });
@@ -233,6 +266,12 @@ class ArenaTeamWorkbench extends HTMLElement {
       button.querySelector('span').textContent = button.textContent.replace(/EASY|NORMAL|HARD|EXPERT/, short);
     }
   }
+  skillPreferences() {
+    const form = new FormData(this.q('form'));
+    return normalizeArenaSkillPreferences({ preference: form.get('skillPreference'), limits:
+      Object.fromEntries(['member', 'support'].map(kind => [kind, Object.fromEntries(Object.keys(arenaSkillRoles)
+        .map(role => [role, Object.fromEntries(['min', 'max'].map(bound => [bound, Number(form.get(`skill-${kind}-${role}-${bound}`))]))]))])) });
+  }
   async run() {
     this.invalidate(); const requestId = this.generation, started = performance.now();
     try {
@@ -242,9 +281,7 @@ class ArenaTeamWorkbench extends HTMLElement {
       const cardScope = form.get('cardScope');
       if (cardScope === 'owned' && !this.profile) throw Error('请从「卡库与队伍」导入养成，或选择全卡库参考。');
       if (!this.songs.length) throw Error('请选歌，或全选当前乐队。');
-      const skillPreferences = normalizeArenaSkillPreferences({ preference: form.get('skillPreference'), limits:
-        Object.fromEntries(['member', 'support'].map(kind => [kind, Object.fromEntries(Object.keys(arenaSkillRoles)
-          .map(role => [role, Object.fromEntries(['min', 'max'].map(bound => [bound, Number(form.get(`skill-${kind}-${role}-${bound}`))]))]))])) });
+      const skillPreferences = this.skillPreferences();
       let stage;
       if (this.stageMode === 'schedule') {
         const resolved = resolveArenaStage(this.stageData, this.stageRequest());
@@ -258,15 +295,16 @@ class ArenaTeamWorkbench extends HTMLElement {
       const profile = structuredClone(this.profile), songs = structuredClone(this.songs);
       this.q('run').disabled = true; this.q('cancel').hidden = false; this.loading = new AbortController();
       this.status('读取完整谱面…');
-      for (const song of songs) {
-        const info = this.data.charts.find(c => c.trackId === song.trackId && c.difficulty === song.difficulty);
-        const response = await fetch(info.analysisDataUrl, { signal: this.loading.signal });
-        if (!response.ok) throw Error(`${song.title} 谱面加载失败（${response.status}）`);
-        const chart = await response.json();
-        // The URL comes from this page's pinned content catalog. Older chart
-        // documents omit the release field; bind them at this loading boundary.
-        song.chart = { ...chart, sourceReleaseId: chart.sourceReleaseId ?? this.rules.sourceReleaseId };
-      }
+      const charts = songs.map(song => this.data.charts.find(c => c.trackId === song.trackId && c.difficulty === song.difficulty));
+      const loader = createBoundedChartLoader({ candidates: charts, signal: this.loading.signal, concurrency: 4, lookahead: 3 });
+      try {
+        for (const [index, song] of songs.entries()) {
+          const chart = await loader.loadChart(charts[index]);
+          // The URL comes from this page's pinned content catalog. Older chart
+          // documents omit the release field; bind them at this loading boundary.
+          song.chart = { ...chart, sourceReleaseId: chart.sourceReleaseId ?? this.rules.sourceReleaseId };
+        }
+      } finally { await loader.close(); }
       if (requestId !== this.generation) return;
       this.worker = new Worker(new URL('./arena-team-worker.mjs', import.meta.url), { type: 'module' });
       this.q('progress').hidden = false;
@@ -292,7 +330,7 @@ class ArenaTeamWorkbench extends HTMLElement {
       const sourceLabel = this.stageMode === 'manual' ? '手动试配' : this.resolvedStage.status === 'current' ? '当前舞台' : this.resolvedStage.status === 'past' ? '历史试配' : '预告试配';
       this.q('condition-summary').textContent = `${sourceLabel} · ${cardScope === 'reference' ? '全卡库满养成' : '我的养成'} · ${this.q('form').elements.bandId.selectedOptions[0].text} · ${this.data.attributes.find(a => Number(a.code) === stage.musicType)?.name ?? '原曲'} · ${songs.length} 首歌`;
       this.worker.postMessage({ requestId, workers: calculationParallelism(), payload: { rules: this.rules, profile, stage, songs, performanceScenario, cardScope, skillPreferences } });
-    } catch (error) { if (requestId === this.generation) { this.finish(); this.status(error.message, true); } }
+    } catch (error) { if (requestId === this.generation) { this.loading?.abort(); this.finish(); this.status(error.message, true); } }
   }
   skillBadges(skill) {
     const badges = el('div', '', 'arena-skill-badges');
@@ -375,7 +413,7 @@ class ArenaTeamWorkbench extends HTMLElement {
     ['歌曲 / 难度', '综合力', '第 1 段 JUST', '第 2 段 JUST', '第 3 段 JUST'].forEach(text => head.append(el('th', text))); table.append(head);
     candidate.songs.forEach((song, i) => { const row = el('tr'); [this.report.songs[i].title + ' / ' + this.report.songs[i].difficulty.toUpperCase(), number(song.power), ...[0, 1, 2].map(j => number(mean(song.samples, sample => sample.sections[j].just)))].forEach(text => row.append(el('td', text))); table.append(row); });
     const wrap = el('div', '', 'arena-table-wrap'); wrap.append(table);
-    detail.append(wrap, el('p', '曲池按权重汇总，计数显示各次操作均值。', 'arena-hint'));
+    detail.append(wrap, el('p', '歌曲按设定的重要程度汇总，计数显示各次操作均值。', 'arena-hint'));
     const insights = el('section', '', 'arena-insights'), tabs = el('div', '', 'arena-insight-tabs');
     tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', '队伍详情');
     const panels = [this.lineup(candidate, skills), preview.detail, detail], buttons = [];

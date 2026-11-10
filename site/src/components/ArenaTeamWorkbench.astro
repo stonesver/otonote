@@ -3,6 +3,7 @@ import { catalog, getAsset } from '../lib/catalog';
 import { sharedTeamData } from '../lib/shared-team-data.mjs';
 import { scoringRulesAvailable } from '../lib/scoring-release-gate.mjs';
 import ScoringUnavailable from './ScoringUnavailable.astro';
+import { arenaSkillRoles } from '../lib/arena-skill-policy.mjs';
 import formalRules from '../data/formal-scoring-rules.json';
 const available = scoringRulesAvailable(formalRules, catalog.release.id);
 const data = available ? sharedTeamData() : { bands: [] };
@@ -25,6 +26,17 @@ const client = JSON.stringify({ ...data,
           <dialog class="arena-period-dialog" data-arena-period-dialog aria-label="选择舞台场次"><header><h2>舞台场次</h2><button type="button" data-arena-period-close aria-label="关闭场次选择">×</button></header><div class="arena-period-toolbar"><button type="button" data-arena-period-current>跟随当前舞台</button><small data-arena-period-zone></small></div><div class="arena-period-list" data-arena-period-list></div></dialog>
           <div data-arena-manual hidden><label class="arena-attribute-field">舞台属性<select name="musicType" data-quick><option value="" selected hidden>选择属性</option><option value="0">原曲</option>{catalog.cardTaxonomy.attributes.map(a=><option value={a.code} data-icon={data.filterVisualOptions.attribute.find(v=>v.value===String(a.code))?.icon} data-icon-only>{a.names[catalog.release.locale]}</option>)}</select></label><p class="arena-hint">JUST / JUST / JUST</p></div>
           <label class="arena-player-field">对局人数<select name="participantCount" data-quick>{[5,4,3,2].map(n=><option value={n}>{n} 人</option>)}</select></label>
+          <label>使用卡片<select name="cardScope"><option value="owned">我的卡库</option><option value="reference">全卡库参考 · 满养成</option></select></label>
+          <p class="arena-hint" data-arena-card-scope-note>按个人卡库的实际养成计算。</p>
+          <details class="arena-skill-settings"><summary>技能限制与偏好</summary>
+            <label>推荐倾向<select name="skillPreference" data-quick-native><option value="none">不偏好</option>{Object.entries(arenaSkillRoles).map(([value, label]) => <option value={value}>{label}技能优先</option>)}</select></label>
+            <p class="arena-hint">偏好方案优先带更多该类激奏技能卡，同数量按综合推荐顺序。与综合推荐并列比较。</p>
+            <div class="arena-skill-limits">{['member', 'support'].map(kind => <fieldset><legend>{kind === 'member' ? '成员' : '留影'}数量限制</legend>
+              <div class="arena-skill-limit-head"><span>技能</span><span>最少</span><span>最多</span></div>
+              {Object.entries(arenaSkillRoles).map(([role, label]) => <div class="arena-skill-limit-row"><span>{label}</span>{['min', 'max'].map(bound => <select name={`skill-${kind}-${role}-${bound}`} data-quick-native aria-label={`${kind === 'member' ? '成员' : '留影'}${label}${bound === 'min' ? '最少' : '最多'}数量`}>{[0,1,2,3,4,5].map(n => <option value={n} selected={n === (bound === 'min' ? 0 : 5)}>{n} 张</option>)}</select>)}</div>)}
+            </fieldset>)}</div>
+            <p class="arena-hint">按当前配对可用的 JUST 技能计数；同卡同类只计一次，多类分别计数。LIFE、累计次数等条件仍须在演奏中满足。</p>
+          </details>
         </section>
         <section class="arena-pool-controls">
           <div class="arena-setup-heading"><h2>评估曲池</h2>
@@ -32,10 +44,10 @@ const client = JSON.stringify({ ...data,
               <div class="arena-performance-fields"><strong>参考发挥</strong><label>时机波动（±毫秒）<input name="timingSpreadMs" type="number" min="0" max="50" step="1" value="20" required /></label><label>操作样本<select name="samples" data-quick-native><option value="1">1 组</option><option value="3">3 组</option></select></label><p class="arena-hint">数值越小，时机越准。</p></div>
             </details>
           </div>
-          <div class="arena-pool-toolbar"><span data-arena-song-scope></span><button type="button" data-add-song aria-haspopup="dialog">＋ 选歌</button></div>
-          <ul class="arena-song-list" data-song-list></ul>
+          <div class="arena-pool-toolbar"><span data-arena-song-scope></span><div><button type="button" data-arena-all-songs>全选当前乐队</button><button type="button" data-add-song aria-haspopup="dialog">选歌 / 批量编辑</button></div></div>
+          <ul class="arena-song-list" data-song-list tabindex="0" aria-label="已选歌曲，可滚动浏览"></ul>
           <p class="arena-song-empty" data-arena-song-empty>选一首歌开始，也可加入多首比较队伍。</p>
-          <p class="arena-hint" data-arena-pool-hint>0 / 5 首 · 默认等权</p>
+          <p class="arena-hint" data-arena-pool-hint>已选 0 首 · 默认等权</p>
         </section>
       </div>
 
@@ -53,7 +65,7 @@ const client = JSON.stringify({ ...data,
       <p class="arena-method-intro">看整场得分，也看 JUST 带来的名次奖励。</p>
       <dl>
         <div><dt>对手未知，怎么选队？</dt><dd>比较不同对手计数下，换成另一支候选最多能多拿多少分。优先推荐这个差距更小的队伍。</dd></div>
-        <div><dt>分数范围怎么看？</dt><dd>左端是三段末位，右端是三段第一，使用你的实际养成和参考发挥。多首歌按曲池权重汇总。</dd></div>
+        <div><dt>分数范围怎么看？</dt><dd>左端是三段末位，右端是三段第一，使用所选卡库养成和参考发挥。多首歌按曲池权重汇总。</dd></div>
         <div><dt>知道对手计数以后呢？</dt><dd>切到「对手试算」，输入三段计数，就能比较各队在当前歌曲的名次和得分。</dd></div>
       </dl>
     </dialog>

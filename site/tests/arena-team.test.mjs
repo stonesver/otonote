@@ -173,7 +173,16 @@ test('owned growth is preserved, band restriction applies only to members, and s
   assert.deepEqual(profile, snapshot);
   assert.equal(result.poolMode, 'one_difficulty_per_song');
   assert.equal(result.weightMeaning, 'evaluation_importance');
-  await assert.rejects(searchArenaTeams({ rules, profile, stage: { ...stage, participantCount: 2 }, songs: [...songs, { ...songs[0], trackId: 'third' }] }), /1–2 首/);
+  const fullPool = Array.from({ length: 6 }, (_, i) => {
+    const id = 990001 + i;
+    rules.tables.LiveMusic.push({ ...rules.tables.LiveMusic.find(m => m._id === 100001), _id: id });
+    rules.tables.LiveMusicScore.push({ ...rules.tables.LiveMusicScore.find(m => m._id === 10000103), _id: id * 100 + 3, _liveMusicID: id });
+    const copiedChart = { ...structuredClone(chart), id: `music-chart-${id}03`, trackId: `music-${id}` };
+    return { trackId: copiedChart.trackId, difficulty: copiedChart.difficulty, weight: i + 1, chart: copiedChart };
+  });
+  const expanded = await searchArenaTeams({ rules, profile, stage: { ...stage, participantCount: 2 }, songs: fullPool, performanceScenario: { profile: 'ideal' } });
+  assert.equal(expanded.songs.length, 6);
+  assert.ok(expanded.candidates.every(c => c.songs.length === 6 && c.songs.every(s => s.samples.length === 120)));
   const inherited = await searchArenaTeams({ rules, profile, stage: { ...stage, missions: [0, 0, 0] }, songs, performanceScenario: { profile: 'ideal' } });
   assert.deepEqual(inherited.candidates.map(c => [c.id, c.sameRankScore, c.firstRankScore, c.worstLoss]), result.candidates.map(c => [c.id, c.sameRankScore, c.firstRankScore, c.worstLoss]));
   await assert.rejects(searchArenaTeams({ rules, profile, stage, songs: [songs[0], { ...songs[0], difficulty: 'hard' }] }), /每首歌曲只选一档难度/);

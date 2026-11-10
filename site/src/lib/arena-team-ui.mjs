@@ -7,7 +7,8 @@ import { arenaCandidateScore, arenaSongPreview } from './arena-team-preview.mjs'
 import { createArenaCandidatePicker } from './arena-candidate-picker.mjs';
 import { createTeamCardView } from './team-card-view.mjs';
 import { skillPeek, closeSkillPopover, destroySkillPopover } from './calculator-card-ui.mjs';
-import { arenaStageTracks, createArenaSongPicker } from './arena-song-picker.mjs';
+import { arenaStageTracks, createArenaSongPicker, addArenaSongs } from './arena-song-picker.mjs';
+import { arenaSkillRoles, normalizeArenaSkillPreferences } from './arena-skill-policy.mjs';
 import { setupQuickOptions } from './tool-quick-options.mjs';
 import { artifact } from '../runtime/content.mjs';
 import { currentServerContext } from './game-servers.mjs';
@@ -40,8 +41,8 @@ class ArenaTeamWorkbench extends HTMLElement {
     listen(this.q('edit'), 'click', () => { this.q('settings').open = true; this.q('settings').scrollIntoView({ block: 'start' }); this.q('settings').querySelector('summary').focus(); });
     listen(this.q('method-open'), 'click', () => this.q('method-dialog').showModal());
     listen(this.q('method-close'), 'click', () => this.q('method-dialog').close());
-    this.songPicker = createArenaSongPicker({ charts: this.data.charts, onSelect: (track, difficulty) => {
-      this.songs.push({ trackId: track.id, difficulty, title: track.title, weight: 1 });
+    this.songPicker = createArenaSongPicker({ charts: this.data.charts, onChange: songs => {
+      this.songs = songs;
       this.invalidate(); this.renderSongs();
     } });
     this.append(this.songPicker.element);
@@ -65,6 +66,11 @@ class ArenaTeamWorkbench extends HTMLElement {
     listen(this.querySelector('[data-add-song]'), 'click', () => {
       this.songPicker.open(this.stageTracks, this.songs, this.q('form').elements.bandId.selectedOptions[0].text);
     });
+    listen(this.q('all-songs'), 'click', () => {
+      this.songs = addArenaSongs(this.songs, this.stageTracks, this.data.charts, 'hard');
+      this.invalidate('已加入当前乐队全部可计算歌曲；新增歌曲使用 HARD，无 HARD 时使用最高可用难度。'); this.renderSongs();
+    });
+    listen(this.q('form').elements.cardScope, 'change', () => this.refreshProfile());
     const refresh = () => { this.invalidate('养成已更新。'); this.refreshProfile(); };
     listen(window, 'personal-growth:changed', refresh);
     listen(window, 'storage', event => { if (event.key === this.store.key) refresh(); });
@@ -162,23 +168,29 @@ class ArenaTeamWorkbench extends HTMLElement {
   }
   updateSetupSummary() {
     const form = this.q('form').elements;
+    if (!this.report && !this.worker && !this.loading) this.q('condition-summary').textContent =
+      `${form.cardScope.value === 'reference' ? '全卡库满养成' : '我的养成'} · ${this.songs.length} 首歌`;
     this.q('performance-summary').textContent = `稳定 FC · ±${form.timingSpreadMs.value || '—'}ms${form.samples.value === '1' ? '' : ` · ${form.samples.value}组`}`;
     this.q('dock-summary').textContent = `${form.bandId.selectedOptions[0]?.text ?? '选择乐队'} · ${this.songs.length ? `${this.songs.length} 首歌` : '未选歌曲'} · ${form.participantCount.value} 人`;
-    const count = Number(form.participantCount.value), excess = this.songs.length > count;
-    this.q('pool-hint').textContent = excess ? `${count} 人场最多 ${count} 首，请移除 ${this.songs.length - count} 首` : `${this.songs.length} / ${count} 首 · 默认等权`;
-    this.q('pool-hint').toggleAttribute('data-error', excess);
-    this.querySelector('[data-add-song]').disabled = this.songs.length >= count || !this.stageTracks?.length;
+    this.q('pool-hint').textContent = `已选 ${this.songs.length} 首 · 默认等权 · 人数只影响名次奖励`;
+    this.querySelector('[data-add-song]').disabled = !this.stageTracks?.length;
+    this.q('all-songs').disabled = !this.stageTracks?.length;
     this.q('song-empty').hidden = this.songs.length > 0;
   }
   q(name) { return this.querySelector(`[data-arena-${name}]`); }
   status(text, error = false) { const node = this.q('status'); node.textContent = text; node.toggleAttribute('data-error', error); }
   refreshProfile() {
+    const reference = this.q('form').elements.cardScope.value === 'reference';
+    this.profileError = null;
+    this.q('card-scope-note').textContent = reference
+      ? '全卡库按满等级、满突破／觉醒、满技能计算；账号加成沿用个人设置，未导入时使用基础值。'
+      : '按个人卡库的实际养成计算。';
     try {
-      this.profile = this.store.read();
-      this.querySelector('[data-profile-status]').textContent = this.profile
+      this.profile = reference && !currentServerContext().serverId ? null : this.store.read();
+      this.querySelector('[data-profile-status]').textContent = reference ? `全卡库 · 满养成 · ${this.profile ? '个人账号加成' : '基础账号加成'}` : this.profile
         ? `${this.profile.inventory.memberCardIds.length} 成员 / ${this.profile.inventory.supportCardIds.length} 留影`
         : '请从「卡库与队伍」导入养成';
-    } catch (error) { this.profile = null; this.querySelector('[data-profile-status]').textContent = error.message; }
+    } catch (error) { this.profile = null; this.profileError = error.message; this.querySelector('[data-profile-status]').textContent = error.message; }
   }
   finish() { this.worker?.terminate(); this.worker = null; this.loading = null; this.q('run').disabled = !this.stageReady; this.q('cancel').hidden = true; this.q('progress').hidden = true; }
   invalidate(message = '') {
@@ -225,10 +237,14 @@ class ArenaTeamWorkbench extends HTMLElement {
     this.invalidate(); const requestId = this.generation, started = performance.now();
     try {
       this.refreshProfile();
-      if (!this.profile) throw Error('请先选择账号区服并导入养成');
-      if (!this.songs.length) throw Error('点击「＋ 选歌」，选择歌曲和难度。');
+      if (this.profileError) throw Error(this.profileError);
       const form = new FormData(this.q('form'));
-      if (this.songs.length > Number(form.get('participantCount'))) throw Error(`请将歌曲减少到 ${form.get('participantCount')} 首以内`);
+      const cardScope = form.get('cardScope');
+      if (cardScope === 'owned' && !this.profile) throw Error('请从「卡库与队伍」导入养成，或选择全卡库参考。');
+      if (!this.songs.length) throw Error('请选歌，或全选当前乐队。');
+      const skillPreferences = normalizeArenaSkillPreferences({ preference: form.get('skillPreference'), limits:
+        Object.fromEntries(['member', 'support'].map(kind => [kind, Object.fromEntries(Object.keys(arenaSkillRoles)
+          .map(role => [role, Object.fromEntries(['min', 'max'].map(bound => [bound, Number(form.get(`skill-${kind}-${role}-${bound}`))]))]))])) });
       let stage;
       if (this.stageMode === 'schedule') {
         const resolved = resolveArenaStage(this.stageData, this.stageRequest());
@@ -274,8 +290,8 @@ class ArenaTeamWorkbench extends HTMLElement {
       };
       this.worker.onerror = event => { if (requestId === this.generation) { this.finish(); this.status(event.message || '计算未完成，请重新尝试。', true); } };
       const sourceLabel = this.stageMode === 'manual' ? '手动试配' : this.resolvedStage.status === 'current' ? '当前舞台' : this.resolvedStage.status === 'past' ? '历史试配' : '预告试配';
-      this.q('condition-summary').textContent = `${sourceLabel} · ${this.q('form').elements.bandId.selectedOptions[0].text} · ${this.data.attributes.find(a => Number(a.code) === stage.musicType)?.name ?? '原曲'} · ${songs.length} 首歌`;
-      this.worker.postMessage({ requestId, workers: calculationParallelism(), payload: { rules: this.rules, profile, stage, songs, performanceScenario } });
+      this.q('condition-summary').textContent = `${sourceLabel} · ${cardScope === 'reference' ? '全卡库满养成' : '我的养成'} · ${this.q('form').elements.bandId.selectedOptions[0].text} · ${this.data.attributes.find(a => Number(a.code) === stage.musicType)?.name ?? '原曲'} · ${songs.length} 首歌`;
+      this.worker.postMessage({ requestId, workers: calculationParallelism(), payload: { rules: this.rules, profile, stage, songs, performanceScenario, cardScope, skillPreferences } });
     } catch (error) { if (requestId === this.generation) { this.finish(); this.status(error.message, true); } }
   }
   skillBadges(skill) {
@@ -298,7 +314,7 @@ class ArenaTeamWorkbench extends HTMLElement {
         const id = slot[`${kind}CardId`], card = this.cards.get(id), growth = candidate.draft.modifiers.growth[id];
         const root = el('article', '', 'arena-card'); root.dataset.kind = kind;
         root.setAttribute('aria-label', `${kind === 'member' ? '成员' : '留影'} · ${card.displayName}`);
-        const view = createTeamCardView(card, { growth, kind, data: this.data, corners: true, source: 'actual' });
+        const view = createTeamCardView(card, { growth, kind, data: this.data, corners: true, source: this.report.cardScope === 'reference' ? 'reference' : 'actual' });
         view.querySelector('.tw-card-relation')?.remove();
         view.querySelector('.tw-card-source').textContent = card.displayName.split('｜')[0];
         const peek = skillPeek(this, card, { growth, leader: index === 2, mode: 'gekisou', hover: false });
@@ -340,7 +356,7 @@ class ArenaTeamWorkbench extends HTMLElement {
   resultCard(candidate, title, primary = false) {
     const root = el('section', '', 'arena-result'), header = el('header', '', 'arena-result-header'); root.toggleAttribute('data-primary', primary);
     const heading = el('div', '', 'arena-result-heading'), songs = this.report.songs;
-    heading.append(el('h2', title), el('small', songs.length === 1 ? `${songs[0].title} · ${songs[0].difficulty.toUpperCase()}` : `${songs.length} 首曲池`)); header.append(heading);
+    heading.append(el('h2', title), el('small', `${this.report.cardScope === 'reference' ? '全卡库 · 满养成参考' : '个人实际养成'} · ${songs.length === 1 ? `${songs[0].title} · ${songs[0].difficulty.toUpperCase()}` : `${songs.length} 首曲池`}`)); header.append(heading);
     const save = el('button', '保存队伍'); save.type = 'button';
     save.addEventListener('click', () => {
       try {
@@ -392,10 +408,12 @@ class ArenaTeamWorkbench extends HTMLElement {
     const render = candidate => {
       closeSkillPopover(this);
       selected = candidate;
-      const title = candidate.id === main.id ? '推荐队伍' : candidate.id === this.bestScore.id ? '同名次高分队' : `方案 ${report.candidates.indexOf(candidate) + 1} · ${candidate.name}`;
+      const preferred = candidate.id === report.preferredCandidateId;
+      const title = candidate.id === main.id ? `综合推荐${preferred ? ' · 同时符合偏好' : ''}` : preferred ? `${arenaSkillRoles[report.skillPreferences.preference]}偏好方案` : candidate.id === this.bestScore.id ? '同名次高分队' : `方案 ${report.candidates.indexOf(candidate) + 1} · ${candidate.name}`;
       content.replaceChildren(this.resultCard(candidate, title, candidate.id === main.id));
     };
     const layout = el('div', '', 'arena-results-layout'); layout.append(picker.element, content);
+    layout.toggleAttribute('data-preference', report.skillPreferences.preference !== 'none');
     root.append(layout); render(main);
     if (report.omitted.length) root.append(el('p', `${report.omitted.length} 队含暂未支持的技能，未参与比较。`, 'arena-hint'));
   }

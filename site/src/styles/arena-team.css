@@ -129,13 +129,33 @@ arena-team-workbench { display:block; }
 .arena-song-choice strong { display:block; font-size:12px; margin-bottom:5px; overflow-wrap:anywhere; }
 .arena-studio .arena-song-choice button { min-height:24px; padding:3px 6px; font-size:10px; }
 .arena-song-choice>small { font-size:10px; color:var(--arena-muted); }
+.arena-song-batch { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.arena-song-batch label { display:flex; align-items:center; gap:6px; font-size:12px; }
+.arena-song-batch select { width:auto; min-height:32px; }
+.arena-song-dialog .arena-song-batch button { font-size:11px; padding:5px 8px; }
+.arena-song-dialog>footer { display:flex; justify-content:space-between; align-items:center; gap:12px; border-top:1px solid var(--arena-line); padding-top:10px; font-size:12px; }
+.arena-song-choice>input[type=checkbox] { width:18px; height:18px; min-height:0; flex:none; accent-color:var(--arena-accent); }
+.arena-song-choice [aria-pressed=true] { outline:2px solid var(--arena-accent); outline-offset:1px; }
+.arena-song-dialog>header,.arena-song-batch,.arena-song-dialog>footer { flex-shrink:0; }
+.arena-pool-toolbar>div { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.arena-skill-settings { margin-top:14px; border-top:1px solid var(--arena-line); padding-top:12px; }
+.arena-skill-settings>summary { cursor:pointer; font-size:12px; font-weight:600; }
+.arena-skill-limits { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.arena-skill-limits fieldset { margin:0; padding:8px; min-width:0; border:1px solid var(--arena-line); border-radius:8px; }
+.arena-skill-limits legend { font-size:11px; color:var(--arena-muted); }
+.arena-skill-limit-head,.arena-skill-limit-row { display:grid; grid-template-columns:30px 1fr 1fr; align-items:center; gap:4px; margin-top:5px; font-size:11px; }
+.arena-skill-limit-head { color:var(--arena-muted); }
+.arena-controls .arena-skill-limit-row select { width:100%; min-width:0; min-height:30px; padding:4px 16px 4px 5px; background-position:right 3px center; font-size:11px; }
 .arena-studio .tool-options button[data-difficulty=hard] { --difficulty:#be7b13; }
 .arena-studio .tool-options button[data-difficulty=expert] { --difficulty:#b64575; }
 .arena-studio .tool-options button[data-difficulty=normal] { --difficulty:#387caa; }
 .arena-studio .tool-options button[data-difficulty=easy] { --difficulty:#438b63; }
 .arena-studio .tool-options button[data-difficulty] { color:var(--difficulty); border:1px solid color-mix(in srgb,var(--difficulty) 25%,transparent); border-radius:6px; background:color-mix(in srgb,var(--difficulty) 5%,var(--tool-surface)); }
 .arena-studio .tool-options button[data-difficulty][aria-pressed=true] { color:white; background:var(--difficulty); border-color:var(--difficulty); }
-.arena-song-list { list-style:none; padding:0; margin:0; }
+.arena-song-list { list-style:none; padding:0; margin:0; max-height:min(440px,50dvh); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+.arena-song-list:empty { display:none; }
+.arena-song-list:focus-visible { outline:2px solid var(--arena-accent); outline-offset:3px; }
+@media (max-width:600px) { .arena-song-list { max-height:min(340px,42dvh); } }
 .arena-song-list li { display:grid; grid-template-columns:42px minmax(0,1fr) 20px; align-items:center; gap:8px; padding:10px 0; border-top:1px solid var(--arena-line); font-size:12px; }
 .arena-song-list li>img { width:42px; height:42px; object-fit:cover; border-radius:5px; }
 .arena-song-copy { min-width:0; }
@@ -204,6 +224,11 @@ arena-team-workbench { display:block; }
 .arena-candidate-picker .arena-candidate-browse { color:var(--arena-accent); background:transparent; font-size:11px; min-height:28px; padding:4px 0 4px 6px; font-weight:500; }
 .arena-candidate-comparison { margin:0 0 10px; color:var(--arena-muted); font-size:10px; }
 .arena-candidate-featured { display:grid; gap:8px; }
+.arena-results-layout[data-preference] { grid-template-columns:minmax(0,1fr); }
+.arena-results-layout[data-preference] .arena-candidate-picker { position:static; }
+.arena-results-layout[data-preference] .arena-candidate-featured { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.arena-results-layout[data-preference] .arena-candidate-shortcut { border-color:var(--arena-line); }
+.arena-results-layout[data-preference] .arena-candidate-roster { max-width:360px; }
 .arena-candidate-picker .arena-candidate-shortcut { display:grid; grid-template-areas:'title' 'team' 'score'; align-content:start; gap:10px; width:100%; padding:12px; border-radius:10px; border:1px solid transparent; background:transparent; color:var(--arena-ink); text-align:left; font-weight:400; transition:background .15s,border-color .15s; }
 .arena-candidate-picker .arena-candidate-shortcut:hover { background:var(--arena-soft); }
 .arena-candidate-picker .arena-candidate-shortcut[aria-pressed=true] { background:var(--arena-soft); }

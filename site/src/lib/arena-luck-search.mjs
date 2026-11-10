@@ -20,9 +20,9 @@ export function createArenaLuckSearch(input, {
     return { run: task => run(task, { yieldControl }), close() {}, width: 1 };
   }
 } = {}) {
-  const { rules, context, songs, profile, performance: playing } = input;
+  const { rules, context, songs, profile, performance: playing, cardScope = 'owned' } = input;
   const summaries = songs.map(({ chart, ...song }) => ({ ...song, chartHash: stableSnapshotHash(chart) }));
-  const inputHash = stableSnapshotHash({ rules: stableSnapshotHash(input.sourceRules), profile, stage: context, songs: summaries, performance: playing, searchVersion: 'luck-3' });
+  const inputHash = stableSnapshotHash({ rules: stableSnapshotHash(input.sourceRules), profile, cardScope, stage: context, songs: summaries, performance: playing, searchVersion: 'luck-3' });
   const archives = [new Map(), new Map()], omitted = new Map(), expanded = new Set(), rankingCache = [null, null];
   const rankers = [0, 1].map(() => createLuckCandidateRanker(summaries));
   let source, evaluator, candidates = [], stopped = false, deadline, running = false, runStarted = 0, round = 0, phase = 'generate', elapsedMs = 0, expansions = 0, validationFactor = 1;
@@ -36,7 +36,7 @@ export function createArenaLuckSearch(input, {
     const validationComplete = rows.length === allIds().length && rows.length > 0 && rows.every(row => count(row.id, 1) >= target(12 * validationFactor)) &&
       contenders(checked, 6).every(id => count(id, 1) >= target(36 * validationFactor));
     const counts = rows.map(row => count(row.id, 0));
-    return { version: 3, sourceReleaseId: rules.sourceReleaseId, stage: context, songs: summaries, performance: playing,
+    return { version: 3, sourceReleaseId: rules.sourceReleaseId, stage: context, songs: summaries, performance: playing, cardScope,
       poolMode: 'one_difficulty_per_song', weightMeaning: 'evaluation_importance', inputHash,
       method: 'expected_rank_envelope', generated: source?.generated ?? 0, evaluated: rows.length,
       pendingCandidates: allIds().length - rows.length, omitted: [...omitted.values()], candidates: rows,
@@ -86,7 +86,7 @@ export function createArenaLuckSearch(input, {
       running = true; stopped = false; const started = now(); runStarted = started; deadline = started + budgetMs;
       try {
         if (!source?.complete) {
-          source = await createLuckCandidateSource(rules, profile, context, songs, { limit: candidateLimit, onProgress, yieldControl, shouldStop: interrupted });
+          source = await createLuckCandidateSource(rules, profile, context, songs, { limit: candidateLimit, cardScope, onProgress, yieldControl, shouldStop: interrupted });
           candidates = source.candidates;
           if (!source.complete) return report();
           if (!candidates.length) throw Error('当前卡库无法组成完整队伍');

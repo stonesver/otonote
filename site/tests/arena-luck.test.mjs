@@ -125,6 +125,25 @@ test('LUCK candidate generation and evaluation preserve actual growth, source in
   await assert.rejects(searchArenaTeams({ ...data, stage: { ...data.stage, missions: [2, 3, 2] } }), /混段/);
 });
 
+test('LUCK full-card reference works without a profile and preserves reference growth through expansion', async () => {
+  const { rules, chart } = fixture({ copies: 0, missions: [2, 2, 2] });
+  const report = await searchArenaTeams({ rules, profile: null, cardScope: 'reference',
+    stage: { bandId: 1, musicType: 99, missions: [2, 2, 2], participantCount: 5 },
+    songs: [{ trackId: chart.trackId, difficulty: chart.difficulty, weight: 1, chart }] },
+    { luckOptions: { candidateLimit: 2, neighbourLimit: 2 } });
+  assert.equal(report.cardScope, 'reference');
+  assert.ok(report.search.expansions > 0);
+  for (const { draft } of report.candidates) {
+    assert.equal(draft.modifiers.planningScenario.scope, 'reference');
+    for (const slot of draft.slots) {
+      const growth = draft.modifiers.growth[slot.memberCardId];
+      assert.equal(growth.skillLevel, 5); assert.equal(growth.gekisouSkillLevel, 5);
+      assert.equal(growth.rank, 5); assert.equal(growth.awake, 5);
+      assert.equal(draft.modifiers.planningResult.actualGrowth[slot.memberCardId], null);
+    }
+  }
+});
+
 test('LUCK workers preserve serial samples, recommendation and independent validation', async () => {
   const { Worker } = await import('node:worker_threads');
   const data = input(), serial = createArenaLuckSearch(data, { candidateLimit: 3, neighbourLimit: 2 });

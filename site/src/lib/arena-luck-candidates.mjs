@@ -30,11 +30,12 @@ export function selectLuckSeeds(candidates, limit) {
 }
 
 export async function createLuckCandidateSource(rules, profile, context, songs, {
-  limit = 32, onProgress, yieldControl = async () => {}, shouldStop = () => false
+  limit = 32, cardScope = 'owned', onProgress, yieldControl = async () => {}, shouldStop = () => false
 } = {}) {
+  if (!['owned', 'reference'].includes(cardScope)) throw Error('未知的卡库范围');
   const base = createTeamDraft({ selectedSongId: songs[0].trackId, selectedDifficulty: songs[0].difficulty,
-    modifiers: { ...structuredClone(profile.account), growth: structuredClone(profile.inventory.growth) } });
-  const input = resolveSearchInput(rules, base, { scope: 'owned', inventory: { ...profile.inventory, sourceReleaseId: rules.sourceReleaseId }, constraints: { bandId: context.bandId } });
+    modifiers: { ...structuredClone(profile?.account ?? {}), growth: structuredClone(profile?.inventory?.growth ?? {}) } });
+  const input = resolveSearchInput(rules, base, { scope: cardScope, inventory: profile?.inventory, constraints: { bandId: context.bandId } });
   const power = createFormationCalculator(rules), t = rules.tables;
   const cardRoles = new Map();
   for (const kind of ['member', 'support']) for (const id of input.inventory[`${kind}CardIds`]) {

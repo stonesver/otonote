@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {selectEventYieldRows,eventYieldGoals,orderEventYieldRows,eventYieldGaps} from '../src/lib/event-yield-goals.mjs';
+import {emptyEventResultFilters,eventPlanDropProbability,eventResultFilterOptions,filterEventYieldRows} from '../src/lib/event-yield-result-filters.mjs';
 import {eventYieldStageInput,eventYieldChallengeBandNote} from '../src/lib/event-yield-stage.mjs';
 import {setupEventYieldOptimizer,eventYieldCompletionText,eventYieldStopText,eventYieldProgressText} from '../src/lib/event-yield-ui.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
@@ -106,13 +107,23 @@ test('identical reward plans share both labels without duplicate display or losi
  assert.deepEqual(selectEventYieldRows(result),result);
 });
 
-test('short-song ordering compares both currencies to one goal-specific leading plan',()=>{
+test('result ordering keeps both rewards ahead of duration, including the low-reward shortest song',()=>{
+ const row=(id,seconds,badges,eventPoints)=>({id,song:{id,seconds},reward:{scoreRank:7},expectedScore:1000,total:{badges,eventPoints}});
+ const rows=[row('recommended',150,1000,900),row('shortest',80,700,600),
+  row('equal-shorter',120,1000,900),row('less-secondary',90,1000,800)];
+ const before=structuredClone(rows);
+ assert.deepEqual(orderEventYieldRows(rows,'badges').map(r=>r.id),['equal-shorter','recommended','less-secondary','shortest']);
+ assert.deepEqual(orderEventYieldRows(rows,'eventPoints').map(r=>r.id),['equal-shorter','recommended','less-secondary','shortest']);
+ assert.deepEqual(rows,before);
+});
+
+test('result ordering compares both currencies to one goal-specific leading plan',()=>{
  const make=(id,seconds,badges,eventPoints)=>({id,song:{id,seconds},reward:{scoreRank:5},expectedScore:1000,total:{badges,eventPoints}});
  const rows=[make('long',150,1000,800),make('short',80,800,1000),make('unknown',null,600,600),make('mid',100,900,900)];
  const before=structuredClone(rows),retained=selectEventYieldRows(rows,'both',rows.length*2);
- const sorted=orderEventYieldRows(retained,'short');
- assert.deepEqual(sorted.map(r=>r.id),['short','mid','long','unknown']);
- assert.deepEqual(orderEventYieldRows(retained,'yield','eventPoints').map(r=>r.id),['short','mid','long','unknown']);
+ const sorted=orderEventYieldRows(retained,'badges');
+ assert.deepEqual(sorted.map(r=>r.id),['long','mid','short','unknown']);
+ assert.deepEqual(orderEventYieldRows(retained,'eventPoints').map(r=>r.id),['short','mid','long','unknown']);
  const {reference,gap}=eventYieldGaps(retained,'badges');
  assert.equal(reference.id,'long');
  assert.deepEqual(gap(rows[0]),{badges:0,eventPoints:0});
@@ -124,7 +135,7 @@ test('short-song ordering compares both currencies to one goal-specific leading 
  assert.deepEqual(rows,before);
 });
 
-test('short ordering only rearranges original high-yield candidates and excludes lower-yield short songs',()=>{
+test('result ordering preserves the candidate set and keeps the highest reward first',()=>{
  let retained=[];
  for(let i=0;i<45;i++){
   const row={id:`team-${i}`,song:{id:`song-${i}`,seconds:200-i},reward:{scoreRank:5},expectedScore:1000,total:{badges:1000-i,eventPoints:900-i}};
@@ -133,12 +144,45 @@ test('short ordering only rearranges original high-yield candidates and excludes
  }
  const candidates=selectEventYieldRows(retained,'both');
  assert.equal(candidates.length,5);
- const short=orderEventYieldRows(candidates,'short');
- assert.equal(short[0].song.id,'song-4');
+ const short=orderEventYieldRows(candidates);
+ assert.equal(short[0].song.id,'song-0');
  assert.deepEqual(new Set(short.map(row=>row.id)),new Set(candidates.map(row=>row.id)));
  assert.ok(!short.some(row=>row.song.id==='song-44'));
- assert.deepEqual(eventYieldGaps(candidates).gap(short[0]),{badges:4,eventPoints:4});
+ assert.deepEqual(eventYieldGaps(candidates).gap(short[0]),{badges:0,eventPoints:0});
  assert.equal(selectEventYieldRows(retained,'badges').length,10);
+});
+
+test('result filters intersect levels and song bands, retaining collaboration songs and the input rows',()=>{
+ const tracks=[{id:'a',bandIds:['1'],bandLabels:['First']},{id:'b',bandIds:['1','2'],bandLabels:['First','Second']},{id:'c',bandIds:['2'],bandLabels:['Second']}];
+ const rows=[{song:{trackId:'a',level:25}},{song:{trackId:'b',level:26}},{song:{trackId:'c',level:27}}],before=structuredClone(rows);
+ assert.deepEqual(eventResultFilterOptions(rows,tracks),{levels:[25,26,27],bands:[{value:'1',label:'First'},{value:'2',label:'Second'}]});
+ assert.deepEqual(filterEventYieldRows(rows,emptyEventResultFilters(),{tracks}),rows);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),levels:[25,26],bands:['2']},{tracks}),[rows[1]]);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),bands:['1','2']},{tracks}),rows);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),levels:[25],bands:['2']},{tracks}),[]);
+ assert.deepEqual(rows,before);
+});
+
+test('AP risk filters include the used challenge stages and exclude unknown distributions',()=>{
+ const row=drop=>({song:{},reward:{scoreRank:7},gradeProbabilities:[{rank:6,probability:drop},{rank:7,probability:1-drop}]});
+ const safe=row(0),edge=row(.1),risky=row(.25),unknown={...row(0),gradeProbabilities:[]};
+ const cycle={...safe,continuation:{stages:[{plays:2,row:edge},{plays:0,row:risky}]}};
+ assert.equal(eventPlanDropProbability(cycle),.1);
+ assert.equal(eventPlanDropProbability({...cycle,continuation:{stages:[{plays:1,row:unknown}]}}),null);
+ const rows=[safe,edge,risky,unknown,cycle];
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),maxDropProbability:0}),[safe]);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),maxDropProbability:.1}),[safe,edge,cycle]);
+ assert.deepEqual(filterEventYieldRows(rows,emptyEventResultFilters()),rows);
+});
+
+test('highest reward filtering uses the unfiltered goal leader and both currencies',()=>{
+ const make=(id,level,badges,eventPoints)=>({id,song:{id,level,seconds:100},reward:{scoreRank:7},expectedScore:1000,total:{badges,eventPoints}});
+ const rows=[make('items',27,1000,800),make('same',26,1000,800),make('less-secondary',25,1000,700),make('points',25,900,900)];
+ const filters={...emptyEventResultFilters(),highestRewardOnly:true};
+ assert.deepEqual(filterEventYieldRows(rows,filters,{goal:'badges'}),rows.slice(0,2));
+ assert.deepEqual(filterEventYieldRows(rows,filters,{goal:'eventPoints'}),[rows[3]]);
+ assert.deepEqual(filterEventYieldRows(rows,{...filters,levels:[25]},{goal:'badges'}),[]);
+ assert.deepEqual(eventYieldGaps(rows,'badges').gap(rows[3]),{badges:100,eventPoints:-100});
 });
 
 test('ordinary song filters reach the worker, invalidate results and leave challenge and selected charts intact',t=>{

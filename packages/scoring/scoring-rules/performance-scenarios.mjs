@@ -78,28 +78,29 @@ export function resolveTimingJudgement(rules, event, { justEnabled = false, just
     (row._noteSimulateJudgement === 6 ? justExpansion(offset < 0 ? row._beforeMs : row._afterMs) : 0))?._noteSimulateJudgement ?? 1;
 }
 
-/** One replay owns this lookup, so table edits between calculations remain
- * visible. Stable priority order and window expansion match the scalar path. */
+/** Bind the priority-ordered windows once for a replay, rather than sorting
+ * the same table for every judgement. No cache survives a rules snapshot. */
 export function createTimingJudgementResolver(rules) {
-  const byType = new Map();
+  const windows = new Map();
   for (const row of rules.tables.LiveJudgementTiming) {
     if (row._assistLevel !== 0 || row._noteSimulateJudgement < 1 || row._noteSimulateJudgement > 6) continue;
-    if (!byType.has(row._noteJudgementType)) byType.set(row._noteJudgementType, []);
-    byType.get(row._noteJudgementType).push(row);
+    if (!windows.has(row._noteJudgementType)) windows.set(row._noteJudgementType, []);
+    windows.get(row._noteJudgementType).push(row);
   }
-  for (const rows of byType.values()) rows.sort((a, b) => a._judgementPriority - b._judgementPriority);
+  for (const [type, rows] of windows) {
+    rows.sort((a, b) => a._judgementPriority - b._judgementPriority);
+    windows.set(type, [rows.filter(row => row._noteSimulateJudgement !== 6), rows]);
+  }
   return (event, { justEnabled = false, justExpansion = () => 0 } = {}) => {
     if (event.originalJudgement != null) return event.originalJudgement;
     if (event.missed) return 1;
-    const type = formalJudgementType(event.type, event.critical), rows = byType.get(type);
-    let available = false;
-    for (const row of rows ?? []) {
-      if (!justEnabled && row._noteSimulateJudgement === 6) continue;
-      available = true;
-      const base = event.timingOffsetMs < 0 ? row._beforeMs : row._afterMs;
-      if (Math.abs(event.timingOffsetMs) <= base + (row._noteSimulateJudgement === 6 ? justExpansion(base) : 0)) return row._noteSimulateJudgement;
+    const type = formalJudgementType(event.type, event.critical), rows = windows.get(type)?.[Number(justEnabled)];
+    if (!rows?.length) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
+    const offset = event.timingOffsetMs;
+    for (const row of rows) {
+      const base = offset < 0 ? row._beforeMs : row._afterMs;
+      if (Math.abs(offset) <= base + (row._noteSimulateJudgement === 6 ? justExpansion(base) : 0)) return row._noteSimulateJudgement;
     }
-    if (!available) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
     return 1;
   };
 }

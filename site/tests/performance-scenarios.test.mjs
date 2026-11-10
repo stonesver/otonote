@@ -58,6 +58,23 @@ test('raw timing respects GREAT GOOD BAD MISS windows and JUST requires enabled 
   assert.equal(resolveTimingJudgement(rules,{type:1,timingOffsetMs:0,missed:true},{justEnabled:true}),1);
   assert.equal(resolveTimingJudgement(rules,{type:1,originalJudgement:4,timingOffsetMs:0},{justEnabled:true,justExpansion:()=>100}),4);
 });
+test('prepared judgement windows match scalar resolution at every integer offset and note type',()=>{
+  const resolve = createTimingJudgementResolver(rules);
+  const outcome = fn => { try { return fn(); } catch (error) { return error.message; } };
+  for (const type of [0,1,20,21,22,40,41,42,60,61,62,63,80,82,100,101,102,103,104,105,120,121,122]) {
+    for (const critical of [false,true]) for (const justEnabled of [false,true]) for (const expansion of [0,37]) {
+      const options = { justEnabled, justExpansion: () => expansion };
+      for (let timingOffsetMs = -200; timingOffsetMs <= 200; timingOffsetMs++) {
+        const event = { type, critical, timingOffsetMs };
+        assert.equal(outcome(()=>resolve(event,options)),outcome(()=>resolveTimingJudgement(rules,event,options)));
+      }
+    }
+  }
+  assert.equal(resolve({missed:true}),1);
+  assert.equal(resolve({originalJudgement:4,missed:true}),4);
+  const changed = structuredClone(rules); changed.tables.LiveJudgementTiming = [];
+  assert.throws(()=>createTimingJudgementResolver(changed)({type:1,timingOffsetMs:0}),/判定窗口/);
+});
 test('Gekisou non-AP input reconstructs life/combo, score targets, perfect counts and traces',()=>{
   const {r,c,d,p}=fixture();
   [1,2,3,4,5,4,3,1,2,5,5,5,5].forEach((j,i)=>p.judgements[i].judgement=j);

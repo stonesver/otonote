@@ -28,7 +28,6 @@ export function applyGekisouComboJudgement(state, judgement, gain, guards = []) 
  * This is not a recording of the game's input scheduler or random stream. */
 export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4] } = {}) {
   const random = createScoringRandom(seed);
-  const resolveJudgement = performanceInput && createTimingJudgementResolver(rules);
   const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
   const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
   const maximumLife = setting('life_base'), musicLengthMs = Math.max(...timeline.events.map(e => e.timeMs), ...(timeline.skillTimes ?? []));
@@ -50,6 +49,20 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     history: [], comboHistory: [], countCommands: [], previousLots: [], rushFactor: 0,
     effects: effects.filter(e => e.active && e.missionType === range.missionType).map(e => createGekisouEffectState(e, budgets.get(e.key))), luck: createGekisouLuckMachine(rules, { random }) }));
   const allEffects = states.flatMap(s => s.effects);
+  const resolveJudgement = performanceInput && createTimingJudgementResolver(rules);
+  // Operators consume the context synchronously. Reuse its callbacks instead
+  // of allocating a context and four closures for every effect on every frame.
+  const contexts = states.map(s => ({ section: s, clock, random, lifeReplay: life,
+    dirty() { s.countsDirty = true; },
+    count(effect, timeMs, value) {
+      s.countCommands.push({ timeMs, sequence: judgementSequence - 1, value, channel: effect.operator.countChannel });
+    },
+    factor: (effect, value, at) => updateScoreFactor(s, effect, value, at),
+    trace(effect, action, value, at) {
+      if (trace) transitions.push({ frame: currentFrame, timeMs: at ?? clock.at(currentFrame).timeMs,
+        sectionIndex: s.index, source: effect.key, action, ...(value === undefined ? {} : { value }) });
+    },
+  }));
   const emptyNotes = [];
   const events = (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
     inputFrame: event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs),
@@ -61,11 +74,15 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     frames.get(note.inputFrame).push(note);
   }
   // Empty frames matter for pending lotteries, cumulative factors and release.
+  let lastSectionFrame = 0;
   for (const s of states) {
     s.lastInputFrame = Math.max(clock.indexAt(s.endMs),
       ...events.filter(n => n.sectionIndex === s.index).map(n => n.inputFrame));
     Object.assign(s, gekisouReleaseFrames(clock, s.endMs, slowJudgeDelay));
-    for (let f = clock.indexAt(s.startMs); f <= s.releaseFrame + 1; f++) {
+    lastSectionFrame = Math.max(lastSectionFrame, s.releaseFrame + 1);
+    // Dynamic replays already visit every frame. Empty section frames need
+    // no Map entry or array; only the sparse ideal path uses membership.
+    for (let f = clock.indexAt(s.startMs); !performanceInput && !ordinary && f <= s.releaseFrame + 1; f++) {
       if (!frames.has(f)) frames.set(f, []);
     }
   }
@@ -149,7 +166,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     start: clock.indexAt(s.startMs),
     end: Math.max(clock.indexAt(s.startMs) + 1, clock.indexAt(s.endMs)),
   }));
-  const lastFrame = Math.max(...frames.keys(), ordinary?.lastFrame ?? 0);
+  const lastFrame = Math.max(lastSectionFrame, ...frames.keys(), ordinary?.lastFrame ?? 0);
   for (let frame = 0; frame <= Math.max(lastFrame, ordinary?.lastFrame ?? 0); frame++) {
     if (!performanceInput && !ordinary && !frames.has(frame)) continue;
     const frameNotes = frames.get(frame) ?? emptyNotes;
@@ -204,7 +221,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       if (s.closed || (!s.entered && timeMs < s.startMs)) {
         // Early AP input retains authored section membership. Start effects
         // are not yet installed; recount after entry can still backdate them.
-        s.history.push(...notes); s.perfectCount += notes.filter(n => n.judgement >= 5).length;
+        if (notes.length) { s.history.push(...notes); s.perfectCount += notes.filter(n => n.judgement >= 5).length; }
         continue;
       }
       const entering = !s.entered;
@@ -215,28 +232,21 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         s.closed = true; continue;
       }
       // Skill phase: previous-frame counters/lots, current judgement results.
-      for (const e of s.effects) advanceGekisouEffect(e, {
-        section: s, notes, entering, closing, frame, timeMs, clock, random,
-        life: life?.at(timeMs) ?? maximumLife, lifeReplay: life,
-        dirty: () => { s.countsDirty = true; },
-        count(effect, timeMs, value) {
-          s.countCommands.push({ timeMs, sequence: judgementSequence - 1, value, channel: effect.operator.countChannel });
-        },
-        factor: (effect, value, at) => updateScoreFactor(s, effect, value, at),
-        trace(effect, action, value, at = timeMs) {
-          if (trace) transitions.push({ frame, timeMs: at, sectionIndex: s.index, source: effect.key, action,
-            ...(value === undefined ? {} : { value }) });
-        },
-      });
+      const ctx = contexts[s.index - 1];
+      ctx.notes = notes; ctx.entering = entering; ctx.closing = closing; ctx.frame = frame; ctx.timeMs = timeMs;
+      for (const e of s.effects) {
+        ctx.life = life?.at(timeMs) ?? maximumLife;
+        advanceGekisouEffect(e, ctx);
+      }
       if (closing) {
         continue;
       }
       // Gekisou.Update: append judgements, recalculate count history, lottery.
-      s.history.push(...notes); s.perfectCount += notes.filter(n => n.judgement >= 5).length;
+      if (notes.length) { s.history.push(...notes); s.perfectCount += notes.filter(n => n.judgement >= 5).length; }
       // LUCK AP judgements are always PERFECT, so neither COMBO nor JUST
       // histories change there. Its ranking points live in the luck machine.
       if (notes.length || s.countsDirty) { if (s.missionType !== 2) recount(s); s.countsDirty = false; }
-      const nextLots = [];
+      const nextLots = notes.length || s.luck.state.pendingLots ? [] : emptyNotes;
       if (s.missionType === 2) {
         for (const note of notes) {
           const gauge = sum32(s.effects.filter(e => e.operator.gaugeFactor && e.windows.some(w =>

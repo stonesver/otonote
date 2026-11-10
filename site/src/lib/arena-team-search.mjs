@@ -8,6 +8,7 @@ import { compilePairingModels, draftFromPairing } from './inventory-optimizer.mj
 import { createTeamDraft } from './team-draft.mjs';
 import { stableSnapshotHash } from './scoring-engine.mjs';
 import { UnsupportedSkillMechanismError } from '../../../packages/scoring/scoring-rules/skill-mechanism-error.mjs';
+import { createArenaLuckSearch } from './arena-luck-search.mjs';
 import { normalizeArenaSkillPreferences, createArenaSkillPolicy, matchArenaSkills, arenaPreferredCandidate } from './arena-skill-policy.mjs';
 
 /** Power seeds under different JUST requirements preserve count, conversion,
@@ -118,17 +119,25 @@ export async function evaluateArenaCandidates({ rules, context, songs, performan
     omitted: candidates.filter(candidate => omitted.has(candidate.id)).map(candidate => omitted.get(candidate.id)) };
 }
 
-export async function searchArenaTeams({ rules: sourceRules, profile, stage, songs, performanceScenario, cardScope = 'owned', skillPreferences }, { onProgress, yieldControl = async () => {}, evaluateCandidates = evaluateArenaCandidates } = {}) {
+export async function searchArenaTeams({ rules: sourceRules, profile, stage, songs, performanceScenario, cardScope = 'owned', skillPreferences }, { onProgress, onSnapshot, onLuckSession, luckOptions = {}, yieldControl = async () => {}, evaluateCandidates = evaluateArenaCandidates } = {}) {
   const { context, rules } = applyArenaContext(sourceRules, stage);
   if (!songs?.length) throw Error('请至少选择一首歌曲作为评估范围');
   if (songs.some(s => !Number.isFinite(s.weight) || s.weight <= 0)) throw Error('曲目权重须为正数');
   const keys = songs.map(s => s.trackId);
   if (new Set(keys).size !== keys.length) throw Error('每首歌曲只选一档难度，请合并歌曲权重');
   const performance = normalizePerformanceScenario(performanceScenario);
+  let mission;
   for (const song of songs) {
     if (!song.chart || song.chart.sourceReleaseId !== rules.sourceReleaseId || song.chart.trackId !== song.trackId || song.chart.difficulty !== song.difficulty) throw Error('谱面与内容版本不一致，请重新加载');
     const music = rules.tables.LiveMusic.find(m => `music-${m._id}` === song.trackId);
-    if ([1, 2, 3].some(i => music?.[`_gekisouMission${i}`] !== 3)) throw Error('所选场次含 COMBO、LUCK 或混段，请选择三段 JUST 场次');
+    const current = music?._gekisouMission1;
+    if (![2, 3].includes(current) || [1, 2, 3].some(i => music?.[`_gekisouMission${i}`] !== current) || (mission && mission !== current)) throw Error('所选场次含 COMBO 或混段，请选择三段 JUST 或三段 LUCK 场次');
+    mission = current;
+  }
+  if (mission === 2) {
+    const session = createArenaLuckSearch({ sourceRules, rules, profile, context, songs, performance, cardScope }, { ...luckOptions, onProgress, onSnapshot, yieldControl });
+    onLuckSession?.(session);
+    try { return await session.run(); } finally { if (!onLuckSession) session.close(); }
   }
   const settings = normalizeArenaSkillPreferences(skillPreferences);
   const candidates = await generateJustCandidates(rules, profile, context, songs, { onProgress, yieldControl, cardScope, skillPreferences: settings });

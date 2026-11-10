@@ -76,8 +76,9 @@ test('result filters reset pagination, preserve focus and recover empty results 
  assert.equal(q('results').querySelectorAll('.event-results-empty').length,1);
  const baseline=q('results').querySelectorAll('.task-event-baseline-name')[0];assert.ok(baseline.children.some(n=>n.textContent==='Song 0'));
  control('clear').listeners.click();assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,8);
- const risk=control('risk');risk.value='0';risk.listeners.change({stopPropagation(){}});
+ const risk=control('risk-0');risk.focus();risk.checked=true;risk.listeners.change({stopPropagation(){}});
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,5,'zero risk excludes both risky and unknown distributions');
+ assert.equal(globalThis.document.activeElement.dataset.yieldResultFilter,'risk-0');
  assert.equal(workers.length,1,'filtering never starts another search');
 });
 

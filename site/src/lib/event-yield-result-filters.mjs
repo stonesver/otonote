@@ -48,21 +48,24 @@ export function eventResultFilterControls({rows,tracks,filters,open,onOpen,onCha
   input.addEventListener('change',event=>{event.stopPropagation();change(input.checked);});item.append(input,el('span',label));return item;
  };
  for(const [key,label,entries] of [['levels','歌曲等级',options.levels.map(value=>({value,label:String(value)}))],['bands','歌曲乐队',options.bands]]){
-  const field=el('fieldset'),choices=el('div',null,'event-result-filter-choices');field.append(el('legend',label),choices);
+  const field=el('fieldset'),choices=el('div',null,'event-result-filter-choices');field.dataset.filterGroup=key;field.append(el('legend',label),choices);
   for(const option of entries)choices.append(checkbox(option.label,`${key}-${option.value}`,filters[key].includes(option.value),checked=>{
    onChange({...filters,[key]:checked?[...filters[key],option.value]:filters[key].filter(value=>value!==option.value)});
   }));
   if(!entries.length)choices.append(el('small','暂无可筛选资料'));
   panel.append(field);
  }
- const risk=el('fieldset'),select=control(el('select'),'risk');risk.append(el('legend','AP 掉档风险'));select.setAttribute('aria-label','各阶段 AP 掉档率上限');
- for(const [value,label] of [['all','不限'],['0','不掉档 · 0%'],['0.05','不超过 5%'],['0.1','不超过 10%'],['0.25','不超过 25%']]){
-  const option=el('option',label);option.value=value;if(value===String(filters.maxDropProbability??'all'))option.setAttribute('selected','');select.append(option);
+ const risk=el('fieldset'),choices=el('div',null,'event-result-filter-risk');risk.dataset.filterGroup='risk';risk.append(el('legend','AP 掉档风险'),choices);
+ for(const [value,label] of [[null,'不限'],[0,'0%'],[.05,'≤ 5%'],[.1,'≤ 10%'],[.25,'≤ 25%']]){
+  const item=el('label',null,'event-result-filter-option'),input=control(el('input'),`risk-${value??'all'}`);input.type='radio';input.name='event-result-drop-risk';input.value=String(value??'all');
+  input.checked=filters.maxDropProbability===value;if(input.checked)input.setAttribute('checked','');
+  item.title=value===null?'不限 AP 掉档率':`各阶段 AP 掉档率不超过 ${value*100}%`;
+  input.addEventListener('change',event=>{event.stopPropagation();onChange({...filters,maxDropProbability:value});});item.append(input,el('span',label));choices.append(item);
  }
- select.value=String(filters.maxDropProbability??'all');select.addEventListener('change',event=>{event.stopPropagation();onChange({...filters,maxDropProbability:select.value==='all'?null:Number(select.value)});});risk.append(select);
  const highest=checkbox('仅最高收益','highest',filters.highestRewardOnly,highestRewardOnly=>onChange({...filters,highestRewardOnly}));
- highest.title='与当前收益第一的两项总收益均相同';risk.append(highest);panel.append(risk);
+ highest.className+=' event-result-filter-highest';highest.title='与当前收益第一的两项总收益均相同';risk.append(highest);panel.append(risk);
  const footer=el('div',null,'event-result-filter-footer'),clear=control(el('button','清除筛选'),'clear');clear.type='button';clear.disabled=!active;clear.addEventListener('click',()=>onChange(emptyEventResultFilters()));
- footer.append(el('small','等级、乐队筛选比较歌曲；风险要求普通及实际后续挑战均满足上限，不含操作失误。'),clear);panel.append(footer);
+ const help=el('details',null,'event-result-filter-help');help.append(el('summary','筛选说明'),el('p','等级、乐队筛选比较歌曲；风险要求普通及实际后续挑战均满足上限，不含操作失误。'));
+ footer.append(help,clear);panel.append(footer);
  return root;
 }

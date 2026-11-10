@@ -1,4 +1,5 @@
 import {eventYieldGaps} from './event-yield-goals.mjs';
+import bandIcons from './arena-band-icons.json' with {type:'json'};
 
 export const emptyEventResultFilters=()=>({levels:[],bands:[],maxDropProbability:null,highestRewardOnly:false});
 export const activeEventResultFilters=filters=>Number(Boolean(filters.levels.length))+Number(Boolean(filters.bands.length))
@@ -36,12 +37,13 @@ export function filterEventYieldRows(rows,filters,{tracks=[],goal='badges'}={}){
 
 const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!=null)node.textContent=text;if(cls)node.className=cls;return node;};
 export function eventResultFilterControls({rows,tracks,filters,open,onOpen,onChange}){
- const root=el('details',null,'event-result-filters'),active=activeEventResultFilters(filters);
- root.open=open;root.addEventListener('toggle',()=>onOpen(root.open));
- const summary=el('summary','筛选方案');if(active)summary.append(el('b',String(active),'event-filter-count'));root.append(summary);
- const panel=el('div',null,'event-result-filter-panel');root.append(panel);
- const options=eventResultFilterOptions(rows,tracks);
  const control=(node,key)=>{node.className='event-result-filter-control';node.dataset.yieldResultFilter=key;return node;};
+ const active=activeEventResultFilters(filters),trigger=control(el('button','筛选方案'),'toggle');trigger.className+=' event-result-filters';trigger.type='button';
+ if(active)trigger.append(el('b',String(active),'event-filter-count'));
+ const panel=el('div',null,'event-result-filter-panel');panel.id='event-yield-result-filters';panel.hidden=!open;
+ trigger.setAttribute('aria-controls',panel.id);trigger.setAttribute('aria-expanded',String(open));
+ trigger.addEventListener('click',()=>{const expanded=panel.hidden;panel.hidden=!expanded;trigger.setAttribute('aria-expanded',String(expanded));onOpen(expanded);});
+ const options=eventResultFilterOptions(rows,tracks);
  const checkbox=(label,key,checked,change)=>{
   const item=el('label',null,'event-result-filter-option'),input=control(el('input'),key);input.type='checkbox';input.checked=checked;
   if(checked)input.setAttribute('checked','');
@@ -49,9 +51,16 @@ export function eventResultFilterControls({rows,tracks,filters,open,onOpen,onCha
  };
  for(const [key,label,entries] of [['levels','歌曲等级',options.levels.map(value=>({value,label:String(value)}))],['bands','歌曲乐队',options.bands]]){
   const field=el('fieldset'),choices=el('div',null,'event-result-filter-choices');field.dataset.filterGroup=key;field.append(el('legend',label),choices);
-  for(const option of entries)choices.append(checkbox(option.label,`${key}-${option.value}`,filters[key].includes(option.value),checked=>{
-   onChange({...filters,[key]:checked?[...filters[key],option.value]:filters[key].filter(value=>value!==option.value)});
-  }));
+  for(const option of entries){
+   const item=checkbox(option.label,`${key}-${option.value}`,filters[key].includes(option.value),checked=>{
+    onChange({...filters,[key]:checked?[...filters[key],option.value]:filters[key].filter(value=>value!==option.value)});
+   });
+   if(key==='bands'){
+    item.className+=' event-result-band';item.title=option.label;
+    const icon=el('img');icon.src=`/content/releases/${bandIcons.releaseId}/public/images/filter-bands/${option.value}.png`;icon.alt='';icon.width=icon.height=28;item.append(icon);
+   }
+   choices.append(item);
+  }
   if(!entries.length)choices.append(el('small','暂无可筛选资料'));
   panel.append(field);
  }
@@ -67,5 +76,5 @@ export function eventResultFilterControls({rows,tracks,filters,open,onOpen,onCha
  const footer=el('div',null,'event-result-filter-footer'),clear=control(el('button','清除筛选'),'clear');clear.type='button';clear.disabled=!active;clear.addEventListener('click',()=>onChange(emptyEventResultFilters()));
  const help=el('details',null,'event-result-filter-help');help.append(el('summary','筛选说明'),el('p','等级、乐队筛选比较歌曲；风险要求普通及实际后续挑战均满足上限，不含操作失误。'));
  footer.append(help,clear);panel.append(footer);
- return root;
+ return {trigger,panel};
 }

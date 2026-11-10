@@ -9,6 +9,7 @@ import {setupEventScopeControls} from './tool-calculation-scopes.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
 import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
 import {EVENT_YIELD_GOAL_LABELS,orderEventYieldRows,eventYieldGaps} from './event-yield-goals.mjs';
+import {emptyEventResultFilters,activeEventResultFilters,filterEventYieldRows,eventResultFilterControls} from './event-yield-result-filters.mjs';
 import {createCalculationProgress} from './calculation-progress.mjs';
 import {createCalculationLiveUpdates,reconcileCalculationView} from './calculation-live-updates.mjs';
 import {selectedControlValues} from './filter-controls.mjs';
@@ -50,7 +51,8 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
  const root=tool.q('yield-optimizer'),q=s=>tool.querySelector(`[data-yield-${s}]`);
  const feedback=createCalculationProgress(q('status'),'yield');
  q('continue').textContent='重新开始完整比较';
- let worker=null,key='',result=null,renderKey='',displaySort='yield',displayGoal='badges',page=0,selectedPlan=null;
+ let worker=null,key='',result=null,renderKey='',displayGoal='badges',page=0,selectedPlan=null;
+ let displayFilters=emptyEventResultFilters(),filtersOpen=false;
  let mainScope,challengeScope,runScopes=null;
  let articleCache=new Map(),viewCache=new Map();
  const referenceCache=new Map(),syncReferences=()=>syncEventMistakeReferences(q('results'),!worker||Boolean(selectedPlan));
@@ -88,28 +90,31 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
  }
  function render(){
    scopeControls?.refresh?.();
-   const next=JSON.stringify([displaySort,displayGoal,page,Boolean(worker),resultKey(result)]);
+   const next=JSON.stringify([displayFilters,displayGoal,page,Boolean(worker),resultKey(result)]);
    if(next===renderKey)return;renderKey=next;
-   const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey;
+   const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey,focusedFilter=document.activeElement?.dataset?.yieldResultFilter;
    if(q('rewards')?.checked&&tool.q('pool').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
    if(tool.q('pool').value==='reference')view.push(el('p','当前阶段使用全卡库满养成参考；账号加成沿用页面设置，不代表实际持有。','event-hint'));
    const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
    const challengeBandNote=eventYieldChallengeBandNote(context(),cardBands);if(challengeBandNote)view.push(el('p',challengeBandNote,'event-hint'));
    if(result.calculationScopes){view.push(el('p',scopeSummary(result.calculationScopes.main)));if(result.calculationScopes.challenge)view.push(el('p','后续挑战 · '+scopeSummary(result.calculationScopes.challenge)));}
-   const completion=eventYieldCompletionText(result);
-   const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.individual?'逐曲收益已验证 · 全部歌曲方案':completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
+   const completion=eventYieldCompletionText(result),filtering=activeEventResultFilters(displayFilters);
+   const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.individual?`逐曲收益已验证 · ${filtering?'筛选展示':'全部歌曲方案'}`:completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
-   const ordered=orderEventYieldRows(eligible,displaySort,target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
-   const alternatives=el('details',null,'event-alternatives'),comparisonHeading=el('summary');comparisonHeading.append(el('span',`比较方案 · ${ordered.length} 套`),boundary);alternatives.append(comparisonHeading);alternatives.open=ordered.length>1;
+   const ordered=orderEventYieldRows(filterEventYieldRows(eligible,displayFilters,{tracks:tool.data.tracks,goal:target}),target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
+   const changeFilters=filters=>{displayFilters=filters;page=0;selectedPlan=null;render();};
+   const alternatives=el('details',null,'event-alternatives'),comparisonHeading=el('summary');comparisonHeading.append(el('span',`比较方案 · ${ordered.length} 套`),boundary);alternatives.append(comparisonHeading);alternatives.open=ordered.length>1||Boolean(filtering);
    view.push(alternatives);
-   const toolbar=el('div',null,'task-event-plan-sort'),sort=el('div',null,'task-event-sort-options');sort.setAttribute('role','group');sort.setAttribute('aria-label','收益方案排序');
+   const toolbar=el('div',null,'task-event-plan-sort');
    if(q('goal').value==='both'){const goals=el('div',null,'task-event-result-tabs task-event-goal-tabs');goals.setAttribute('role','group');goals.setAttribute('aria-label','收益优先候选');for(const [goal,name] of [['badges','道具优先'],['eventPoints','pt 优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(target===goal));button.addEventListener('click',()=>{displayGoal=goal;page=0;selectedPlan=null;render();});goals.append(button);}toolbar.append(goals);}
-   for(const [value,name] of [['yield','收益优先'],['short','时长优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(displaySort===value));button.addEventListener('click',()=>{displaySort=value;page=0;selectedPlan=null;render();});sort.append(button);}const count=el('small',`${ordered.length} 个歌曲收益方案`);toolbar.append(el('span','方案排序'),sort,count);alternatives.append(toolbar);
+   const controls=eventResultFilterControls({rows:eligible,tracks:tool.data.tracks,filters:displayFilters,open:filtersOpen,onOpen:open=>{filtersOpen=open;},onChange:changeFilters});
+   const count=el('small');toolbar.append(controls,count);alternatives.append(toolbar);
    const baseline=el('div',null,'task-event-plan-baseline'),identity=el('div',null,'task-event-baseline-name');identity.append(el('small','比较基准'),el('strong',reference?.song.title??'—'),el('span',reference?.song.difficulty.toUpperCase()??'—','task-event-chart-label'));baseline.append(identity);
    const totals=el('div',null,'task-event-baseline-totals');for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){const metric=el('span');metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));totals.append(metric);}baseline.append(totals);const comparisonNotes=el('details',null,'event-comparison-notes');comparisonNotes.append(el('summary','比较基准'),baseline);toolbar.append(comparisonNotes);
-   comparisonNotes.append(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}${completion.individual?'逐曲比较':'展示当前候选'}：${EVENT_YIELD_GOAL_LABELS[target]}；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}。`,'event-hint task-event-gap-note'));
+   comparisonNotes.append(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}${completion.individual?'逐曲比较':'展示当前候选'}：${EVENT_YIELD_GOAL_LABELS[target]}，两项收益相同时优先短曲；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}，筛选不改变比较基准。`,'event-hint task-event-gap-note'));
    const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','收益方案');alternatives.append(tabs);
-   count.hidden=ordered.length<=8;count.textContent=ordered.length?`${page*8+1}–${Math.min(ordered.length,page*8+8)} / ${ordered.length} 套`:'0 套';
+   count.hidden=ordered.length<=8&&!filtering;count.textContent=filtering?`${ordered.length} / ${eligible.length} 套`:ordered.length?`${page*8+1}–${Math.min(ordered.length,page*8+8)} / ${ordered.length} 套`:'0 套';
+   if(!ordered.length){const empty=el('div',null,'event-results-empty'),clear=el('button','清除筛选');clear.type='button';clear.addEventListener('click',()=>changeFilters(emptyEventResultFilters()));empty.append(el('p','没有符合筛选条件的方案。'),clear);alternatives.append(empty);}
    const visible=ordered.slice(page*8,page*8+8),selected=visible.find(r=>r.id===selectedPlan?.id&&r.song.id===selectedPlan?.song)??visible.find(r=>r.song.id===selectedPlan?.song)??visible[0];
    for(const row of visible){
      const signature=JSON.stringify({...row,search:undefined}),cached=articleCache.get(row.id+'|'+row.song.id),reuse=cached?.signature===signature;
@@ -166,6 +171,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    }
    const container=q('results');reconcileCalculationView(container,view);
    if(focusedPlan)for(const button of container.querySelectorAll('.task-event-plan-choice'))if(button.dataset.yieldPlanKey===focusedPlan&&document.activeElement!==button)button.focus({preventScroll:true});
+   if(focusedFilter)for(const control of container.querySelectorAll('.event-result-filter-control'))if(control.dataset.yieldResultFilter===focusedFilter&&document.activeElement!==control)control.focus({preventScroll:true});
    articleCache=nextArticles;viewCache=nextView;syncReferences();
 
  }

@@ -38,10 +38,9 @@ export function selectEventYieldRows(rows,goal='both',limit=10){
 }
 
 /** Display ordering never changes the reward objective or input results. */
-export function orderEventYieldRows(rows,sort='yield',goal='both'){
- const duration=row=>Number.isFinite(row.song?.seconds)?row.song.seconds:Infinity;
+export function orderEventYieldRows(rows,goal='both'){
  const compare=(a,b)=>compareEventPlans(a,b,goal==='both'?'badges':goal)||a.song.id.localeCompare(b.song.id)||String(a.id).localeCompare(String(b.id));
- return [...rows].sort(sort==='short'?(a,b)=>duration(a)-duration(b)||compare(a,b):compare);
+ return [...rows].sort(compare);
 }
 
 /** Both currency differences refer to the same goal's leading plan. */

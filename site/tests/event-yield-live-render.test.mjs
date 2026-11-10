@@ -42,6 +42,45 @@ function harness(t){
  return {q,optimizer,send,partial,workers,tool};
 }
 
+test('result controls cannot select a lower reward just because its song is shorter',t=>{
+ const {q,send,partial}=harness(t),data=partial(1000,'result');
+ data.rows[0].song.seconds=150;data.rows[0].total={badges:1000,eventPoints:900};
+ data.rows[1].song.seconds=80;data.rows[1].total={badges:700,eventPoints:600};
+ send(data);
+ const nodes=n=>[n,...n.children.flatMap(nodes)];
+ const oldSort=nodes(q('results')).find(n=>n.textContent==='时长优先');oldSort?.listeners.click();
+ const choice=q('results').querySelectorAll('.task-event-plan-choice')[0];
+ assert.equal(choice.dataset.yieldPlanKey,'one|one','a shorter song cannot outrank higher rewards');
+ assert.equal(oldSort,undefined,'replace the conflicting sorting switch with result filters');
+ assert.equal(q('results').querySelectorAll('.event-result-filters').length,1);
+});
+
+test('result filters reset pagination, preserve focus and recover empty results without another search',t=>{
+ const {q,send,partial,workers,tool}=harness(t),data=partial(1000,'result'),sample=data.rows[0];
+ tool.data.tracks=[{id:'music-1',bandIds:['1'],bandLabels:['First']},{id:'music-2',bandIds:['2'],bandLabels:['Second']}];
+ data.rows=Array.from({length:12},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,trackId:`music-${i%2+1}`,title:`Song ${i}`,level:25+i%2},
+  total:{badges:1000-i,eventPoints:100},gradeProbabilities:i?[{rank:4,probability:i%2?.1:0},{rank:5,probability:i%2?.9:1}]:[]}));
+ send(data);
+ const nodes=n=>[n,...n.children.flatMap(nodes)],control=id=>q('results').querySelectorAll('.event-result-filter-control').find(n=>n.dataset.yieldResultFilter===id);
+ nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
+ const panel=q('results').querySelectorAll('.event-result-filters')[0];panel.open=true;panel.listeners.toggle();
+ const level=control('levels-26');level.focus();level.checked=true;let stopped=false;level.listeners.change({stopPropagation(){stopped=true;}});
+ assert.equal(stopped,true);
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,6);
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice')[0].dataset.yieldPlanKey,'team-1|song-1');
+ assert.equal(globalThis.document.activeElement.dataset.yieldResultFilter,'levels-26');
+ assert.equal(q('results').querySelectorAll('.event-result-filters')[0].open,true);
+ const band=control('bands-1');band.checked=true;band.listeners.change({stopPropagation(){}});
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,0);
+ assert.equal(q('results').querySelectorAll('.task-event-plan-result').length,0);
+ assert.equal(q('results').querySelectorAll('.event-results-empty').length,1);
+ const baseline=q('results').querySelectorAll('.task-event-baseline-name')[0];assert.ok(baseline.children.some(n=>n.textContent==='Song 0'));
+ control('clear').listeners.click();assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,8);
+ const risk=control('risk');risk.value='0';risk.listeners.change({stopPropagation(){}});
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,5,'zero risk excludes both risky and unknown distributions');
+ assert.equal(workers.length,1,'filtering never starts another search');
+});
+
 test('cycle results explain whether challenge bands are unrestricted or inherited',t=>{
  const {q,optimizer,send,partial,tool}=harness(t);
  tool.data.rules.tables.ChallengeMusic=[{_eventId:3,_liveMusicId:1}];

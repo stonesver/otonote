@@ -342,8 +342,13 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
        if(bonusDomain)stats.bonusDomainCacheHits++;
        else {
         const constrained=constrainBonusCards(edges,state,(kind,id)=>{const bp=cardBonus(kind,id);return a*bp[primary]+b*bp[secondary];},threshold);
-        stats.powerMatchingCalls++;
-        const constrainedPower=maximumPairing({edges:constrained,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+        // constrainBonusCards only filters this ordered edge list. If no edge
+        // was removed, the exact power matching and its tie order are unchanged.
+        let constrainedPower=power;
+        if(constrained.length!==edges.length){
+         stats.powerMatchingCalls++;
+         constrainedPower=maximumPairing({edges:constrained,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+        }
         bonusDomain={constrained,constrainedPower};
         if(domain.constrained.size>=8)domain.constrained.delete(domain.constrained.keys().next().value);
         domain.constrained.set(bonusKey,bonusDomain);

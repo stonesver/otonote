@@ -31,6 +31,7 @@ export function compileSkillConditions(sets, tables, unsupported) {
     return c;
   }));
   const conditions = groups.flat();
+  const unconditional = [];
   function matches(c, ctx, random) {
     let value;
     switch (c.type) {
@@ -66,11 +67,17 @@ export function compileSkillConditions(sets, tables, unsupported) {
       }));
     },
     match(ctx, random) {
-      if (!groups.length) return [];
+      if (!groups.length) return unconditional;
       // Check deterministic predicates first, even if a probability row is
       // authored first. A failed band/life/event gate never consumes a draw.
-      return groups.find(group => group.every(c => matches(c, ctx)) &&
-        (!random || group.every(c => c.type !== 4011 || matches(c, ctx, random)))) ?? null;
+      for (const group of groups) {
+        let matched = true;
+        for (const c of group) if (!matches(c, ctx)) { matched = false; break; }
+        if (!matched) continue;
+        if (random) for (const c of group) if (c.type === 4011 && !matches(c, ctx, random)) { matched = false; break; }
+        if (matched) return group;
+      }
+      return null;
     },
     stillMatches: (branch, ctx) => branch.every(c => matches(c, ctx)),
     timestamp(branch, ctx) {

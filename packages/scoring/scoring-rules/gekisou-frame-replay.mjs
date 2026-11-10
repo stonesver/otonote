@@ -2,7 +2,7 @@ import { createFrameClock, gekisouReleaseFrames, skillEndFrame } from './formal-
 import { createGekisouLuckMachine, createScoringRandom } from './gekisou-luck.mjs';
 import { formalJudgementType } from './formal-judgement.mjs';
 import { createGekisouEffectState, advanceGekisouEffect } from './gekisou-skill-runtime.mjs';
-import { resolveTimingJudgement } from './performance-scenarios.mjs';
+import { createTimingJudgementResolver } from './performance-scenarios.mjs';
 import { createLifeReplay, createComboReplay, createOrdinarySkillLifecycle } from './formal-performance-state.mjs';
 
 const f32 = Math.fround;
@@ -28,6 +28,7 @@ export function applyGekisouComboJudgement(state, judgement, gain, guards = []) 
  * This is not a recording of the game's input scheduler or random stream. */
 export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4] } = {}) {
   const random = createScoringRandom(seed);
+  const resolveJudgement = performanceInput && createTimingJudgementResolver(rules);
   const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
   const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
   const maximumLife = setting('life_base'), musicLengthMs = Math.max(...timeline.events.map(e => e.timeMs), ...(timeline.skillTimes ?? []));
@@ -162,7 +163,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       note.inputTimeMs = timeMs;
       const offset = note.timingOffsetMs ?? scenario.timingOffsetMs;
       const expansionFor = base => sum32(judgementEffects.filter(e => e.operator.windowExpansion).map(e => e.operator.windowExpansion(e, base)));
-      if (performanceInput) note.judgement = resolveTimingJudgement(rules, note, { justEnabled, justExpansion: expansionFor });
+      if (performanceInput) note.judgement = resolveJudgement(note, { justEnabled, justExpansion: expansionFor });
       else {
         const window = windows.get(formalJudgementType(note.type, note.critical));
         if (window) {
@@ -170,7 +171,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
           if (justEnabled && Math.abs(offset) <= baseWindow + expansionFor(baseWindow)) note.judgement = 6;
         }
       }
-      note.originalJudgement = performanceInput ? resolveTimingJudgement(rules, note, { justEnabled }) : 5;
+      note.originalJudgement = performanceInput ? resolveJudgement(note, { justEnabled }) : 5;
       note.windowJudgement = note.judgement;
       // Ordinary converters resolve first in owner/activation order, then
       // Gekisou converters consume only a matching, actually changed grade.

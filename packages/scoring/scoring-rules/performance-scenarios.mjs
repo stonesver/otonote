@@ -77,3 +77,30 @@ export function resolveTimingJudgement(rules, event, { justEnabled = false, just
   return rows.find(row => Math.abs(offset) <= (offset < 0 ? row._beforeMs : row._afterMs) +
     (row._noteSimulateJudgement === 6 ? justExpansion(offset < 0 ? row._beforeMs : row._afterMs) : 0))?._noteSimulateJudgement ?? 1;
 }
+
+/** Bind the priority-ordered windows once for a replay, rather than sorting
+ * the same table for every judgement. No cache survives a rules snapshot. */
+export function createTimingJudgementResolver(rules) {
+  const windows = new Map();
+  for (const row of rules.tables.LiveJudgementTiming) {
+    if (row._assistLevel !== 0 || row._noteSimulateJudgement < 1 || row._noteSimulateJudgement > 6) continue;
+    if (!windows.has(row._noteJudgementType)) windows.set(row._noteJudgementType, []);
+    windows.get(row._noteJudgementType).push(row);
+  }
+  for (const [type, rows] of windows) {
+    rows.sort((a, b) => a._judgementPriority - b._judgementPriority);
+    windows.set(type, [rows.filter(row => row._noteSimulateJudgement !== 6), rows]);
+  }
+  return (event, { justEnabled = false, justExpansion = () => 0 } = {}) => {
+    if (event.originalJudgement != null) return event.originalJudgement;
+    if (event.missed) return 1;
+    const type = formalJudgementType(event.type, event.critical), rows = windows.get(type)?.[Number(justEnabled)];
+    if (!rows?.length) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
+    const offset = event.timingOffsetMs;
+    for (const row of rows) {
+      const base = offset < 0 ? row._beforeMs : row._afterMs;
+      if (Math.abs(offset) <= base + (row._noteSimulateJudgement === 6 ? justExpansion(base) : 0)) return row._noteSimulateJudgement;
+    }
+    return 1;
+  };
+}

@@ -211,8 +211,11 @@ test('parallel evaluation retains every candidate, song and skill-order sample i
   const { rules, chart, draft } = fixture({ missions: [3, 3, 3] });
   const candidates = Array.from({ length: 3 }, (_, i) => ({ id: `candidate-${i}`, draft: { ...draft,
     slots: [...draft.slots.slice(i), ...draft.slots.slice(0, i)] } }));
+  const second = { ...structuredClone(chart), id: 'music-chart-10000203', trackId: 'music-100002' };
+  const music = rules.tables.LiveMusic.find(row => row._id === 100002);
+  for (let i = 1; i <= 3; i++) music[`_gekisouMission${i}`] = 3;
   const input = { rules, context: stage, candidates, performance: normalizePerformanceScenario({ profile: 'steady' }),
-    songs: [{ trackId: chart.trackId, difficulty: chart.difficulty, weight: 1, chart }] };
+    songs: [chart, second].map(chart => ({ trackId: chart.trackId, difficulty: chart.difficulty, weight: 1, chart })) };
   const createWorker = () => {
     const worker = new Worker(new URL('./fixtures/arena-evaluation-worker.mjs', import.meta.url));
     return { postMessage: data => worker.postMessage(data), terminate: () => worker.terminate(),
@@ -221,7 +224,8 @@ test('parallel evaluation retains every candidate, song and skill-order sample i
   const serial = await evaluateArenaCandidates(input), progress = [];
   const parallel = await evaluateArenaCandidatesParallel(input, { size: 2, createWorker, onProgress: p => progress.push(p) });
   assert.deepEqual(parallel, serial);
-  assert.equal(progress.at(-1).completed, candidates.length);
+  assert.equal(progress.at(-1).completed, candidates.length * input.songs.length);
+  assert.ok(progress.every((p, i) => !i || p.completed >= progress[i - 1].completed));
 });
 
 function arenaSkillCards(rules) {

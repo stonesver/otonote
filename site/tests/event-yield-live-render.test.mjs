@@ -57,20 +57,24 @@ test('result controls cannot select a lower reward just because its song is shor
 
 test('result filters reset pagination, preserve focus and recover empty results without another search',t=>{
  const {q,send,partial,workers,tool}=harness(t),data=partial(1000,'result'),sample=data.rows[0];
- tool.data.tracks=[{id:'music-1',bandIds:['1'],bandLabels:['First']},{id:'music-2',bandIds:['2'],bandLabels:['Second']}];
+ tool.data.tracks=[{id:'music-1',bandIds:['band-1'],bandLabels:['First']},{id:'music-2',bandIds:['band-2'],bandLabels:['Second']}];
  data.rows=Array.from({length:12},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,trackId:`music-${i%2+1}`,title:`Song ${i}`,level:25+i%2},
   total:{badges:1000-i,eventPoints:100},gradeProbabilities:i?[{rank:4,probability:i%2?.1:0},{rank:5,probability:i%2?.9:1}]:[]}));
  send(data);
+ const icons=q('results').querySelectorAll('.event-result-band').map(n=>n.children.find(c=>c.src).src);
+ assert.ok(icons[0].endsWith('/images/filter-bands/band-1.png'));
+ assert.ok(icons[1].endsWith('/images/filter-bands/band-2.png'));
  const nodes=n=>[n,...n.children.flatMap(nodes)],control=id=>q('results').querySelectorAll('.event-result-filter-control').find(n=>n.dataset.yieldResultFilter===id);
  nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
- const panel=q('results').querySelectorAll('.event-result-filters')[0];panel.open=true;panel.listeners.toggle();
+ control('toggle').listeners.click();
  const level=control('levels-26');level.focus();level.checked=true;let stopped=false;level.listeners.change({stopPropagation(){stopped=true;}});
  assert.equal(stopped,true);
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,6);
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice')[0].dataset.yieldPlanKey,'team-1|song-1');
  assert.equal(globalThis.document.activeElement.dataset.yieldResultFilter,'levels-26');
- assert.equal(q('results').querySelectorAll('.event-result-filters')[0].open,true);
- const band=control('bands-1');band.checked=true;band.listeners.change({stopPropagation(){}});
+ assert.equal(control('toggle').attrs['aria-expanded'],'true');
+ assert.equal(q('results').querySelectorAll('.event-result-filter-panel')[0].hidden,false);
+ const band=control('bands-band-1');band.checked=true;band.listeners.change({stopPropagation(){}});
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,0);
  assert.equal(q('results').querySelectorAll('.task-event-plan-result').length,0);
  assert.equal(q('results').querySelectorAll('.event-results-empty').length,1);
@@ -79,6 +83,8 @@ test('result filters reset pagination, preserve focus and recover empty results 
  const risk=control('risk-0');risk.focus();risk.checked=true;risk.listeners.change({stopPropagation(){}});
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,5,'zero risk excludes both risky and unknown distributions');
  assert.equal(globalThis.document.activeElement.dataset.yieldResultFilter,'risk-0');
+ control('toggle').listeners.click();assert.equal(q('results').querySelectorAll('.event-result-filter-panel')[0].hidden,true);
+ control('toggle').listeners.click();assert.equal(control('risk-0').checked,true,'collapsing preserves the selected filter');
  assert.equal(workers.length,1,'filtering never starts another search');
 });
 

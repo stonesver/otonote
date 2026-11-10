@@ -418,6 +418,31 @@ body:has(.event-action-dock .event-calculation:not([hidden])) .tw-launcher { bot
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-phase-tabs > button { min-height:40px; }
 }
 
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters { margin:0; min-width:0; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters > summary { display:flex; align-items:center; gap:5px; min-height:26px; padding:3px 8px; border:1px solid var(--tool-line); border-radius:6px; font-size:11px; color:var(--tool-ink); cursor:pointer; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters > summary::before { content:'▸'; color:var(--tool-muted); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters[open] { flex-basis:100%; order:3; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters[open] > summary { width:fit-content; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters[open] > summary::before { content:'▾'; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-filter-count { display:inline-grid; place-items:center; min-width:16px; height:16px; padding:0 3px; border-radius:4px; color:var(--tool-accent); background:var(--tool-tint); font-size:10px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel { display:grid; grid-template-columns:1.4fr 1.4fr 1fr; gap:10px 16px; margin:8px 0 4px; padding:10px; border:1px solid var(--tool-line); border-radius:6px; background:var(--tool-surface); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel fieldset { min-width:0; margin:0; padding:0; border:0; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel legend { margin:0 0 5px; padding:0; font-size:11px; font-weight:600; color:var(--tool-muted); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-choices { display:flex; flex-wrap:wrap; gap:4px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel .event-result-filter-option { display:inline-flex; align-items:center; gap:5px; width:auto; min-height:26px; margin:0; padding:3px 6px; border:1px solid var(--tool-line); border-radius:4px; font-size:11px; color:var(--tool-ink); cursor:pointer; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel .event-result-filter-option:has(:checked) { border-color:var(--tool-accent); color:var(--tool-accent); background:var(--tool-tint); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel input[type=checkbox] { width:12px; height:12px; min-height:0; margin:0; padding:0; accent-color:var(--tool-accent); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel select { width:100%; min-height:28px; margin:0 0 6px; padding:3px 6px; font-size:11px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-footer { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:7px; border-top:1px solid var(--tool-line); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-footer small { font-size:10px; line-height:1.5; color:var(--tool-muted); }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench :is(.event-result-filter-footer,.event-results-empty) button { flex-shrink:0; min-height:26px; padding:3px 7px; font-size:11px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-results-empty { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0 6px; font-size:12px; color:var(--tool-muted); }
+@media(max-width:700px) {
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel { grid-template-columns:1fr; padding:8px; gap:10px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-result-filter-panel .event-result-filter-option { min-height:32px; }
+.task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives .event-result-filters > summary { min-height:32px; }
+}
+
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives > summary { display:flex; align-items:center; gap:5px; list-style:none; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives > summary::-webkit-details-marker { display:none; }
 .task-studio.task-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .event-alternatives > summary::before { content:'▸'; }

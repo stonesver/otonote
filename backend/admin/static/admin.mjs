@@ -1,6 +1,7 @@
 import {chart} from './charts.mjs';
 import {noticeManager} from './notices.mjs';
 import {request} from './request.mjs';
+import {renderPublicationReview} from './publication-review.mjs';
 const $ = id => document.getElementById(id);
 const number = value => value == null ? '—' : new Intl.NumberFormat('zh-CN', {maximumFractionDigits: 1}).format(value);
 const bytes = value => value == null ? '—' : value < 1e6 ? `${number(value / 1e3)} KB` : value < 1e9 ? `${number(value / 1e6)} MB` : `${number(value / 1e9)} GB`;
@@ -120,13 +121,13 @@ function renderUpdateHealth(health){
   box.append(history);return box;
 }
 
-function renderContentDelivery(profile){
+function renderContentDelivery(profile,node){
   const section=el('section',null,'content-delivery');
   section.append(el('h3','Global / JP 内容发布'));
   const flow=el('ol',null,'delivery-flow');
   for(const [title,detail] of [
     ['游戏资源生产','GitHub Actions 检查版本、采集资源并生成快照'],
-    ['发布到 R2','校验通过后切换区服内容指针，媒体由 Worker 提供'],
+    ['公开前审核','已确认时间到点放行，不确定的批次在工作台审核；通过后切换内容指针'],
     ['网站交付','现有服务器同步内容并生成页面，下方显示本机交付结果']]){
     const step=el('li');step.append(el('strong',title),el('small',detail));flow.append(step);
   }
@@ -145,8 +146,8 @@ function renderContentDelivery(profile){
   for(const text of [
     '打开上方 Actions 页面，在 GitHub 登录后选择 Run workflow。',
     'Branch 选择 main，region 选择 global 或 jp；更新两服需分别运行。',
-    '正式更新选择 mode = promote，然后提交。仅验证生产和上传时选择 shadow，它不会更新网站。',
-    '在该次 Actions 运行中查看进度和结果；promote 完成后等待服务器同步、生成页面，再回到此页刷新。'])steps.append(el('li',text));
+    '选择 mode = promote 准备并尝试发布；启用审核后，未知公开时间的批次仍会等待审核。shadow 只准备候选。',
+    '在下方公开前审核中处理待审批次；发布完成后等待服务器同步和生成页面。'])steps.append(el('li',text));
   guide.append(steps,el('p','日常追新由定时触发器发起，Actions 执行。只修改网站功能时走代码发布流程，无需手动运行游戏资源生产。','caption'),
     el('p','若已保存发布但晋级失败，使用“重试已保存的发布”，填入原运行摘要中的发布编号，先 verify 再 promote。若仅等待页面交付，重试服务器现有预渲染服务即可，无需重新生产资源。','caption'));
   section.append(guide,el('p','本页分别核对运行回执、远端版本和本机交付；详细步骤可打开对应 Actions 运行。','caption'));
@@ -170,7 +171,7 @@ function renderContentDelivery(profile){
     }else card.append(el('p','交付回执缺失、过期或两服版本尚未对齐。更新中可稍后刷新；若持续如此，请检查服务器预渲染服务。','caption'));
     cards.append(card);
   }
-  section.append(cards,renderUpdateHealth(profile.health));return section;
+  section.append(renderPublicationReview({node,profile,enabled:config.publicationReview,el,api,status,refresh:refreshNodes,confirm:confirmPublication}),cards,renderUpdateHealth(profile.health));return section;
 }
 function renderTask(task){
   const row=el('div',null,'task'),name=el('div',task.message);
@@ -183,6 +184,7 @@ async function refreshNodes(gen=generation){
   if(!nodes.length)return empty($('nodes'),'还没有绑定资源节点','配置节点后可以查看运行状态、步骤和任务记录。');
   const results=await Promise.all(nodes.map(async n=>({node:n,result:await api(`/api/nodes/${encodeURIComponent(n.id)}`)})));
   if(gen!==generation)return;
+  if(document.activeElement?.matches('.content-review input'))return;
   const offline=results.filter(x=>x.result.status!=='ok').length;
   const hasActions=results.some(x=>x.result.data?.profiles.some(p=>p.productionOwner==='github-actions-r2'));
   status(offline?`${offline} 个节点暂不可用 · 不据此判断任务结果`:hasActions?'交付状态已更新 · Actions 生产进度请在 GitHub 查看':'节点状态已更新 · 仅显示实际开放的操作',Boolean(offline));
@@ -195,7 +197,7 @@ async function refreshNodes(gen=generation){
     for(const profile of result.data.profiles){
       const row=el('div',null,'node-profile'),description=el('div');
       if(profile.productionOwner==='github-actions-r2'){
-        panel.append(renderContentDelivery(profile));continue;
+        panel.append(renderContentDelivery(profile,node));continue;
       }
       description.append(el('p',profile.name),el('small',`最近运行：${words[profile.status]||profile.status} · ${profile.publication==='enabled'?'已开放授权发布':'发布权限未开放'}`));
       if(profile.currentRelease)description.append(el('small',`当前内容：${profile.currentRelease}`));
@@ -230,7 +232,10 @@ async function refreshNodes(gen=generation){
   for(const disclosure of $('nodes').querySelectorAll('details[data-disclosure]'))disclosure.open=openDisclosures.has(disclosure.dataset.disclosure);
 }
 function confirmPublish(profile){
-  const dialog=$('publish-confirm');$('publish-description').textContent=`将发布候选 ${profile.candidate.id.slice(0,12)}（${profile.candidate.contentReleaseId}）。发布后网站使用该内容，上一版保留用于回退。`;
+  return confirmPublication(`将发布候选 ${profile.candidate.id.slice(0,12)}（${profile.candidate.contentReleaseId}）。发布后网站使用该内容，上一版保留用于回退。`);
+}
+function confirmPublication(message){
+  const dialog=$('publish-confirm');$('publish-description').textContent=message;
   return new Promise(resolve=>{dialog.addEventListener('close',()=>resolve(dialog.returnValue==='publish'),{once:true});dialog.returnValue='cancel';dialog.showModal();});
 }
 function settings(){rows($('settings'),[

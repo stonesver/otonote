@@ -46,6 +46,7 @@ jobs:
     concurrency:
       group: content-r2-${{ inputs.region }}
       cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v4
         with:
@@ -139,4 +140,5 @@ jobs:
           python -m tools.recompute_published_rankings \
             --region "$REGION" --expected-current "$EXPECTED_CURRENT" \
             --model "$MODEL" --source-run "rankings-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --publication "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
             --work "$RUNNER_TEMP/ranking-refresh" "${options[@]}"

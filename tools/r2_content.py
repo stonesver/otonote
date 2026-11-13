@@ -441,6 +441,9 @@ def _promote_verified_pointer(bucket, pointer_bytes, region, expected_current, *
         raise ValueError("R2 content pointer differs from expected baseline")
     if current_bytes == pointer_bytes:
         return {"status": "unchanged", "region": region, "releaseId": release_id}
+    from tools.publication_review import authorize
+    if not authorize(bucket, pointer, region, write=not dry_run):
+        return {"status": "awaiting_review", "region": region, "releaseId": release_id}
     if dry_run:
         return {"status": "ready", "region": region, "releaseId": release_id,
                 "previousSha256": actual, "pointerSha256": digest(pointer_bytes)}
@@ -523,6 +526,9 @@ def rollback(bucket, region: str, expected_current: str, *, source_run: str) -> 
                 check_public_path(name)
                 if not same_object(bucket, f"content/releases/{match[1]}/{name}", sha, size):
                     raise ValueError("previous R2 content record is missing or damaged")
+    from tools.publication_review import authorize
+    if not authorize(bucket, prior, region, write=True):
+        raise ValueError('previous content is not approved for publication')
     record = canonical({"schemaVersion": 1, "region": region, "run": source_run,
                         "action": "rollback", "previousPointer": json.loads(current_bytes),
                         "nextPointer": prior, "previousSha256": digest(current_bytes),

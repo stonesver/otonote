@@ -65,11 +65,12 @@ def build(region, run_id, attempt, sha, status, steps, previous=None, now=None, 
     outcome = {'running': 'running', 'failure': 'failed', 'cancelled': 'cancelled', 'skipped': 'skipped'}.get(status, 'checked')
     if status == 'success':
         if stages.get('promote') == 'success':
-            outcome = 'promoted'
+            outcome = 'produced' if steps['promote'].get('outputs', {}).get('publicStatus') == 'awaiting_review' else 'promoted'
         elif stages.get('produce') == 'success':
             outcome = 'produced'
         elif (stages.get('light_gate') == 'success' or stages.get('production_gate') == 'success'):
-            outcome = 'unchanged'
+            outcome = ('produced' if any(steps.get(name, {}).get('outputs', {}).get('publicStatus') == 'awaiting_review'
+                                        for name in ('light_gate', 'production_gate')) else 'unchanged')
     value = {'schemaVersion': 1, 'region': region, 'runId': run_id, 'attempt': attempt,
              'sourceSha': sha, 'status': status, 'outcome': outcome, 'stages': stages,
              'failedStage': failed, 'consecutiveFailures': count,

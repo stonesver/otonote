@@ -38,6 +38,12 @@ class RunRecordTests(unittest.TestCase):
         self.assertEqual(self.current()['outcome'], 'promoted')
         self.assertIsNotNone(self.current()['lastSuccessAt'])
 
+    def test_awaiting_review_is_not_reported_as_promoted(self):
+        self.publish(1, 'success', promote={'outcome': 'success', 'outputs': {'publicStatus': 'awaiting_review'}})
+        self.assertEqual(self.current()['outcome'], 'produced')
+        self.publish(2, 'success', light_gate={'outcome': 'success', 'outputs': {'publicStatus': 'awaiting_review'}})
+        self.assertEqual(self.current()['outcome'], 'produced')
+
     def test_cross_region_fails_closed(self):
         self.publish(1, 'running')
         raw = self.current();raw['region'] = 'jp'

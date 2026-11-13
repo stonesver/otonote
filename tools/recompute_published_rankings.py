@@ -188,12 +188,15 @@ def reviewed_arena_projections(manifest,master_root,review_path,expected_sha256)
 
 
 def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
-              publish=False, compute=calculate, scoring_rules=None, expected_rules_sha256=None,
+              publish=False, publication=None, compute=calculate, scoring_rules=None, expected_rules_sha256=None,
               arena_review=None,arena_master_root=None,expected_arena_review_sha256=None):
     if not SHA256.fullmatch(expected):
         raise ValueError('an explicit existing pointer digest is required')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', source_run):
         raise ValueError('invalid source run identity')
+    from tools.publication_review import enabled
+    if publish and enabled(bucket) and publication is None:
+        raise ValueError('publication review requires an Actions publication identity')
     work = Path(work)
     if work.exists():
         raise ValueError('recompute workspace must be new')
@@ -300,6 +303,13 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     resolver = SharedMediaResolver(_control(bucket), identifier, raw_manifest)
     if resolver.all_records() != media:
         raise ValueError('new media references differ from verified source')
+    if publication is not None:
+        from tools.r2_publication import record_prepared
+        saved_inventory = {name: {'sha256': sha, 'bytes': (target/name).stat().st_size}
+                           for name, sha in new_files.items()}
+        saved_inventory.update({name: {'sha256': row['sha256'], 'bytes': row['bytes']}
+                                for name, row in media.items()})
+        record_prepared(bucket, region, publication, expected, target, canonical(new_pointer), updated, saved_inventory)
     result = _promote_verified_pointer(bucket, canonical(new_pointer), region, expected, source_run=source_run)
     (work/'publication.json').write_bytes(canonical(result))
     return {**report, **result}
@@ -311,6 +321,7 @@ def main():
     parser.add_argument('--expected-current', required=True)
     parser.add_argument('--model', required=True)
     parser.add_argument('--source-run', required=True)
+    parser.add_argument('--publication')
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--publish', action='store_true')
     parser.add_argument('--scoring-rules', type=Path)
@@ -321,7 +332,7 @@ def main():
     args = parser.parse_args()
     try:
         report = recompute(S3Bucket.from_environment(workers=8), args.region, args.expected_current,
-                           args.work, model=args.model, source_run=args.source_run, publish=args.publish,
+                           args.work, model=args.model, source_run=args.source_run, publish=args.publish, publication=args.publication,
                            scoring_rules=args.scoring_rules, expected_rules_sha256=args.expected_rules_sha256,
                            arena_review=args.arena_review,arena_master_root=args.arena_master_root,expected_arena_review_sha256=args.expected_arena_review_sha256)
         print(json.dumps(report, ensure_ascii=False))

@@ -149,4 +149,14 @@ def validate_config(source, role=None):
                 or not isinstance(notices['publishUsers'], list) or not notices['publishUsers']
                 or any(not isinstance(x, str) or not 1 <= len(x) <= 120 for x in notices['publishUsers'])):
             raise ValueError('invalid notice configuration')
+    if c.get('publicationReview') is not None:
+        review = c['publicationReview']
+        if (c['role'] != 'admin' or not isinstance(review, dict)
+                or set(review) != {'repository', 'tokenEnv'}
+                or not isinstance(review['repository'], str)
+                or not re.fullmatch(r'[A-Za-z0-9-]+/[A-Za-z0-9_.-]+', review['repository'])
+                or review['repository'].split('/')[-1] in ('.', '..')
+                or not isinstance(review['tokenEnv'], str)
+                or not re.fullmatch(r'[A-Z][A-Z0-9_]{2,100}', review['tokenEnv'])):
+            raise ValueError('invalid publication review configuration')
     return c

@@ -182,6 +182,14 @@ export default {
     let shared = null;
     const match = release.exec(url.pathname);
     try {
+      if (match && env.PUBLICATION_REVIEW === 'required') {
+        const bytes = await control(env.CONTENT, `content/access/${match[1]}.json`);
+        if (bytes === null) return new Response(null, {status: 404, headers: {'Cache-Control': 'no-store'}});
+        const access = JSON.parse(new TextDecoder().decode(bytes));
+        if (access.schemaVersion !== 1 || access.releaseId !== match[1]
+            || !['global', 'jp'].includes(access.region) || !SHA256.test(access.manifestSha256))
+          throw Error('Invalid publication permission');
+      }
       if (match && sharedPath(match[2])) shared = await sharedObject(env.CONTENT, match[1], match[2]);
     } catch {
       return new Response(null, {status: 503, headers: {'Cache-Control': 'no-store'}});

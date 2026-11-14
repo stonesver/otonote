@@ -15,7 +15,9 @@ test('complete search uses a bounded hardware budget; limited internal jobs stay
  assert.equal(eventYieldParallelism(full,{cores:10,memory:16}),6);
  assert.equal(eventYieldParallelism(full,{cores:4,memory:32}),3);
  assert.equal(eventYieldParallelism(full,{cores:16,memory:4}),2);
- assert.equal(eventYieldParallelism(full,{cores:16}),2);
+ assert.equal(eventYieldParallelism(full,{cores:16}),4);
+ assert.equal(eventYieldParallelism(full,{cores:8}),4);
+ assert.equal(eventYieldParallelism(full,{cores:4}),2);
  assert.equal(eventYieldParallelism(full,{cores:2,memory:8}),1);
  assert.equal(eventYieldParallelism(full,{cores:NaN,memory:8}),1);
  assert.equal(eventYieldParallelism({...full,searchDepth:'quick'},{cores:16,memory:8}),1);

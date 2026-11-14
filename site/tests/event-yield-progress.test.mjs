@@ -6,6 +6,7 @@ test('long proofs expose groups, leaders, live frontier and elapsed time without
  const message=eventYieldWorkerProgress({type:'progress',stage:'验证跨谱面收益上界',done:3,total:93,goal:'eventPoints',
   detail:{phase:'event-group-proof',group:2,groups:26,groupsCompleted:1,leader:7,leaderTotal:70,visited:134058,frontier:18}},1800000);
  assert.equal(message.done,3);assert.equal(message.total,93);
+ assert.equal(message.label,'验证最优收益 · 已检查 134,058 个分支');
  for(const value of ['活动 pt','搜索组 2 / 26','已完成 1 组','队长 7 / 70','134,058','待检查 18','1,800 秒','仍在证明最优性'])assert.ok(message.detail.includes(value),message.detail);
  assert.ok(!message.detail.includes('/ …'));
 });

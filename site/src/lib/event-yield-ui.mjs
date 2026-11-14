@@ -59,13 +59,13 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
  const resultKey=data=>JSON.stringify([data.rows,data.failures]);
  const updates=createCalculationLiveUpdates({hasResults:()=>Boolean(result?.rows.length),
    onResult:data=>{result={...data,calculationScopes:runScopes};render();},onProgress:data=>{
-     const progress=eventYieldProgressText(data);feedback.update({label:'正在比较活动收益',completed:data.done,total:data.total,detail:`${data.title??'所有候选歌曲'} · ${progress.detail}`});
+     const progress=eventYieldProgressText(data);feedback.update({label:data.label??progress.stage,completed:data.done,total:data.total,detail:`${data.title??'所有候选歌曲'} · ${progress.detail}`});
      q('status').textContent=`${progress.stage}：${data.title??'所有候选歌曲'}（${data.done} / ${data.total}）`;
    }});
  const stop=(publish=false)=>{worker?.terminate();worker=null;updates.stop({flushResult:publish});if(publish&&result)render();q('cancel').hidden=true;tool.q('suggest').disabled=false;q('run').disabled=false;root.setAttribute('aria-busy','false');};
  function context(){const rewards=q('rewards')?.checked&&tool.q('pool').value!=='reference';return {eventId:Number(tool.q('event').value),mode:tool.q('mode').value,scope:tool.q('pool').value,constraints:readCardBandConstraints(q('member-band'),q('support-band')),draft:currentEventDraft(tool),
    liveBoost:Number(tool.q('boost').value),challengeCost:Number(tool.q('cost').value),budget:Number(q('budget').value),startingCP:Number(q('starting').value),
-   rewardCards:rewards?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:rewards??false,searchDepth:'full',goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBandScope:q('challenge-band-scope')?.checked?'same':'all',challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
+   rewardCards:rewards?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',searchDepth:'full',goal:q('goal').value,basis:q('basis').value,includeChallenge:q('stages').value==='cycle',songs:q('songs').value,band:selectedControlValues(q('band')),attribute:selectedControlValues(q('attribute')),difficulty:selectedDifficulties(q('difficulty')),maxLevel:Number(q('level').value),challengeScope:q('challenge-scope').value,challengeBandScope:q('challenge-band-scope')?.checked?'same':'all',challengeBasis:q('challenge-basis').value,challengeDifficulty:selectedDifficulties(q('challenge-difficulty')),challengeMaxLevel:Number(q('challenge-level').value)};}
  function filters(c,challenge=false){
    const allowed=tool.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===c.eventId).map(r=>`music-${r._liveMusicId}`);
    if(challenge)return {allowedTrackIds:allowed,difficulty:c.challengeDifficulty,maxLevel:c.challengeMaxLevel};
@@ -93,7 +93,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    const next=JSON.stringify([displayFilters,displayGoal,page,Boolean(worker),resultKey(result)]);
    if(next===renderKey)return;renderKey=next;
    const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey,focusedFilter=document.activeElement?.dataset?.yieldResultFilter;
-   if(q('rewards')?.checked&&tool.q('pool').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
+   if(q('rewards')?.checked&&tool.q('pool').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
    if(tool.q('pool').value==='reference')view.push(el('p','当前阶段使用全卡库满养成参考；账号加成沿用页面设置，不代表实际持有。','event-hint'));
    const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
    const challengeBandNote=eventYieldChallengeBandNote(context(),cardBands);if(challengeBandNote)view.push(el('p',challengeBandNote,'event-hint'));

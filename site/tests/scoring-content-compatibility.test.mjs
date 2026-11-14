@@ -363,7 +363,7 @@ test('cumulative proof gains follow judgement arrivals instead of assuming the c
   assert.ok(mixed.gainFor({key})<mixed.gainFor({key:other}),'equal caps with different units must have distinct profile keys');
 });
 
-test('ramped proof envelopes dominate native 120-order scores for every support pairing and frame rate',()=>{
+test('ramped proof envelopes cover native orders, pairings, frame rates and overlapping skill buckets',()=>{
   const {r,c,d,effect}=ordinaryFixture();
   Object.assign(effect,{_skillEffectType:2001,_effectValue:1750,_maxEffectValue:21000,_skillCumulativeConditionID:990});
   r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[4],_conditionTargetIDs:[41,46],_maxCumulativeCount:12});
@@ -373,10 +373,12 @@ test('ramped proof envelopes dominate native 120-order scores for every support 
   for(const m of d.slots.map(s=>s.memberCardId))for(const s of d.slots.map(s=>s.supportCardId))
     pairSkills.set(m+'|'+s,resolver({...d,slots:[{memberCardId:m,supportCardId:s}]})[0]);
   const permutations=values=>values.length?values.flatMap((v,i)=>permutations(values.filter((_,j)=>i!==j)).map(tail=>[v,...tail])):[[]];
-  for(const frameRate of [30,60,120]){
-    const song=createFormalSongCalculator(r,c,{frameRate,eventAdapters}),input={draft:d};
+  for(const [frameRate,timings] of [[30],[60],[120],[60,[.001,.008,.015,.022,.029]]]){
+    const chart=timings?{...c,skillTimings:timings}:c;
+    const song=createFormalSongCalculator(r,chart,{frameRate,eventAdapters}),input={draft:d};
     for(const metric of ['expectedScore','maximumScore','minimumScore']){
       const bound=createOrdinaryScoreBound({song,pairSkills,legacyFactor:Infinity,input,metric,frameRate,bonusConstraintBound:true});
+      const envelope=bound.normalizedPowerEnvelope(1);
       for(const supports of permutations(d.slots.map(s=>s.supportCardId))){
         const team={...d,slots:d.slots.map((s,i)=>({...s,supportCardId:supports[i]}))},score=song.calculate(team);
         const powers=createFormationCalculator(r,{eventAdapters}).calculate(team).slots;
@@ -386,6 +388,8 @@ test('ramped proof envelopes dominate native 120-order scores for every support 
         const solution={edges,weight:score.power},node={edges,powerIsUpperBound:true};
         const upper=bound.withMinimumBonus(state,node,solution,()=>team,()=>0,0);
         assert.ok(upper>=score[metric],`${frameRate} ${metric}: ${upper} < ${score[metric]}`);
+        const normalized=score.power*(envelope.baseCoefficient+edges.reduce((sum,e)=>sum+envelope.gainFor(e),0));
+        assert.ok(normalized>=score[metric],`${frameRate} ${metric}: normalized ${normalized} < ${score[metric]}`);
       }
     }
   }

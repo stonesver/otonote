@@ -1,5 +1,5 @@
 import {resolveSearchInput} from './scoring-rules/formation-input.mjs';
-import {maximumPairing,partitionPairing} from './scoring-rules/maximum-pairing.mjs';
+import {maximumPairing,createMaximumPairing,partitionPairing} from './scoring-rules/maximum-pairing.mjs';
 import {compilePairingModels,draftFromPairing} from './inventory-optimizer.mjs';
 import {createFormalSkillResolver} from './scoring-rules/formal-skills.mjs';
 import {createFormalSongCalculator} from './scoring-rules/formal-song-score.mjs';
@@ -27,7 +27,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  const stats={groups:0,groupsCompleted:0,leaders:0,visited:0,expanded:0,cardPartitions:0,chartPartitions:0,pairPartitions:0,prunedPartitions:0,
   fullScoreCalculations:0,boundScoreCalculations:0,scoreCacheHits:0,jointBoundMatchingCalls:0,powerMatchingCalls:0,
   heuristicScores:0,transferScores:0,representativeScores:0,candidateBoundPruned:0,normalizedEnvelopes:0,repeatedCandidatesSkipped:0,
-  cardDomainCacheHits:0,bonusDomainCacheHits:0};
+  cardDomainCacheHits:0,bonusDomainCacheHits:0,minimumWitnessPruned:0};
  let rows=[],covered=[];
  const compare=(a,b)=>compareEventRewards({...a,...(individualProofs?{song:{seconds:0}}:{})},{...b,...(individualProofs?{song:{seconds:0}}:{})},goal);
  const perChart=new Map();
@@ -86,7 +86,12 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   const currency=kind==='rewardBP'?'badges':'eventPoints';
   return plays*reward[currency]+(continuation?.[currency]??0);
  };
- const groups=new Map(),entries=[];
+ const groups=new Map(),entries=[];let sharedPairSkills;
+ const skillSignatures=new Map(),pairProfileIds=new Map(),edgeProfileIds=new WeakMap();
+ const profileIdFor=edge=>{
+  if(!edgeProfileIds.has(edge))edgeProfileIds.set(edge,pairProfileIds.get(edge.key));
+  return edgeProfileIds.get(edge);
+ };
  for(const candidate of [...candidates].sort((a,b)=>(a.seconds??Infinity)-(b.seconds??Infinity)||a.id.localeCompare(b.id))){
   if(signal?.aborted)return finish(false,'cancelled');
   const next={...structuredClone(draft),selectedSongId:candidate.trackId,selectedDifficulty:candidate.difficulty};
@@ -94,9 +99,17 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   const key=eventCandidateKey(rules,next,options.inventory,options.scope,[],true,input.constraints??{});
   let group=groups.get(key);
   if(!group){
-   const pairSkills=new Map(),resolver=createFormalSkillResolver(rules);
-   for(const memberCardId of resolved.inventory.memberCardIds)for(const supportCardId of resolved.inventory.supportCardIds)
-    pairSkills.set(`${memberCardId}|${supportCardId}`,resolver({slots:[{memberCardId,supportCardId}],modifiers:resolved.draft.modifiers})[0]);
+   if(!sharedPairSkills){
+    sharedPairSkills=new Map();const resolver=createFormalSkillResolver(rules);
+    for(const memberCardId of resolved.inventory.memberCardIds)for(const supportCardId of resolved.inventory.supportCardIds)
+     sharedPairSkills.set(`${memberCardId}|${supportCardId}`,resolver({slots:[{memberCardId,supportCardId}],modifiers:resolved.draft.modifiers})[0]);
+   }
+   const pairSkills=sharedPairSkills;
+   if(!pairProfileIds.size)for(const [key,skill] of pairSkills){
+    const signature=JSON.stringify(skill.liveEffects);
+    if(!skillSignatures.has(signature))skillSignatures.set(signature,skillSignatures.size);
+    pairProfileIds.set(key,skillSignatures.get(signature));
+   }
    group={entries:[],models:null,pairSkills,resolved,merged:new Map(),transferred:new Set(),
     powerCacheKey:'group-power:'+JSON.stringify([eventCandidateKey(rules,next,options.inventory,options.scope,[],false),resolved.inventory,resolved.constraints])};groups.set(key,group);
   }
@@ -115,7 +128,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  // calculator. Keep them only for the current transfer chart/search group.
  const songFor=entry=>entry.song??=createFormalSongCalculator(rules,entry.chart);
  const boundFor=entry=>entry.bound??=createOrdinaryScoreBound({song:songFor(entry),pairSkills:entry.group.pairSkills,legacyFactor:Infinity,input:entry.resolved,metric:input.basis,bonusConstraintBound:true});
- const releaseEntry=entry=>{entry.evaluator=null;entry.bound=null;entry.song=null;entry.envelopes.clear();};
+ const releaseEntry=entry=>{entry.evaluator=null;entry.screenEvaluator=null;entry.bound=null;entry.song=null;entry.envelopes.clear();};
  const byId=new Map(entries.map(e=>[e.candidate.id,e]));
  const seedEntry=row=>byId.get(row.song?.id)??(allowForeignSeeds?entries[0]:null);
  const cacheFor=async entry=>{
@@ -153,23 +166,36 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   retain({...entry.transform(raw,team),draft:team,id,origins:['verified-current-group-seed'],recommendationGoals:[goal]});
  }
  rows.sort(compare);
- const envelopeFor=(entry,rank,requiredMembers=[])=>{
-  const key=rank+':'+requiredMembers.join('|');
+ const envelopeFor=(entry,rank,requiredMembers=[],witness,requiredSupports=[])=>{
+  const envelope=boundFor(entry).normalizedPowerEnvelope(entry.grades.get(rank),requiredMembers,witness,requiredSupports);
+  if(!envelope)return null;
+  const key=rank+':'+envelope.assignmentKey;
   if(!entry.envelopes.has(key)){
    if(entry.envelopes.size>=64)entry.envelopes.delete(entry.envelopes.keys().next().value);
-   entry.envelopes.set(key,boundFor(entry).normalizedPowerEnvelope(entry.grades.get(rank),requiredMembers));stats.normalizedEnvelopes++;
+   entry.envelopes.set(key,envelope);stats.normalizedEnvelopes++;
   }
   return entry.envelopes.get(key);
  };
- const mergedFor=(group,charts,rank,state)=>{
+ const mergedFor=(group,charts,rank,state,witness)=>{
   const members=input.basis==='minimumScore'?[...state.memberRequired].sort():[];
-  const key=rank+':'+charts.map(e=>e.candidate.id).join('|')+':'+members.join('|');
+  const envelopes=charts.map(e=>envelopeFor(e,rank,members,witness,state.supportRequired));
+  if(envelopes.some(e=>!e))return null;
+  const key=rank+':'+charts.map((e,i)=>e.candidate.id+':'+envelopes[i].assignmentKey).join(';');
   if(group.merged.has(key))return group.merged.get(key);
-  const envelopes=charts.map(e=>envelopeFor(e,rank,members));
-  const gains=new Map();
-  const gainFor=edge=>{if(!gains.has(edge.key))gains.set(edge.key,Math.max(...envelopes.map(e=>e.gainFor(edge))));return gains.get(edge.key);};
-  const bound=envelopes.every(Boolean)?createBonusConstrainedScoreEnvelopeBound({baseCoefficient:Math.max(...envelopes.map(e=>e.baseCoefficient)),
-   gainFor,integerScore:false,cutoff:1}):null;
+  const kind=state.supportRequired.length>members.length?'support':'member';
+  const fixed=input.basis==='minimumScore'?new Map((kind==='member'?members:state.supportRequired).map((id,i)=>[id,i])):new Map();
+  // Equal effective skills in the same fixed/optional position category have
+  // equal gains on every chart. Cache those categories rather than every
+  // power-weight variant of every card pair; power itself is never merged.
+  const gains=new Float64Array(skillSignatures.size*6);gains.fill(NaN);
+  const gainFor=edge=>{
+   const key=profileIdFor(edge)*6+(fixed.get(edge[kind])??5);
+   let value=gains[key];
+   if(Number.isNaN(value)){value=Math.max(...envelopes.map(e=>e.gainFor(edge)));gains[key]=value;}
+   return value;
+  };
+  const bound=createBonusConstrainedScoreEnvelopeBound({baseCoefficient:Math.max(...envelopes.map(e=>e.baseCoefficient)),
+   gainFor,integerScore:false,cutoff:1,cacheGains:false});
   if(group.merged.size>=64)group.merged.delete(group.merged.keys().next().value);
   group.merged.set(key,bound);return bound;
  };
@@ -188,6 +214,29 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   const id=team.slots.map(s=>`${s.memberCardId}|${s.supportCardId}`).join(';');
   const cache=await cacheFor(entry);
   let raw=cache.get('full:'+id);
+  if(!raw&&input.basis==='minimumScore'){
+   const first=individualProofs?perChart.get(entry.candidate.id):rows[0];
+   if(first){
+    let screened=cache.get('screen:'+id);
+    if(!screened){
+     entry.screenEvaluator??=createCandidateEvaluator({rules,chart:entry.chart,objective:'expected_song_score',scorePrecision:'screen'});
+     screened=entry.screenEvaluator.score(team);cache.set('screen:'+id,screened);stats.screenScoreCalculations=(stats.screenScoreCalculations??0)+1;
+    }
+    const limit=model.scoreRank(Number(entry.candidate.trackId.split('-').at(-1)),screened.minimumScore);
+    let rewardBP=0,eventPointBP=0;for(const edge of matching.edges){const bonus=pairBonus(edge);rewardBP+=bonus.rewardBP;eventPointBP+=bonus.eventPointBP;}
+    let possible=false;
+    for(let rank=2;rank<=limit;rank++){
+     const total={badges:totalAt(rank,'rewardBP',rewardBP),eventPoints:totalAt(rank,'eventPointBP',eventPointBP)};
+     const comparison=compare({reward:{scoreRank:rank},total,song:entry.candidate},first);
+     if(comparison<0||comparison===0&&screened.minimumScore>=first.minimumScore){possible=true;break;}
+    }
+    if(!possible){
+     if(entry.scored.size>=4096)entry.scored.clear();entry.scored.add(signature);
+     if(!transfer&&!representative)entry.heuristicScores=(entry.heuristicScores??0)+1;
+     stats.minimumWitnessPruned++;return;
+    }
+   }
+  }
   if(raw)stats.scoreCacheHits++;
   else {
    entry.evaluator??=createCandidateEvaluator({rules,chart:entry.chart,objective:'expected_song_score'},{song:songFor(entry)});
@@ -294,18 +343,16 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
     else {
      const requiredCharacters=new Map(state.memberRequired.map(id=>[characterFor.get(id),id]));
      const excludedM=new Set(state.memberExcluded),excludedS=new Set(state.supportExcluded),requiredM=new Set(state.memberRequired),requiredS=new Set(state.supportRequired);
-     const edges=modelRow.edges.filter(e=>!excludedM.has(e.member)&&!excludedS.has(e.support)
+     const forbidden=new Set(state.forbidden);
+     const edges=modelRow.edges.filter(e=>!forbidden.has(e.key)&&!excludedM.has(e.member)&&!excludedS.has(e.support)
       &&(!requiredCharacters.has(e.character)||requiredCharacters.get(e.character)===e.member)
       &&(requiredM.size<5||requiredM.has(e.member))&&(requiredS.size<5||requiredS.has(e.support)));
-     stats.powerMatchingCalls++;
-     const power=maximumPairing({edges,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
-     const attainable=power?Object.fromEntries([primary,secondary].map(kind=>[kind,attainableBonusSums(edges,state,kind,cardBonus)])):null;
-     domain={edges,power,attainable,constrained:new Map()};
+     const attainable=Object.fromEntries([primary,secondary].map(kind=>[kind,attainableBonusSums(edges,state,kind,cardBonus)]));
+     domain={edges,attainable,constrained:new Map()};
      if(cardDomains.size>=64)cardDomains.delete(cardDomains.keys().next().value);
      cardDomains.set(domainKey,domain);
     }
-    const {edges,power,attainable}=domain;
-    if(!power)continue;
+    const {edges,attainable}=domain;
     const maxBP=Object.fromEntries([primary,secondary].map(kind=>[kind,attainable[kind]?.at(-1)??ceiling[kind]]));
     const shortest=Math.min(...state.charts.map(e=>e.candidate.seconds??Infinity));
     // Independent bonus maxima and the shortest chart form a lexicographic
@@ -316,6 +363,14 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
      if(compare({reward:{scoreRank:rank},total,song:{seconds:shortest}},firstFor(state.charts))<0){cheapCanWin=true;break;}
     }
     if(!cheapCanWin){stats.prunedPartitions++;continue;}
+    // The independent bonus ceiling needs no assignment graph. Build and
+    // solve one only if this domain could still improve the reward tuple.
+    if(!domain.solve){
+     stats.powerMatchingCalls++;
+     domain.solve=createMaximumPairing({edges,required:state.required,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired,compact:true});
+     domain.power=domain.solve();
+    }
+    const power=domain.power;if(!power)continue;
     let unresolved=false;
     for(let rank=7;rank>=2;rank--){
      const first=firstFor(state.charts);if(goal==='grade'&&rank<first.reward.scoreRank)continue;
@@ -333,8 +388,16 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
      let retry=false;
      for(const {required,charts} of domains){
       let excluded=false;
-      const relaxation=mergedFor(group,charts,rank,state);
-      for(const [a,b] of [[1,0],[0,1],[1,1],[ceiling[secondary]+1,1],[1,ceiling[primary]+1],[8,1],[1,8],[64,1],[1,64]]){
+      const relaxation=mergedFor(group,charts,rank,state,power.edges);
+      const directions=!required[0]&&!required[1]?[[1,1]]
+       : !required[1]?[[1,0]]
+       : !required[0]?[[0,1]]
+       : attainable[primary]?.length===1
+       ? [required[1]?[0,1]:required[0]?[1,0]:[1,1]]
+       : attainable[secondary]?.length===1
+       ? [required[0]?[1,0]:required[1]?[0,1]:[1,1]]
+       : [[1,0],[0,1],[1,1]];
+      for(const [a,b] of directions){
        if(!a&&!required[1]||!b&&!required[0])continue;
        const threshold=a*required[0]+b*required[1];if(!Number.isSafeInteger(threshold))continue;
        const bonusKey=a+':'+b+':'+threshold;
@@ -344,24 +407,25 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
         const constrained=constrainBonusCards(edges,state,(kind,id)=>{const bp=cardBonus(kind,id);return a*bp[primary]+b*bp[secondary];},threshold);
         // constrainBonusCards only filters this ordered edge list. If no edge
         // was removed, the exact power matching and its tie order are unchanged.
-        let constrainedPower=power;
+        let constrainedPower=power,solve=domain.solve;
         if(constrained.length!==edges.length){
          stats.powerMatchingCalls++;
-         constrainedPower=maximumPairing({edges:constrained,required:state.required,forbidden:state.forbidden,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+         solve=createMaximumPairing({edges:constrained,required:state.required,requiredMembers:state.memberRequired,requiredSupports:state.supportRequired,compact:true});
+         constrainedPower=solve();
         }
-        bonusDomain={constrained,constrainedPower};
+        bonusDomain={constrained,constrainedPower,solve};
         if(domain.constrained.size>=8)domain.constrained.delete(domain.constrained.keys().next().value);
         domain.constrained.set(bonusKey,bonusDomain);
        }
        const {constrained,constrainedPower}=bonusDomain;
        if(!constrainedPower){excluded=true;break;}
        if(relaxation){
-        const banned=new Set(state.forbidden),fixed=new Set(state.required),available=constrained.filter(e=>!banned.has(e.key));
+        const fixed=new Set(state.required),available=constrained;
         // A bonus domain fixes edges, leader, mandatory vertices and bonuses.
         // Reuse topology across chart envelopes, with a small per-leader cap.
         let matchingCache=matchingDomains.get(bonusDomain);
         if(matchingCache)matchingDomains.delete(bonusDomain);
-        else {matchingCache={};if(matchingDomains.size>=8)matchingDomains.delete(matchingDomains.keys().next().value);}
+        else {matchingCache={solve:bonusDomain.solve};if(matchingDomains.size>=8)matchingDomains.delete(matchingDomains.keys().next().value);}
         matchingDomains.set(bonusDomain,matchingCache);
         const before=relaxation.stats.matchingCalls;
         const upper=relaxation(available,constrainedPower.edges.filter(e=>fixed.has(e.key)),leader,constrainedPower,0,e=>{const bp=pairBonus(e);return a*bp[primary]+b*bp[secondary];},threshold,state,1,matchingCache);
@@ -369,6 +433,23 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
         const witnesses=relaxation.witnesses.filter(w=>w.bonus>=threshold).sort((x,y)=>y.weight-x.weight);
         if(witnesses[0])await scoreWitness(group,charts,leader,witnesses[0],required,rank);
         if(upper<1){excluded=true;break;}
+        if(input.basis==='minimumScore'&&(state.memberRequired.length===5||state.supportRequired.length===5)){
+         let current=relaxation;
+         const tried=new Set([power.edges.map(e=>e.key).join(';')]);
+         for(let attempt=0;attempt<5;attempt++){
+          const witness=current.witnesses.at(-1);if(!witness)break;
+          const key=witness.edges.map(e=>e.key).join(';');if(tried.has(key))break;tried.add(key);
+          const next=mergedFor(group,charts,rank,state,witness.edges);if(!next)break;
+          const previous=current.envelope,target=next.envelope;
+          current=createBonusConstrainedScoreEnvelopeBound({baseCoefficient:Math.max(previous.baseCoefficient,target.baseCoefficient),
+           gainFor:e=>(previous.gainFor(e)+target.gainFor(e))*.5*(1+1e-12),integerScore:false,cutoff:1});
+          const before=current.stats.matchingCalls;
+          const tightened=current(available,constrainedPower.edges.filter(e=>fixed.has(e.key)),leader,constrainedPower,0,e=>{const bp=pairBonus(e);return a*bp[primary]+b*bp[secondary];},threshold,state,1,matchingCache);
+          stats.jointBoundMatchingCalls+=current.stats.matchingCalls-before;
+          if(tightened<1){excluded=true;break;}
+         }
+         if(excluded)break;
+        }
        }
        if(signal?.aborted)return finish(false,'cancelled');
       }
@@ -377,7 +458,15 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
      if(unresolved)break;if(retry)rank++;
     }
     if(!unresolved){stats.prunedPartitions++;continue;}
-    const kind=state.memberRequired.length<5?'member':state.supportRequired.length<5?'support':null;
+    const bonusChoices=[];
+    for(const kind of ['member','support'])if(state[kind+'Required'].length<5){
+     for(const id of new Set(edges.map(e=>e[kind])))if(!state[kind+'Required'].includes(id)){
+      const bonus=cardBonus(kind,id);if(bonus[primary]||bonus[secondary])bonusChoices.push({kind,id,bonus});
+     }
+    }
+    bonusChoices.sort((a,b)=>b.bonus[primary]-a.bonus[primary]||b.bonus[secondary]-a.bonus[secondary]||a.id.localeCompare(b.id));
+    const bonusChoice=bonusChoices[0];
+    const kind=bonusChoice?.kind??(state.memberRequired.length<5?'member':state.supportRequired.length<5?'support':null);
     // A merged envelope can combine incompatible advantages from different
     // charts. Split that relaxation before multiplying the card subsets.
     // Both halves retain every legal team and cover the parent chart domain.
@@ -395,7 +484,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
      }
      const choices=[...strengths.keys()].filter(id=>!state[kind+'Required'].includes(id)),matched=new Set(power.edges.map(e=>e[kind]));
      const order=(a,b)=>Number(matched.has(b))-Number(matched.has(a))||strengths.get(b)-strengths.get(a)||a.localeCompare(b);
-     const id=choices.reduce((best,id)=>best===null||order(id,best)<0?id:best,null);if(!id)return finish(false,'incomplete_card_partition');
+     const id=bonusChoice?.id??choices.reduce((best,id)=>best===null||order(id,best)<0?id:best,null);if(!id)return finish(false,'incomplete_card_partition');
      states.push({...state,[kind+'Excluded']:[...state[kind+'Excluded'],id]},{...state,[kind+'Required']:[...state[kind+'Required'],id]});stats.cardPartitions++;
     }else {
      const entry=state.charts[0],team=draftFromPairing(entry.resolved,leader,power.edges),fixed={...state,required:power.edges.map(e=>e.key)};
@@ -423,7 +512,7 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
   if(signal?.aborted)return finish(false,'cancelled');
   const entry=byId.get(row.song.id);
   const scoreUpperFor=team=>{
-   const envelope=boundFor(entry).normalizedPowerEnvelope(1,team.slots.map(s=>s.memberCardId));
+   const envelope=boundFor(entry).normalizedPowerEnvelope(1,team.slots.map(s=>s.memberCardId),team.slots.map(s=>({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId,support:s.supportCardId})));
    if(!envelope)return Infinity;
    return refinementPower.calculate(team).total.total*(envelope.baseCoefficient+team.slots.reduce((sum,s)=>
     sum+envelope.gainFor({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId}),0));

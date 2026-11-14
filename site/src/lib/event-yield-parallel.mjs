@@ -29,6 +29,11 @@ export function createEventYieldParallel({rules,eventId,input,onMessage,createWo
  }
  return {
   close:()=>active?.close(),
+  runWitnessJobs:async({candidates,input:stage,challengeRows,done,total})=>{
+   const jobs=chartPartitions(rules,candidates,size).map(partition=>({kind:'witness',input:stage,...partition,challengeRows}));
+   const outputs=await phase(jobs,(_index,p)=>onMessage({type:'progress',done,total,stage:'准备逐曲收益起点',detail:p,parallelism:Math.min(size,jobs.length)}));
+   return outputs.flatMap(output=>output.records);
+  },
   runChallengeJobs:async({candidates,input:stage,goals,total})=>{
    let done=0;
    const jobs=candidates.map(candidate=>({kind:'challenge',candidate,input:stage}));
@@ -40,7 +45,7 @@ export function createEventYieldParallel({rules,eventId,input,onMessage,createWo
   },
   runGroupProofs:async({candidates,input:stage,goals,challengeRows,initialRows,done,total,onCandidate=()=>{},individualProofs=false})=>{
    if(!goals.length)return new Map();
-   const partitions=chartPartitions(rules,candidates,individualProofs?Math.floor(size/goals.length):1);
+   const partitions=chartPartitions(rules,candidates,individualProofs?size*2:1);
    const tasks=partitions.flatMap(partition=>goals.map(goal=>({kind:'group',input:stage,...partition,goal,challengeRows,
     initialRows,individualProofs,allowForeignSeeds:partitions.length>1})));
    const progress=new Map(),latestByGoal=new Map();

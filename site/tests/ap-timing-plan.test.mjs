@@ -30,7 +30,9 @@ test('AP timing plan compares both frame rates, replays displayed scores and res
   assert.equal(result.skillPlayback.variants[0].score,plan.rates[0].referenceScore);
   assert.equal(result.maximumScore,Math.max(...plan.rates.map(rate=>rate.maximumScore)));
   const saved=structuredClone(draft);saved.modifiers.apTimingPlan=structuredClone(plan);
-  assert.deepEqual(calculator.calculate(saved).apTimingPlan,plan);
+  const replayed=calculator.calculate(saved).apTimingPlan;
+  assert.deepEqual({...replayed,search:plan.search},plan);
+  assert.equal(replayed.search.optimality,'saved_witness','imported search claims are not evidence');
   saved.modifiers.apTimingPlan.score=1; saved.modifiers.apTimingPlan.rates[0].referenceScore=1;
   assert.equal(calculator.calculate(saved).expectedScore,plan.score,'stored derived scores are never trusted');
   saved.modifiers.performanceScenario={profile:'ap_timing'};
@@ -79,13 +81,17 @@ test('saved offsets without a mechanism or a score benefit return to the same on
   }
 });
 
-test('challenge AP recommendations rank rescored plans and cannot inherit the on-time optimality certificate',async()=>{
+test('challenge AP recommendations carry a separate complete policy/formation certificate',async()=>{
   const {rules,chart,draft}=timingFixture();draft.modifiers.performanceScenario={profile:'ap_timing'};
-  const result=await optimizeChallenge({rules,chart,draft,eventId:1,scope:'selected',yieldControl:async()=>{}});
-  assert.equal(result.searchMethod,'practical');assert.notEqual(result.certifiedSearch.bestProven,true);assert.equal(result.certifiedSearch.searchStatus,'player_scenario_bound_unavailable');
+  const result=await optimizeChallenge({rules,chart,draft,eventId:1,scope:'selected',maxEvaluations:0,yieldControl:async()=>{}});
+  assert.equal(result.searchMethod,'certified');assert.equal(result.certifiedSearch.bestProven,true);
+  assert.equal(result.certifiedSearch.scope,'team_for_chart_ap_policies');
+  assert.equal(result.certifiedSearch.optimalityGap,0);
   assert.ok(result.results.length>0);
   for(const [index,row] of result.results.entries()){
     assert.equal(row.value,row.apTimingPlan.score);assert.deepEqual(row.draft.modifiers.apTimingPlan,row.apTimingPlan);
+    assert.equal(row.apTimingPlan.search.optimality,'policy_order_proven');
+    assert.equal(row.orderCount,120);
     if(index)assert.ok(result.results[index-1].value>=row.value);
   }
 });

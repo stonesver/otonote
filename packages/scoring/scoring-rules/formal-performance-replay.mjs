@@ -84,19 +84,31 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   }
   const lastInputFrame = Math.max(...arrivals.keys());
 
-  function run(draft, { includeTrace = false, withoutSkills = false, skillOrder = input.skillOrder, prepared } = {}) {
+  function prepare(draft) {
+    const power = formation.calculate(draft), skills = resolve(draft);
+    const pipeline = createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
+    return { power, skills, pipeline, noteScores: pipeline.context.effects.some(e => e.phase === 'note_score') ? null : new Map() };
+  }
+
+  function run(draft, { includeTrace = false, withoutSkills = false, scoreOnly = false, skillOrder = input.skillOrder, prepared } = {}) {
     if (draft.slots?.length !== 5 || draft.slots.some(slot => !slot.memberCardId || !slot.supportCardId)) throw new Error('请选择五张成员卡和五张留影');
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error('歌曲或难度与载入谱面不一致');
     const { power, skills } = prepared ?? { power: formation.calculate(draft), skills: resolve(draft) };
-    const eventPipeline = createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
+    const eventPipeline = prepared?.pipeline ?? createEventPipeline(rules, draft.modifiers?.event, eventAdapters);
     const common = { totalPower: power.total.total, scoreAdjustmentFactor: setting('note_score_adjustment_factor'),
       musicScoreLevelFactor: timeline.difficultyFactor, luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
       eventBonusFactor: 1, lifeOnusFactor: setting('note_score_life_onus_factor'), assistModeNoteScoreFactor: 1 };
     const combo = createComboReplay(rules.tables.LiveComboScoreBonus), life = createLifeReplay(maximumLife, musicLengthMs);
-    const noteValue = (event, comboFactor, scoreUpFactor) => calculateFormalNoteCore(eventPipeline.apply('note_score', {
+    const noteValue = (event, comboFactor, scoreUpFactor) => {
+      const cache = prepared?.noteScores;
+      const key = cache ? `${event.weight}|${event.judgement}|${event.lifeAtInput}|${comboFactor}|${scoreUpFactor}` : null;
+      if (cache?.has(key)) return cache.get(key);
+      const score = calculateFormalNoteCore(eventPipeline.apply('note_score', {
       ...common, noteFactorPercent: event.weight, judgementFactorPercent: judgementRows.get(event.judgement)._scorePercent,
       comboBonusFactor: comboFactor, scoreUpFactor, currentLife: event.lifeAtInput }, { draft, note: event })).score;
-    const replay = createScoreReplay({ musicLengthMs, scoreNote(event, factors) {
+      cache?.set(key, score); return score;
+    };
+    const replay = createScoreReplay({ musicLengthMs, retainNotes: !scoreOnly, scoreNote(event, factors) {
       const comboAtScore = combo.at(event.timeMs);
       const scoreUpFactor = f32(factors.general + (factors[judgementField[event.judgement]] ?? 0));
       return { ...comboAtScore, scoreUpFactor, score: noteValue(event, comboAtScore.comboFactor, scoreUpFactor),
@@ -109,7 +121,30 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
     let lastFrame = Math.max(lastInputFrame, lifecycle.lastFrame), convertedCount = 0, lowestLife = maximumLife, totalDamage = 0;
     const counts = Object.fromEntries([1,2,3,4,5,6].map(j => [j, 0]));
     const conversionCounts = new Map();
-    for (let frame = 0; frame <= lastFrame; frame++) {
+    // For AP inputs, no damage or judgement conversion can alter state in an
+    // empty gap. Visit its two boundary frames, preserving native bucket
+    // rollback. Skill starts, expirations and every input remain explicit.
+    const sparse = scoreOnly && [...arrivals.values()].every(rows => rows.every(r => r.originalJudgement === 5))
+      && skills.every(s => s.supportEffects.every(e => e.type !== 12006 || !e.targets.includes(5) || e.value === 5));
+    let frames;
+    if (sparse) {
+      const relevant = new Set([0, 1, ...arrivals.keys()]);
+      for (let position = 0; position < 5; position++) {
+        const start = timeline.skillTimes[position], skill = skills[skillOrder[position]];
+        relevant.add(clock.indexAt(start));
+        for (const effect of [...skill.liveEffects, ...skill.supportEffects]) {
+          if (effect.startup) relevant.add(Math.max(1, clock.indexAt(Math.floor(effect.durationRawMs) + 1)));
+          else if (effect.durationRawMs > 0) relevant.add(skillEndFrame(clock, start, effect.durationRawMs).frame);
+        }
+      }
+      frames = [...relevant].sort((a,b) => a-b);
+    }
+    let previousFrame = -1, frameIndex = 0;
+    for (let frame = 0; frame <= lastFrame; frame = frames ? (frames[++frameIndex] ?? Infinity) : frame + 1) {
+      if (frames && frame > previousFrame + 1) {
+        if (previousFrame >= 0) replay.calculate(clock.at(previousFrame + 1).timeMs);
+        if (frame > previousFrame + 2) replay.calculate(clock.at(frame - 1).timeMs);
+      }
       const nowMs = clock.at(frame).timeMs;
       let changed = false;
       const frameNotes = [];
@@ -139,6 +174,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
       if (includeTrace && (changed || stateTrace.at(-1)?.score !== replay.score)) stateTrace.push({ frame, timeMs: nowMs, life: currentLife, combo: combo.state.combo,
         maxCombo: combo.state.maxCombo, score: replay.score, scoreUpFactor: f32(replay.state.general + replay.state.perfect), converters: converters.filter(c => c.active)
           .map(c => ({ slotIndex: c.slot, effectId: c.effect.id, remaining: c.remaining })) });
+      previousFrame = frame;
     }
     const finalMs = Math.max(musicLengthMs, clock.at(lastFrame + 1).timeMs);
     replay.calculate(finalMs);
@@ -148,6 +184,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
     if (withoutSkills) return { baseScore: noteTotal };
     const score = eventPipeline.apply('fixed_score', noteTotal, { draft, order: skillOrder });
     if (!Number.isSafeInteger(score) || score < 0) throw new Error('Invalid event fixed score result');
+    if (scoreOnly) return score;
     const baseScore = replay.notes.reduce((sum, note) => sum + note.result.baseScore, 0);
     let cumulativeScore = 0;
     const notes = includeTrace ? replay.notes.slice().sort((a, b) => a.scoreIndex - b.scoreIndex).map(({ result, sequence, ...note }) => ({ ...note, ...result,
@@ -179,7 +216,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   function calculateOrders(draft, { skillOrders, includeTrace = false } = {}) {
     if (!Array.isArray(skillOrders) || !skillOrders.length) throw new Error('至少需要一个技能顺序');
     skillOrders.forEach(validateOrder);
-    const prepared = { power: formation.calculate(draft), skills: resolve(draft),
+    const prepared = { ...prepare(draft),
       hashOrder: createSnapshotFieldHasher({ draft, chartHash: timeline.chartHash, performance, modelVersion: SCORE_MODEL_VERSION }, 'skillOrder') };
     const baseline = run(draft, { withoutSkills: true, skillOrder: skillOrders[0], prepared });
     // A second explicit scenario removes score, conversion and recovery
@@ -194,6 +231,7 @@ export function createPerformanceSongCalculator(rules, chart, { performance, fra
   function calculate(draft, options = {}) {
     return calculateOrders(draft, { skillOrders: [options.skillOrder ?? input.skillOrder], includeTrace: options.includeTrace })[0];
   }
-  return { calculate, calculateOrders, timeline,
+  return { calculate, calculateOrders, timeline, prepare,
+    calculateScore: (draft, prepared = prepare(draft)) => run(draft, { prepared, scoreOnly: true }),
     withPerformance: next => createPerformanceSongCalculator(rules, chart, { performance: next, eventAdapters, _context: { timeline, formation, resolve } }) };
 }

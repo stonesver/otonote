@@ -63,3 +63,32 @@ test('a global-only group certificate cannot bypass the per-chart fallback',asyn
  assert.equal(exact.length,candidates.length*2);
  assert.equal(new Set(output.rows.map(r=>r.song.id)).size,candidates.length);
 });
+
+test('parallel witness rows remain seeds until all per-chart proofs finish',async()=>{
+ const messages=[],calls=[];let witnessJobs=0;
+ const output=await run({onMessage:m=>messages.push(structuredClone(m)),optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal);},
+  runWitnessJobs:async({candidates:selected})=>{
+   witnessJobs++;assert.deepEqual(selected,candidates);
+   return selected.flatMap(c=>['badges','eventPoints'].map(goal=>({candidateId:c.id,goal,result:result(c,goal)})));
+  },proveGroup:async({goal,candidates:selected,initialRows})=>{
+   assert.deepEqual(selected,candidates);assert.ok(initialRows.length>candidates.length*2,'representative seeds retain the earlier per-chart witnesses');
+   assert.ok(messages.filter(m=>m.type==='partial').every(m=>m.done===0&&!m.complete));
+   return {proven:true,results:selected.flatMap(c=>result(c,goal).results),
+    certificate:{bestProven:true,perChartBestProven:true,coveredChartIds:selected.map(c=>c.id)}};
+  }});
+ assert.equal(witnessJobs,1);assert.ok(calls.every(c=>!c.witnessOnly));
+ assert.equal(output.allProven,true);assert.equal(output.fullyOptimizedCharts,candidates.length);
+ assert.equal(output.prunedCharts,0);assert.deepEqual(output.failures,[]);
+});
+
+test('a failed witness worker falls back to the original complete seed and proof domains',async()=>{
+ const calls=[];
+ const output=await run({runWitnessJobs:async()=>{throw Error('worker failed');},
+  optimizer:async o=>{calls.push(o);return result(o.candidate,o.goal,!o.witnessOnly&&o.searchMethod!=='practical');},
+  proveGroup:async()=>({proven:false})});
+ for(const goal of ['badges','eventPoints']){
+  assert.equal(calls.filter(c=>c.goal===goal&&c.witnessOnly).length,candidates.length);
+  assert.equal(calls.filter(c=>c.goal===goal&&!c.witnessOnly&&c.searchMethod!=='practical').length,candidates.length);
+ }
+ assert.equal(output.allProven,true);assert.deepEqual(output.failures,[]);
+});

@@ -55,6 +55,9 @@ test('cross-chart first proof matches independent 7200-team native oracle includ
    const row=individual.results.find(r=>r.song.id===candidate.id);
    assert.ok(row,`missing ${candidate.id}`);
    assert.equal(compare({rank:row.reward.scoreRank,total:row.total,seconds:row.song.seconds},expected,goal),0,`${basis} ${goal} ${candidate.id}`);
+   const native=createFormalSongCalculator(f.rules,charts.get(candidate.id)).calculate(row.draft);
+   assert.equal(row.orderCount,120,'proof screening must never supply a displayed score');
+   for(const field of ['minimumScore','expectedScore','maximumScore'])assert.equal(row[field],native[field]);
   }
   // A parallel shard may receive only a formation scored on another chart.
   // Even the deliberately inflated source totals above must be replaced by

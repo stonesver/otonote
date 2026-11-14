@@ -6,7 +6,7 @@ import { formalJudgementType } from './formal-judgement.mjs';
 import { skillOrdersFor } from './skill-order-sampling.mjs';
 import { stableSnapshotHash } from '../scoring-engine.mjs';
 
-export const AP_TIMING_PLAN_VERSION = 'ap-timing-plan-v2';
+export const AP_TIMING_PLAN_VERSION = 'ap-timing-plan-v3';
 const timingVersion = 'ournotes-performance-timing-v1';
 const frameRates = [60, 120];
 const toleranceMs = 5;
@@ -32,8 +32,9 @@ export function apTimingPerformance(timeline, plan, { frameRate = 60, phaseMs = 
     }) };
 }
 
-/** Bounded policy/order search. Exact replay determines every compared score;
- * no claim of global optimality over teams or independent per-key timings. */
+/** Exact comparison of the declared uniform policies and every skill order,
+ * retaining the operation-reduced witnesses from the previous search. This
+ * finite policy model does not enumerate independent per-key AP offsets. */
 export function createApTimingCalculator(rules, chart, { scorePrecision = 'full', eventAdapters = [] } = {}) {
   const timeline = prepareFormalChart(rules, { ...chart, sourceReleaseId: chart.sourceReleaseId ?? rules.sourceReleaseId });
   const ideal = createFormalSongCalculator(rules, chart, { scorePrecision, eventAdapters });
@@ -59,23 +60,41 @@ export function createApTimingCalculator(rules, chart, { scorePrecision = 'full'
     const context = stableSnapshotHash({ version: AP_TIMING_PLAN_VERSION, search: 'cumulative-timing-benefit-v1', rulesHash, chartHash: timeline.chartHash,
       power: regular.power, skills, event: draft.modifiers?.event ?? null });
     const saved = draft.modifiers?.apTimingPlan;
+    const prepared = engine.prepare(draft);
     let plan;
-    const run = (candidate, condition, trace = false) => engine.withPerformance(apTimingPerformance(timeline, candidate, condition))
-      .calculate(draft, { includeTrace: trace });
+    const scores = new WeakMap();
+    const run = (candidate, condition, trace = false) => {
+      let cached = scores.get(candidate.adjustments);
+      if (!cached) scores.set(candidate.adjustments,cached=new Map());
+      const key = `${candidate.order}|${condition.frameRate??60}|${condition.phaseMs??0}|${condition.biasMs??0}`;
+      if (!trace && cached.has(key)) return {expectedScore:cached.get(key)};
+      const replay = engine.withPerformance(apTimingPerformance(timeline, candidate, condition));
+      if (trace) return replay.calculate(draft, { includeTrace: true });
+      const expectedScore = replay.calculateScore(draft, prepared);
+      cached.set(key,expectedScore); return {expectedScore};
+    };
     const minimum = (candidate, conditions) => Math.min(...conditions.map(condition => run(candidate, condition).expectedScore));
     const quickConditions = frameRates.flatMap(frameRate => [0,1].flatMap(phaseMs => [-toleranceMs,0,toleranceMs].map(biasMs => ({ frameRate, phaseMs, biasMs }))));
-    const assess = candidate => {
-      const rates=frameRates.map(frameRate => {
-        const outcomes=apTimingClocks(frameRate).flatMap(phaseMs=>[-toleranceMs,0,toleranceMs].map(biasMs=>{
-          const condition={frameRate,phaseMs,biasMs};return {...condition,score:run(candidate,condition).expectedScore};
-        }));
+    const assess = (candidate, incumbent = null) => {
+      const rates=[];
+      for (const frameRate of frameRates) {
+        const outcomes=[];
+        for (const phaseMs of apTimingClocks(frameRate)) for (const biasMs of [-toleranceMs,0,toleranceMs]) {
+          const condition={frameRate,phaseMs,biasMs},score=run(candidate,condition).expectedScore;
+          // The robust score is the minimum over ALL conditions. Any one is
+          // an upper bound, so a losing prefix safely excludes this policy.
+          if (incumbent && (score < incumbent.minimum || score === incumbent.minimum
+            && (candidate.margin < incumbent.margin || candidate.margin === incumbent.margin
+              && candidate.adjustments.length >= incumbent.adjustments.length))) return null;
+          outcomes.push({...condition,score});
+        }
         const nominal=outcomes.filter(row=>row.biasMs===0),favorable=nominal.reduce((a,b)=>b.score>a.score?b:a);
         const ranked=[...outcomes].sort((a,b)=>a.score-b.score||Math.abs(a.biasMs)-Math.abs(b.biasMs)||a.phaseMs-b.phaseMs);
         const lowest=ranked[0],highest=[...outcomes].sort((a,b)=>b.score-a.score||Math.abs(a.biasMs)-Math.abs(b.biasMs)||a.phaseMs-b.phaseMs)[0];
-        return {frameRate,referenceScore:nominal[0].score,minimumScore:lowest.score,maximumScore:highest.score,
+        rates.push({frameRate,referenceScore:nominal[0].score,minimumScore:lowest.score,maximumScore:highest.score,
           minimumCondition:{phaseMs:lowest.phaseMs,biasMs:lowest.biasMs},maximumCondition:{phaseMs:highest.phaseMs,biasMs:highest.biasMs},
-          baselineScore:run({...candidate,adjustments:[]},{frameRate}).expectedScore,favorable:{phaseMs:favorable.phaseMs,score:favorable.score}};
-      });
+          baselineScore:run({...candidate,adjustments:[]},{frameRate}).expectedScore,favorable:{phaseMs:favorable.phaseMs,score:favorable.score}});
+      }
       return {rates,minimum:Math.min(...rates.map(row=>row.minimumScore))};
     };
     if (scorePrecision !== 'screen' && saved?.version === AP_TIMING_PLAN_VERSION && saved.context === context) {
@@ -90,14 +109,15 @@ export function createApTimingCalculator(rules, chart, { scorePrecision = 'full'
       plan={...structuredClone(saved),adjustments,toleranceMs,chartId:timeline.chartId,chartHash:timeline.chartHash};
       const checked=assess(plan);plan.rates=checked.rates;plan.score=checked.minimum;
       plan.apMarginMs=adjustments.length?Math.min(...adjustments.map(row=>row.apMarginMs)):50;
-      plan.search={screenedOrders:0,refinedOrders:1,policies:[],phaseClasses:77,...plan.search,optimality:'candidate_search'};
+      // A shared plan is only a witness. Its stored proof is not trusted.
+      plan.search={screenedOrders:0,refinedOrders:1,policies:[],phaseClasses:77,optimality:'saved_witness'};
     } else {
       const empty = order => ({ order, adjustments: [], margin: 50 });
       let candidates;
       // Fixed boosts retain chart-time coverage. Native float32 rollback can
       // alter rounding, but that alone does not warrant an input guide.
       // The independent AP window solver still retains those exact differences.
-      if (!cumulative.length) candidates = [empty(regular.bestOrder)];
+      if (!cumulative.length) candidates = [...new Map([regular.bestOrder,...skillOrdersFor(scorePrecision)].map(order=>[identity(order),order])).values()].map(empty);
       else {
         // Every sampled order gets timing policies before any order is cut.
         // Full scoring checks all 120 orders; screening uses 10 balanced orders.
@@ -128,7 +148,7 @@ export function createApTimingCalculator(rules, chart, { scorePrecision = 'full'
       }
       // Prune unnecessary operations against both rates and timing perturbations.
       // The final comparison below rechecks complete uniform phase classes.
-      const shortlist = candidates.slice(0,6);
+      const shortlist = candidates.slice(0,6).map(candidate => ({...candidate}));
       for(const candidate of shortlist)candidate.minimum=minimum(candidate,quickConditions);
       shortlist.sort(better);shortlist.splice(3);
       const onTime = candidates.find(candidate=>candidate.adjustments.length===0);
@@ -143,11 +163,18 @@ export function createApTimingCalculator(rules, chart, { scorePrecision = 'full'
         Object.assign(candidate,assess(candidate));
       }
       shortlist.sort(better);
-      const best = shortlist[0];
+      let best = shortlist[0];
+      for (const candidate of candidates) {
+        const checked = assess(candidate,best);
+        if (checked) {
+          Object.assign(candidate,checked);
+          if (better(candidate,best)<0) best=candidate;
+        }
+      }
       plan = { version: AP_TIMING_PLAN_VERSION, context, chartId: timeline.chartId, chartHash: timeline.chartHash,
         order: best.order, adjustments: best.adjustments, score: best.minimum, apMarginMs: best.margin, toleranceMs,
         rates: best.rates, search: { screenedOrders: new Set(candidates.map(c => identity(c.order))).size, refinedOrders: new Set(candidates.map(c => identity(c.order))).size,
-          policies: cumulative.length ? policies : [0], phaseClasses: 77, optimality: 'candidate_search' } };
+          policies: cumulative.length ? policies : [0], phaseClasses: 77, optimality: 'policy_order_proven' } };
     }
     // Saved inputs are rescored too: an offset alone is not evidence of a gain.
     // Compare the same order across the same clocks, retaining robustness gains.
@@ -160,12 +187,12 @@ export function createApTimingCalculator(rules, chart, { scorePrecision = 'full'
     }else plan.onTimeMinimumScore=plan.score;
     plan.minimumScore=plan.score;
     plan.maximumScore=Math.max(...plan.rates.map(rate=>rate.maximumScore));
-    const reference = run(plan, { frameRate: 60 }, includeTrace);
+    const reference = engine.withPerformance(apTimingPerformance(timeline, plan, { frameRate: 60 })).calculate(draft, { includeTrace });
     const result = { ...reference, expectedScore: plan.score, minimumScore: plan.minimumScore, maximumScore: plan.maximumScore,
       scoreDistribution: undefined, scorePrecision: 'ap_timing', orderCount: plan.search.refinedOrders,
       apTimingPlan: plan, performanceScenario: { profile: 'ap_timing' },
       performanceSummary: plan.adjustments.length ? '60／120 帧共用 AP 操作；按已检查时钟与统一 -5／0／+5 毫秒偏移中的较低分比较。' : '固定技能顺序的正拍 AP 估分。',
-      warnings: [...reference.warnings, ...(plan.adjustments.length ? ['微操是有限候选搜索，未证明全局最高分；时钟与统一偏移情景不代表设备实测或逐键独立误差的保底。'] : [])] };
+      warnings: [...reference.warnings, ...(plan.adjustments.length ? ['微操比较覆盖预设策略与技能顺序；不包含任意逐键独立时机，时钟与统一偏移情景不代表设备实测或逐键独立误差的保底。'] : [])] };
     if (includeTrace) {
       const variants = plan.rates.flatMap(rate => [
         { frameRate: rate.frameRate, phaseMs: 0, kind: 'reference' },

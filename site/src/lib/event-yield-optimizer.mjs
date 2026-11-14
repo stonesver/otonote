@@ -73,7 +73,7 @@ export function createEventYieldRewardTransform({model,candidate,basis='minimumS
 export async function optimizeEventYield({rules,eventId,draft,chart,candidate,scope='owned',inventory,constraints={},mode='ordinary',
  liveBoost=1,challengeCost=200,budget=100,startingCP=0,goal='badges',basis='minimumScore',challengeRows=[],includeChallenge=true,
  onProgress,yieldControl=async()=>{},signal,candidateCache,scoreCache,challengePlanCache,modelCache={},
- searchMethod='certified',maxEvaluations=24,refineScoreTies=false,witnessOnly=false,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}){
+ searchMethod='certified',maxEvaluations=24,refineScoreTies=false,refineStability=true,witnessOnly=false,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}){
  draft=withAPTimingBasis(draft,'expectedScore');
  if(!['practical','certified'].includes(searchMethod))throw Error('Invalid event search method');
  if(!Number.isInteger(maxEvaluations)||maxEvaluations<0)throw Error('Invalid event search budget');
@@ -154,7 +154,7 @@ export async function optimizeEventYield({rules,eventId,draft,chart,candidate,sc
  // proves expected score; normal farming refines stability after the proof.
  const compare=(a,b)=>compareEventRewards(a,b,goal)||(refineScoreTies?b.expectedScore-a.expectedScore:0);
  const finish=async report=>{
-   if(!refineScoreTies&&!signal?.aborted&&report.scoringCoverage?.complete!==false){
+   if(refineStability&&!refineScoreTies&&!signal?.aborted&&report.scoringCoverage?.complete!==false){
      report.results=await refineEventYieldTeams({rules,chart,input:resolved,eventAdapters,results:report.results,transformScore,goal,
        scoreCache,counters:report.practical,signal,yieldControl,onProgress});
    }
@@ -462,19 +462,34 @@ export function attainableBonusSums(edges,state,kind,cardBonus){
  const members=new Map(),supports=new Map();
  for(const e of edges){
    if(!members.has(e.character))members.set(e.character,new Map());
-   members.get(e.character).set(e.member,cardBonus('member',e.member)[kind]);
-   supports.set(e.support,cardBonus('support',e.support)[kind]);
+   const variants=members.get(e.character);
+   if(!variants.has(e.member))variants.set(e.member,cardBonus('member',e.member)[kind]);
+   if(!supports.has(e.support))supports.set(e.support,cardBonus('support',e.support)[kind]);
  }
  const groups=[...members.values()].map(rows=>({required:[...rows.keys()].some(id=>state.memberRequired.includes(id)),values:[...new Set(rows.values())]}));
  const supportGroups=[...supports].map(([id,value])=>({required:state.supportRequired.includes(id),values:[value]}));
  const sums=rows=>{
-   let dp=Array.from({length:6},()=>new Set());dp[0].add(0);
-   for(const group of rows){
-     const next=group.required?Array.from({length:6},()=>new Set()):dp.map(values=>new Set(values));
-     for(let n=0;n<5;n++)for(const old of dp[n])for(const value of group.values){
-       next[n+1].add(old+value);if(next[n+1].size>20000)return null;
+   const dp=Array.from({length:6},()=>new Set());dp[0].add(0);
+   let required=0;
+   for(const group of rows.filter(row=>row.required)){
+     if(required===5)return new Set();
+     for(const old of dp[required])for(const value of group.values){
+       dp[required+1].add(old+value);if(dp[required+1].size>20000)return null;
      }
-     dp=next;
+     dp[required++].clear();
+   }
+   // Optional groups with the same possible bonuses are interchangeable in
+   // this cardinality relaxation. At most five can occur in a legal team.
+   const optional=new Map();
+   for(const group of rows)if(!group.required){
+     const values=[...group.values].sort((a,b)=>a-b),key=values.join(',');
+     const item=optional.get(key)??{values,count:0};item.count=Math.min(5-required,item.count+1);optional.set(key,item);
+   }
+   for(const {values,count} of optional.values())for(let i=0;i<count;i++){
+     // Descending cardinality uses each group once without copying sets.
+     for(let n=4;n>=required;n--)for(const old of dp[n])for(const value of values){
+       dp[n+1].add(old+value);if(dp[n+1].size>20000)return null;
+     }
    }
    return dp[5];
  };

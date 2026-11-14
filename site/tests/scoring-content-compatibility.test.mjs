@@ -182,6 +182,22 @@ test('startup BAD/MISS conversion consumes successful matches once and never rea
   assert.throws(()=>createFormalSkillResolver(r,{dynamic:true})(d),/Reset/);
 });
 
+test('startup conversion expires on empty frames with the native first-frame equality rule',()=>{
+  for (const [durationRawMs, activeAfterFrame] of [[16,[true,false,false,false,false]], [50,[true,true,true,true,false]]]) {
+    const skills=Array.from({length:5},()=>({liveEffects:[],supportEffects:[]}));
+    skills[0].supportEffects.push({id:990,type:12006,startup:true,durationRawMs,
+      condition:{kind:'always',active:true},targets:[1,2],value:3,limitCount:0});
+    const clock=createFrameClock({frameRate:60});
+    const lifecycle=createOrdinarySkillLifecycle({skills,skillTimes:[1000,2000,3000,4000,5000],
+      skillOrder:[0,1,2,3,4],clock,life:{at:()=>1000},skillEndFrame});
+    for (const [frame, active] of activeAfterFrame.entries()) {
+      lifecycle.advance(frame);
+      assert.equal(lifecycle.convert(1).judgement,active?3:1,`duration ${durationRawMs}, frame ${frame}`);
+    }
+    assert.equal(lifecycle.skillTrace.length,1);
+  }
+});
+
 function conditionalLeaderFixture() {
   const {r,c,d}=ordinaryFixture();
   for(const row of r.tables.SupportCard)row._supportSkillId01=0;

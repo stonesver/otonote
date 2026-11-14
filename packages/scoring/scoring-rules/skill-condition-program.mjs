@@ -31,6 +31,8 @@ export function compileSkillConditions(sets, tables, unsupported) {
     return c;
   }));
   const conditions = groups.flat();
+  const idleGroups = groups.filter(group => !group.some(c => c.type === 7000 ||
+    c.positive && [7010, 7013].includes(c.type)));
   const unconditional = [];
   function matches(c, ctx, random) {
     let value;
@@ -54,6 +56,11 @@ export function compileSkillConditions(sets, tables, unsupported) {
     random: conditions.some(c => c.type === 4011),
     intervals: [...new Map(conditions.filter(c => c.type === 1030).map(c => [c.id, c])).values()],
     lottery: conditions.some(c => c.type === 7000),
+    // A lottery/entry/exit gate cannot match an unchanged empty frame.
+    // Other eventful predicates can retrigger; ungated probability predicates
+    // in release/reset programs can consume a draw on every frame.
+    idleEventful: idleGroups.some(group => group.some(c => [7010, 7013, 1030].includes(c.type))),
+    idleRandom: idleGroups.some(group => group.some(c => c.type === 4011)),
     eventful: branch => branch.some(c => [7000, 7010, 7013, 1030].includes(c.type)),
     sustained: branch => branch.some(c => c.type === 7021),
     entry: conditions.some(c => [7010, 7020].includes(c.type)),

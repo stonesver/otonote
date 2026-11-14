@@ -8,6 +8,42 @@ import { createLifeReplay, createComboReplay, createOrdinarySkillLifecycle } fro
 const f32 = Math.fround;
 const sum32 = xs => xs.reduce((s, n) => f32(s + n), 0);
 
+/** Immutable song/player event boundaries, shared across teams and lottery
+ * seeds. Ordinary skill expiry still depends on the sampled skill order. */
+export function prepareGekisouEventFrames(rules, timeline, ranges, scenario, performanceInput = null) {
+  const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
+  const wake = new Set([0, 1]);
+  for (const event of performanceInput?.judgements ?? timeline.events) {
+    const frame = event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs);
+    wake.add(frame); wake.add(frame + 1);
+    // Early input may insert a life command with a future authored time.
+    wake.add(clock.indexAt(event.timeMs));
+  }
+  const delay = Math.max(...rules.tables.LiveJudgementTiming.map(r => r._afterMs));
+  for (const range of ranges) {
+    const end = gekisouReleaseFrames(clock, range.endMs, delay);
+    for (const frame of [clock.indexAt(range.startMs), end.endFrame, end.settleFrame, end.releaseFrame, end.releaseFrame + 1]) wake.add(frame);
+  }
+  for (const time of timeline.skillTimes ?? []) wake.add(clock.indexAt(time));
+  return [...wake].sort((a, b) => a - b);
+}
+
+/** Proven fixed PERFECT arrivals for ranking-only LUCK replay. Skills must
+ * preserve these judgements and the truth of every life-dependent condition. */
+export function prepareGekisouPerfectInput(ranges, scenario, performanceInput) {
+  const clock = createFrameClock({ frameRate: scenario.frameRate });
+  const events = performanceInput.judgements.map((event, judgementSequence) => ({ ...event,
+    sectionIndex: ranges.findIndex(r => event.timeMs >= r.startMs && event.timeMs <= r.endMs) + 1,
+    judgement: 5, originalJudgement: 5, windowJudgement: 5,
+    inputTimeMs: clock.at(event.inputFrame).timeMs, judgementSequence }));
+  const frames = new Map();
+  for (const note of events) {
+    if (!frames.has(note.inputFrame)) frames.set(note.inputFrame, []);
+    frames.get(note.inputFrame).push(note);
+  }
+  return { events, frames, scoreNotes: { frames: [...frames], musicLengthMs: Math.max(0, ...events.map(e => e.timeMs)) } };
+}
+
 /** Native RecalculateBonusDependentCounts judgement block, build 25,
  * 0x55d6d20..0x55d6e8c. Protection affects task combo only. */
 export function applyGekisouComboJudgement(state, judgement, gain, guards = []) {
@@ -26,7 +62,7 @@ export function applyGekisouComboJudgement(state, judgement, gain, guards = []) 
  * Score commands retain their native authored/override timestamps and are
  * replayed separately, so a later frame can change an earlier note's score.
  * This is not a recording of the game's input scheduler or random stream. */
-export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4] } = {}) {
+export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4], eventDriven = false, eventFrames = null, fixedInput = null } = {}) {
   const random = createScoringRandom(seed);
   const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
   const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
@@ -49,11 +85,13 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     history: [], comboHistory: [], countCommands: [], previousLots: [], rushFactor: 0,
     effects: effects.filter(e => e.active && e.missionType === range.missionType).map(e => createGekisouEffectState(e, budgets.get(e.key))), luck: createGekisouLuckMachine(rules, { random }) }));
   const allEffects = states.flatMap(s => s.effects);
+  const sparse = eventDriven && !clock.frames && ranges.every(r => r.missionType === 2) && allEffects.every(e => e.eventDriven);
+  let changed = false;
   const resolveJudgement = performanceInput && createTimingJudgementResolver(rules);
   // Operators consume the context synchronously. Reuse its callbacks instead
   // of allocating a context and four closures for every effect on every frame.
   const contexts = states.map(s => ({ section: s, clock, random, lifeReplay: life,
-    dirty() { s.countsDirty = true; },
+    dirty() { s.countsDirty = true; changed = true; },
     count(effect, timeMs, value) {
       s.countCommands.push({ timeMs, sequence: judgementSequence - 1, value, channel: effect.operator.countChannel });
     },
@@ -64,12 +102,12 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     },
   }));
   const emptyNotes = [];
-  const events = (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
+  const events = fixedInput?.events ?? (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
     inputFrame: event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs),
     sectionIndex: ranges.findIndex(r => event.timeMs >= r.startMs && event.timeMs <= r.endMs) + 1,
     judgement: 5 })).sort((a,b) => a.inputFrame - b.inputFrame || (a.inputSequence ?? a.scoreIndex) - (b.inputSequence ?? b.scoreIndex));
-  const frames = new Map();
-  for (const note of events) {
+  const frames = fixedInput?.frames ?? new Map();
+  if (!fixedInput) for (const note of events) {
     if (!frames.has(note.inputFrame)) frames.set(note.inputFrame, []);
     frames.get(note.inputFrame).push(note);
   }
@@ -80,9 +118,9 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       ...events.filter(n => n.sectionIndex === s.index).map(n => n.inputFrame));
     Object.assign(s, gekisouReleaseFrames(clock, s.endMs, slowJudgeDelay));
     lastSectionFrame = Math.max(lastSectionFrame, s.releaseFrame + 1);
-    // Dynamic replays already visit every frame. Empty section frames need
-    // no Map entry or array; only the sparse ideal path uses membership.
-    for (let f = clock.indexAt(s.startMs); !performanceInput && !ordinary && f <= s.releaseFrame + 1; f++) {
+    // Dynamic replays use the clock/event schedule. Empty section frames need
+    // no Map entry or array; only ideal replays without ordinary skills use membership.
+    for (let f = clock.indexAt(s.startMs); !sparse && !performanceInput && !ordinary && f <= s.releaseFrame + 1; f++) {
       if (!frames.has(f)) frames.set(f, []);
     }
   }
@@ -167,16 +205,30 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
     end: Math.max(clock.indexAt(s.startMs) + 1, clock.indexAt(s.endMs)),
   }));
   const lastFrame = Math.max(lastSectionFrame, ...frames.keys(), ordinary?.lastFrame ?? 0);
+  const scheduled = sparse ? [...(eventFrames ?? prepareGekisouEventFrames(rules, timeline, ranges, scenario, performanceInput)), lastFrame] : [];
+  if (sparse) {
+    for (const [i, startMs] of (timeline.skillTimes ?? []).entries()) {
+      const skill = ordinarySkills?.[skillOrder[i]];
+      if (!skill) continue;
+      for (const effect of [...skill.liveEffects, ...skill.supportEffects.filter(e => e.type === 12006)]) {
+        if (!(effect.durationRawMs > 0) || !Number.isFinite(effect.durationRawMs)) continue;
+        if (effect.startup) scheduled.push(clock.at(1).timeMs >= effect.durationRawMs ? 1 : Math.max(2, clock.indexAt(Math.floor(effect.durationRawMs) + 1)));
+        else scheduled.push(skillEndFrame(clock, startMs, effect.durationRawMs).frame);
+      }
+    }
+  }
+  scheduled.sort((a, b) => a - b); let cursor = 0;
   for (let frame = 0; frame <= Math.max(lastFrame, ordinary?.lastFrame ?? 0); frame++) {
-    if (!performanceInput && !ordinary && !frames.has(frame)) continue;
+    if (!sparse && !performanceInput && !ordinary && !frames.has(frame)) continue;
     const frameNotes = frames.get(frame) ?? emptyNotes;
     currentFrame = frame;
     const timeMs = clock.at(frame).timeMs;
-    frameNotes.forEach((note, i) => { note.judgementSequence = judgementSequence + i; });
+    changed = false;
+    if (!fixedInput) for (let i = 0; i < frameNotes.length; i++) frameNotes[i].judgementSequence = judgementSequence + i;
     // Judgements see the PREVIOUS skill phase's converters and window handles.
     const justEnabled = justWindows.some(w => frame >= w.start && frame < w.end);
     const judgementEffects = frameNotes.length ? allEffects.filter(e => e.executing) : emptyNotes;
-    for (const note of frameNotes) {
+    if (!fixedInput) for (const note of frameNotes) {
       note.inputTimeMs = timeMs;
       const offset = note.timingOffsetMs ?? scenario.timingOffsetMs;
       const expansionFor = base => sum32(judgementEffects.filter(e => e.operator.windowExpansion).map(e => e.operator.windowExpansion(e, base)));
@@ -211,7 +263,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         note.lifeAtInput = life.at(note.timeMs); lowestLife = Math.min(lowestLife, note.lifeAtInput);
       }
     }
-    ordinary?.advance(frame, frameNotes);
+    changed = ordinary?.advance(frame, frameNotes) ?? false;
     if (performanceInput) {
       lowestLife = Math.min(lowestLife, life.at(timeMs));
       if (trace && (frameNotes.length || ordinary?.skillTrace.at(-1)?.frame === frame)) stateTrace.push({ frame, timeMs, life: life.at(timeMs), combo: combo.state.combo, maxCombo: combo.state.maxCombo });
@@ -260,6 +312,24 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       s.previousLots = nextLots;
     }
     judgementSequence += frameNotes.length;
+    if (sparse && !changed) {
+      while (cursor < scheduled.length && scheduled[cursor] <= frame) cursor++;
+      let next = Math.min(scheduled[cursor] ?? Infinity, Math.max(lastFrame, ordinary?.lastFrame ?? 0));
+      for (const s of states) if (s.entered && !s.closed) {
+        if (s.previousLots.length || s.luck.state.pendingLots && timeMs < s.endMs) { next = frame + 1; break; }
+        for (const e of s.effects) if (e.executing) next = Math.min(next, e.endFrame);
+      }
+      if (next > frame + 1) {
+        // Empty life queries have no commands between these event boundaries.
+        // Advance the native cached prefix to the last skipped frame, preserving
+        // its delayed-command invalidation before the next input arrives.
+        if (life) {
+          const value = life.at(clock.at(next - 1).timeMs);
+          if (performanceInput) lowestLife = Math.min(lowestLife, value);
+        }
+        frame = next - 1;
+      }
+    }
   }
   return { clock, states, events, commands, comboUpdates, ordinaryCommands: ordinary?.commands,
     ...(performanceInput ? { performance: { ...combo.state, life: life.at(clock.at(Math.max(lastFrame, ordinary?.lastFrame ?? 0)).timeMs), lowestLife, totalDamage,

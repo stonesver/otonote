@@ -30,7 +30,7 @@ export function selectLuckSeeds(candidates, limit) {
 }
 
 export async function createLuckCandidateSource(rules, profile, context, songs, {
-  limit = 32, cardScope = 'owned', onProgress, yieldControl = async () => {}, shouldStop = () => false
+  limit = 32, replacementLimit = 32, cardScope = 'owned', onProgress, yieldControl = async () => {}, shouldStop = () => false
 } = {}) {
   if (!['owned', 'reference'].includes(cardScope)) throw Error('未知的卡库范围');
   const base = createTeamDraft({ selectedSongId: songs[0].trackId, selectedDifficulty: songs[0].difficulty,
@@ -95,18 +95,25 @@ export async function createLuckCandidateSource(rules, profile, context, songs, 
     }
   }
   const candidates = selectLuckSeeds(generated, limit), seen = new Set(candidates.map(c => c.id));
+  const pending = new Map(), expanded = new Set();
   return {
     candidates, generated: new Set(generated.map(c => c.id)).size,
     complete: completed === seedSongs.length * tasks.length * 2,
+    get pending() { return pending.size; },
+    get expanded() { return expanded.size; },
     async neighbours(leaders, remaining = 16) {
       if (!remaining) return [];
       const proposals = [];
+      let replacements = [];
       const propose = (candidate, slots, family) => {
-        const id = stableSnapshotHash(slots); if (seen.has(id)) return;
+        const id = stableSnapshotHash(slots); if (seen.has(id) || pending.has(id)) return;
         const draft = { ...candidate.draft, slots };
-        proposals.push({ id, draft, family, name: family, power: power.calculate(draft).total.total });
+        const row = { id, draft, family, name: family, power: power.calculate(draft).total.total };
+        (['队长调整', '留影重配'].includes(family) ? proposals : replacements).push(row);
       };
       for (const candidate of leaders) {
+        if (expanded.has(candidate.id)) continue;
+        replacements = [];
         for (let i = 0; i < 5; i++) {
           // Commit a neighbourhood only after every requested leader has been
           // visited. Interrupted proposals must not enter `seen` or disappear
@@ -126,10 +133,16 @@ export async function createLuckCandidateSource(rules, profile, context, songs, 
           }
           await yieldControl();
         }
+        // This is the declared finite neighbourhood, not the dequeue batch
+        // size. Keep every captain/pairing variant and balance card changes
+        // across mechanisms before power. Every selected proposal is queued.
+        proposals.push(...selectLuckSeeds(replacements, replacementLimit));
       }
       if (shouldStop()) return null;
-      const result = selectLuckSeeds(proposals, remaining);
-      for (const row of result) seen.add(row.id);
+      for (const row of proposals) pending.set(row.id, row);
+      leaders.forEach(row => expanded.add(row.id));
+      const result = selectLuckSeeds([...pending.values()], remaining);
+      for (const row of result) { pending.delete(row.id); seen.add(row.id); }
       return result;
     }
   };

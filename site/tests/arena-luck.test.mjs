@@ -113,6 +113,8 @@ test('LUCK candidate generation and evaluation preserve actual growth, source in
   assert.ok(source.candidates.length);
   const evaluate = createLuckEvaluator(data);
   const row = await evaluate({ candidate: source.candidates[0], start: 0, end: 6, phase: 0 });
+  const split = await Promise.all(data.songs.map((_, songIndex) => evaluate({ candidate: source.candidates[0], start: 0, end: 6, phase: 0, songIndex })));
+  assert.deepEqual(split.map(result => result.rows[0]), row.rows);
   assert.equal(row.rows.length, data.songs.length);
   assert.equal(unpackLuckSamples(data.rules, row.rows[0].packed, 5).length, 6);
   for (const c of source.candidates) for (const slot of c.draft.slots) for (const id of [slot.memberCardId, slot.supportCardId]) assert.deepEqual(c.draft.modifiers.growth[id], before.inventory.growth[id]);
@@ -191,13 +193,13 @@ test('stopping and continuing reuse complete blocks without changing determinist
   session.close(); fresh.close();
 });
 
-test('time budget publishes only complete-song blocks and keeps unfinished candidates visible', async () => {
+test('manual stop publishes only complete-song blocks and keeps unfinished candidates visible', async () => {
   const data = input(); let clock = 0;
   const session = createArenaLuckSearch(data, { candidateLimit: 3, neighbourLimit: 0, now: () => clock,
-    onProgress: p => { if (p.phase === 'luck-screen') clock = 101; } });
+    onProgress: p => { if (p.phase === 'luck-screen') { clock = 1e12; session.stop(); } } });
   try {
-    const result = await session.run({ budgetMs: 100 });
-    assert.equal(result.search.budgetReached, true);
+    const result = await session.run();
+    assert.equal(result.search.stopped, true);
     assert.equal(result.validation.status, 'pending');
     assert.equal(result.pendingCandidates, 2);
     assert.equal(result.candidates.length, 1);
@@ -205,7 +207,7 @@ test('time budget publishes only complete-song blocks and keeps unfinished candi
   } finally { session.close(); }
 });
 
-test('validation disagreement spends the same run budget on disjoint additional samples', async () => {
+test('validation disagreement automatically adds disjoint samples in one run', async () => {
   let firstId;
   const snapshots = [];
   const session = createArenaLuckSearch(input(), { candidateLimit: 2, neighbourLimit: 0,
@@ -250,14 +252,14 @@ test('iterative expansion finds a two-swap improvement and resumes an interrupte
   const interrupted = createArenaLuckSearch(data, { ...options, now: () => clock, onSnapshot: r => {
     if (matches(r.candidates[0]) === 5 && r.validation.status === 'agrees') interrupted.stop();
   }, onProgress: p => {
-    if (p.phase === 'luck-expand' && p.expansions === 1 && !expired) { clock = 101; expired = true; }
+    if (p.phase === 'luck-expand' && p.expansions === 1 && !expired) { clock = 1e12; expired = true; interrupted.stop(); }
   } });
   const fresh = createArenaLuckSearch(data, { ...options, onSnapshot: r => {
     if (matches(r.candidates[0]) === 5 && r.validation.status === 'agrees') fresh.stop();
   } });
   try {
-    const partial = await interrupted.run({ budgetMs: 100 });
-    assert.equal(partial.search.budgetReached, true);
+    const partial = await interrupted.run();
+    assert.equal(partial.search.stopped, true);
     assert.equal(partial.search.expansions, 1);
     assert.ok(matches(partial.candidates[0]) < 5);
     const resumed = await interrupted.run();
@@ -327,4 +329,142 @@ test('ranking rewards reconstructed from LUCK samples retain per-sample integer 
     const expected = createGekisouSongCalculator(rules, chart, { performance, scenario: { batches: 3, ranks } }).calculate(draft).expectedScore;
     assert.equal(samples.reduce((n, s) => n + s.noteScore + s.sections.reduce((v, x, j) => v + x.bonuses[ranks[j] - 1], 0), 0) / samples.length, expected);
   }
+});
+
+test('bounded ranking is the exact prefix of full ranking and retains all adversaries', () => {
+  const teams = Array.from({ length: 45 }, (_, i) => candidate(`team-${i}`, [i % 7, i * 3 % 11, i * 5 % 17], 100 + i % 9));
+  const rank = createLuckCandidateRanker([{ weight: 1 }]);
+  for (let round = 0; round < 5; round++) {
+    const rows = round % 2 ? [...teams].reverse() : teams;
+    const full = rankLuckCandidates(rows, [{ weight: 1 }]);
+    const exact = rank(rows, { limit: 4 });
+    assert.deepEqual(exact, full.slice(0, 4));
+    const extra = full.at(-1).id;
+    const included = rank(rows, { limit: 4, includeIds: [extra], includeScoreLeaders: true });
+    for (const row of included) assert.deepEqual(row, full.find(c => c.id === row.id));
+    assert.ok(included.some(row => row.id === extra));
+    teams[round].songs[0].samples.push(...candidate('append', [9, 13], 130).songs[0].samples);
+  }
+});
+
+test('neighbour batches exhaust the same full frontier without losing lower-power proposals', async () => {
+  const data = input();
+  const small = await createLuckCandidateSource(data.rules, data.profile, data.context, data.songs, { limit: 2 });
+  const large = await createLuckCandidateSource(data.rules, data.profile, data.context, data.songs, { limit: 2 });
+  const expected = await large.neighbours(large.candidates, Infinity);
+  const batches = await small.neighbours(small.candidates, 2);
+  assert.ok(small.pending > 0);
+  while (small.pending) batches.push(...await small.neighbours([], 2));
+  assert.equal(new Set(batches.map(c => c.id)).size, batches.length);
+  assert.deepEqual(batches.map(c => c.id).sort(), expected.map(c => c.id).sort());
+  assert.deepEqual(await small.neighbours(small.candidates, 2), []);
+});
+
+test('a noiseless complete search stops automatically and a repeat run performs no work', async () => {
+  let evaluations = 0, clock = 0;
+  const session = createArenaLuckSearch(input(), { candidateLimit: 3, neighbourLimit: 2, now: () => clock,
+    createEvaluator: () => ({ width: 2, close() {}, async run({ candidate, start, end }) {
+      evaluations++; clock += 1e9;
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([1000, 10, 100, 1, 10, 100, 1, 10, 100, 1], i);
+      return { id: candidate.id, rows: [{ power: 1, packed }] };
+    } }) });
+  try {
+    const result = await session.run(), calls = evaluations;
+    assert.equal(result.search.phase, 'complete');
+    assert.equal(result.search.completion.status, 'close');
+    assert.equal(result.search.canContinue, false);
+    assert.equal(result.pendingCandidates, 0);
+    assert.equal(result.sampling.max, 72);
+    assert.ok(result.evaluated > 3);
+    assert.deepEqual(await session.run(), result);
+    assert.equal(evaluations, calls);
+  } finally { session.close(); }
+});
+
+test('large song pools pause between songs, resume partial blocks, and never publish a partial pool', async () => {
+  const data = input();
+  data.songs = Array.from({ length: 50 }, (_, i) => ({ ...data.songs[0], weight: i + 1 }));
+  const jobs = new Set(); let paused = false, validationPaused = false, session;
+  session = createArenaLuckSearch(data, { candidateLimit: 1, neighbourLimit: 0,
+    onProgress: p => {
+      if (p.phase === 'luck-screen' && !paused) { paused = true; session.stop(); }
+      if (p.phase === 'luck-validate' && !validationPaused) { validationPaused = true; session.stop(); }
+    },
+    createEvaluator: () => ({ width: 2, close() {}, async run({ candidate, start, end, phase, songIndex }) {
+      assert.ok(end - start <= 6);
+      const key = `${candidate.id}/${phase}/${songIndex}/${start}/${end}`;
+      assert.ok(!jobs.has(key), `repeated song job ${key}`); jobs.add(key);
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([songIndex + 100, 10, 100, 1, 10, 100, 1, 10, 100, 1], i);
+      return { id: candidate.id, songIndex, rows: [{ power: 1, packed }] };
+    } }) });
+  try {
+    const partial = await session.run();
+    assert.equal(jobs.size, 2);
+    assert.equal(partial.candidates.length, 0);
+    assert.equal(partial.search.canContinue, true);
+    const validating = await session.run();
+    assert.equal(validating.search.stopped, true);
+    assert.equal(validating.validation.status, 'pending');
+    const complete = await session.run();
+    assert.equal(complete.search.canContinue, false);
+    assert.equal(complete.search.completion.status, 'stable');
+    assert.equal(complete.songs.length, 50);
+    assert.equal(complete.candidates[0].songs.length, 50);
+    assert.ok(complete.candidates[0].songs.every((s, i) => s.samples.length === 72 && s.samples.every(x => x.noteScore === i + 100)));
+    const expected = data.songs.reduce((sum, song, i) => sum + song.weight * (i + 100), 0) / data.songs.reduce((sum, song) => sum + song.weight, 0);
+    assert.ok(Math.abs(complete.candidates[0].noteScore - expected) < 1e-9);
+  } finally { session.close(); }
+});
+
+test('an available worker starts the next song while an earlier song is still running', async () => {
+  const data = input();
+  data.songs = Array.from({ length: 50 }, () => ({ ...data.songs[0] }));
+  let release, ready, active = 0, maximum = 0;
+  const held = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { ready = resolve; });
+  const initial = [];
+  const session = createArenaLuckSearch(data, { candidateLimit: 1, neighbourLimit: 0,
+    createEvaluator: () => ({ width: 2, close() {}, async run({ candidate, start, end, phase, songIndex }) {
+      maximum = Math.max(maximum, ++active);
+      if (phase === 0 && start === 0) initial.push(songIndex);
+      if (phase === 0 && start === 0 && songIndex === 0) { ready(); await held; }
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([songIndex + 100, 10, 100, 1, 10, 100, 1, 10, 100, 1], i);
+      active--;
+      return { id: candidate.id, rows: [{ power: 1, packed }] };
+    } }) });
+  const running = session.run();
+  try {
+    await started;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(initial.includes(2), 'a completed song must not wait for the slow song in its batch');
+    assert.ok(initial.length <= 4, 'out-of-order results stay bounded as the song pool grows');
+    release();
+    const result = await running;
+    assert.equal(maximum, 2);
+    assert.equal(result.search.phase, 'complete');
+    assert.equal(result.candidates[0].songs.length, 50);
+    assert.ok(result.candidates[0].songs.every((song, i) => song.samples.length === 72 && song.samples.every(s => s.noteScore === i + 100)));
+  } finally { release(); await running; session.close(); }
+});
+
+test('unresolved independent rankings finish at the sample ceiling without inviting refinement', async () => {
+  let firstId;
+  const session = createArenaLuckSearch(input(), { candidateLimit: 2, neighbourLimit: 0,
+    createEvaluator: () => ({ width: 1, close() {}, async run({ candidate, start, end, phase }) {
+      firstId ??= candidate.id;
+      const score = (candidate.id === firstId) === (phase === 0) ? 2000 : 1000;
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([score, 1, 0, 1, 1, 0, 1, 1, 0, 1], i);
+      return { id: candidate.id, rows: [{ power: 1, packed }] };
+    } }) });
+  try {
+    const result = await session.run();
+    assert.equal(result.search.completion.status, 'unresolved');
+    assert.equal(result.search.canContinue, false);
+    assert.equal(result.sampling.max, 576);
+    assert.equal(result.validation.status, 'changed');
+  } finally { session.close(); }
 });

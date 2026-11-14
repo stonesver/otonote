@@ -47,13 +47,13 @@ class ArenaTeamWorkbench extends HTMLElement {
       this.syncStage(); if (!this.resumeWorker) return;
       this.worker = this.resumeWorker; this.resumeWorker = null; this.luckRunning = true;
       this.q('continue').hidden = true; this.q('run').disabled = true; this.q('cancel').hidden = false; this.q('progress').hidden = false;
-      this.status('沿用已有样本继续精算…'); this.worker.postMessage({ type: 'continue', requestId: this.generation });
+      this.status('继续未完成的搜索与复核…'); this.worker.postMessage({ type: 'continue', requestId: this.generation });
     });
     listen(this.q('edit'), 'click', () => { this.q('settings').open = true; this.q('settings').scrollIntoView({ block: 'start' }); this.q('settings').querySelector('summary').focus(); });
     listen(this.q('method-open'), 'click', () => {
       this.q('method-intro').textContent = this.missionType === 2 ? '按随机抽样计算整场平均分，兼顾 LUCK 点数与 RUSH 得分。' : '看整场得分，也看 JUST 带来的名次奖励。';
       this.q('method-comparison').textContent = this.missionType === 2
-        ? '每个对手成绩情景固定后，先对抽样结果逐次排名、结算并平均，再比较换成另一支固定队伍的最大平均分差。推荐在本次候选中选错损失更小的队伍，并用独立抽样复核。抽样区间不是保底，结果不表示实战胜率。'
+        ? '每个对手成绩情景固定后，先对抽样结果逐次排名、结算并平均，再比较换成另一支固定队伍的最大平均分差。推荐在本次候选中选错损失更小的队伍，并独立复核前列方案。自动探索、复核后结束，停止后可续接。抽样区间不是保底，结果不表示实战胜率。'
         : '比较不同对手计数下，换成另一支候选最多能多拿多少分。优先推荐这个差距更小的队伍。';
       this.q('method-dialog').showModal();
     });
@@ -343,9 +343,9 @@ class ArenaTeamWorkbench extends HTMLElement {
         if (data.type === 'progress') {
           const p = data.progress; this.q('progress').value = p.completed / p.total;
           if (this.stopRequested) return;
-          const phases = { 'luck-screen': 'LUCK 初筛', 'luck-expand': '探索新的配队组合', 'luck-neighbours': '比较替换方案', 'luck-refine': 'LUCK 加深抽样', 'luck-validate': '独立抽样复核' };
+          const phases = { 'luck-screen': 'LUCK 初筛', 'luck-expand': '探索新的配队组合', 'luck-neighbours': '比较替换方案', 'luck-refine': '复算前列队伍', 'luck-validate': '独立抽样复核' };
           this.status(p.phase === 'generate' ? `生成候选 ${p.completed} / ${p.total} · 已保留 ${p.candidates} 队`
-            : `${phases[p.phase] ?? '比较队伍'} ${p.completed} / ${p.total}${p.expansions ? ` · 已扩展 ${p.expansions} 轮` : ''}${p.workers ? ` · ${p.workers} 路并行` : ''}`);
+            : `${phases[p.phase] ?? '比较队伍'} ${p.completed} / ${p.total}${p.candidates ? ` · 已比较 ${p.candidates} 队` : ''}${p.pending ? ` · 待探索 ${p.pending} 队` : ''}`);
         } else if (data.type === 'result' || data.type === 'snapshot') {
           if (stage.source === 'schedule' && !this.stagePeriod) {
             try {
@@ -359,7 +359,8 @@ class ArenaTeamWorkbench extends HTMLElement {
             this.q('continue').hidden = !this.resumeWorker;
             this.q('results').scrollIntoView({ block: 'start' });
             const seconds = (data.result.search?.elapsedMs ?? performance.now() - started) / 1000;
-            this.status(`${data.result.search?.stopped ? '已停止 · ' : data.result.search?.budgetReached ? '本轮时间已到 · ' : ''}${data.result.candidates.length} 队 · ${seconds.toFixed(1)} 秒${this.resumeWorker ? ' · 可继续精算' : ''}`);
+            const completion = { stable: '已完成 · 多批抽样推荐一致', close: '已完成 · 前列方案接近', unresolved: '已完成 · 抽样尚无法分清前列方案' }[data.result.search?.completion?.status];
+            this.status(`${data.result.search?.stopped ? '已停止 · ' : completion ? `${completion} · ` : ''}${data.result.evaluated ?? data.result.candidates.length} 队 · ${seconds.toFixed(1)} 秒${this.resumeWorker ? ' · 可继续计算' : ''}`);
           }
         } else { this.finish(); this.report = null; this.q('results').replaceChildren(); this.status(data.error, true); }
       };
@@ -490,8 +491,15 @@ class ArenaTeamWorkbench extends HTMLElement {
     };
     const layout = el('div', '', 'arena-results-layout'); layout.append(picker.element, content);
     if (report.sampling) {
-      const validation = { pending: '独立复核尚未完成', agrees: '独立复核首选一致', changed: '独立复核首选有变化，建议继续精算并比较备选' }[report.validation.status];
-      root.append(el('p', `每队每曲 ${report.sampling.min}–${report.sampling.max} 次抽样 · 已扩展 ${report.search.expansions} 轮 · ${validation}${report.pendingCandidates ? ` · ${report.pendingCandidates} 队尚未完成比较` : ''}。`, 'arena-hint'));
+      const validation = { pending: '独立复核尚未完成', agrees: '前列候选独立复核首选一致', changed: '前列候选独立复核首选不同，可比较备选' }[report.validation.status];
+      root.append(el('p', `已比较 ${report.evaluated} 队 · 展示 ${report.candidates.length} 支前列及高分方案 · 每队每曲 ${report.sampling.min}–${report.sampling.max} 次抽样 · ${validation}${report.pendingCandidates ? ` · ${report.pendingCandidates} 队尚未完成比较` : ''}。`, 'arena-hint'));
+    }
+    if (report.search?.completion) {
+      const { status, tolerance } = report.search.completion;
+      const explanation = status === 'close' ? `多批抽样中前列方案的推荐损失差距均在 ${number(tolerance)} 分内，可按养成或喜好选择。`
+        : status === 'unresolved' ? '已完成候选探索并达到抽样上限，多批抽样仍未分清前列方案；请结合备选比较。'
+        : '已完成本次候选探索，多批抽样推荐一致。';
+      root.append(el('p', `${explanation} 完成范围为本次候选及已展开的替换方案，不代表全组合最优。`, 'arena-hint'));
     }
     layout.toggleAttribute('data-preference', Boolean(report.skillPreferences && report.skillPreferences.preference !== 'none'));
     root.append(layout); render(selected);

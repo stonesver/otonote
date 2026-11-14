@@ -5,13 +5,13 @@ export function eventRewardGrowthNote(growth,override=false){
 }
 export function eventRewardOptions(tool,prefix){
  const root=el('section',null,'task-event-reward-options'),label=el('label'),enabled=el('input');enabled.type='checkbox';enabled.dataset[`${prefix}Rewards`]='';label.append(enabled,el('span','临时纳入本期奖励卡'));root.append(label);
- const settings=el('div'),growthLabel=el('label'),growthTitle=el('span','奖励卡养成（本次计算）'),growth=el('select');growth.dataset[`${prefix}RewardGrowth`]='';
+ const settings=el('div'),growthLabel=el('label'),growthTitle=el('span','未持有奖励卡养成（本次计算）'),growth=el('select');growth.dataset[`${prefix}RewardGrowth`]='';
  for(const [value,text] of [['level','满等级 · 初始觉醒 / 突破 · 技能 1'],['maximum','全满养成 · 假设']]){const option=el('option',text);option.value=value;growth.append(option);}growthLabel.append(growthTitle,growth);
  const note=el('p',null,'task-input-note task-event-reward-growth-note');settings.append(growthLabel,note);
  const list=el('ul',null,'task-event-reward-card-list'),hint=el('p',null,'task-input-note');settings.append(list);root.append(settings,hint);let key='';
  function refresh(){
   const cards=tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[],reference=tool.querySelector(prefix==='challengeOpt'?'[data-challenge-opt-scope]':'[data-pool]').value==='reference';
-  note.textContent=eventRewardGrowthNote(growth.value,true)+'奖励获取成本不从收益中扣除。';
+  note.textContent=eventRewardGrowthNote(growth.value)+'奖励获取成本不从收益中扣除。';
   enabled.disabled=!cards.length||reference;settings.hidden=!enabled.checked||enabled.disabled;
   hint.textContent=reference?'全卡库参考已包含本期奖励卡。':!cards.length?'当前活动没有可读取的兑换 / pt 奖励卡。':enabled.checked?'按已获取奖励卡后的队伍比较，不模拟刷取途中逐张获得。':`可纳入 ${cards.length} 张商店兑换 / pt 奖励卡`;
   const next=JSON.stringify(cards);if(next===key)return;key=next;list.replaceChildren();

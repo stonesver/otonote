@@ -20,7 +20,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
  loadChart,optimizer=optimizeEventYield,candidateCache=new Map(),challengePlanCache=new Map(),
  getScoreCache=async()=>new Map(),afterChart=async()=>{},onJobComplete=async()=>{},onGroupComplete=async()=>{},
  onMessage=()=>{},signal,yieldControl=createCalculationScheduler({eco:input.eco===true}),proveGroup,
- globalPruning=false,witnessPrepass=true,runChallengeJobs,runGroupProofs}){
+ globalPruning=false,witnessPrepass=true,runChallengeJobs,runGroupProofs,runWitnessJobs}){
  const {plan,selected}=eventYieldChartPlan(candidates,rules,input),full=input.searchDepth==='full';
  const cycle=input.mode==='ordinary'&&input.includeChallenge;
  const goals=eventYieldGoals(input.goal,input.mode),total=selected.length+(cycle?challengeCandidates.length:0),available=candidates.length+(cycle?challengeCandidates.length:0);
@@ -75,7 +75,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
        const started=performance.now();
        onMessage({type:'progress',done:completed(),total,title:c.title,stage:practicalSeed?'准备跨谱面收益搜索起点':witnessOnly?'验证合法收益上界见证':'证明所选收益第一名'});
        const result=await optimizer({rules,eventId,...stage,candidate:c,chart,challengeRows,candidateCache,scoreCache,challengePlanCache,modelCache,
-         yieldControl,signal,goal,witnessOnly,searchMethod:practicalSeed?'practical':stage.searchMethod??'certified',maxEvaluations:full?0:stage.maxEvaluations??24,
+         yieldControl,signal,goal,witnessOnly,refineStability:!practicalSeed,searchMethod:practicalSeed?'practical':stage.searchMethod??'certified',maxEvaluations:full?0:stage.maxEvaluations??24,
          includeChallenge:input.mode==='ordinary'&&input.includeChallenge,
          onProgress:p=>{
            const best=p.bestCandidate&&bestFor(goal,canGlobal?null:c.id);
@@ -110,7 +110,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
      const chart=await loadChart(c),scoreCache=await cacheFor(c,'challenge',stage,chart),goal=eventYieldGoals(input.goal,'challenge')[0];
      const started=performance.now();
      const result=await optimizer({rules,eventId,...stage,candidate:c,chart,challengeRows:[],candidateCache,scoreCache,challengePlanCache,
-       yieldControl,signal,goal,searchMethod:'practical',maxEvaluations:0,includeChallenge:false,
+       yieldControl,signal,goal,searchMethod:'practical',refineStability:false,maxEvaluations:0,includeChallenge:false,
        onProgress:p=>onMessage({type:'progress',done:0,total,title:c.title,stage:p.stage??p.phase,detail:p})});
      optimizerInvocations++;cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;
      challengeRows.push(...result.results.map(r=>({...r,recommendationGoals:[goal],search:{bestProven:false}})));
@@ -163,8 +163,26 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
  }
  if(cycle&&!challengeRows.length&&!signal?.aborted)throw Error('后续挑战全部计算失败，无法可靠比较总收益。');
  if(cycle&&!signal?.aborted)for(const id of rows.keys())if(id.startsWith('preview:'))rows.delete(id);
- if((canGlobal||canGroup)&&witnessPrepass)for(const c of selected){if(signal?.aborted)break;await mainChart(c,{witnessOnly:true});}
+ let parallelWitnessesDone=false;
+ if(canGroup&&!canGlobal&&witnessPrepass&&runWitnessJobs&&!signal?.aborted){
+  let records;
+  try{records=await runWitnessJobs({candidates:selected,input:eventYieldStageInput(input,input.mode),challengeRows,done:completed(),total});}
+  catch{onMessage({type:'progress',done:completed(),total,stage:'并行起点准备不可用，继续逐曲准备'});}
+  if(records&&!signal?.aborted){
+   const byId=new Map(selected.map(c=>[c.id,c]));
+   for(const {candidateId,goal,result,wallMs} of records){
+    optimizerInvocations++;cacheHits+=result.practical.scoreCacheHits;calculations+=result.practical.scoreCalculations;witnessCharts.add(candidateId);
+    // These fully scored rows seed the ensuing per-chart proof. No completed
+    // chart is credited here, and stability is refined on the final results.
+    rows.set('witness:'+candidateId+':'+goal,result.results.map(row=>({...row,recommendationGoals:[goal],search:{bestProven:false}})));
+    await onJobComplete({candidate:byId.get(candidateId),mode:input.mode,goal,witnessOnly:true,practicalSeed:true,result,wallMs});
+   }
+   parallelWitnessesDone=true;onMessage(snapshot('partial'));
+  }
+ }
+ if((canGlobal||canGroup)&&witnessPrepass&&!parallelWitnessesDone)for(const c of selected){if(signal?.aborted)break;await mainChart(c,{witnessOnly:true});}
  // These representative charts supply legal incumbents, never coverage.
+ // Defer their local stability refinement to the final certified results.
  // Every selected chart remains in the subsequent complete proof domain.
  if(canGroup&&input.mode==='ordinary')for(const c of plan.quick){
    if(signal?.aborted)break;if(!goals.every(g=>handled(c,g)))await mainChart(c,{practicalSeed:true});

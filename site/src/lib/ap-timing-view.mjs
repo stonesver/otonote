@@ -51,8 +51,8 @@ export function apTimingSummary(plan) {
   }
   details.append(el('p',say(`调整后的音符距 AP 判定边界至少 ${plan.apMarginMs} ms；这不是保持同分的误差范围。`,
     `Adjusted notes stay at least ${plan.apMarginMs} ms inside the AP window. This is not an equal-score tolerance.`)),
-    el('small',say('推荐分取已检查时钟及统一早／晚 5 ms 中的较低分；增分与同顺序正拍在相同时钟下的较低分比较。仅比较已搜索方案，不代表全局最高分或实机保底。',
-      'The headline uses the lowest checked score, including uniform ±5 ms offsets; the gain compares on-time inputs in the same order across the same clocks. This is not a global optimum or guaranteed score.')));
+    el('small',say('推荐分取已检查时钟及统一早／晚 5 ms 中的较低分；增分与同顺序正拍在相同时钟下的较低分比较。预设策略不覆盖任意逐键独立偏移，分数不代表实机保底。',
+      'The headline uses the lowest checked score, including uniform ±5 ms offsets; the gain compares on-time inputs in the same order across the same clocks. Preset policies do not cover arbitrary independent note timings or guarantee a device score.')));
   root.append(details);return root;
 }
 

@@ -56,13 +56,26 @@ test('conditional minimum-score envelopes bound native scores for every pairing 
  const bound=createOrdinaryScoreBound({song,pairSkills,legacyFactor:Infinity,input,metric:'minimumScore',bonusConstraintBound:true});
  const threshold=542713,subsets=[[],...f.inventory.memberCardIds.map(id=>[id]),f.inventory.memberCardIds.slice(0,3),f.inventory.memberCardIds];
  const envelopes=subsets.map(ids=>bound.normalizedPowerEnvelope(threshold,ids));
+ const witness=f.draft.slots.map(s=>({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId,support:s.supportCardId}));
+ const alternative=witness.map((e,i)=>({...e,support:witness[(i+1)%5].support,key:e.member+'|'+witness[(i+1)%5].support}));
+ const conditions=[
+  {members:f.inventory.memberCardIds,supports:[]},
+  {members:[],supports:witness.map(e=>e.support)},
+  {members:[f.inventory.memberCardIds[0]],supports:witness.slice(0,3).map(e=>e.support)},
+ ];
+ const conditional=conditions.map(c=>({...c,envelopes:[witness,alternative].map(w=>bound.normalizedPowerEnvelope(threshold,c.members,w,c.supports))}));
  let tightened=false;
  for(const supports of permutations(f.inventory.supportCardIds,5)){
   const draft={...f.draft,slots:f.inventory.memberCardIds.map((memberCardId,i)=>({memberCardId,supportCardId:supports[i]}))};
   const actual=song.calculate(draft).minimumScore/threshold,p=power.calculate(draft).total.total;
-  const edges=draft.slots.map(s=>({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId}));
+  const edges=draft.slots.map(s=>({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId,support:s.supportCardId}));
   const values=envelopes.map(env=>p*(env.baseCoefficient+edges.reduce((sum,e)=>sum+env.gainFor(e),0)));
   for(const upper of values)assert.ok(upper>=actual,`${upper} < ${actual}`);
+  for(const condition of conditional){
+   if(!condition.supports.every(id=>supports.includes(id)))continue;
+   const bounds=condition.envelopes.map(env=>p*(env.baseCoefficient+edges.reduce((sum,e)=>sum+env.gainFor(e),0)));
+   for(const upper of [...bounds,(bounds[0]+bounds[1])/2])assert.ok(upper>=actual,`conditional order mixture: ${upper} < ${actual}`);
+  }
   tightened||=values.at(-1)<values[0];
  }
  assert.equal(tightened,true,'minimum-score proof must be tighter than the mean envelope');

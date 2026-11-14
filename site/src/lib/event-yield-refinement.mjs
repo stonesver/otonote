@@ -64,6 +64,12 @@ export async function refineEventYieldTeams({rules,chart,input,eventAdapters=[],
   const finalists=new Map([...screened.filter(r=>r.kind==='leader'),...screened.slice(0,12)].map(r=>[signature(r.draft),r]));
   for(const [id,candidate] of finalists){
    if(signal?.aborted)break;
+   // The ten-order minimum is an upper bound on the full minimum. Check all
+   // reachable ranks so nonmonotone rewards cannot hide a winning neighbour.
+   if(rows[0].scoreBasis==='minimumScore'){
+    const ceiling=rewardCeiling(candidate.draft,candidate.minimumScore),order=ceiling?compareEventRewards(ceiling,rows[0],goal):1;
+    if(order>0||order===0&&candidate.minimumScore<rows[0].minimumScore){refinement.scorePruned++;continue;}
+   }
    const row={...transformScore(score(candidate.draft,'full'),candidate.draft),draft:candidate.draft,id,
     origins:['event-stability-refinement'],delta:null,comparison:null};
    refinement.fullyScored++;

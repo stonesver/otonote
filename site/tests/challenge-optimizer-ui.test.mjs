@@ -42,11 +42,17 @@ test('challenge controls remain functional after moving outside the result panel
  workers[2].listeners.message({data:{type:'result',result:{objective:'expected_song_score',results:[],status:'completed',practical:{finalists:6}}}});
  assert.match(node('[data-challenge-opt-status]').textContent,/尚未证明/);
  assert.doesNotMatch(node('[data-challenge-opt-status]').textContent,/上界搜索阶段/);
- assert.equal(progress.dataset.state,'stopped');
- node('[data-challenge-opt-rewards]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
- node('[data-challenge-opt-reward-growth]').value='maximum';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowth,'maximum');assert.equal(workers.at(-1).payload.rewardGrowthOverride,true);
+ assert.equal(progress.dataset.state,'complete','normal completion is independent of optimality proof');
+ node('[data-challenge-opt-rewards]').checked=true;ui.sync();assert.deepEqual(node('[data-challenge-opt-results]').children,[]);node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowthOverride??false,false);
+ node('[data-challenge-opt-reward-growth]').value='maximum';ui.sync();node('[data-challenge-opt-run]').listeners.click();assert.equal(workers.at(-1).payload.rewardGrowth,'maximum');assert.equal(workers.at(-1).payload.rewardGrowthOverride??false,false);
  node('[data-challenge-opt-objective]').value='ap_timing';ui.sync();node('[data-challenge-opt-run]').listeners.click();
  assert.equal(workers.at(-1).payload.draft.modifiers.performanceScenario.profile,'ap_timing');
+ workers.at(-1).listeners.message({data:{type:'result',result:{objective:'maximum_song_score',results:[],status:'completed',practical:{finalists:6},
+  certifiedSearch:{evaluated:5,expanded:42,frontier:0,bestProven:true,scope:'team_for_chart_ap_policies',optimalityGap:0}}}});
+ assert.match(node('[data-challenge-opt-status]').textContent,/预设 AP 微操策略内的最佳配队/);
+ assert.match(node('[data-challenge-opt-status]').textContent,/不包含任意逐键独立偏移/);
+ assert.equal(progress.dataset.state,'complete');
+ node('[data-challenge-opt-run]').listeners.click();
  node('[data-challenge-opt-cancel]').listeners.click();assert.equal(workers.at(-1).terminated,true);
  assert.match(node('[data-challenge-opt-status]').textContent,/重新比较/);assert.equal(node('[data-challenge-opt-run]').disabled,false);
  const bandField=node('[data-challenge-opt-support-band]');bandField.multiple=true;bandField.selectedOptions=[{value:'2'},{value:'3'}];

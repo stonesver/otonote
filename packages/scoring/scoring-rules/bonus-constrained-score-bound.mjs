@@ -28,10 +28,10 @@ export function createBonusConstrainedScoreBound({coefficients,spans,profileFor,
 /** The same matching relaxation for an already conservative P-linear
  * envelope. A group may take per-edge and base maxima across normalized
  * charts. integerScore=false retains fractional score/threshold bounds. */
-export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFor:uncachedGainFor,integerScore=true,cutoff=-Infinity}) {
+export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFor:uncachedGainFor,integerScore=true,cutoff=-Infinity,cacheGains=true}) {
   if(!Number.isFinite(baseCoefficient)||baseCoefficient<0||typeof uncachedGainFor!=='function')return null;
   const gainCache=new WeakMap();
-  const gainFor=edge=>{
+  const gainFor=!cacheGains?uncachedGainFor:edge=>{
     if(!gainCache.has(edge))gainCache.set(edge,uncachedGainFor(edge));
     return gainCache.get(edge);
   };
@@ -41,15 +41,22 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
   const bound=function(available,forced,leader,solution,error,bonusFor,minBonus,constraints={},scoreCutoff=cutoff,matchingCache){
     const witnesses=new Map();bound.witnesses=[];
     if(!Number.isSafeInteger(minBonus)||minBonus<0||!Number.isFinite(error)||error<0||solution.weight<=0)return Infinity;
-    const powers=new Float64Array(available.length),gains=new Float64Array(available.length),
-      bonusValues=new Float64Array(available.length),probeWeights=new Float64Array(available.length);
-    let largestPower=0,largestGain=0,largestBonus=0,index=0;
-    for(const edge of available){
-      const bonus=bonusFor(edge),gain=gainFor(edge);
-      if(!Number.isSafeInteger(bonus)||bonus<0||!Number.isFinite(gain)||gain<0)return Infinity;
-      powers[index]=edge.weight;gains[index]=gain;bonusValues[index++]=bonus;
-      largestBonus=Math.max(largestBonus,bonus);
-      largestPower=Math.max(largestPower,Math.abs(edge.weight));largestGain=Math.max(largestGain,gain);
+    let data=matchingCache?.data;
+    if(!data){
+      const powers=Float64Array.from(available,e=>e.weight),bonusValues=Float64Array.from(available,bonusFor);
+      let largestPower=0,largestBonus=0;
+      for(let i=0;i<available.length;i++){
+        const bonus=bonusValues[i];if(!Number.isSafeInteger(bonus)||bonus<0)return Infinity;
+        largestPower=Math.max(largestPower,Math.abs(powers[i]));largestBonus=Math.max(largestBonus,bonus);
+      }
+      data={powers,bonusValues,largestPower,largestBonus,gains:new Float64Array(available.length),probeWeights:new Float64Array(available.length)};
+      if(matchingCache)matchingCache.data=data;
+    }
+    const {powers,bonusValues,largestPower,largestBonus,gains,probeWeights}=data;
+    let largestGain=0;
+    for(let i=0;i<available.length;i++){
+      const gain=gainFor(available[i]);if(!Number.isFinite(gain)||gain<0)return Infinity;
+      gains[i]=gain;largestGain=Math.max(largestGain,gain);
     }
     const options={edges:available,required:forced.map(e=>e.key),requiredMembers:[...new Set([leader,...(constraints.memberRequired??[])])],requiredSupports:constraints.supportRequired??[]};
     const remember=result=>{
@@ -62,16 +69,16 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       }
       bound.witnesses=[...witnesses.values()];return row;
     };
-    const solve=matchingCache?.solve??createMaximumPairing(options);
+    const solve=matchingCache?.solve??createMaximumPairing({...options,compact:true});
     if(matchingCache)matchingCache.solve=solve;
-    const match=weight=>{
+    const match=(weight,maximumWeight)=>{
       stats.matchingCalls++;
       // A future unsupported magnitude must loosen the bound, never silently
       // overflow an exact matching weight. Existing scoring errors still use
       // the normal search/fallback path.
-      try{return solve(weight);}catch{return null;}
+      try{return solve(weight,maximumWeight);}catch{return null;}
     };
-    const bonusMaximum=matchingCache?.bonusMaximum!==undefined?matchingCache.bonusMaximum:match(bonusValues);
+    const bonusMaximum=matchingCache?.bonusMaximum!==undefined?matchingCache.bonusMaximum:match(bonusValues,largestBonus);
     if(matchingCache)matchingCache.bonusMaximum=bonusMaximum;
     if(!bonusMaximum)return Infinity;
     remember(bonusMaximum);
@@ -86,8 +93,12 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       // and all five augmentations remain safely inside binary64 integers.
       const scale=2**30/Math.max(1,magnitude),allowance=magnitude*1e-10;
       if(!Number.isFinite(scale)||scale<=0)return null;
-      for(let i=0;i<available.length;i++)probeWeights[i]=Math.ceil((lambda*powers[i]+gains[i]+mu*bonusValues[i]+allowance)*scale);
-      const result=match(probeWeights);
+      let maximumWeight=0;
+      for(let i=0;i<available.length;i++){
+        probeWeights[i]=Math.ceil((lambda*powers[i]+gains[i]+mu*bonusValues[i]+allowance)*scale);
+        maximumWeight=Math.max(maximumWeight,Math.abs(probeWeights[i]));
+      }
+      const result=match(probeWeights,maximumWeight);
       if(!result)return null;
       const row=remember(result);
       const sum=base+result.weight/scale-mu*minBonus;
@@ -111,15 +122,33 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
       const initial=probe(lambda,0);if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!initial)break;
       let chosen=initial;
       if(initial.bonus<minBonus){
-        let lo=0,hi=(base+lambda*solution.weight)/Math.max(1,minBonus),high;
+        let lo=0,hi=(base+lambda*solution.weight)/Math.max(1,minBonus),low=initial,high;
         for(let i=0;i<12;i++){
           high=probe(lambda,hi);if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!high)break;
           chosen=high;if(high.bonus>=minBonus)break;
-          lo=hi;hi*=2;
+          lo=hi;low=high;hi*=2;
         }
         if(high?.bonus>=minBonus)for(let i=0;i<12;i++){
-          const mid=(lo+hi)/2,row=probe(lambda,mid);if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!row)break;
-          chosen=row;if(row.bonus<minBonus)lo=mid;else hi=mid;
+          // For fixed lambda each matching defines an affine function of mu.
+          // Probe the crossing of the two bracketing witnesses instead of
+          // repeatedly bisecting a segment with the same winning matching.
+          // The crossing only chooses a probe: upward-rounded matching still
+          // supplies every bound, including when quantization repeats a line.
+          const cross=(lambda*(low.weight-high.weight)+low.gain-high.gain)/(high.bonus-low.bonus);
+          const interpolated=cross>lo&&cross<hi,mid=interpolated?cross:(lo+hi)/2,row=probe(lambda,mid);
+          if(upper<scoreCutoff||feasibleAtCutoff)return upper;if(!row)break;
+          chosen=row;
+          if(interpolated&&[low,high].some(end=>row.bonus===end.bonus&&row.weight===end.weight&&row.gain===end.gain))break;
+          if(row.bonus<minBonus){lo=mid;low=row;}else {hi=mid;high=row;}
+        }
+        if(low.bonus<minBonus&&high?.bonus>=minBonus){
+          // A convex combination meeting the bonus threshold is feasible in
+          // the fractional matching relaxation. If even that point reaches
+          // the grade, no dual probe of this envelope can exclude the node.
+          // It is not a legal team and is never exposed as a score/witness.
+          const t=(minBonus-low.bonus)/(high.bonus-low.bonus);
+          chosen={weight:low.weight*(1-t)+high.weight*t,gain:low.gain*(1-t)+high.gain*t};
+          if(Number.isFinite(scoreCutoff)&&scoreCutoff>0&&chosen.weight*(base+chosen.gain)>=scoreCutoff)return upper;
         }
       }
       const next=(base+chosen.gain)/chosen.weight;

@@ -35,7 +35,7 @@ export function ordinaryReplayApplicationLimit(timeline, profiles, frameRate = 6
 
 /** Bound the ideal ordinary replay, including native float32 rewind residue.
  * This is not a bound for dynamic player inputs or Gekisou task rewards. */
-export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input, metric, frameRate = 60, localRewinds = true, assignmentBound = true, jointPowerBound = false, bonusConstraintBound = false }) {
+export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input, metric, frameRate = 60, localRewinds = true, assignmentBound = true, jointPowerBound = false, bonusConstraintBound = false, inputWindows = null }) {
   // Audit adapters before either the envelope or homogeneous-team shortcut.
   song.upperBound(0, 1, { eventContext: input.draft.modifiers?.event });
   const clock = createFrameClock({ frameRate }), profiles = new Map(), canonical = new Map(), cache = new Map();
@@ -58,7 +58,8 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     return profile;
   };
   const uniqueProfiles = [...canonical.values()];
-  const applicationLimit = localRewinds ? ordinaryReplayApplicationLimit(song.timeline, uniqueProfiles, frameRate) : Infinity;
+  const applicationLimit = inputWindows ? inputWindows.applicationLimit
+    : localRewinds ? ordinaryReplayApplicationLimit(song.timeline, uniqueProfiles, frameRate) : Infinity;
   const supportBudget=entries=>{
     const counts=new Map(),magnitudes=new Map();
     for(const [support,p] of entries){counts.set(support,Math.max(counts.get(support)??0,p.commands));magnitudes.set(support,Math.max(magnitudes.get(support)??0,p.magnitude));}
@@ -69,6 +70,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     return {commands:top(counts),magnitude:top(magnitudes)*(1+1e-12)};
   };
   const globalBudget=supportBudget([...profiles].map(([key,p])=>[key.split('|')[1]??key,p]));
+  let bucketCommands=Infinity;
   const replayError = (absolute, options, limit, budget) => {
     // A cumulative handle can be replaced once per judgement frame. Both its
     // old-value removal and new-value insertion contribute to the absolute
@@ -79,11 +81,11 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     const variation = Math.max(1,...options.flatMap(p=>p.effects.map(e=>e.dynamic?e.updates+1:1)));
     const magnitude = budget?.magnitude??2 * absolute * variation;
     const calls = Math.min(limit, 4 * (song.timeline.events.length + commands + 1)), undo = commands * calls;
-    const stateError = gamma(2 * undo + 1) * (1 + 2 * magnitude)
+    const stateError = gamma(2 * undo + 1) * (1 + absolute)
       // Sum bucket-delta errors over their command magnitudes, then replay
       // each bucket at most calls times. Multiplying the whole-song magnitude
       // by the number of commands again counts those magnitudes twice.
-      + (1 + gamma(2 * undo + 1)) * calls * gamma(commands) * magnitude;
+      + (1 + gamma(2 * undo + 1)) * calls * gamma(Math.max(0,Math.min(commands,bucketCommands)-1)) * magnitude;
     return { commands, error: stateError + unitRoundoff * (1 + 2 * absolute + stateError) };
   };
   const linearCache = new Map(), events = song.timeline.events;
@@ -95,6 +97,19 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   const arrivals=new Map();
   for(const event of events){const frame=clock.indexAt(event.timeMs);arrivals.set(frame,(arrivals.get(frame)??0)+1);}
   const noteFrames=[...arrivals].sort((a,b)=>a[0]-b[0]);
+  const possibleFrames = new Map();
+  const framesForStart = startFrame => {
+    if (!inputWindows) return noteFrames;
+    if (!possibleFrames.has(startFrame)) {
+      const counts = new Map();
+      for (const {first,last} of inputWindows.choices) if (last >= startFrame) {
+        const frame = Math.max(startFrame, first);
+        counts.set(frame, (counts.get(frame) ?? 0) + 1);
+      }
+      possibleFrames.set(startFrame, [...counts].sort((a,b) => a[0]-b[0]));
+    }
+    return possibleFrames.get(startFrame);
+  };
   const effectSpans=(start,e)=>{
     const end=skillEndFrame(clock,start,e.durationRawMs),last=indexAt(end.timeMs),c=e.cumulative;
     const rectangle=()=>[{first:indexAt(start),last,value:Math.max(0,e.value)}];
@@ -106,7 +121,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     // AP lifecycles are independent of order/power. Count all matching notes
     // in the activation frame, exactly as UpdateStay/UpdateExecuteFrame do.
     // Each monotone increase contributes only until the authored end command.
-    for(const [frame,notes] of noteFrames){
+    for(const [frame,notes] of framesForStart(end.startFrame)){
       if(frame<end.startFrame)continue;if(frame>=end.frame)break;
       count+=notes;
       const level=Math.min(c.maximum,Math.floor(Math.fround(Math.fround(count)/Math.fround(c.unit))));
@@ -118,6 +133,39 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     return spans;
   };
   const spans = new Map(uniqueProfiles.map(p => [p.signature, song.timeline.skillTimes.map(start => p.effects.flatMap(e=>effectSpans(start,e)))]));
+  // Independent activation positions relax member/support uniqueness. Count
+  // every possible command in each native 40 ms bucket, including zero starts.
+  if(!inputWindows && ![...pairSkills.values()].some(s=>s.liveEffects.some(e=>e.release?.includes(5)))
+    &&uniqueProfiles.every(p=>p.effects.every(e=>!e.cumulative||Array.isArray(e.cumulative.targets)&&Number.isInteger(e.cumulative.unit)&&e.cumulative.unit>0&&Number.isInteger(e.cumulative.maximum)&&e.cumulative.maximum>0))
+    &&events.every(e=>e.inputFrame==null)){
+    const counts=new Map();
+    for(const start of song.timeline.skillTimes){
+      const maximum=new Map();
+      for(const profile of uniqueProfiles){
+        const local=new Map(),add=(time,n=1)=>{
+          const bucket=Math.max(0,Math.ceil(Math.fround(Math.fround(time)/40)));
+          local.set(bucket,(local.get(bucket)??0)+n);
+        };
+        for(const effect of profile.effects){
+          const end=skillEndFrame(clock,start,effect.durationRawMs);add(start);add(end.timeMs);
+          const c=effect.cumulative;if(!c||!c.targets.includes(5))continue;
+          let count=0,previous=0;
+          for(const [frame,notes] of noteFrames){
+            if(frame<end.startFrame)continue;if(frame>=end.frame)break;
+            count+=notes;
+            const level=Math.min(c.maximum,Math.floor(Math.fround(Math.fround(count)/Math.fround(c.unit))));
+            const raw=Math.fround(Math.min(c.maximumBP,Math.imul(level,c.stepBP))/10000);
+            const rate=Math.fround(Math.floor(Math.fround(raw*100000))/100000);
+            if(rate!==previous)add(clock.at(frame).timeMs,2);
+            previous=rate;
+          }
+        }
+        for(const [bucket,count] of local)maximum.set(bucket,Math.max(maximum.get(bucket)??0,count));
+      }
+      for(const [bucket,count] of maximum)counts.set(bucket,(counts.get(bucket)??0)+count);
+    }
+    bucketCommands=Math.max(0,...counts.values());
+  }
   const jointBound = jointPowerBound ? createJointPowerScoreBound({
     coefficients:song.powerLinearUpperBound?.({eventContext:input.draft.modifiers?.event}),spans,profileFor,metric
   }) : null;
@@ -194,7 +242,7 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     // All legal teams in this subspace have exactly the same command stream at
     // a given power. Positive native multiplications/floors are monotone in
     // power; the maximum-power feasible team therefore supplies an exact bound.
-    if (!model.powerIsUpperBound && types.size === 1 && [...types.values()][0].effects.every(e => e.value >= 0 && !e.dynamic)) {
+    if (!inputWindows && !model.powerIsUpperBound && types.size === 1 && [...types.values()][0].effects.every(e => e.value >= 0 && !e.dynamic)) {
       const key = `exact:${[...types.keys()][0]}:${solution.weight}`;
       const value=remember(key, () => { bound.stats.fullScoreCalculations++; return song.calculate(draftForSolution())[metric]; });
       return includePriority?{upper:value,priority:value}:value;
@@ -270,9 +318,10 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
   // proof and never changes the scored orders or the candidate pool.
   const conditionalGains=new Map(),memberCosts=new Map(),memberPairs=new Map();
   if(metric==='minimumScore')for(const pair of profiles.keys()){
-    const member=pair.split('|')[0];
-    if(!memberPairs.has(member))memberPairs.set(member,[]);
-    memberPairs.get(member).push(pair);
+    for(const card of pair.split('|')){
+      if(!memberPairs.has(card))memberPairs.set(card,[]);
+      memberPairs.get(card).push(pair);
+    }
   }
   const costsFor=member=>{
     if(memberCosts.has(member))return memberCosts.get(member);
@@ -285,14 +334,27 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     }
     memberCosts.set(member,values);return values;
   };
-  const minimumGainFor=requiredMembers=>{
-    const members=[...new Set(requiredMembers)].sort(),key=members.join('|');
+  const minimumGainFor=(requiredMembers,witness,requiredSupports=[])=>{
+    const kind=requiredSupports.length>requiredMembers.length?'support':'member';
+    if(kind==='support')requiredMembers=requiredSupports;
+    const members=[...new Set(requiredMembers)].sort(),key=kind+':'+members.join('|')+':'+(witness?.map(e=>e.key).join(';')??'');
     if(!members.length||members.length>5)return bonusBound.envelope.gainFor;
     if(conditionalGains.has(key))return conditionalGains.get(key);
     // The pair pool and chart gains are fixed for this bound. Only the
     // assignment of required members to positions changes between domains.
-    const costs=members.map(costsFor);
+    const costs=members.map(member=>{
+      const edge=witness?.find(e=>e[kind]===member);
+      return edge?bonusBound.envelope.positionGainsFor(edge):costsFor(member);
+    });
     if(costs.some(row=>!row))return bonusBound.envelope.gainFor;
+    if(witness&&members.length<5){
+      const optional=witness.filter(e=>!members.includes(e[kind]));
+      if(optional.length===5-members.length){
+        const baseline=Array(5).fill(0);
+        for(const edge of optional){const gains=bonusBound.envelope.positionGainsFor(edge);for(let i=0;i<5;i++)baseline[i]+=gains[i]/optional.length;}
+        for(let c=0;c<costs.length;c++)costs[c]=costs[c].map((value,i)=>value-baseline[i]);
+      }
+    }
     let dp=new Map([[0,{cost:0,positions:[]}]]);
     for(const values of costs){
       const next=new Map();
@@ -306,27 +368,29 @@ export function createOrdinaryScoreBound({ song, pairSkills, legacyFactor, input
     const fixed=new Map(members.map((member,i)=>[member,chosen.positions[i]]));
     const remaining=[0,1,2,3,4].filter(i=>!chosen.positions.includes(i));
     const gainFor=edge=>{
-      const gains=bonusBound.envelope.positionGainsFor(edge),position=fixed.get(edge.member);
+      const gains=bonusBound.envelope.positionGainsFor(edge),position=fixed.get(edge[kind]);
       if(position!==undefined)return gains[position];
       // Unrecognized optional edges cannot belong to a five-forced-member
       // team. Keep a conservative value even if a caller includes them.
       return remaining.length?remaining.reduce((sum,i)=>sum+gains[i],0)/remaining.length:Math.max(...gains);
     };
     if(conditionalGains.size>=64)conditionalGains.delete(conditionalGains.keys().next().value);
+    gainFor.assignmentKey=kind+':'+members.map((member,i)=>member+'@'+chosen.positions[i]).join('|');
     conditionalGains.set(key,gainFor);return gainFor;
   };
   let normalizedBase;
-  bound.normalizedPowerEnvelope=(threshold,requiredMembers=[])=>{
+  bound.normalizedPowerEnvelope=(threshold,requiredMembers=[],witness,requiredSupports=[])=>{
     if(!bonusBound||!Number.isFinite(threshold)||threshold<=0)return null;
     if(normalizedBase===undefined){
       const absolute=5*Math.max(0,...uniqueProfiles.map(p=>p.absolute));
       const {error}=replayError(absolute,uniqueProfiles,applicationLimit,globalBudget);
       normalizedBase=bonusBound.envelope.baseCoefficient*(1+error);
+
     }
     const baseCoefficient=normalizedBase/threshold*(1+1e-10);
     if(!Number.isFinite(baseCoefficient))return null;
-    const gainFor=metric==='minimumScore'?minimumGainFor(requiredMembers):bonusBound.envelope.gainFor;
-    return {baseCoefficient,gainFor:edge=>gainFor(edge)/threshold*(1+1e-10)};
+    const gainFor=metric==='minimumScore'?minimumGainFor(requiredMembers,witness,requiredSupports):bonusBound.envelope.gainFor;
+    return {baseCoefficient,gainFor:edge=>gainFor(edge)/threshold*(1+1e-10),assignmentKey:gainFor.assignmentKey??metric};
   };
   bound.stats={fullScoreCalculations:0};
   bound.withPriority=(...args)=>bound(...args,true);

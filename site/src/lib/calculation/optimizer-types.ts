@@ -61,7 +61,7 @@ export interface ApTimingPlan {
   rates: {frameRate: number; referenceScore: number; baselineScore: number; minimumScore: number; maximumScore: number;
     minimumCondition: {phaseMs: number; biasMs: number}; maximumCondition: {phaseMs: number; biasMs: number};
     favorable: {phaseMs: number; score: number}}[];
-  search: {screenedOrders: number; refinedOrders: number; policies: number[]; phaseClasses: number; optimality: 'candidate_search'};
+  search: {screenedOrders: number; refinedOrders: number; policies: number[]; phaseClasses: number; optimality: 'candidate_search' | 'policy_order_proven' | 'saved_witness'};
 }
 export interface OptimizerCandidate {
   draft: TeamDraft; value: number; power: number;

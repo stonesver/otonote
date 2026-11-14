@@ -32,6 +32,18 @@ self.addEventListener('message',async({data:{id,task}})=>{
     records.push({goal,result:value,wallMs:performance.now()-start});
    }
    result={candidateId:candidate.id,records};
+  }else if(kind==='witness'){
+   const records=[];
+   for(const candidate of candidates){
+    const chart=await loader.loadChart(candidate),scoreCache=await getScoreCache(candidate,'ordinary',input,chart),modelCache={};
+    for(const goal of eventYieldGoals(input.goal,'ordinary')){
+     const start=performance.now();
+     const value=await optimizeEventYield({rules,eventId,...input,candidate,chart,goal,challengeRows:task.challengeRows,
+      candidateCache,challengePlanCache,scoreCache,modelCache,yieldControl,onProgress,witnessOnly:true,refineStability:false,maxEvaluations:0});
+     records.push({candidateId:candidate.id,goal,result:value,wallMs:performance.now()-start});
+    }
+   }
+   result={records};
   }else if(kind==='group'){
    result=await proveEventYieldGroups({rules,eventId,input,candidates,goal:task.goal,challengeRows:task.challengeRows,initialRows:task.initialRows,
     candidateCache,challengePlanCache,loadChart:loader.loadChart,getScoreCache,yieldControl,onProgress,individualProofs:task.individualProofs===true,allowForeignSeeds:task.allowForeignSeeds===true});

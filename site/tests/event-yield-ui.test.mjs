@@ -193,8 +193,8 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
   return nodes.get(key);
  };
  const q=key=>node(`[data-yield-${key}]`);
- const tool={q:node,querySelector:node,pairs:[],draft:{slots:[],selectedSongId:'music-2',selectedDifficulty:'hard'},data:{
-  rules:{tables:{LiveMusic:[{_id:1,_musicType:1},{_id:2,_musicType:2}],ChallengeMusic:[{_eventId:1,_liveMusicId:2}]}},
+ const tool={q:node,querySelector:node,personalGrowthStore:{read:()=>null},pairs:[],draft:{slots:[],selectedSongId:'music-2',selectedDifficulty:'hard'},data:{
+  eventRewardCards:{1:[{resourceType:2,resourceId:1}]},rules:{tables:{LiveMusic:[{_id:1,_musicType:1},{_id:2,_musicType:2}],ChallengeMusic:[{_eventId:1,_liveMusicId:2}]}},
   tracks:[{id:'music-1',bandIds:['band-1'],musicType:1},{id:'music-2',bandIds:['band-2'],musicType:2}],
   charts:[{id:'1-e',trackId:'music-1',difficulty:'expert',level:25,analysisDataUrl:'/1'},
    {id:'2-e',trackId:'music-2',difficulty:'expert',level:25,analysisDataUrl:'/2'},
@@ -231,8 +231,8 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);
  node('mode').value='challenge';q('songs').value='all';optimizer.sync();optimizer.run();
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-e']);
- q('rewards').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
- q('reward-growth').value='maximum';optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowth,'maximum');assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
+ q('rewards').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride??false,false);
+ q('reward-growth').value='maximum';optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowth,'maximum');assert.equal(workers.at(-1).data.input.rewardGrowthOverride??false,false);
  // Both phase filters select subsets before the worker can load any charts.
  const multi=(field,values,options=['expert','hard','normal','easy'])=>{
   field.multiple=true;field.options=options.map(value=>({value,selected:values.includes(value)}));

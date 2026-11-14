@@ -9,15 +9,23 @@ on:
         type: choice
         options: [global, jp]
       publication:
-        description: Original Actions run ID and attempt, such as 123456_1
-        required: true
+        description: Original Actions run ID and attempt; omit only for bootstrap
+        required: false
         type: string
       mode:
-        description: Verify saved content or retry its pointer publication
+        description: Review saved content; bootstrap enables review after checking existing public snapshots
         required: true
         default: verify
         type: choice
-        options: [verify, promote]
+        options: [verify, promote, publish, schedule, hold, bootstrap]
+      revision:
+        description: Pending review revision shown in the workbench
+        required: false
+        type: string
+      publish_at:
+        description: Confirmed publication time as Unix seconds (schedule only)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -31,6 +39,7 @@ jobs:
     concurrency:
       group: content-r2-${{ inputs.region }}
       cancel-in-progress: false
+      queue: max
     env:
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -39,6 +48,8 @@ jobs:
       REGION: ${{ inputs.region }}
       PUBLICATION: ${{ inputs.publication }}
       MODE: ${{ inputs.mode }}
+      REVIEW_REVISION: ${{ inputs.revision }}
+      PUBLISH_AT: ${{ inputs.publish_at }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,17 +62,32 @@ jobs:
           python -m pip install --require-hashes -r tools/python-security-requirements.txt
           python -m pip install -r tools/r2-requirements.txt
       - name: Record publication attempt
-        if: inputs.mode == 'promote'
+        if: inputs.mode == 'promote' || inputs.mode == 'publish'
         run: python -m tools.r2_run_record --status running
       - name: Verify or publish the saved artifact
         id: promote
         run: |
           set -euo pipefail
-          python -m tools.r2_publication "$MODE" --region "$REGION" \
-            --publication "$PUBLICATION" --source-run "retry-${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          case "$MODE" in
+            bootstrap)
+              [[ "$REGION" == global && -z "$PUBLICATION" ]] || exit 1
+              python -m tools.publication_review bootstrap > "$RUNNER_TEMP/review-result.json" ;;
+            verify|promote)
+              python -m tools.r2_publication "$MODE" --region "$REGION" \
+                --publication "$PUBLICATION" --source-run "retry-${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
+                > "$RUNNER_TEMP/review-result.json" ;;
+            publish|schedule|hold)
+              args=()
+              if [[ "$MODE" == schedule ]]; then args+=(--publish-at "$PUBLISH_AT"); fi
+              python -m tools.publication_review "$MODE" --region "$REGION" \
+                --publication "$PUBLICATION" --revision "$REVIEW_REVISION" "${args[@]}" \
+                --source-run "review-${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" > "$RUNNER_TEMP/review-result.json" ;;
+            *) exit 1 ;;
+          esac
+          cat "$RUNNER_TEMP/review-result.json" >> "$GITHUB_STEP_SUMMARY"
+          python -c 'import json,sys; print("publicStatus="+json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/review-result.json" >> "$GITHUB_OUTPUT"
       - name: Record publication result
-        if: always() && inputs.mode == 'promote'
+        if: always() && (inputs.mode == 'promote' || inputs.mode == 'publish')
         continue-on-error: true
         env:
           JOB_STATUS: ${{ job.status }}

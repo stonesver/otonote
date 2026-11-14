@@ -84,6 +84,7 @@ jobs:
     concurrency:
       group: content-r2-${{ matrix.region }}
       cancel-in-progress: false
+      queue: max
     env:
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -308,12 +309,13 @@ jobs:
           python - "$RUNNER_TEMP/light-check.json" <<'PY'
           import json, os, sys
           result = json.load(open(sys.argv[1]))
-          if result.get('status') not in ('unchanged', 'needs_full') or type(result.get('skip')) is not bool:
+          if result.get('status') not in ('unchanged', 'awaiting_review', 'needs_full') or type(result.get('skip')) is not bool:
               raise SystemExit('Invalid light gate result')
-          if result['skip'] != (result['status'] == 'unchanged'):
+          if result['skip'] != (result['status'] in ('unchanged', 'awaiting_review')):
               raise SystemExit('Inconsistent light gate result')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('skip=' + str(result['skip']).lower() + '\n')
+              output.write('publicStatus=' + result['status'] + '\n')
           PY
       - name: Restore last verified private state
         id: restore
@@ -431,6 +433,7 @@ jobs:
               raise SystemExit('Invalid unchanged-production gate result')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('skip=' + str(result['skip']).lower() + '\n')
+              output.write('publicStatus=' + result['status'] + '\n')
           PY
       - name: Load optional digest-pinned Arena review
         if: matrix.region == 'global' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true' && env.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 != ''
@@ -592,6 +595,7 @@ jobs:
           python -m tools.r2_content promote --region "$REGION" --store "$store" \
             --workers 8 --expected-current "$expected" --source-run "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
             > "$RUNNER_TEMP/promotion.json"
+          python -c 'import json,sys; print("publicStatus="+json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/promotion.json" >> "$GITHUB_OUTPUT"
       - name: Record run result
         if: always()
         shell: bash

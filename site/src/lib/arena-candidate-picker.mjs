@@ -7,10 +7,11 @@ const points = value => value == null ? '—' : `${(value / 10000).toFixed(1)} �
 /** A compact shortlist opens the full, sortable candidate gallery. */
 export function createArenaCandidatePicker({ report, cards, onSelect }) {
   const luck = report.method === 'expected_rank_envelope';
+  const closeIds = new Set(report.search?.completion?.status === 'close' ? report.search.completion.candidateIds : []);
   const main = report.candidates[0], element = el('section', '', 'arena-candidate-picker');
   element.setAttribute('aria-label', '候选队伍切换');
   const header = el('header');
-  const browse = el('button', `全部 ${report.candidates.length} 队 ›`, 'arena-candidate-browse'); browse.type = 'button'; browse.setAttribute('aria-haspopup', 'dialog');
+  const browse = el('button', luck ? `查看 ${report.candidates.length} 支方案 ›` : `全部 ${report.candidates.length} 队 ›`, 'arena-candidate-browse'); browse.type = 'button'; browse.setAttribute('aria-haspopup', 'dialog');
   header.append(el('h2', '候选队伍'), browse);
   const comparisonNote = el('p', '与当前队伍比较 · 换卡高亮', 'arena-candidate-comparison');
   const featured = el('div', '', 'arena-candidate-featured');
@@ -95,6 +96,7 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
       button.setAttribute('aria-pressed', String(row.candidate.id === selectedId));
       const title = el('span', '', 'arena-candidate-title'); title.append(el('b', name(row)), el('small', row.candidate.name));
       if (row === best) title.append(el('em', unknown() ? '上限最高' : '最高分'));
+      if (row.candidate.id !== main.id && closeIds.has(row.candidate.id)) title.append(el('em', '推荐接近'));
       if (row.candidate.id === selectedId) title.append(el('em', '正在查看', 'arena-candidate-selected'));
       const value = el('span', '', 'arena-candidate-value'); scoreContent(value, row); value.append(el('small', `最大损失 ${points(row.candidate.worstLoss)}`, 'arena-candidate-loss'));
       button.append(el('span', String(start + offset + 1).padStart(2, '0'), 'arena-candidate-position'), title, roster(row.candidate, button), value);
@@ -133,6 +135,8 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
     else if (alternative) shortlist.push({ row: alternative, label: alternative === best ? unknown() ? '上限最高队' : '当前最高分' : name(alternative) });
     const validationWinner = report.validation?.status === 'changed' ? rows.find(row => row.candidate.id === report.validation.winnerId) : null;
     if (validationWinner && !shortlist.some(({ row }) => row === validationWinner)) shortlist.push({ row: validationWinner, label: '独立复核首选' });
+    const closeAlternative = rows.find(row => row.candidate.id !== main.id && closeIds.has(row.candidate.id));
+    if (closeAlternative && !shortlist.some(({ row }) => row === closeAlternative)) shortlist.push({ row: closeAlternative, label: '接近方案' });
     if (!shortlist.some(({ row }) => row.candidate.id === selectedId)) comparedId = selectedId;
     const compared = rows.find(row => row.candidate.id === comparedId);
     if (compared && !shortlist.some(({ row }) => row === compared)) shortlist.push({ row: compared, label: name(compared) });

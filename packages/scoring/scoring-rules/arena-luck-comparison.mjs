@@ -69,14 +69,14 @@ export function luckSectionEnvelope(a, b, opponents, maximumKey = lastKey) {
  * ranker per input and seed domain; only pairs touching appended rows expire. */
 export function createLuckCandidateRanker(songs) {
   const cache = { prepared: new WeakMap(), pairs: new WeakMap() };
-  return candidates => rankCandidates(candidates, songs, cache);
+  return (candidates, options) => rankCandidates(candidates, songs, cache, options);
 }
 
 export function rankLuckCandidates(candidates, songs) {
   return rankCandidates(candidates, songs);
 }
 
-function rankCandidates(candidates, songs, cache = null) {
+function rankCandidates(candidates, songs, cache = null, { limit = Infinity, includeIds = [], includeScoreLeaders = false } = {}) {
   if (!candidates.length) throw Error('没有完整可计算的候选队伍');
   const totalWeight = songs.reduce((sum, song) => sum + song.weight, 0);
   const versions = candidates.map(candidate => candidate.songs[0].samples.length);
@@ -98,7 +98,10 @@ function rankCandidates(candidates, songs, cache = null) {
       sameRankScore: aggregate(s => s.noteScore + s.sections.reduce((sum, x) => sum + x.bonuses.at(-1), 0)),
       firstRankScore: aggregate(s => s.noteScore + s.sections.reduce((sum, x) => sum + x.bonuses[0], 0)) };
   });
-  for (let a = 0; a < candidates.length; a++) for (let b = a + 1; b < candidates.length; b++) {
+  const alternatives = candidates.map((_, i) => i);
+  const compare = (a, b) => a.worstLoss - b.worstLoss || b.sameRankScore - a.sameRankScore || a.id.localeCompare(b.id);
+  function pair(a, b) {
+    if (a > b) [a, b] = [b, a];
     let pairs = cache?.pairs.get(candidates[a]);
     if (cache && !pairs) { pairs = new WeakMap(); cache.pairs.set(candidates[a], pairs); }
     const saved = pairs?.get(candidates[b]);
@@ -118,8 +121,41 @@ function rankCandidates(candidates, songs, cache = null) {
       }
       pairs?.set(candidates[b], { a: versions[a], b: versions[b], ab, ba });
     }
-    if (ab > result[a].worstLoss) { result[a].worstLoss = ab; result[a].alternativeId = result[b].id; }
-    if (ba > result[b].worstLoss) { result[b].worstLoss = ba; result[b].alternativeId = result[a].id; }
+    if (ab > result[a].worstLoss || ab > 0 && ab === result[a].worstLoss && b < alternatives[a]) {
+      result[a].worstLoss = ab; result[a].alternativeId = result[b].id; alternatives[a] = b;
+    }
+    if (ba > result[b].worstLoss || ba > 0 && ba === result[b].worstLoss && a < alternatives[b]) {
+      result[b].worstLoss = ba; result[b].alternativeId = result[a].id; alternatives[b] = a;
+    }
   }
-  return result.sort((a, b) => a.worstLoss - b.worstLoss || b.sameRankScore - a.sameRankScore || a.id.localeCompare(b.id));
+  if (limit >= candidates.length) {
+    for (let a = 0; a < candidates.length; a++) for (let b = a + 1; b < candidates.length; b++) pair(a, b);
+    return result.sort(compare);
+  }
+  // A partial maximum is a LOWER bound on regret. Once it loses to K fully
+  // compared rows, its remaining pairs cannot put it in the top K. Every
+  // returned team still faces EVERY archived alternative; no team is pruned
+  // on power, a song subset, or an approximate score.
+  const preferred = new Set(cache?.leaders ?? []), complete = new Set(), best = [];
+  const order = result.map((_, i) => i).sort((a, b) => Number(preferred.has(result[b].id)) - Number(preferred.has(result[a].id)) || compare(result[a], result[b]));
+  for (const a of order) {
+    for (let b = 0; b < result.length; b++) {
+      if (best.length >= limit && compare(result[a], best.at(-1)) > 0) break;
+      if (a !== b) pair(a, b);
+      if (b === result.length - 1) {
+        complete.add(a); best.push(result[a]); best.sort(compare);
+        if (best.length > limit) best.pop();
+      }
+    }
+  }
+  if (cache) cache.leaders = best.map(row => row.id);
+  const required = new Set(includeIds);
+  if (includeScoreLeaders) for (const field of ['sameRankScore', 'firstRankScore']) {
+    required.add(result.reduce((a, b) => b[field] > a[field] ? b : a).id);
+  }
+  for (const [a, row] of result.entries()) if (required.has(row.id) && !best.includes(row)) {
+    if (!complete.has(a)) for (let b = 0; b < result.length; b++) if (a !== b) pair(a, b);
+    best.push(row);
+  }
+  return best.sort(compare);
 }

@@ -18,6 +18,23 @@ class HealthTests(unittest.TestCase):
         self.now = int(dt.datetime(2026, 10, 19, 7, 0, 1, tzinfo=dt.timezone.utc).timestamp())
         self.observed = {'conditions': [], 'runs': {}, 'versions': {}, 'diskFreeBytes': 5000, 'diskRequiredBytes': 4000}
 
+    def test_private_review_survives_sampling_and_expires_with_health(self):
+        from tools import publication_review as review
+        bucket = MemoryBucket()
+        bucket.put_new(review.POLICY_KEY, json.dumps(review.POLICY).encode())
+        row = {'schemaVersion': 1, 'region': 'global', 'publication': '123_1', 'releaseId': 'a'*24,
+               'manifestSha256': 'b'*64, 'contentReleaseId': 'fixture', 'revision': 1, 'status': 'pending',
+               'publishAt': None, 'serverScopes': review.SCOPES['global'], 'updatedAt': self.now,
+               'summary': {'changedProjectionCount': 1, 'changedProjections': ['projection/catalog.json'], 'entities': []}}
+        bucket.put_new(review.review_key('global'), json.dumps(row).encode())
+        observed = health.sample(bucket, self.root/'absent', self.root/'absent', self.root, 1, self.now)
+        report, _ = health.advance(observed, {}, self.now)
+        health.write_atomic(self.root/'update-health.json', report)
+        with patch('backend.admin.update_health.time.time', return_value=self.now):
+            self.assertEqual(read_health(self.root)['publicationReviews']['regions']['global']['summary'], row['summary'])
+        with patch('backend.admin.update_health.time.time', return_value=self.now+361):
+            self.assertEqual(read_health(self.root), {'status': 'unavailable'})
+
     def test_delivery_combines_attempt_remote_pointer_and_served_version(self):
         pointer = {'schemaVersion': 1, 'manifest': '/content/releases/'+'a'*24+'/manifest.json', 'sha256': 'b'*64}
         local = {'releaseId': 'a'*24, 'manifestSha256': 'b'*64}

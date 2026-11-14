@@ -17,7 +17,7 @@ FILES = (
     ('jp-retention.json', 'JP working set'),
 )
 STATUSES = {'ready', 'needs_full', 'needs_production', 'probed', 'blocked', 'unchanged', 'checkpointed', 'promoted', 'published', 'pruned',
-            'failed', 'skipped', 'uploaded', 'verified', 'complete', 'restored'}
+            'failed', 'skipped', 'uploaded', 'verified', 'complete', 'restored', 'awaiting_review'}
 # Never copy arbitrary upstream reason strings into a public Actions summary.
 REASONS = frozenset({
     'private_state_missing', 'private_pointer_changed', 'producer_state_not_seeded',

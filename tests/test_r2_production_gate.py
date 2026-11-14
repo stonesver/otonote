@@ -202,6 +202,32 @@ class ProductionGateTests(unittest.TestCase):
         self.assertEqual(self.bucket.calls, ['content/current.json',
                          f'content/releases/{RELEASE}/manifest.json', 'content/current.json'])
 
+    def test_pending_review_reuses_verified_receipt_in_full_and_light_checks(self):
+        from tools import publication_review as review
+        private, selections, stage = self.light_fixture()
+        del self.bucket.objects['content/current.json']
+        self.public_before['currentSha256'] = 'none'
+        self.bucket.objects.update({
+            review.POLICY_KEY: gate.canonical(review.POLICY),
+            review.review_key('global'): gate.canonical({'schemaVersion': 1, 'region': 'global',
+                'releaseId': RELEASE, 'manifestSha256': self.pointer['sha256'], 'revision': 1,
+                'status': 'held', 'publication': '123_1'}),
+            'content/publications/global/123_1.json': gate.canonical({
+                'expectedCurrent': 'none', 'pointer': self.pointer_bytes.decode()})})
+        self.assertEqual(self.check()['status'], 'awaiting_review')
+        with patch.object(gate, 'stable_root', return_value=self.root):
+            gate.light_prepare(private, self.root, 'global', selections, stage,
+                               image=IMAGE, config='config/production.json', decoder_profile='config/decoder.json')
+            proof = gate.read_json(stage/'proof.json')
+            observed = {'status': 'probed', 'region': 'global', 'sourceSha256': self.probe['sourceSha256'],
+                        'packageSha256': self.probe['packageSha256'], 'stablePackageSha256': proof['stablePackageSha256']}
+            result = gate.light_check(private, self.bucket, self.root, 'global', stage/'proof.json',
+                                      observed, self.public_before, image=IMAGE)
+            self.assertEqual((result['status'], result['skip']), ('awaiting_review', True))
+        self.bucket.objects['content/current.json'] = b'newer'
+        self.public_before['currentSha256'] = gate.digest(b'newer')
+        self.assertFalse(self.check()['skip'])
+
     def test_light_gate_skips_without_downloading_large_private_state(self):
         private, selections, stage = self.light_fixture()
         with patch.object(gate, 'stable_root', return_value=self.root):

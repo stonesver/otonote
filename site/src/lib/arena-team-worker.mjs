@@ -8,7 +8,7 @@ self.onmessage = async ({ data: { type, requestId, payload, workers = 1 } }) => 
   if (type === 'stop') { luck?.stop(); return; }
   try {
     if (type === 'continue') {
-      const result = await luck.run({ budgetMs: 180000 });
+      const result = await luck.run();
       self.postMessage({ type: 'result', requestId, result }); return;
     }
     luck?.close(); luck = null;

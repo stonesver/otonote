@@ -99,6 +99,18 @@ class RecomputePublishedRankingsTests(unittest.TestCase):
             self.assertEqual(json.loads(raw)['sourceReleaseId'],'sample')
         self.assertEqual(result['arenaReviewSha256'],'b'*64)
 
+    def test_recomputed_snapshot_uses_the_same_publication_review(self):
+        from tools import publication_review as review
+        self.seed()
+        review.bootstrap(self.bucket)
+        result = self.run_refresh(compute=computed, publish=True, publication='123_1')
+        self.assertEqual(result['status'], 'awaiting_review')
+        self.assertEqual(self.bucket.objects[self.key], self.before[self.key])
+        row, _ = review.read(self.bucket, 'global')
+        review.decide(self.bucket, 'global', '123_1', row['revision'], 'publish')
+        self.assertEqual(review.process(self.bucket, 'global', source_run='review')['status'], 'published')
+        self.assertEqual(json.loads(self.bucket.objects[self.key]), result['nextPointer'])
+
     def test_arena_review_requires_exact_bytes_and_published_master_before_compilation(self):
         manifest={'region':'global','contentReleaseId':'sample','releaseRecord':{'masterVersion':'a'*32},'locales':{'zh-CN':{}}}
         path=self.root/'review.json'

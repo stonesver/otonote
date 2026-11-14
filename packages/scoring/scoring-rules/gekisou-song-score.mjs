@@ -10,12 +10,12 @@ import { calculateFormalNoteCore } from './formal-note-core.mjs';
 import { gekisouTimingCombo, gekisouScoreSection } from './gekisou-timing.mjs';
 import { normalizeGekisouOpponents, rankGekisouSection } from './gekisou-ranking.mjs';
 import { gekisouRankingBonus, gekisouComboFactor } from './gekisou-rules.mjs';
-import { replayGekisouFrames } from './gekisou-frame-replay.mjs';
+import { replayGekisouFrames, prepareGekisouEventFrames, prepareGekisouPerfectInput } from './gekisou-frame-replay.mjs';
 import { gekisouSettlementActions } from './gekisou-score-settlement.mjs';
 import { createEventPipeline } from './event-rules.mjs';
 import { validateAgainstTimeline } from './formal-performance-replay.mjs';
 import { createComboReplay } from './formal-performance-state.mjs';
-import { createPerformanceScenario } from './performance-scenarios.mjs';
+import { createPerformanceScenario, createTimingJudgementResolver } from './performance-scenarios.mjs';
 import { stableSnapshotHash } from '../scoring-engine.mjs';
 import { compileGekisouEffects } from './gekisou-skill-runtime.mjs';
 export { compileGekisouEffects } from './gekisou-skill-runtime.mjs';
@@ -77,6 +77,15 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
   if (!rawRanges || rawRanges.length !== 3 || missions.some(m => ![1, 2, 3].includes(m))) throw new Error('谱面缺少三个有效激奏段');
   const ranges = rawRanges.map((r, i) => ({ index: i + 1, missionType: missions[i], ...r }));
   if (ranges.some((r, i) => !Number.isSafeInteger(r.startMs) || !Number.isSafeInteger(r.endMs) || r.startMs < 0 || r.endMs <= r.startMs || (i && r.startMs < ranges[i - 1].endMs))) throw new Error('Invalid Gekisou ranges');
+  let eventFrames = null, fixedInput = null;
+  // Fixed player inputs can prove PERFECT without consulting any skill state.
+  // Keep their actual arrival frames; a delayed PERFECT still changes combo
+  // queries and section settlement compared with ideal zero-offset input.
+  const resolveJudgement = performanceInput && createTimingJudgementResolver(rules);
+  const perfectTimeline = performanceInput && !scenario.frames && missions.every(m => m === 2) &&
+    rules.tables.LiveJudgementParameter.find(row => row._noteSimulateJudgement === 5)?._damage === 0 &&
+    performanceInput.judgements.every(note => resolveJudgement(note) === 5)
+    ? { ...timeline, events: performanceInput.judgements } : null;
   const setting = key => Number(rules.tables.LiveSettings.find(r => r._key === key)?._value);
   const powerCalculator = createFormationCalculator(rules, { eventAdapters });
   const perfectSkills = createFormalSkillResolver(rules), justSkills = createFormalSkillResolver(rules, { judgement: 6 });
@@ -114,8 +123,27 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       eventBonusFactor: 1, lifeOnusFactor: setting('note_score_life_onus_factor'), assistModeNoteScoreFactor: 1, currentLife: 1000 };
     const orderCache = new Map(), referenceCache = new Map();
     const ownerSensitive = effects.some(e => e.active && e.operator.score);
+    // With no damage, recovery stays between full life and the overheal cap.
+    // Only thresholds outside that interval and converters that cannot change
+    // PERFECT are invariant. Preserve the dynamic path for all other skills.
+    const maximumLife = setting('life_base');
+    const upperLife = ordinarySkills?.some(skill => skill.supportEffects.some(e => e.type === 3001)) ? maximumLife * 2 : maximumLife;
+    const fixedLifeThreshold = threshold => threshold <= maximumLife || threshold > upperLife;
+    const fixedPerfect = rankingOnly && perfectTimeline && pipeline.context.id == null && effects.every(e => !e.active || e.eventDriven) &&
+      effects.every(e => !e.active || Object.values(e.conditions).every(sets => sets.every(set => set.conditions.every(c =>
+        c._conditionType !== 2001 || fixedLifeThreshold(c._conditionValues[0]))))) &&
+      ordinarySkills.every(skill => skill.supportEffects.every(e => e.type === 15000 ||
+        e.type === 12006 && (!e.targets.includes(5) || e.value === 5) ||
+        e.type === 3001 && e.value >= 0 && e.value <= 0x7fffffff - upperLife) &&
+        skill.liveEffects.every(e => !e.cumulative && !e.release?.includes(5) && e.durationRawMs > 0 &&
+          (e.condition.kind !== 'life_at_least' || fixedLifeThreshold(e.condition.threshold))));
+    if (fixedPerfect) fixedInput ??= prepareGekisouPerfectInput(ranges, scenario, performanceInput);
     function run(order, seed, trace = false) {
-      const replay = !trace && !ordinarySkills && deterministicReplay || replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace, performanceInput, ordinarySkills, skillOrder: order });
+      if (rankingOnly && !scenario.frames && missions.every(m => m === 2)) eventFrames ??= prepareGekisouEventFrames(rules, timeline, ranges, scenario, performanceInput);
+      const replay = !trace && !ordinarySkills && deterministicReplay || replayGekisouFrames(rules,
+        fixedPerfect ? perfectTimeline : timeline, ranges, effects, scenario, seed, { trace,
+          performanceInput: fixedPerfect ? null : performanceInput, ordinarySkills: fixedPerfect ? null : ordinarySkills,
+          skillOrder: order, eventDriven: rankingOnly, eventFrames, fixedInput: fixedPerfect ? fixedInput : null });
       const states = replay.states.map(s => ({ ...s, noteScore: 0, finalNoteScore: 0 }));
       const comboViews = states.map(() => ({ history: [], length: 0 }));
       const ordinaryCommands = replay.ordinaryCommands ?? liveSkillCommands(order, perfect, timeline.skillTimes, scenario.frameRate, just, replay.clock);
@@ -136,6 +164,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       }, { confirmationDelayFrames: scenario.confirmationDelayFrames }));
       const ordinaryCombo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
       const scoreReplay = replayScoreTimeline({ events: replay.events, commands, frameActions, frameRate: scenario.frameRate, clock: replay.clock, retainNotes: !rankingOnly || trace,
+        preparedNotes: fixedPerfect ? fixedInput.scoreNotes : null,
         beforeInputs: notes => { for (const note of notes) ordinaryCombo?.add(note.timeMs, note.judgement); },
         scoreNote(event, factor) {
           const s = states[event.sectionIndex - 1], judgement = event.judgement;

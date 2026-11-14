@@ -20,12 +20,17 @@ def publication_key(region, publication):
 
 def record(bucket, store, region, publication, expected_current):
     """Called after upload verification and successful private checkpoint."""
-    key = publication_key(region, publication)
-    if expected_current != 'none' and not SHA256.fullmatch(expected_current):
-        raise ValueError('invalid publication baseline')
     release, raw, manifest, files = sealed_release(store, region)
     inventory = {name: {'sha256': sha, 'bytes': (release / name).stat().st_size}
                  for name, sha in files.items()}
+    return record_prepared(bucket, region, publication, expected_current, release, raw, manifest, inventory)
+
+
+def record_prepared(bucket, region, publication, expected_current, release, raw, manifest, inventory):
+    """Save the verified inventory for both production and public-data recomputation."""
+    key = publication_key(region, publication)
+    if expected_current != 'none' and not SHA256.fullmatch(expected_current):
+        raise ValueError('invalid publication baseline')
     body = canonical({'schemaVersion': 1, 'region': region, 'publication': publication,
                       'expectedCurrent': expected_current, 'pointer': raw.decode(), 'files': inventory})
     if len(body) > SMALL_LIMIT:
@@ -34,7 +39,9 @@ def record(bucket, store, region, publication, expected_current):
     saved = bucket.get(key)
     if saved is None or saved[0] != body:
         raise ValueError('publication record differs from sealed content')
-    return {'status': 'recorded', 'publication': publication, 'releaseId': release.name}
+    from tools.publication_review import register
+    register(bucket, region, publication, release, raw, manifest)
+    return {'status': 'recorded', 'publication': publication, 'releaseId': manifest['root'].split('/')[3]}
 
 
 def retry(bucket, region, publication, *, source_run, workers=8, publish=False):
@@ -81,7 +88,7 @@ def retry(bucket, region, publication, *, source_run, workers=8, publish=False):
         _run_bounded(inventory.items(), verify, workers)
     result = _promote_verified_pointer(bucket, raw, region, actual, source_run=source_run, dry_run=not publish)
     # Confirm the write even when the transport lost a previous acknowledgement.
-    if publish:
+    if publish and result['status'] in {'published', 'unchanged'}:
         after = bucket.get(pointer_key(region))
         if after is None or after[0] != raw:
             raise ValueError('published pointer readback differs')

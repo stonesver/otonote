@@ -42,6 +42,9 @@ export function compileGekisouEffects(rules, draft, dynamic = false, missions = 
       return { ...effect, key: `${skill.kind}:${skill.slotIndex}:${definition._id}`, missionType: skill.missionType,
         kind: skill.kind, slotIndex: skill.slotIndex, sourceCardId: skill.sourceCardId, band, operator, targets, programs, cumulativeProgram,
         hasIntervals: Object.values(programs).some(p => p.intervals.length),
+        eventDriven: [11001, 11002, 11003, 11005, 2000, 3004].includes(definition._skillEffectType) &&
+          !programs._skillTriggerConditionGroup.idleEventful &&
+          !programs._skillReleaseConditionGroup.idleRandom && !programs._effectExecuteLimitResetConditionGroup.idleRandom,
         active: [programs._skillConditionGroup, programs._skillTriggerConditionGroup].every(p => p.possible({ band, life: maximumLife, dynamic })),
         random: chanceConditions.some(c => c._conditionValues[0] > 0 && c._conditionValues[0] < 100),
         probability: chanceConditions.length === 1 ? (chanceConditions[0]._isPositive ? chanceConditions[0]._conditionValues[0] : 100 - chanceConditions[0]._conditionValues[0]) : chanceConditions.length ? null : 100 };

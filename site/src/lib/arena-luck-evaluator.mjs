@@ -32,17 +32,23 @@ export function unpackLuckSamples(rules, packed, participants) {
 }
 
 export function createLuckEvaluator({ rules, context, songs, performance }) {
-  const calculators = songs.map(song => Array.from({ length: performance.samples }, (_, sample) =>
+  const calculators = new Map();
+  const forSong = index => {
+    const song = songs[index];
+    if (!calculators.has(index)) calculators.set(index, Array.from({ length: performance.samples }, (_, sample) =>
     createGekisouSongCalculator(rules, song.chart, {
       performance: createPerformanceScenario(rules, song.chart, performance, sample), performanceOrder: 'sampled',
       scenario: { ranks: Array(3).fill(context.participantCount), frameRate: performance.frameRate }
     })));
-  return async ({ candidate, start, end, phase }, { yieldControl = async () => {} } = {}) => {
+    return calculators.get(index);
+  };
+  return async ({ candidate, start, end, phase, songIndex }, { yieldControl = async () => {} } = {}) => {
     const rows = [];
     try {
-      for (const [s, song] of songs.entries()) {
+      for (const s of songIndex === undefined ? songs.keys() : [songIndex]) {
+        const song = songs[s];
         const packed = new Float64Array((end - start) * 10); let position = 0, power;
-        for (const [player, calculator] of calculators[s].entries()) {
+        for (const [player, calculator] of forSong(s).entries()) {
           const samplePlan = luckSamplePlan({ seed: performance.seed, songIndex: s, playerCount: performance.samples, player, start, end, phase });
           if (performance.profile === 'explicit') for (const sample of samplePlan) sample.order = performance.performance.skillOrder;
           if (!samplePlan.length) continue;
@@ -56,7 +62,7 @@ export function createLuckEvaluator({ rules, context, songs, performance }) {
         }
         rows.push({ power, packed });
       }
-      return { id: candidate.id, rows };
+      return { id: candidate.id, rows, ...(songIndex === undefined ? {} : { songIndex }) };
     } catch (error) {
       if (!(error instanceof UnsupportedSkillMechanismError)) throw error;
       return { id: candidate.id, omitted: { id: candidate.id, reason: error.message, ...error.detail } };

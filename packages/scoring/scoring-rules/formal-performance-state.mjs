@@ -131,6 +131,15 @@ export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, c
     },
     advance(frame, notes = []) {
       currentTime = clock.at(frame).timeMs;
+      // Between note, activation and expiry frames, score/conversion state is
+      // unchanged. Cumulative counts and release predicates consume notes;
+      // ordinary life conditions are evaluated at activation, not each frame.
+      if (!notes.length && frame !== 0 && !triggers.has(frame) && !endings.has(frame)) {
+        let expires = false;
+        for (const converter of converters) if (converter.active && converter.effect.startup &&
+          (frame === 1 ? currentTime >= converter.effect.durationRawMs : currentTime > converter.effect.durationRawMs)) { expires = true; break; }
+        if (!expires) return false;
+      }
       let changed = false;
       const startup = !withoutSkills && frame === 0 ? skills.flatMap((skill, slot) => skill.supportEffects.filter(e => e.startup).map(effect => ({ slot, effect }))) : [];
       const fired = withoutSkills ? [] : (triggers.get(frame) ?? []).sort((a, b) => a.slot - b.slot);

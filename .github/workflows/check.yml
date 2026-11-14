@@ -51,7 +51,7 @@ jobs:
       - name: R2 publication and JP transport gates
         run: >-
           python3 -m unittest tests.test_r2_state tests.test_global_state_retention tests.test_r2_run_summary tests.test_r2_run_record tests.test_update_health tests.test_r2_functional_check tests.test_r2_state_reuse tests.test_r2_checkpoint_hashing tests.test_r2_content tests.test_r2_shared_media
-          tests.test_r2_verified_release tests.test_r2_publication tests.test_r2_delivery_probe tests.test_recompute_published_rankings tests.test_scoring_content
+          tests.test_r2_verified_release tests.test_r2_publication tests.test_publication_review tests.test_r2_delivery_probe tests.test_recompute_published_rankings tests.test_scoring_content
           tests.test_r2_upload_layout tests.test_prerender_cache_retention
           tests.test_r2_legacy_bootstrap tests.test_r2_prerender_promotion
           tests.test_materialize_r2_content tests.test_jp_public tests.test_jp_auto_upgrade tests.test_jp_client_refresh tests.test_jp_update tests.test_jp_state_retention
@@ -75,9 +75,10 @@ jobs:
           python3 -m pip install -r requirements-admin.txt
           python3 -m unittest tests.test_player_ranking_collection tests.test_player_rankings tests.test_ranking_regions tests.test_ranking_finalizations tests.test_arena_rankings tests.test_arena_assets tests.test_arena_band_icons tests.test_arena_content tests.test_arena_live tests.test_arena_population -q
           node --test site/tests/arena-*.test.mjs site/tests/player-rankings.test.mjs
-          python3 -m unittest tests.test_admin_r2_delivery -q
+          python3 -m unittest tests.test_admin_r2_delivery tests.test_admin_publication_review -q
           python3 -m unittest tests.test_site_notices tests.test_notice_delivery tests.test_preview_notices -q
           node --check backend/admin/static/admin.mjs
+          node --check backend/admin/static/publication-review.mjs
           node --check backend/admin/static/notices.mjs
           node --check backend/admin/static/notice-controls.mjs
           node --test site/tests/admin-request.test.mjs site/tests/admin-navigation.test.mjs

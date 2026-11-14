@@ -389,17 +389,19 @@ def check(bucket, root: Path, region: str, observed: dict, public_before: dict,
     current = bucket.get(key)
     current_bytes = current[0] if current else None
     current_sha = digest(current_bytes) if current_bytes is not None else "none"
+    from tools.publication_review import pending_matches
+    pending = current_sha != receipt['publicPointerSha256'] and pending_matches(bucket, region, pointer, current_sha)
     if (public_before.get("region") != region or public_before.get("currentSha256") != current_sha or
-            current_sha != receipt["publicPointerSha256"] or
-            (current_bytes is not None and json.loads(current_bytes) != pointer)):
+            not pending and (current_sha != receipt["publicPointerSha256"] or
+                             current_bytes is None or json.loads(current_bytes) != pointer)):
         return {"status": "needs_production", "skip": False, "reason": "public_pointer_unmatched"}
     # Once a promoted pointer matches this verified receipt, damage to its
     # referenced manifest is a hard error rather than permission to skip.
     _manifest_matches(bucket, pointer, region)
     after = bucket.get(key)
-    if after is None or after[0] != current_bytes:
+    if (after[0] if after else None) != current_bytes:
         return {"status": "needs_production", "skip": False, "reason": "public_pointer_changed"}
-    return {"status": "unchanged", "skip": True, "region": region,
+    return {"status": "awaiting_review" if pending else "unchanged", "skip": True, "region": region,
             "pointerSha256": current_sha}
 
 
@@ -782,16 +784,18 @@ def light_check(private_bucket, public_bucket, root: Path, region: str, prepared
     key = public_key(region)
     item = public_bucket.get(key)
     data = item[0] if item else None
-    if (data is None or digest(data) != receipt["publicPointerSha256"] or
-            public_before.get("region") != region or public_before.get("currentSha256") != digest(data) or
-            json.loads(data) != pointer):
+    public_sha = digest(data) if data is not None else 'none'
+    from tools.publication_review import pending_matches
+    pending = public_sha != receipt['publicPointerSha256'] and pending_matches(public_bucket, region, pointer, public_sha)
+    if (public_before.get("region") != region or public_before.get("currentSha256") != public_sha or
+            not pending and (data is None or public_sha != receipt["publicPointerSha256"] or json.loads(data) != pointer)):
         return _needs_full("public_pointer_unmatched")
     _manifest_matches(public_bucket, pointer, region)
     after = public_bucket.get(key)
-    if after is None or after[0] != data or current_sha(private_bucket, region) != proof["privatePointerSha256"]:
+    if (after[0] if after else None) != data or current_sha(private_bucket, region) != proof["privatePointerSha256"]:
         return _needs_full("pointer_changed")
-    return {"status": "unchanged", "skip": True, "region": region,
-            "pointerSha256": digest(data)}
+    return {"status": "awaiting_review" if pending else "unchanged", "skip": True, "region": region,
+            "pointerSha256": public_sha}
 
 
 def main(argv=None) -> int:

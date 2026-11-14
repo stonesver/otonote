@@ -170,7 +170,13 @@ def sample(bucket, delivery_path, ranking_path, disk_path, budget, now, worker_p
     free = shutil.disk_usage(disk_path).free
     if free < budget:
         condition('disk_budget', grace=0)
+    from tools.publication_review import enabled, read
+    try:
+        reviews = {'status': 'ready', 'regions': {region: read(bucket, region)[0] for region in REGIONS}} if enabled(bucket) else {'status': 'disabled'}
+    except Exception:
+        reviews = {'status': 'unavailable'}
     return {'conditions': conditions, 'runs': runs, 'versions': versions, 'delivery': deliveries,
+            'publicationReviews': reviews,
             'diskFreeBytes': free, 'diskRequiredBytes': budget, 'worker': worker}
 
 
@@ -197,6 +203,7 @@ def advance(observed, previous, now):
     report = {name: observed[name] for name in ('runs', 'versions', 'diskFreeBytes', 'diskRequiredBytes')}
     report['worker'] = observed.get('worker', {'status': 'not_configured'})
     report['delivery'] = observed.get('delivery', {})
+    report['publicationReviews'] = observed.get('publicationReviews', {'status': 'unavailable'})
     report.update(schemaVersion=1, observedAt=now, status='attention' if any(a['state'] == 'firing' for a in alerts)
                   else ('waiting' if alerts else 'healthy'), alerts=alerts, history=(history + transitions)[-40:])
     return report, transitions

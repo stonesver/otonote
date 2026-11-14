@@ -18,7 +18,7 @@ def read_health(workspace):
     try:
         path = Path(workspace) / 'update-health.json'
         now = time.time()
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 256 * 1024:
             return unavailable
         value = json.loads(path.read_text())
         observed = value.get('observedAt')
@@ -27,6 +27,17 @@ def read_health(workspace):
                 or value.get('status') not in ('healthy', 'waiting', 'attention')):
             return unavailable
         result = {'status': value['status'], 'observedAt': observed, 'alerts': [], 'history': [], 'runs': {}, 'delivery': {}}
+        reviews = value.get('publicationReviews', {'status': 'unavailable'})
+        if reviews.get('status') not in ('ready', 'disabled', 'unavailable'):
+            return unavailable
+        result['publicationReviews'] = {'status': reviews['status']}
+        if reviews['status'] == 'ready':
+            fields = ('region', 'publication', 'releaseId', 'manifestSha256', 'contentReleaseId',
+                      'revision', 'status', 'publishAt', 'serverScopes', 'updatedAt', 'summary')
+            result['publicationReviews']['regions'] = {
+                region: {key: row[key] for key in fields} if row else None
+                for region in ('global', 'jp')
+                for row in [reviews['regions'].get(region)]}
         for region, row in value.get('delivery', {}).items():
             if region not in ('global', 'jp') or row.get('status') not in (
                     'unavailable', 'running', 'failed', 'produced', 'awaiting_delivery', 'delivered', 'unchanged'):

@@ -62,14 +62,29 @@ export function createPerformanceScenario(rules, chart, input = {}, sampleIndex 
 /** Table-informed timing scenario, not a recreation of touch hit-testing.
  * Automatic subnotes are retained as chart events; explicit judgements remain
  * the route for captured outcomes whose raw operations cannot be recovered. */
-export function resolveTimingJudgement(rules, event, { justEnabled = false, justExpansion = () => 0 } = {}) {
+const timingRows = (rules, type) => rules.tables.LiveJudgementTiming.filter(row => row._assistLevel === 0 && row._noteSimulateJudgement >= 1 && row._noteSimulateJudgement <= 6 && row._noteJudgementType === type)
+  .sort((a, b) => a._judgementPriority - b._judgementPriority);
+
+function timingJudgement(event, { justEnabled = false, justExpansion = () => 0 } = {}, rowsFor) {
   if (event.originalJudgement != null) return event.originalJudgement;
   if (event.missed) return 1;
   const offset = event.timingOffsetMs;
-  const type = formalJudgementType(event.type, event.critical);
-  const rows = rules.tables.LiveJudgementTiming.filter(row => row._assistLevel === 0 && row._noteSimulateJudgement >= 1 && row._noteSimulateJudgement <= 6 && row._noteJudgementType === type && (justEnabled || row._noteSimulateJudgement !== 6))
-    .sort((a, b) => a._judgementPriority - b._judgementPriority);
-  if (!rows.length) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
-  return rows.find(row => Math.abs(offset) <= (offset < 0 ? row._beforeMs : row._afterMs) +
+  const type = formalJudgementType(event.type, event.critical), rows = rowsFor(type);
+  if (!rows.some(row => justEnabled || row._noteSimulateJudgement !== 6)) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
+  return rows.find(row => (justEnabled || row._noteSimulateJudgement !== 6) && Math.abs(offset) <= (offset < 0 ? row._beforeMs : row._afterMs) +
     (row._noteSimulateJudgement === 6 ? justExpansion(offset < 0 ? row._beforeMs : row._afterMs) : 0))?._noteSimulateJudgement ?? 1;
+}
+
+export function resolveTimingJudgement(rules, event, options) {
+  return timingJudgement(event, options, type => timingRows(rules, type));
+}
+
+/** Rules are fixed for a replay. Index each note type once; expansion and
+ * JUST availability still resolve against the current frame's skill state. */
+export function createTimingJudgementResolver(rules) {
+  const rows = new Map();
+  return (event, options) => timingJudgement(event, options, type => {
+    if (!rows.has(type)) rows.set(type, timingRows(rules, type));
+    return rows.get(type);
+  });
 }

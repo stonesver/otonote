@@ -1,10 +1,30 @@
 import {createWorkbenchTeamView} from './workbench-team-view.mjs';
+import {planningUiText} from './team-planning-translations.mjs';
 const el = (tag, text, cls) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (cls) n.className = cls; return n; };
 const number = n => Number.isFinite(n) ? Math.round(n).toLocaleString() : '—';
 const mission = n => ['', 'COMBO', 'LUCK', 'JUST'][n] ?? '任务';
 
 export function teamLineup(workbench, draft) {
   return createWorkbenchTeamView(workbench,draft);
+}
+
+export function recommendationScoreSummary(result) {
+  if (!Number.isFinite(result.noteScore) || !Number.isFinite(result.rankingBonus)) return null;
+  const say = text => planningUiText(text, document.documentElement?.lang ?? 'zh-CN');
+  const root = el('div', null, 'recommendation-score-summary');
+  const facts = el('dl', null, 'recommendation-power');
+  const values = [['平均音符分', result.noteScore], ['平均段落奖励', result.rankingBonus]];
+  if (result.eventFixedScore) values.push(['平均额外得分', result.eventFixedScore]);
+  for (const [label, value] of values) {
+    const item = el('div'); item.append(el('dt', say(label)), el('dd', number(value))); facts.append(item);
+  }
+  root.append(facts);
+  const c = result.comparison;
+  if (!result.planning?.missingActual && Number.isFinite(c?.noteScoreDelta) && Number.isFinite(c?.rankingBonusDelta)) {
+    const signed = value => `${Math.round(value) > 0 ? '+' : ''}${number(value)}`;
+    root.append(el('p', say(`较当前养成方案：平均音符分 ${signed(c.noteScoreDelta)}，段落奖励 ${signed(c.rankingBonusDelta)}。`), 'recommendation-caption'));
+  }
+  return root;
 }
 
 export function scoreComposition(sections, expectedScore) {

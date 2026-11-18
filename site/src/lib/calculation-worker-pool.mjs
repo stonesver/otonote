@@ -1,6 +1,6 @@
 /** Bounded CPU workers. Any worker failure rejects the whole phase so its
  * caller can replay the original complete serial search. Never drop a job. */
-export function createCalculationWorkerPool({size,createWorker}){
+export function createCalculationWorkerPool({size,createWorker,reuseWorkers=true}){
  if(!Number.isInteger(size)||size<1)throw Error('Invalid calculation worker count');
  const slots=[],queue=[];let closed=false,nextId=0;
  const close=(error=new Error('Calculation workers closed'))=>{
@@ -19,7 +19,9 @@ export function createCalculationWorkerPool({size,createWorker}){
       const job=slot.job;if(!job||data.id!==job.id)return;
       if(data.type==='progress'){job.progress?.(data.progress);return;}
       if(data.type!=='result'){close(new Error(data.message??'Invalid calculation worker response'));return;}
-      slot.job=null;job.resolve(data.result);pump();
+      slot.job=null;
+      if(!reuseWorkers){slot.worker.terminate();slots.splice(slots.indexOf(slot),1);}
+      job.resolve(data.result);pump();
      });
      worker.addEventListener('error',()=>close(new Error('Calculation worker failed')));
      worker.addEventListener('messageerror',()=>close(new Error('Calculation worker response could not be read')));

@@ -1,13 +1,13 @@
 import { resolveGrowthScenario, createGrowthSearchVariants, prepareGrowthCandidate } from '../../../packages/scoring/scoring-rules/growth-scenarios.mjs';
 import { normalizePerformanceScenario } from '../../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { stableSnapshotHash } from './scoring-engine.mjs';
-import { optimizePractical } from './practical-optimizer.mjs';
+import { optimizePractical, practicalScoringScenario } from './practical-optimizer.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
 import { compareScoredFormations } from './inventory-optimizer.mjs';
 import { selectPlanningDirections } from './team-planning-directions.mjs';
 import { skillMechanismIssue } from '../../../packages/scoring/scoring-rules/skill-mechanism-error.mjs';
+import { createCalculationScheduler } from './calculation-scheduler.mjs';
 
-const pause = () => new Promise(resolve => setTimeout(resolve, 0));
 const labels = { reference: '参考队伍', selected: '手选卡', owned: '当前养成', trial: '试用卡队伍' };
 
 /** Feasible growth assignments are searched before candidate generation.
@@ -15,14 +15,16 @@ const labels = { reference: '参考队伍', selected: '手选卡', owned: '当�
 export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 'selected', planningScenario,
   performanceScenario, recommendationGoal = 'score', objective = 'expected_song_score', mode = 'ordinary', chart,
   constraints = {}, gekisouScenario = {}, eventAdapters = [], maxWindowCards = 5, variantLimit = 24,
-  signal, onProgress = () => {}, yieldControl = pause }) {
+  signal, onProgress = () => {}, yieldControl = createCalculationScheduler() }) {
   if (!Number.isInteger(variantLimit) || variantLimit < 1 || variantLimit > 1000) throw new Error('培养组合比较上限应为 1–1000');
   const settings = planningScenario ?? draft.modifiers?.planningScenario ?? { scope: scope === 'theoretical' ? 'reference' : scope };
   const performance = objective === 'formation_power' ? undefined : normalizePerformanceScenario(performanceScenario ?? draft.modifiers?.performanceScenario ?? { profile: 'steady' });
   const resolved = resolveGrowthScenario(rules, draft, { ...settings, inventory });
   const variants = createGrowthSearchVariants(resolved, { limit: variantLimit });
-  const context = { rules, chart, mode, objective, gekisouScenario, performanceScenario: performance, eventAdapters };
-  const evaluator = createCandidateEvaluator(context);
+  const context = { rules, chart, mode, objective,
+    gekisouScenario: mode === 'gekisou' ? practicalScoringScenario(gekisouScenario) : gekisouScenario,
+    performanceScenario: performance, eventAdapters };
+  const evaluator = createCandidateEvaluator(context, { scoreCache: new Map() });
   const warnings = new Set(resolved.assumptions), results = [], progressReports = [];
   let evaluated = 0, completedVariants = 0, baselineResult = null, interrupted = false;
   const actualScores = new Map();
@@ -44,7 +46,7 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
     onProgress({ phase: 'planning', completed: completedVariants, total: Math.min(variants.totalCount ?? variantLimit, variantLimit),
       message: resolved.plan.enabled ? `比较培养方案 ${completedVariants + 1}` : '比较不同配队' });
     const report = await optimizePractical({ ...context, draft: variant.draft, scope: 'owned', inventory: variant.inventory,
-      constraints, maxWindowCards, resultLimit: 24, signal, yieldControl,
+      constraints, maxWindowCards, resultLimit: 24, signal, yieldControl, fullEvaluator: evaluator,
       onProgress: progress => onProgress({ ...progress, planningVariant: completedVariants + 1 }) });
     progressReports.push(report.practical);
     coverageReports.push(report.scoringCoverage);
@@ -98,9 +100,10 @@ export async function optimizeTeamPlanning({ rules, draft, inventory, scope = 's
       unsupportedCandidates: coverageReports.flatMap(r => r?.unsupportedCandidates ?? []) },
     planningScenario: resolved.planningScenario, performanceScenario: performance,
     inputHash: stableSnapshotHash({ draft, inventory, planningScenario: resolved.planningScenario, performance,
-      constraints, gekisouScenario, objective, mode, recommendationGoal, variantLimit, maxWindowCards,
+      constraints, gekisouScenario: context.gekisouScenario, objective, mode, recommendationGoal, variantLimit, maxWindowCards,
       rulesHash: stableSnapshotHash(rules), chart }),
     planning: { completedVariants, totalVariants: variants.totalCountExact, truncated: bounded, excludedCardIds: resolved.excludedCardIds },
+    fullScoring: { ...evaluator.work },
     practical: { directions: [...new Map(progressReports.flatMap(r => r?.directions ?? []).map(d => [d.id, d])).values()],
-      neighbourChecks: sum('neighbourChecks'), screened: sum('screened'), finalists: sum('finalists') } };
+      neighbourChecks: sum('neighbourChecks'), screened: sum('screened'), refined: sum('refined'), verified: sum('verified'), finalists: sum('finalists') } };
 }

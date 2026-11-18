@@ -2,7 +2,7 @@ import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {requestTeamSave,openTeamWorkspace} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 import {createRecommendationTeamView} from './recommendation-team-view.mjs';
-import {scoreComposition} from './score-visuals.mjs';
+import {scoreComposition,recommendationScoreSummary} from './score-visuals.mjs';
 import {scoringScenarioSearch} from './scoring-rules/scenario-search.mjs';
 import {toolRoute} from './tool-route.mjs';
 const ui=text=>planningUiText(text,typeof document==='undefined'?'zh-CN':document.documentElement.lang);
@@ -42,7 +42,13 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
     const score=el('div',null,'recommendation-score');
     score.append(el('strong',result.value==null?'—':Math.round(result.value).toLocaleString()),el('span',objective==='formation_power'?'综合力':objective==='expected_song_score'?'参考平均分':objective==='minimum_song_score'?'本次比较中的低分':'本次比较中的高分'));
     if(result.delta!=null&&!result.planning?.missingActual)score.append(el('em',`${result.delta>=0?'+':''}${number(result.delta)} 较当前养成方案`,result.delta>=0?'is-positive':'is-negative'));
-    resultHeading.append(score);row.append(createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result}));
+    resultHeading.append(score);
+    if(direction?.reason)row.append(el('p',direction.reason,'recommendation-reason'));
+    if(direction?.tradeoff)row.append(el('p',direction.tradeoff,'recommendation-tradeoff'));
+    if(mode==='gekisou'&&objective!=='formation_power'){
+      const summary=recommendationScoreSummary(result);if(summary)row.append(summary);
+    }
+    row.append(createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result}));
 
 
     const planning=result.planning;
@@ -68,9 +74,7 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
     // Expensive skill and chart views are created only when requested.
     detail.addEventListener('toggle',()=>{
       if(!detail.open||detail.dataset.loaded)return;detail.dataset.loaded='true';
-      if(direction?.tradeoff)detail.append(el('p',direction.tradeoff));
       detail.append(el('p',`目标值 ${number(result.value)}`));
-      if(direction?.reason)detail.append(el('p',direction.reason));
       if(result.performanceSummary)detail.append(el('p',typeof result.performanceSummary==='string'?result.performanceSummary:result.performanceSummary.label??''));
       if(result.sections?.length)detail.append(scoreComposition(result.sections,result.expectedScore));
       if(objective!=='formation_power')detail.append(el('p',`综合力 ${number(result.power)} · 本次比较范围 ${number(result.minimumScore)} – ${number(result.maximumScore)} 分`,'recommendation-caption'));

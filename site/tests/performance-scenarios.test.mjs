@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
 import { createPerformanceTemplate, createPerformanceSongCalculator, validatePerformance } from '../../packages/scoring/scoring-rules/formal-performance-replay.mjs';
-import { createPerformanceScenario, normalizePerformanceScenario, resolveTimingJudgement } from '../../packages/scoring/scoring-rules/performance-scenarios.mjs';
+import { createPerformanceScenario, normalizePerformanceScenario, resolveTimingJudgement, createTimingJudgementResolver } from '../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { createScenarioSongCalculator } from '../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
 import { createGekisouSongCalculator } from '../../packages/scoring/scoring-rules/gekisou-song-score.mjs';
 import { replayGekisouFrames } from '../../packages/scoring/scoring-rules/gekisou-frame-replay.mjs';
+import { createLifeReplay } from '../../packages/scoring/scoring-rules/formal-performance-state.mjs';
 
 const rules = JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json', import.meta.url)));
 function fixture(times = [100,200,300,400,1000,1100,1200,2100,3100,4100,5100,6100,7100]) {
@@ -35,11 +36,26 @@ test('reference profiles are seeded chart inputs independent from teams; hard ra
   assert.throws(()=>normalizePerformanceScenario({profile:'expert'}),/未知/);
 });
 test('raw timing respects GREAT GOOD BAD MISS windows and JUST requires enabled note type',()=>{
-  for(const [timingOffsetMs,expected] of [[0,5],[60,4],[90,3],[110,2],[140,1]])assert.equal(resolveTimingJudgement(rules,{type:1,timingOffsetMs}),expected);
-  assert.equal(resolveTimingJudgement(rules,{type:1,timingOffsetMs:0},{justEnabled:true}),6);
-  assert.equal(resolveTimingJudgement(rules,{type:22,timingOffsetMs:0},{justEnabled:true}),5);
-  assert.equal(resolveTimingJudgement(rules,{type:1,timingOffsetMs:0,missed:true},{justEnabled:true}),1);
-  assert.equal(resolveTimingJudgement(rules,{type:1,originalJudgement:4,timingOffsetMs:0},{justEnabled:true,justExpansion:()=>100}),4);
+  for (const resolve of [(event, options) => resolveTimingJudgement(rules, event, options), createTimingJudgementResolver(rules)]) {
+    for(const [timingOffsetMs,expected] of [[0,5],[60,4],[90,3],[110,2],[140,1]])assert.equal(resolve({type:1,timingOffsetMs}),expected);
+    assert.equal(resolve({type:1,timingOffsetMs:0},{justEnabled:true}),6);
+    assert.equal(resolve({type:1,timingOffsetMs:20},{justEnabled:true,justExpansion:()=>18}),6);
+    assert.equal(resolve({type:1,timingOffsetMs:21},{justEnabled:true,justExpansion:()=>18}),5);
+    assert.equal(resolve({type:1,timingOffsetMs:0},{justEnabled:false}),5);
+    assert.equal(resolve({type:22,timingOffsetMs:0},{justEnabled:true}),5);
+    assert.equal(resolve({type:1,timingOffsetMs:0,missed:true},{justEnabled:true}),1);
+    assert.equal(resolve({type:1,originalJudgement:4,timingOffsetMs:0},{justEnabled:true,justExpansion:()=>100}),4);
+  }
+});
+test('repeated life queries preserve native late-command histories and invalidate after additions',()=>{
+  const native=JSON.parse(readFileSync(new URL('./fixtures/formal-performance-state-native.json',import.meta.url)));
+  for(const history of native.histories) {
+    const life=createLifeReplay(1000,(256-50)*40);
+    for(const op of history) {
+      if(op.add) life.add(op.add);
+      else for(let repeat=0;repeat<3;repeat++) assert.equal(life.at(op.timeMs),op.expected);
+    }
+  }
 });
 test('Gekisou non-AP input reconstructs life/combo, score targets, perfect counts and traces',()=>{
   const {r,c,d,p}=fixture();
@@ -53,6 +69,40 @@ test('Gekisou non-AP input reconstructs life/combo, score targets, perfect count
   assert.equal(trace.notes.filter(n=>n.judgement<=2).reduce((s,n)=>s+n.score,0),0);
   assert.equal(result.orderCount,1);
 });
+test('score-only Gekisou results equal playback summaries across all orders and mission types',()=>{
+  for(const missions of [[3,3,3],[1,2,3]]) {
+    const {r,c,d}=fixture();
+    const music=r.tables.LiveMusic.find(row=>row._id===100001);
+    missions.forEach((mission,i)=>music[`_gekisouMission${i+1}`]=mission);
+    const calculator=createGekisouSongCalculator(r,c,{
+      performanceScenario:{profile:'practice',seed:5},
+      scenario:{batches:2,confirmationDelayFrames:[0,2,1]},
+    });
+    const plain=calculator.calculate(d);
+    const {bestSample,bestSampleSeed,skillPlayback,...summary}=calculator.calculate(d,{includeTrace:true});
+    assert.deepEqual(plain,summary);
+    assert.equal(plain.orderCount,120);
+    for(const replay of skillPlayback.variants) {
+      assert.equal(replay.notes.length,c.notes.length);
+      assert.equal(replay.notes.reduce((sum,note)=>sum+note.score,0)+replay.rankingBonus+replay.eventFixedScore,replay.score);
+      assert.equal(replay.sections.reduce((sum,s)=>sum+s.finalNoteScore,0)+replay.outsideScore,replay.noteScore);
+    }
+  }
+});
+test('prepared Gekisou inputs stay isolated across teams, orders and repeated traced runs',()=>{
+  const {r,c,d}=fixture();
+  const options={mode:'gekisou',performanceScenario:{profile:'steady',seed:42,samples:2},
+    scenario:{ranks:[1,2,3],batches:2},scorePrecision:'screen'};
+  const calculator=createScenarioSongCalculator(r,c,options);
+  const first=calculator.calculate(d,{includeTrace:true});
+  const alternative=structuredClone(d);
+  alternative.slots.reverse();alternative.modifiers.growth={'member-card-1':{level:1,rank:1,awake:1}};
+  assert.deepEqual(calculator.calculate(alternative,{includeTrace:true}),
+    createScenarioSongCalculator(r,c,options).calculate(alternative,{includeTrace:true}));
+  assert.deepEqual(calculator.calculate(d,{includeTrace:true}),first);
+  assert.deepEqual(calculator.calculate(d),createScenarioSongCalculator(r,c,options).calculate(d));
+});
+
 test('ordinary recovery and life-conditioned score skills use the same phase order in Gekisou',()=>{
   const {r,c,d,p}=fixture();
   p.judgements.slice(0,4).forEach(n=>n.judgement=1);
@@ -87,6 +137,8 @@ test('shared adapter records fixed raw sample hashes and aggregates actual outco
     assert.equal(a.randomSources.player,true);assert.equal(a.randomSources.skillOrder,true);
     assert.deepEqual(a.performanceScenario,a.playerScenario);assert.equal(a.skillPlayback.randomSampling,true);
     assert.equal(a.expectedScore,a.scoreDistribution.mean);assert.ok(a.minimumScore<=a.maximumScore);
+    if(mode==='gekisou') assert.ok(Math.abs(a.noteScore+a.rankingBonus+a.eventFixedScore-a.expectedScore)<1e-6,
+      'displayed mean components must add to the mean, not come from the best player sample');
     assert.equal(a.scoreDistribution.complete,false);assert.ok(a.skillPlayback.variants.length>=2);
   }
 });

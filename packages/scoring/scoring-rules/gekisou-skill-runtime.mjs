@@ -56,11 +56,11 @@ export function createGekisouEffectState(effect, budget = { uses: 0 }) {
     exhaustedFrame: -1, counters: {}, wasMatched: false };
 }
 
-/** The sole activation/lifetime controller. Context holds current inputs and
- * previous Gekisou.Update counters/lots; operators only change game state. */
+/** The sole activation/lifetime controller. The caller reuses a frame context;
+ * band/counters are rebound for each effect. Operators consume it synchronously. */
 export function advanceGekisouEffect(e, ctx) {
   const r = e.definition, p = e.programs, trigger = p._skillTriggerConditionGroup;
-  ctx = { ...ctx, band: e.band, counters: e.counters };
+  ctx.band = e.band; ctx.counters = e.counters;
   const end = timeMs => {
     e.operator.stop?.(e, ctx, timeMs);
     ctx.factor(e, 0, timeMs);

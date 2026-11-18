@@ -50,7 +50,8 @@ export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', 
         return { index: i, inputHash: stableSnapshotHash(inputs[i]), expectedScore: rows.reduce((sum,row)=>sum+row.expectedScore,0)/rows.length,
           minimumScore: Math.min(...rows.map(row=>row.minimumScore)), maximumScore: Math.max(...rows.map(row=>row.maximumScore)) };
       }),
-      ...(sections ? { sections, rankingBonus: mean('rankingBonus'), rankingBonusShare: mean('rankingBonus') / distribution.mean } :
+      ...(sections ? { sections, noteScore: mean('noteScore'), eventFixedScore: mean('eventFixedScore'),
+        rankingBonus: mean('rankingBonus'), rankingBonusShare: mean('rankingBonus') / distribution.mean } :
         { baseScore: mean('baseScore'), skillScoreGain: mean('skillScoreGain'), eventFixedScoreGain: mean('eventFixedScoreGain') }),
       // LUCK standard error of one player sample cannot describe mixed player
       // variation. Keep that separate rather than reusing a misleading number.

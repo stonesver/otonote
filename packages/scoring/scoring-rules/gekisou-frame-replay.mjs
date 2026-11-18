@@ -2,7 +2,7 @@ import { createFrameClock, gekisouReleaseFrames, skillEndFrame } from './formal-
 import { createGekisouLuckMachine, createScoringRandom } from './gekisou-luck.mjs';
 import { formalJudgementType } from './formal-judgement.mjs';
 import { createGekisouEffectState, advanceGekisouEffect } from './gekisou-skill-runtime.mjs';
-import { resolveTimingJudgement } from './performance-scenarios.mjs';
+import { createTimingJudgementResolver } from './performance-scenarios.mjs';
 import { createLifeReplay, createComboReplay, createOrdinarySkillLifecycle } from './formal-performance-state.mjs';
 
 const f32 = Math.fround;
@@ -21,16 +21,43 @@ export function applyGekisouComboJudgement(state, judgement, gain, guards = []) 
   return { combo, maxCombo: Math.max(state.maxCombo, combo), protectedCombo, remaining };
 }
 
+/** Immutable chart/input preparation shared by skill-order and team replays.
+ * Notes, effect state, life and random streams are still fresh for every run. */
+export function prepareGekisouReplay(rules, timeline, ranges, scenario, performanceInput = null) {
+  const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
+  const maximumLife = Number(rules.tables.LiveSettings.find(row => row._key === 'life_base')._value);
+  const musicLengthMs = Math.max(...timeline.events.map(e => e.timeMs), ...(timeline.skillTimes ?? []));
+  const slowJudgeDelay = Math.max(...rules.tables.LiveJudgementTiming.map(r => r._afterMs));
+  const events = (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
+    inputFrame: event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs),
+    sectionIndex: ranges.findIndex(r => event.timeMs >= r.startMs && event.timeMs <= r.endMs) + 1,
+    judgement: 5 })).sort((a,b) => a.inputFrame - b.inputFrame || (a.inputSequence ?? a.scoreIndex) - (b.inputSequence ?? b.scoreIndex));
+  const sections = ranges.map(range => ({ ...range,
+    lastInputFrame: Math.max(clock.indexAt(range.endMs), ...events.filter(n => n.sectionIndex === range.index).map(n => n.inputFrame)),
+    ...gekisouReleaseFrames(clock, range.endMs, slowJudgeDelay) }));
+  const frameNotes = new Map();
+  for (const [index, note] of events.entries()) {
+    if (!frameNotes.has(note.inputFrame)) frameNotes.set(note.inputFrame, []);
+    frameNotes.get(note.inputFrame).push(index);
+  }
+  const activeFrames = new Set(frameNotes.keys());
+  for (const s of sections) for (let frame = clock.indexAt(s.startMs); frame <= s.releaseFrame + 1; frame++) activeFrames.add(frame);
+  return { clock, maximumLife, musicLengthMs, events, sections, frameNotes, activeFrames,
+    lastFrame: Math.max(...activeFrames), judgeTiming: createTimingJudgementResolver(rules),
+    windows: new Map(rules.tables.LiveJudgementTiming.filter(r => r._assistLevel === 0 && r._noteSimulateJudgement === 6).map(r => [r._noteJudgementType, r])),
+    damages: new Map(rules.tables.LiveJudgementParameter.map(row => [row._noteSimulateJudgement, row._damage])),
+    justWindows: sections.filter(s => s.missionType === 3).map(s => ({ start: clock.indexAt(s.startMs),
+      end: Math.max(clock.indexAt(s.startMs) + 1, clock.indexAt(s.endMs)) })) };
+}
+
 /** AP replay on an explicit ideal device clock. Native order:
  * BeforeUpdate -> judgements -> skill phase 2 -> Gekisou.Update.
  * Score commands retain their native authored/override timestamps and are
  * replayed separately, so a later frame can change an earlier note's score.
  * This is not a recording of the game's input scheduler or random stream. */
-export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4] } = {}) {
+export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, seed, { trace = false, performanceInput = null, ordinarySkills = null, skillOrder = [0,1,2,3,4], prepared = prepareGekisouReplay(rules, timeline, ranges, scenario, performanceInput) } = {}) {
   const random = createScoringRandom(seed);
-  const clock = createFrameClock({ frameRate: scenario.frameRate, frames: scenario.frames });
-  const setting = key => Number(rules.tables.LiveSettings.find(row => row._key === key)?._value);
-  const maximumLife = setting('life_base'), musicLengthMs = Math.max(...timeline.events.map(e => e.timeMs), ...(timeline.skillTimes ?? []));
+  const { judgeTiming, clock, maximumLife, musicLengthMs, windows, damages, justWindows } = prepared;
   const life = performanceInput || ordinarySkills ? createLifeReplay(maximumLife, musicLengthMs) : null;
   const combo = performanceInput ? createComboReplay(rules.tables.LiveComboScoreBonus) : null;
   const ordinary = ordinarySkills ? createOrdinarySkillLifecycle({ skills: ordinarySkills, skillTimes: timeline.skillTimes, skillOrder,
@@ -38,34 +65,15 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
   let lowestLife = maximumLife, totalDamage = 0, convertedCount = 0;
   const judgementCounts = Object.fromEntries([1,2,3,4,5,6].map(j => [j,0]));
   const stateTrace = [];
-  const windows = new Map(rules.tables.LiveJudgementTiming.filter(r => r._assistLevel === 0 && r._noteSimulateJudgement === 6).map(r => [r._noteJudgementType, r]));
   const commands = [], comboUpdates = [], luckEvents = [], transitions = [];
-  // CreateGekisouLiveSettings: maximum Master AfterMs, then 500 ms complete
-  // delay. BeforeUpdate enters state 8 one frame after state 7 releases skills.
-  const slowJudgeDelay = Math.max(...rules.tables.LiveJudgementTiming.map(r => r._afterMs));
   const budgets = new Map(effects.map(e => [e.key, { uses: 0 }]));
-  const states = ranges.map((range, i) => ({ ...range, rank: scenario.ranks[i], combo: 0, maxCombo: 0, just: 0, rawJust: 0,
+  const states = prepared.sections.map((range, i) => ({ ...range, rank: scenario.ranks[i], combo: 0, maxCombo: 0, just: 0, rawJust: 0,
     justBase: 0, perfectCount: 0, noteScore: 0, baseNoteScore: 0, entered: false, closed: false,
     history: [], comboHistory: [], countCommands: [], previousLots: [], rushFactor: 0,
     effects: effects.filter(e => e.active && e.missionType === range.missionType).map(e => createGekisouEffectState(e, budgets.get(e.key))), luck: createGekisouLuckMachine(rules, { random }) }));
-  const events = (performanceInput?.judgements ?? timeline.events).map(event => ({ ...event,
-    inputFrame: event.inputFrame ?? clock.indexAt(event.timeMs + scenario.timingOffsetMs),
-    sectionIndex: ranges.findIndex(r => event.timeMs >= r.startMs && event.timeMs <= r.endMs) + 1,
-    judgement: 5 })).sort((a,b) => a.inputFrame - b.inputFrame || (a.inputSequence ?? a.scoreIndex) - (b.inputSequence ?? b.scoreIndex));
-  const frames = new Map();
-  for (const note of events) {
-    if (!frames.has(note.inputFrame)) frames.set(note.inputFrame, []);
-    frames.get(note.inputFrame).push(note);
-  }
-  // Empty frames matter for pending lotteries, cumulative factors and release.
-  for (const s of states) {
-    s.lastInputFrame = Math.max(clock.indexAt(s.endMs),
-      ...events.filter(n => n.sectionIndex === s.index).map(n => n.inputFrame));
-    Object.assign(s, gekisouReleaseFrames(clock, s.endMs, slowJudgeDelay));
-    for (let f = clock.indexAt(s.startMs); f <= s.releaseFrame + 1; f++) {
-      if (!frames.has(f)) frames.set(f, []);
-    }
-  }
+  const events = prepared.events.map(event => ({ ...event }));
+  const frames = new Map([...prepared.frameNotes].map(([frame, indices]) => [frame, indices.map(index => events[index])]));
+  const emptyNotes = [];
   function command(s, e, timeMs, value, type = 2000, phase = 'skill') {
     commands.push({ timeMs, arrivalFrame: currentFrame, arrivalTimeMs: clock.at(currentFrame).timeMs,
       ownerId: e ? e.slotIndex * 100 + (e.kind === 'support' ? 2 : 1) : -1, type, value, perfect: true, just: true, ending: value < 0,
@@ -142,25 +150,37 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
   let currentFrame = 0, judgementSequence = 0;
   // FeverEventUpdater advances at most one state per frame. BeforeUpdate
   // enables grade 6 globally at Start and disables it at End, before inputs.
-  const justWindows = states.filter(s => s.missionType === 3).map(s => ({
-    start: clock.indexAt(s.startMs),
-    end: Math.max(clock.indexAt(s.startMs) + 1, clock.indexAt(s.endMs)),
+  // Callbacks and effect context are replay-local, not recreated for every
+  // effect on every frame. Life is still queried between effects in order.
+  const allEffects = states.flatMap(s => s.effects);
+  const contexts = states.map(s => ({ section: s, clock, random, lifeReplay: life,
+    notes: [], entering: false, closing: false, frame: 0, timeMs: 0, life: maximumLife,
+    band: null, counters: null,
+    dirty() { s.countsDirty = true; },
+    count(effect, timeMs, value) {
+      s.countCommands.push({ timeMs, sequence: judgementSequence - 1, value, channel: effect.operator.countChannel });
+    },
+    factor: (effect, value, at) => updateScoreFactor(s, effect, value, at),
+    trace(effect, action, value, at = this.timeMs) {
+      if (trace) transitions.push({ frame: this.frame, timeMs: at, sectionIndex: s.index, source: effect.key, action,
+        ...(value === undefined ? {} : { value }) });
+    },
   }));
-  const lastFrame = Math.max(...frames.keys(), ordinary?.lastFrame ?? 0);
+  const lastFrame = Math.max(prepared.lastFrame, ordinary?.lastFrame ?? 0);
   for (let frame = 0; frame <= Math.max(lastFrame, ordinary?.lastFrame ?? 0); frame++) {
-    if (!performanceInput && !ordinary && !frames.has(frame)) continue;
-    const frameNotes = frames.get(frame) ?? [];
+    if (!performanceInput && !ordinary && !prepared.activeFrames.has(frame)) continue;
+    const frameNotes = frames.get(frame) ?? emptyNotes;
     currentFrame = frame;
     const timeMs = clock.at(frame).timeMs;
     frameNotes.forEach((note, i) => { note.judgementSequence = judgementSequence + i; });
     // Judgements see the PREVIOUS skill phase's converters and window handles.
     const justEnabled = justWindows.some(w => frame >= w.start && frame < w.end);
-    const judgementEffects = states.flatMap(s => s.effects).filter(e => e.executing);
+    const judgementEffects = frameNotes.length ? allEffects.filter(e => e.executing) : [];
     for (const note of frameNotes) {
       note.inputTimeMs = timeMs;
       const offset = note.timingOffsetMs ?? scenario.timingOffsetMs;
       const expansionFor = base => sum32(judgementEffects.filter(e => e.operator.windowExpansion).map(e => e.operator.windowExpansion(e, base)));
-      if (performanceInput) note.judgement = resolveTimingJudgement(rules, note, { justEnabled, justExpansion: expansionFor });
+      if (performanceInput) note.judgement = judgeTiming(note, { justEnabled, justExpansion: expansionFor });
       else {
         const window = windows.get(formalJudgementType(note.type, note.critical));
         if (window) {
@@ -168,7 +188,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
           if (justEnabled && Math.abs(offset) <= baseWindow + expansionFor(baseWindow)) note.judgement = 6;
         }
       }
-      note.originalJudgement = performanceInput ? resolveTimingJudgement(rules, note, { justEnabled }) : 5;
+      note.originalJudgement = performanceInput ? judgeTiming(note, { justEnabled }) : 5;
       note.windowJudgement = note.judgement;
       // Ordinary converters resolve first in owner/activation order, then
       // Gekisou converters consume only a matching, actually changed grade.
@@ -185,7 +205,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         if (note.convertedBy) convertedCount++;
         judgementCounts[note.judgement]++;
         combo.add(note.timeMs, note.judgement);
-        const damage = rules.tables.LiveJudgementParameter.find(row => row._noteSimulateJudgement === note.judgement)?._damage;
+        const damage = damages.get(note.judgement);
         if (!Number.isInteger(damage) || damage < 0) throw new Error('缺少判定生命参数');
         if (damage) { life.add({ timeMs: note.timeMs, kind: 0, value: damage }); totalDamage += damage; }
         note.lifeAtInput = life.at(note.timeMs); lowestLife = Math.min(lowestLife, note.lifeAtInput);
@@ -197,7 +217,7 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
       if (trace && (frameNotes.length || ordinary?.skillTrace.at(-1)?.frame === frame)) stateTrace.push({ frame, timeMs, life: life.at(timeMs), combo: combo.state.combo, maxCombo: combo.state.maxCombo });
     }
     for (const s of states) {
-      const notes = frameNotes.filter(n => n.sectionIndex === s.index);
+      const notes = frameNotes.length ? frameNotes.filter(n => n.sectionIndex === s.index) : frameNotes;
       if (s.closed || (!s.entered && timeMs < s.startMs)) {
         // Early AP input retains authored section membership. Start effects
         // are not yet installed; recount after entry can still backdate them.
@@ -212,19 +232,12 @@ export function replayGekisouFrames(rules, timeline, ranges, effects, scenario, 
         s.closed = true; continue;
       }
       // Skill phase: previous-frame counters/lots, current judgement results.
-      for (const e of s.effects) advanceGekisouEffect(e, {
-        section: s, notes, entering, closing, frame, timeMs, clock, random,
-        life: life?.at(timeMs) ?? maximumLife, lifeReplay: life,
-        dirty: () => { s.countsDirty = true; },
-        count(effect, timeMs, value) {
-          s.countCommands.push({ timeMs, sequence: judgementSequence - 1, value, channel: effect.operator.countChannel });
-        },
-        factor: (effect, value, at) => updateScoreFactor(s, effect, value, at),
-        trace(effect, action, value, at = timeMs) {
-          if (trace) transitions.push({ frame, timeMs: at, sectionIndex: s.index, source: effect.key, action,
-            ...(value === undefined ? {} : { value }) });
-        },
-      });
+      const context = contexts[s.index - 1];
+      Object.assign(context, { notes, entering, closing, frame, timeMs });
+      for (const e of s.effects) {
+        context.life = life?.at(timeMs) ?? maximumLife;
+        advanceGekisouEffect(e, context);
+      }
       if (closing) {
         continue;
       }

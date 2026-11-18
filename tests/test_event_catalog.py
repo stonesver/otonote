@@ -51,7 +51,7 @@ class EventCatalogTest(unittest.TestCase):
         self.assertEqual(event["name"], "アイの奔流　AtoZ")
         self.assertEqual(event["nameLocale"], "ja")
         self.assertEqual(event["schedule"]["startAt"], "2026/09/30 18:00:00")
-        self.assertIsNone(event["schedule"]["timeZone"])
+        self.assertEqual(event["schedule"]["timeZone"], "Asia/Tokyo")
         self.assertEqual(event["achievements"][2]["rewards"][0]["resourceId"], 63)
         self.assertIn("峰月 律", event["achievements"][2]["rewards"][0]["name"])
         self.assertEqual(event["loopRewards"][0]["intervalPoints"], 1000000)

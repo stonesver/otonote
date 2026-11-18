@@ -1,8 +1,8 @@
 """Project event configuration from a single edition/release, never live rankings.
 
 The JP 1.0.5 metadata verifies EventType, EventBonusType and resource enums.
-Naive Master timestamps and bonus integers stay raw: no timezone or score
-multiplier is invented by this archive adapter.
+Event Master timestamps retain their UTC+9 wall clock text. The source zone is
+explicit; consumers choose their display zone. Bonus integers stay raw.
 """
 from __future__ import annotations
 
@@ -210,7 +210,7 @@ def build_event_archive(root: Path, release_id: str, *, edition: str | None, loc
                         "mode": "challenge_live" if row.get("_eventType") == 1 else "unknown",
                         "schedule": {"startAt": configured_time(row.get("_startAt")), "endAt": configured_time(row.get("_endAt")),
                                      "displayEndAt": configured_time(row.get("_displayEndAt")),
-                                     "timeZone": None, "status": "master_configuration"},
+                                     "timeZone": "Asia/Tokyo", "status": "master_configuration"},
                         "assets": {k: row.get(f"_{k}Asset") or None for k in ("image", "logo", "background", "banner")},
                         "achievements": achievements, "loopRewards": loops, "effects": effects,
                         "related": build_event_relations(source, row, effects),

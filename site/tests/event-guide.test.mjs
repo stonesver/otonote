@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { eventTimestamp, eventCountdown } from '../src/lib/event-time.mjs';
 import { groupEventBonuses, eventBonusPercentage } from '../src/lib/event-bonus-model.mjs';
-test('edition countdowns use explicit UTC+9 and UTC+8 conventions independently of browser timezone',()=>{
+test('event source clocks use UTC+9 independently of browser or display timezone',()=>{
   assert.equal(eventTimestamp('2026/09/30 18:00:00','jp'),Date.parse('2026-09-30T09:00:00Z'));
   assert.equal(eventTimestamp('2026/09/30 18:00','jp'),Date.parse('2026-09-30T09:00:00Z'));
   assert.equal(eventTimestamp('2026-09-30T18:00:00+09:00','global'),Date.parse('2026-09-30T09:00:00Z'));
-  assert.equal(eventTimestamp('2026/09/30 18:00:00','global'),Date.parse('2026-09-30T10:00:00Z'));
+  assert.equal(eventTimestamp('2026/09/30 18:00:00','global'),Date.parse('2026-09-30T09:00:00Z'));
   assert.equal(eventTimestamp('2026/02/30 18:00:00','jp'),null);
   assert.equal(eventTimestamp(null,'jp'),null);
 });

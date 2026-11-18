@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {extname} from 'node:path';
 import {transform} from '@astrojs/compiler-rs';
 import {experimental_AstroContainer} from 'astro/container';
 
@@ -14,7 +15,7 @@ async function compile(name) {
  const specs=[...code.matchAll(/from\s*(["'])([^"']+)\1/g)].map(m=>m[2]);
  let output=code;
  for(const spec of new Set(specs)) {
-  const target=spec==='astro/compiler-runtime'?runtime:spec.endsWith('.astro')?await compile(spec.split('/').at(-1)):new URL(spec,path).href;
+  const target=spec==='astro/compiler-runtime'?runtime:spec.endsWith('.astro')?await compile(spec.split('/').at(-1)):new URL(extname(spec) ? spec : spec + '.ts',path).href;
   output=output.replaceAll(JSON.stringify(spec),JSON.stringify(target));
  }
  return dataUrl(output);
@@ -64,4 +65,15 @@ test('returning from the browser page cache refreshes time and restarts exactly 
  listeners.pagehide();assert.equal(timers.size,0);
  now=3000;listeners.pageshow();assert.equal(node.dataset.state,'ended');assert.equal(label.textContent,'已结束');assert.equal(timers.size,1);
  listeners.pageshow();assert.equal(timers.size,1);
+});
+
+test('Global event heading displays Beijing time and countdown reaches the same instant',async()=>{
+ const {default:Hero}=await import(await compile('EventHero.astro'));
+ const schedule={startAt:'2026/11/18 15:00:00',endAt:'2026/11/27 14:59:59',timeZone:null};
+ const html=await container.renderToString(Hero,{props:{event:{id:6,name:'Event',edition:'global',mode:'challenge_live',schedule}}});
+ assert.match(html,/2026\/11\/18 14:00/);
+ assert.match(html,/2026\/11\/27 13:59/);
+ assert.match(html,/北京时间（UTC\+8）/);
+ const countdown=await container.renderToString(Component,{props:{start:schedule.startAt,end:schedule.endAt,edition:'global'}});
+ assert.match(countdown,new RegExp('data-start="'+Date.parse('2026-11-18T06:00:00Z')+'"'));
 });

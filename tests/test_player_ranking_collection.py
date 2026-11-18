@@ -132,20 +132,29 @@ class RankingCollectionTests(unittest.TestCase):
         self.assertIn('ExecStart=/usr/bin/flock --wait 120',finalizer)
         self.assertIn('COPY tools/ranking_regions.py',dockerfile)
 
-    def test_auto_event_selection_uses_verified_current_content_and_taipei_schedule(self):
+    def test_auto_event_selection_uses_verified_content_and_source_utc9_schedule(self):
         files = content_fixture()
         select = lambda now: read_current_content_plan('https://ournotes.stonebg.cn', now=now,
                                                          fetch_bytes=files.__getitem__)
-        self.assertIsNone(select(datetime(2026, 10, 9, 3, 59, tzinfo=timezone.utc)))
-        plan = select(datetime(2026, 10, 9, 4, tzinfo=timezone.utc))
+        self.assertIsNone(select(datetime(2026, 10, 9, 2, 59, tzinfo=timezone.utc)))
+        plan = select(datetime(2026, 10, 9, 3, tzinfo=timezone.utc))
         self.assertEqual(plan['eventId'], '2')
         self.assertEqual(plan['boards'], [{'type': 'music', 'musicId': '100109', 'musicName': 'Song',
                                            'challengeMusicId': 2001}, {'type':'total-music'}])
         self.assertEqual(plan['contentReleaseId'], 'global-test-release')
         self.assertEqual(plan['eventProjectionSha256'], hashlib.sha256(next(reversed(files.values()))).hexdigest())
-        self.assertEqual(select(datetime(2026, 10, 17, 12, 59, 59, tzinfo=timezone.utc))['eventId'], '2')
-        self.assertIsNone(select(datetime(2026, 10, 17, 13, tzinfo=timezone.utc)))
-        self.assertEqual(select(datetime(2026, 10, 18, 4, tzinfo=timezone.utc))['eventId'], '99')
+        self.assertEqual(select(datetime(2026, 10, 17, 11, 59, 59, tzinfo=timezone.utc))['eventId'], '2')
+        self.assertIsNone(select(datetime(2026, 10, 17, 12, tzinfo=timezone.utc)))
+        self.assertEqual(select(datetime(2026, 10, 18, 3, tzinfo=timezone.utc))['eventId'], '99')
+
+    def test_global_1500_event_is_active_at_1400_beijing(self):
+        files = content_fixture([{'id': 6, 'name': 'Event', 'schedule': {
+            'startAt': '2026/11/18 15:00:00', 'endAt': '2026/11/27 14:59:59'}}])
+        select = lambda now: read_current_content_plan('https://example.invalid', now=now,
+                                                       fetch_bytes=files.__getitem__)
+        self.assertIsNone(select(datetime(2026, 11, 18, 5, 59, 59, tzinfo=timezone.utc)))
+        self.assertEqual(select(datetime(2026, 11, 18, 6, tzinfo=timezone.utc))['eventId'], '6')
+        self.assertIsNone(select(datetime(2026, 11, 27, 6, tzinfo=timezone.utc)))
 
     def test_auto_event_selection_rejects_tampering_and_ambiguous_schedule(self):
         files = content_fixture()
@@ -166,8 +175,8 @@ class RankingCollectionTests(unittest.TestCase):
             root = Path(folder)
             select = lambda now: read_ended_content_plan('https://ournotes.stonebg.cn', root, now=now,
                                                           fetch_bytes=files.__getitem__)
-            self.assertIsNone(select(datetime(2026, 10, 8, 12, 59, 59, tzinfo=timezone.utc)))
-            self.assertEqual(select(datetime(2026, 10, 8, 13, 0, 0, tzinfo=timezone.utc))['eventId'], '1')
+            self.assertIsNone(select(datetime(2026, 10, 8, 11, 59, 59, tzinfo=timezone.utc)))
+            self.assertEqual(select(datetime(2026, 10, 8, 12, 0, 0, tzinfo=timezone.utc))['eventId'], '1')
             snapshot = {'schemaVersion': 1, 'serverId': 'global-hmt',
                         'observedAt': '2026-10-08T13:10:00Z', 'expiresAt': '2026-10-08T13:25:00Z',
                         'boards': [{'eventId': '1', 'eventName': 'Old event', 'type': 'music',

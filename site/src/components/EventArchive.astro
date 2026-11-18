@@ -1,4 +1,5 @@
 ---
+import {formatEventTime} from '../lib/event-time.mjs';
 import EventTypeBadge from "./EventTypeBadge.astro";
 import Countdown from "./EventCountdown.astro";
 import EventIdentity from "./EventIdentity.astro";
@@ -25,7 +26,7 @@ const records = [...(archive.records ?? [])].filter(event => !story || event.sto
             {art?.logo && <img class="ea-card-logo" src={art.logo} alt="" width="460" height="240" loading="lazy" />}
             <span class="ea-card-badge">{story ? copy.stories : copy.event}</span>
           </div>
-          <div class="ea-card-body"><p class="ea-card-eyebrow"><EventTypeBadge mode={event.mode} locale={locale} /> {event.edition === "jp" ? copy.jp : copy.global} · EVENT {String(event.id).padStart(2,"0")}</p><h2 lang={event.nameLocale ?? undefined}>{event.name}</h2><p class="ea-card-dates">{event.schedule.startAt?.slice(0,10) ?? "—"} — {event.schedule.endAt?.slice(0,10) ?? "—"}</p>
+          <div class="ea-card-body"><p class="ea-card-eyebrow"><EventTypeBadge mode={event.mode} locale={locale} /> {event.edition === "jp" ? copy.jp : copy.global} · EVENT {String(event.id).padStart(2,"0")}</p><h2 lang={event.nameLocale ?? undefined}>{event.name}</h2><p class="ea-card-dates">{formatEventTime(event.schedule.startAt, event.edition, event.schedule.timeZone).slice(0,10)} — {formatEventTime(event.schedule.endAt, event.edition, event.schedule.timeZone).slice(0,10)}</p>
             <EventIdentity identity={identities[event.id]} compact locale={locale} /><div class="ea-card-facts"><span><EventIcon name="book" size={14} /><b>{event.story.episodes.length}</b> {copy.episodes}</span>{story ? <span><b>{readableCounts[event.id] ?? 0}</b> {copy.available}</span> : <><span><EventIcon name="music" size={14} /><b>{event.challengeSongs.length}</b> {copy.songs}</span><span><EventIcon name="card" size={14} /><b>{cards[event.id]?.length ?? event.pickupCards.length}</b> {locale === "en" ? "cards" : "活动卡牌"}</span></>}</div>
             <div class="ea-card-footer"><Countdown start={event.schedule.startAt} end={event.schedule.endAt} edition={event.edition} timeZone={event.schedule.timeZone} locale={locale} /><span>{story ? copy.chapters : copy.details}</span></div>
           </div>

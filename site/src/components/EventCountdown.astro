@@ -1,11 +1,11 @@
 ---
-import { eventTimestamp, eventCountdown } from '../lib/event-time.mjs';
+import { eventTimestamp, eventCountdown, eventTimeLabel } from '../lib/event-time.mjs';
 import { eventCountdownInitScript } from '../lib/event-countdown-client.mjs';
 import EventIcon from './EventIcon.astro';
 interface Props { start: string | null; end: string | null; edition: string; timeZone?: string | null; locale?: string }
 const { start, end, edition, timeZone, locale = 'zh-CN' } = Astro.props;
 const startMs = eventTimestamp(start, edition, timeZone), endMs = eventTimestamp(end, edition, timeZone);
-const note = timeZone ?? (edition === 'jp' ? 'JST (UTC+9)' : 'UTC+8');
+const note = eventTimeLabel(edition, locale === 'en');
 const initial = eventCountdown(startMs, endMs, Date.now(), locale === 'en');
 ---
 <span class="ef-countdown" data-event-countdown data-start={startMs} data-end={endMs} data-en={locale === 'en'} data-state={initial.state} title={note}><EventIcon name="clock" size={14} /><span>{initial.label}</span></span><script is:inline data-event-countdown-init set:html={eventCountdownInitScript()} />

@@ -36,7 +36,7 @@ MUSIC_RPC = 'app.event.EventService/GetChallengeMusicRanking'
 POINTS_RPC = 'app.event.EventService/GetRankingList'
 TOTAL_MUSIC_RPC = 'app.event.EventService/GetChallengeMusicTotalRanking'
 MAX_PLAYERS = 1000
-EVENT_TIME_ZONE = timezone(timedelta(hours=8), 'Asia/Taipei')
+EVENT_TIME_ZONE = timezone(timedelta(hours=9), 'Asia/Tokyo')
 EVENT_TIME_PATTERN = re.compile(r'^(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$')
 CONTENT_MANIFEST_PATTERN = re.compile(r'^/content/releases/[a-f0-9]{24}/manifest\.json$')
 CONTENT_FILE_PATTERN = re.compile(r'^[A-Za-z0-9_./-]+$')

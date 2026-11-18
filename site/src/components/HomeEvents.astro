@@ -1,4 +1,5 @@
 ---
+import {formatEventTime, eventTimeLabel} from '../lib/event-time.mjs';
 import { activeReleaseContext } from '../lib/release-context';
 import { eventRecords, eventHref as href, eventArtworks, eventIdentities } from '../lib/event-pages';
 import { homeEvents } from '../lib/home-content.mjs';
@@ -35,7 +36,7 @@ const events = homeEvents(eventRecords, region, now);
           <span>{region === 'jp' ? (en ? 'JP' : '日服') : (en ? 'GLOBAL' : '国际服')}</span>
         </div>
         <h3><a href={href(`/events/${event.id}/`)} lang={event.nameLocale ?? undefined}>{event.name}</a></h3>
-        <p class="home-event-schedule">{event.schedule.startAt ?? '—'} <span aria-hidden="true">—</span> {event.schedule.endAt ?? '—'} <small>{region === 'jp' ? 'JST' : 'UTC+8'}</small></p>
+        <p class="home-event-schedule">{formatEventTime(event.schedule.startAt, region, event.schedule.timeZone)} <span aria-hidden="true">—</span> {formatEventTime(event.schedule.endAt, region, event.schedule.timeZone)} <small>{eventTimeLabel(region, en)}</small></p>
         {(bands.length > 0 || attributes.length > 0) && <div class="home-event-bonuses">
           {bands.map(band => <div class="home-event-bonus home-event-bonus--band">
             {band.image && <img src={band.image} alt="" width="58" height="36" loading="lazy" />}

@@ -6,7 +6,7 @@
 
 EN/韩服从网站已验证的 Global 投影选择活动，但每轮认证前必须核对公开内容 manifest 的 `releaseRecord.masterVersion`，再比较该港澳台来源版本与目标服当前官方 Master 清单中的 `MasterEvent`、`MasterChallengeMusic`、`MasterLiveMusic`、`MasterText` 四张表的 SHA-256 和长度。只接受固定官方 CDN 主机、对应区服路径、完整且不重复的表记录；拒绝重定向。表不一致返回 `ranking_region_event_tables_differ`，来源或清单不可验证返回 `ranking_region_event_verification_failed`；两者均在 SDK 登录前停止且不覆盖旧榜单，后续周期可重试。榜单来源保存比较证据。
 
-活动时间继续使用网站既有 `Asia/Taipei` 计划，不根据网页语言或抽卡显示时区转换。此适配仅覆盖活动表一致的区服；不同活动配置需要独立投影。EN/韩服的显式 `--master-dir` 维护计划缺少内容版本绑定时拒绝认证。
+活动计划按 `MasterEvent` 的 `Asia/Tokyo`（UTC+9）源时间解析；国际服页面换算为北京时间（UTC+8），采集与最终归档使用同一绝对时刻，不根据网页语言或抽卡记录显示时区转换。此适配仅覆盖活动表一致的区服；不同活动配置需要独立投影。EN/韩服的显式 `--master-dir` 维护计划缺少内容版本绑定时拒绝认证。
 
 新增 `capture@.service/.timer` 与 `finalize@.service/.timer` 模板，分别以 `global-en`、`global-kr` 实例启用。每服独立 observations、state、暂停状态及最终归档；港澳台保留原有服务名称和路径。所有六项正式任务先在主机端通过 `dispatch.lock` 最多排队 120 秒，再由同一个 `--lock-dir` 采集锁保护登录，共用既有只读 credentials 与 SDK 挂载，不复制凭据。服务总超时 310 秒，覆盖排队与原有执行预算。直接维护入口遇到采集锁忙仍跳过本轮，不改变快照或暂停状态。
 

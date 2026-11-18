@@ -169,6 +169,10 @@ def decide(bucket, region, publication, revision, action, publish_at=None, *, no
         raise ValueError('publication is no longer pending')
     epoch = time.time() if now is None else now
     if action == 'publish':
+        # An elapsed schedule already authorizes this batch. Preserve its identity
+        # while verification runs, so the next timer tick cannot dispatch it again.
+        if value['status'] == 'scheduled' and value['publishAt'] <= epoch:
+            return value
         publish_at = epoch
     elif action == 'schedule':
         if type(publish_at) not in (int, float) or not math.isfinite(publish_at) or not epoch < publish_at <= 253402300799:

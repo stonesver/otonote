@@ -75,6 +75,42 @@ class PublicationReviewTests(unittest.TestCase):
         self.assertEqual(review.process(self.bucket, 'global', source_run='stale')['status'], 'stale')
         self.assertFalse(review.has_access(self.bucket, pointer, 'global'))
 
+    def test_due_workflow_does_not_look_like_a_new_schedule_to_the_next_timer_tick(self):
+        from backend.admin.publications import publish_due
+        self.prepare()
+        with patch.object(review.time, 'time', return_value=100):
+            scheduled = self.decide('schedule', 200)
+        config = {'nodes': [{'id': 'content', 'publishUsers': ['owner']}], 'publicationReview': {}}
+        attempts, sent = {}, []
+
+        def state(*_):
+            row, _ = review.read(self.bucket, 'global')
+            return {'profiles': [{'productionOwner': 'github-actions-r2', 'health': {
+                'publicationReviews': {'status': 'ready', 'regions': {'global': row}}}}]}
+
+        def dispatch(_, decision):
+            sent.append(decision)
+            review.decide(self.bucket, 'global', decision['publication'], decision['revision'], 'publish')
+            # Content verification continues while another health sample/timer tick runs.
+
+        with patch.object(review.time, 'time', return_value=210):
+            publish_due(config, state, attempts, send=dispatch, now=210)
+        with patch.object(review.time, 'time', return_value=270):
+            publish_due(config, state, attempts, send=dispatch, now=270)
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(review.read(self.bucket, 'global')[0], scheduled)
+            self.assertEqual(review.process(self.bucket, 'global', source_run='due')['status'], 'published')
+        self.assertEqual(review.read(self.bucket, 'global')[0]['publishAt'], 200)
+
+    def test_publish_now_still_replaces_a_future_schedule(self):
+        self.prepare()
+        with patch.object(review.time, 'time', return_value=100):
+            scheduled = self.decide('schedule', 300)
+        with patch.object(review.time, 'time', return_value=200):
+            immediate = self.decide('publish')
+        self.assertEqual(immediate['revision'], scheduled['revision'] + 1)
+        self.assertEqual(immediate['publishAt'], 200)
+
     def test_missing_media_prevents_access_even_after_approval(self):
         _, pointer = self.prepare()
         self.decide('publish')

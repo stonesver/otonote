@@ -30,3 +30,5 @@
 
 !backend/arena_population.py
 !tools/arena_population.py
+
+!tools/arena_public.py

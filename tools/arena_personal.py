@@ -22,7 +22,7 @@ def arena_scope(season, band):
         raise LoginError('invalid_arena_personal_scope')
 
 
-def extract_my_rank(raw, season, band, *, server_id, client_version, master_version=None):
+def extract_my_rank(raw, season, band, *, server_id, client_version, master_version=None, observed_master_version=None):
     arena_scope(season, band)
     rows, seen = [], set()
     for n, wire, value in fields(raw):
@@ -47,7 +47,8 @@ def extract_my_rank(raw, season, band, *, server_id, client_version, master_vers
         rows.append(dict(bandId=str(band_id), point=point, rank=rank or None))
     selected = next((row for row in rows if row['bandId'] == band), None)
     return dict(format='otonote-arena-personal', schemaVersion=1,
-                source={**export_source(server_id, client_version), 'masterVersion': master_version},
+                source={**export_source(server_id, client_version), 'masterVersion': master_version,
+                        'observedMasterVersion': observed_master_version},
                 seasonId=season, bandId=band, queriedAt=datetime.now(timezone.utc).isoformat(),
                 status='ranked' if selected and selected['rank'] else 'unranked' if selected else 'unavailable',
                 rank=selected['rank'] if selected else None, point=selected['point'] if selected else None)
@@ -59,6 +60,26 @@ class ArenaPersonalClient(GameClient):
     def __init__(self, server_id='global-hmt'):
         super().__init__(server_id)
         self.master_version = None
+        self.rank_master_version = None
+
+    def discover(self):
+        host = super().discover()
+        # Resolve only already-public rules, before touching account credentials.
+        # A failed rules check must not hide the game's own rank/point response.
+        from tools.arena_public import read_public_projection, arena_master_version
+        from tools.ranking_regions import verify_arena_rank_tables
+        self.rank_master_version = None
+        if self.master_version:
+            try:
+                projection = read_public_projection('https://ournotes.stonebg.cn')
+                approved = arena_master_version(projection[0], self.server_id) if projection else None
+                if approved:
+                    if approved != self.master_version:
+                        verify_arena_rank_tables(self, approved, self.master_version)
+                    self.rank_master_version = approved
+            except (LoginError, ValueError, OSError):
+                pass  # No compatibility binding; UI keeps its exact-version gate.
+        return host
 
     def _public_rpc(self, host, method):
         raw = super()._public_rpc(host, method)
@@ -74,6 +95,8 @@ class ArenaPersonalClient(GameClient):
             progress('reading_arena_rank')
             return extract_my_rank(self.rpc(host, MY_RANK_METHOD, integer(1, int(season)), auth),
                                    season, band, server_id=self.server_id,
-                                   client_version=self.client_version, master_version=self.master_version)
+                                   client_version=self.client_version,
+                                   master_version=self.rank_master_version or self.master_version,
+                                   observed_master_version=self.master_version)
         finally:
             auth.clear()

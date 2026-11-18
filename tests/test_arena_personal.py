@@ -57,7 +57,8 @@ class ArenaPersonalTests(unittest.TestCase):
                     return original(method,**options)
                 channel.unary_unary=unary;return channel
         transport=PersonalTransport()
-        with patch('grpc.secure_channel',side_effect=transport.channel):
+        with patch('grpc.secure_channel',side_effect=transport.channel), \
+                patch('tools.arena_public.read_public_projection',return_value=None):
             for sid in ('global-hmt','global-en','global-kr'):
                 status,result=value.read_growth('SYNTHETIC','SYNTHETIC',server_id=sid,arena=('1','1'))
                 self.assertEqual(status,200,result);self.assertEqual(result['snapshot']['source']['serverId'],sid)

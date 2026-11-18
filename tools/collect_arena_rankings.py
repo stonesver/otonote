@@ -15,8 +15,6 @@ import os
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
 
 from backend.arena_rankings import RPC, absolute, validate_observation
 from tools.arena_content import validate_arena_publication, arena_master_version
@@ -29,45 +27,11 @@ from tools.import_arena_rankings import publish_observations
 
 
 def read_public_projection(origin, fetch_bytes=None):
-    """Use the same immutable content/hash chain as the existing ranking capture."""
-    parsed = urlsplit(origin)
-    if (parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password
-            or parsed.path not in ('', '/') or parsed.query or parsed.fragment):
-        raise ValueError('invalid_content_origin')
-    def fetch(path, limit):
-        if fetch_bytes:
-            raw = fetch_bytes(path)
-        else:
-            with urlopen(Request(origin.rstrip('/') + path, headers={'User-Agent': 'OurNotes-Arena-Ranking/1.0'}), timeout=15) as response:
-                raw = response.read(limit + 1)
-        if not isinstance(raw, bytes) or len(raw) > limit:
-            raise ValueError('invalid_arena_content_response')
-        return raw
-    import re
-    pointer = json.loads(fetch('/content/current.json', 16_384))
-    manifest_path = pointer.get('manifest', '')
-    if not re.fullmatch(r'/content/releases/[a-f0-9]{24}/manifest\.json', manifest_path):
-        raise ValueError('invalid_arena_content_manifest')
-    raw = fetch(manifest_path, 4_000_000)
-    if hashlib.sha256(raw).hexdigest() != pointer.get('sha256'):
-        raise ValueError('arena_content_manifest_hash_mismatch')
-    manifest = json.loads(raw)
-    root = manifest_path.removesuffix('manifest.json')
-    if (manifest.get('region') != 'global' or manifest.get('root') != root
-            or manifest.get('contentReleaseId') != pointer.get('contentReleaseId')):
-        raise ValueError('arena_content_identity_mismatch')
-    record = manifest.get('locales', {}).get('zh-CN', {}).get('files', {}).get('projection/arena.json')
-    if record is None:
-        return None
-    path = record.get('path', '')
-    if not re.fullmatch(r'[A-Za-z0-9_./-]+', path) or path.startswith('/') or '..' in path.split('/'):
-        raise ValueError('invalid_arena_projection_path')
-    raw = fetch(root + path, 4_000_000)
-    if hashlib.sha256(raw).hexdigest() != record.get('sha256'):
-        raise ValueError('arena_projection_hash_mismatch')
-    data = json.loads(raw)
-    validate_arena_publication(data, pointer['contentReleaseId'], 'global')
-    return data, hashlib.sha256(raw).hexdigest()
+    from tools.arena_public import read_public_projection as read
+    result = read(origin, fetch_bytes)
+    if result:
+        validate_arena_publication(result[0], result[0]['sourceReleaseId'], 'global')
+    return result
 
 
 def read_plan(data, digest, server, season=None, bands=None, limit=1000, now=None):
@@ -181,9 +145,10 @@ class ArenaRankingClient(GameClient):
 
 
 def run_capture(plan, profile, account, password, root, *, game_factory=ArenaRankingClient,
-                sdk_factory=SdkClient, publisher=publish_observations):
+                sdk_factory=SdkClient, publisher=publish_observations, before_login=lambda: None):
     game = game_factory(plan)
     host = game.discover()  # Public version negotiation precedes credential use.
+    before_login()
     sdk = sdk_factory(replace(profile, version=game.client_version, language=game.server['language']))
     identity = sdk.login(account, password)
     try:
@@ -246,9 +211,10 @@ def main(argv=None):
                 if args.population:
                     from tools.arena_population import population_plan
                     plan=population_plan(projection[0],plan)
-                    temporary=population_attempt.with_suffix('.tmp')
-                    temporary.write_text(json.dumps(dict(attemptedAt=datetime.now(timezone.utc).isoformat())))
-                    os.chmod(temporary,0o600);temporary.replace(population_attempt)
+                    def record_population_attempt():
+                        temporary=population_attempt.with_suffix('.tmp')
+                        temporary.write_text(json.dumps(dict(attemptedAt=datetime.now(timezone.utc).isoformat())))
+                        os.chmod(temporary,0o600);temporary.replace(population_attempt)
                 credentials = os.environ.get('CREDENTIALS_DIRECTORY')
                 if credentials:
                     account = (Path(credentials) / 'account').read_text().strip()
@@ -260,7 +226,8 @@ def main(argv=None):
                 if args.population:
                     from tools.arena_population import ArenaPopulationClient,publish_populations
                     paths=run_capture(plan,Profile.from_resources(args.sdk_resources),account,password,args.root,
-                                      game_factory=ArenaPopulationClient,publisher=publish_populations)
+                                      game_factory=ArenaPopulationClient,publisher=publish_populations,
+                                      before_login=record_population_attempt)
                 else:
                     paths = run_capture(plan, Profile.from_resources(args.sdk_resources), account, password, args.root)
                 result = dict(status='complete', paused=False, boards=len(paths), seasonId=plan['seasonId'])

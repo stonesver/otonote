@@ -22,10 +22,7 @@ TABLES = ("MasterArenaSeason", "MasterArenaLeague", "MasterArenaLeagueRegulation
 SERVERS = {"global": {"global-hmt", "global-kr", "global-en"}, "jp": {"jp"}}
 
 
-def arena_master_version(data, server):
-    if server not in data.get('serverScopes',[]):return None
-    versions=data.get('sourceMasterVersions')
-    return versions.get(server) if versions is not None else data.get('sourceMasterVersion')
+from tools.arena_public import arena_master_version
 
 
 def build_arena_content(master_root, release_id, region, locale="zh-CN", review=None):

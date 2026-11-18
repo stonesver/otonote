@@ -10,6 +10,9 @@ from tools.collect_arena_rankings import ArenaRankingClient, run_capture
 from tools.global_game_config import GLOBAL_SERVERS
 from tools.growth_login import GameClient, LoginError, Profile, message
 from tools.ranking_regions import CDN
+from tools.arena_population import ArenaPopulationClient
+from tools.arena_personal import ArenaPersonalClient
+from tools.growth_login import integer
 
 TABLES = ('MasterArenaSeason.bin', 'MasterArenaLeague.bin', 'MasterArenaRank.bin')
 
@@ -73,3 +76,60 @@ class ArenaMasterCompatibilityTests(unittest.TestCase):
                         patch('tools.ranking_regions.build_opener', return_value=opener):
                     with self.assertRaisesRegex(LoginError, 'arena_master_verification_failed'):
                         game.discover()
+
+    def test_population_accepts_identical_rules_and_binds_both_versions(self):
+        for server in GLOBAL_SERVERS:
+            plan, probe, manifests, requests, opener = self.fixtures(server)
+            game = ArenaPopulationClient(plan)
+            game.arena_master = game.population_master = 'b' * 32
+            game._public_rpc = probe._public_rpc
+            with patch.object(GameClient, 'discover', return_value='host'), \
+                    patch('tools.ranking_regions.build_opener', return_value=opener):
+                self.assertEqual(game.discover(), 'host')
+            self.assertEqual(game.verified_master, 'b' * 32)
+            self.assertEqual(plan['masterVersion'], 'a' * 32)
+
+    def test_personal_conversion_binds_reviewed_rules_without_hiding_observed_version(self):
+        for server in GLOBAL_SERVERS:
+            for changed in (False, True):
+                with self.subTest(server=server, changed=changed):
+                    plan, probe, manifests, requests, opener = self.fixtures(server)
+                    if changed: manifests['b' * 32]['files'][0]['hash'] = 'f' * 64
+                    game = ArenaPersonalClient(server)
+                    game.master_version = 'b' * 32
+                    game._public_rpc = probe._public_rpc
+                    projection = dict(serverScopes=[server], sourceMasterVersions={server:'a' * 32})
+                    with patch.object(GameClient, 'discover', return_value='host'), \
+                            patch('tools.arena_public.read_public_projection', return_value=(projection, 'digest')), \
+                            patch('tools.ranking_regions.build_opener', return_value=opener):
+                        self.assertEqual(game.discover(), 'host')
+                    raw = message(2, integer(1, 1) + integer(2, 100) + integer(3, 2))
+                    with patch.object(game, 'authenticate', return_value=[]), patch.object(game, 'rpc', return_value=raw):
+                        value = game.export_rank(None, None, 'host', '1', '1')
+                    self.assertEqual(value['source']['masterVersion'], ('b' if changed else 'a') * 32)
+                    self.assertEqual(value['source']['observedMasterVersion'], 'b' * 32)
+                    self.assertEqual(value['rank'], 2)
+
+    def test_population_cooldown_starts_after_public_checks_even_if_sdk_login_fails(self):
+        plan, game, _, _, _ = self.fixtures('global-hmt')
+        cooldown, sdk = Mock(), Mock()
+        with patch.object(game, 'discover', side_effect=LoginError('arena_rank_tables_changed')):
+            with self.assertRaises(LoginError):
+                run_capture(plan, Profile('FAKE'), 'synthetic', 'synthetic', Path('/unused'),
+                            game_factory=lambda p:game, sdk_factory=sdk, before_login=cooldown)
+        cooldown.assert_not_called(); sdk.assert_not_called()
+        sdk.side_effect = LoginError('sdk_network_or_tls_error')
+        with patch.object(game, 'discover', return_value='host'):
+            with self.assertRaises(LoginError):
+                run_capture(plan, Profile('FAKE'), 'synthetic', 'synthetic', Path('/unused'),
+                            game_factory=lambda p:game, sdk_factory=sdk, before_login=cooldown)
+        cooldown.assert_called_once()
+
+    def test_personal_missing_public_rules_keeps_real_result_without_compatibility_claim(self):
+        for failure in (OSError('offline'), ValueError('arena_projection_hash_mismatch')):
+            game=ArenaPersonalClient(); game.master_version='b'*32
+            with patch.object(GameClient,'discover',return_value='host'), \
+                    patch('tools.arena_public.read_public_projection',side_effect=failure):
+                game.discover()
+            self.assertIsNone(game.rank_master_version)
+            self.assertEqual(game.master_version,'b'*32)

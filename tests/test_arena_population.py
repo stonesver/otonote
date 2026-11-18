@@ -77,8 +77,9 @@ class PopulationTests(unittest.TestCase):
    with self.assertRaises(ValueError):population_plan(bad,plan,NOW)
   with self.assertRaises(ValueError):population_plan(data,plan,NOW+timedelta(days=2))
   game=ArenaPopulationClient(dict(plan,masterVersion='a'*32));game.population_master='b'*32
-  with patch.object(ArenaRankingClient,'discover',return_value='synthetic-host'):
-   with self.assertRaisesRegex(LoginError,'master_mismatch'):game.discover()
+  with patch.object(game,'authenticate') as auth:
+   with self.assertRaisesRegex(LoginError,'master_mismatch'):game.export(None,None,'synthetic-host')
+   auth.assert_not_called()
 
  def test_publication_whitelists_aggregates_isolates_scopes_and_keeps_old_on_error(self):
   with tempfile.TemporaryDirectory() as root:
@@ -124,11 +125,11 @@ class PopulationTests(unittest.TestCase):
   auth=[('credential','synthetic-token')];calls=[]
   plan=dict(serverId='global-hmt',seasonId='1',bandIds=['1'],limit=1000,contentReleaseId='test',masterVersion='a'*32,populationThresholds={'1':THRESHOLDS})
   class Client(ArenaPopulationClient):
-   population_master='a'*32
+   population_master=verified_master='b'*32
    def authenticate(self,*args):return auth
    def rpc(self,host,method,payload,credential):
     calls.append(method)
-    if method=='app.masterdata.MasterdataService/Version':return message(1,'a'*32)
+    if method=='app.masterdata.MasterdataService/Version':return message(1,self.population_master)
     first,last=single(payload,3,wire=0),single(payload,4,wire=0)
     if not 1<=last-first+1<=100:raise AssertionError('unbounded window')
     raw=b''.join(message(1,integer(3,r)+integer(4,4)+message(1,'not-decoded')) for r in range(first,min(last,10)+1))
@@ -136,7 +137,17 @@ class PopulationTests(unittest.TestCase):
   with patch('tools.arena_population.time.sleep'),patch('tools.arena_population.probe_population',side_effect=lambda reader,thresholds:probe_population(reader,thresholds,spacing=0)):
    result=Client(plan).export(None,None,'synthetic-host')
   self.assertTrue(all(c in (RPC,'app.masterdata.MasterdataService/Version') for c in calls));self.assertNotIn('not-decoded',json.dumps(result));self.assertEqual(auth,[])
-  with tempfile.TemporaryDirectory() as root:publish_populations(result,root,'global-hmt')
+  with tempfile.TemporaryDirectory() as root:
+   publish_populations(result,root,'global-hmt')
+   saved=json.loads(population_path(root,'global-hmt','1','1').read_text())
+   self.assertEqual(saved['masterVersion'],'a'*32)
+   self.assertEqual(saved['observedMasterVersion'],'b'*32)
+  class Updated(Client):
+   def rpc(self,host,method,payload,credential):
+    if method=='app.masterdata.MasterdataService/Version':return message(1,'c'*32)
+    return super().rpc(host,method,payload,credential)
+  with patch('tools.arena_population.time.sleep'),self.assertRaisesRegex(LoginError,'master_mismatch'):
+   Updated(plan).export(None,None,'synthetic-host')
   class Failed(Client):
    def rpc(self,*args):raise LoginError('game_rpc_unavailable')
   auth.append(('credential','synthetic-token'))

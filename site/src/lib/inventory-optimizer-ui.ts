@@ -61,10 +61,15 @@ export function setupInventoryOptimizer(workbench: OptimizerWorkbench,{createSco
     if(scenarios?.kind==='trial'){
       try {const s=scenarios.read().planningScenario;inventory={...inventory,memberCardIds:[...new Set([...inventory.memberCardIds,...(s.selectedCardIds?.memberCardIds??[]),...s.trialCardIds!.memberCardIds])],supportCardIds:[...new Set([...inventory.supportCardIds,...(s.selectedCardIds?.supportCardIds??[]),...s.trialCardIds!.supportCardIds])]};}catch{}
     }
-    calculationScope?.refresh();const first=task.value==='playlist'?calculationScope?.snapshot?.candidates[0]:null;
+    calculationScope?.refresh();const first=task.value!=='single'?calculationScope?.snapshot?.candidates[0]:null;
     const state=optimizerReadiness({draft:first?{...workbench.draft,selectedSongId:first.trackId,selectedDifficulty:first.difficulty}:workbench.draft,scope:q('[data-search-scope]').value,inventory,objective:q('[data-pairing-objective]').value,
       locale:workbench.data.locale,characterFor:(id: string)=>calculator.card(id,'member')._characterID});
     try {scenarios?.read();if([...workbench.querySelectorAll<HTMLInputElement>('[data-manual-card]')].some(input=>!input.checkValidity()))throw new Error('请检查当前槽位的等级与技能数值，再确认实际养成。');} catch(error){state.ready=false;state.message=(error as Error).message;}
+    if(task.value==='shortlist'){
+      if(q('[data-pairing-mode]').value!=='gekisou'||q('[data-pairing-objective]').value!=='expected_song_score'){
+        state.ready=false;state.message='卡池选歌目前用于激奏平均分比较。';
+      }else if(state.ready&&scenarios?.read().planningScenario?.plan?.enabled){state.ready=false;state.message='卡池选歌按当前养成筛选，请先关闭培养计划；培养比较可使用歌单逐曲。';}
+    }
     const noSongPower=task.value==='single'&&q('[data-pairing-objective]').value==='formation_power'&&!workbench.draft.selectedSongId;
     if(!noSongPower&&calculationScope&&(!calculationScope.snapshot?.chartCount)){state.ready=false;state.message='计算范围为空或歌单不可用，请调整范围。';}
     let space=null;
@@ -119,7 +124,7 @@ export function setupInventoryOptimizer(workbench: OptimizerWorkbench,{createSco
       if(scope==='owned')draft.modifiers.growth={...draft.modifiers.growth,...inventory.growth};
       q('[data-optimize-pairing]').disabled=true;q('[data-cancel-pairing]').disabled=false;progress.textContent=ui('准备计算…');q('[data-search-state]').textContent=ui('正在寻找更好的编成');q('[data-search-state]').dataset.running='true';publish({running:true,finished:false});
       const noSongPower=task.value==='single'&&objective==='formation_power'&&!draft.selectedSongId;
-      const resolved=noSongPower?null:task.value==='single'?selectedChartScope(calculationScope.require({}),draft):calculationScope.require({});
+      const resolved=noSongPower?null:task.value==='single'?selectedChartScope(calculationScope.require(),draft):calculationScope.require();
       let chart: ChartData | undefined;
       if(task.value==='single'&&objective!=='formation_power') {
         const summary=workbench.data.charts?.find(c=>c.trackId===draft.selectedSongId&&c.difficulty===draft.selectedDifficulty);
@@ -135,7 +140,7 @@ export function setupInventoryOptimizer(workbench: OptimizerWorkbench,{createSco
         if(data.type==='playlist-partial'){lastResult=data.result;renderBatch(data.result,{mode,objective});return;}
         if(data.type==='result'&&data.result.kind==='playlist-team-batch'){stop();lastResult=data.result;renderBatch(data.result,{mode,objective});q('[data-export-pairing]').disabled=false;guide();return;}
         if(data.type==='error'){fail(data.error);return;}
-        if(data.type==='progress'&&task.value==='playlist'){const p=data.progress;feedback.update({label:`逐曲推荐：${p.chartTitle??''}`,completed:p.chartDone,total:p.chartTotal,detail:p.message??p.stage??'比较本曲的队伍'});return;}
+        if(data.type==='progress'&&task.value!=='single'){const p=data.progress;feedback.update({label:`${ui(p.phase==='song-screen'?'卡池筛歌':p.phase==='song-recheck'?'复核候选歌曲':'逐曲推荐')}：${p.chartTitle??''}`,completed:p.chartDone,total:p.chartTotal,detail:ui(p.message??p.stage??'比较本曲的队伍')});return;}
         if(data.type==='progress') {
           const p=data.progress;
           if(!['practical-result','planning-result'].includes(p.phase))feedback.update({label:ui(p.stage??p.message??(({planning:'比较养成范围',placements:'比较候选站位',pair_weights:'准备卡片配对',search:'搜索更好的编成'} as Partial<Record<typeof p.phase,string>>)[p.phase]??'准备队长加成')),completed:p.completed,total:p.total,detail:ui(p.phase==='search'?'搜索分支会变化，尚不能估计总量':'当前阶段进度，完成后继续下一阶段')});
@@ -188,12 +193,18 @@ export function setupInventoryOptimizer(workbench: OptimizerWorkbench,{createSco
         guide();
 
       });
-      sendOptimizerCommand(worker,{type:'optimize',requestId:current,payload:{...settings,calculationScope:resolved,...(task.value==='playlist'?{playlistCandidates:resolved!.candidates}:{}),variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
+      sendOptimizerCommand(worker,{type:'optimize',requestId:current,payload:{...settings,calculationScope:resolved,...(task.value!=='single'?{playlistCandidates:resolved!.candidates,songShortlist:task.value==='shortlist'}:{}),variantLimit:Number(q('[data-planning-variant-limit]')?.value??24),maxWindowCards:Number(q('[data-planning-window-limit]')?.value??5),searchMethod:activeMethod,topN:3,concurrency:recommendedWorkerCount(navigator.hardwareConcurrency),rules,draft,scope,inventory,constraints,objective,mode,gekisouScenario,chart,maxEvaluations}});
     }catch(error){if(current!==request)return;fail(error);}
   }
   function renderBatch(batch: PlaylistReport,{mode,objective}: {mode: CalculationMode; objective: CalculationObjective}){
     const root=q('[data-pairing-results]');clearOptimizerResults(workbench);root.classList.add('playlist-batch-results');
     const intro=document.createElement('p');intro.textContent=`${scopeSummary(batch.calculationScope)}。已处理 ${batch.done} / ${batch.total} 张谱面；每曲分别推荐队伍，不能作为一支队伍覆盖整个歌单。`;root.append(intro);
+    if(batch.screening){
+      const s=batch.screening;
+      intro.textContent=scopeSummary(batch.calculationScope)+'。'+ui(`已初筛 ${s.done} / ${s.total} 张谱面，选出 ${s.selected.length} 张候选；精算完成 ${batch.done} / ${batch.total} 张。`)+ui('候选综合两轮抽样选择，未精算的谱面不代表低分，不能保证包含全曲最高分。');
+      for(const f of s.failures){const note=document.createElement('p');note.textContent=`${f.candidate.title} ${f.candidate.difficulty}：初筛失败，${f.message}`;root.append(note);}
+      if(!s.coverageComplete&&!s.failures.length){const note=document.createElement('p');note.textContent=ui('初筛尚未完成或有技能无法计算，候选覆盖不完整。');root.append(note);}
+    }
     for(const {candidate,result} of batch.rows){const article=document.createElement('article'),heading=document.createElement('h3'),body=document.createElement('div'),boundary=document.createElement('p');heading.textContent=`${candidate.title} · ${candidate.difficulty.toUpperCase()}`;boundary.textContent=`${planningSearchStatus(result)}；仅覆盖本曲已检查候选，原有养成、发挥与证明边界不变。`;article.append(heading,boundary,body);renderOptimizerResults(workbench,result.results,{mode,objective,target:body});root.append(article);}
     for(const f of batch.failures){const p=document.createElement('p');p.textContent=`${f.title} ${f.difficulty}：${f.message}；结果不完整`;root.append(p);}
     q('[data-results-empty]').hidden=Boolean(batch.rows.length);q('[data-search-state]').textContent=batch.status==='cancelled'?'已停止':batch.status==='completed'?'逐曲推荐结束':'逐曲推荐中';

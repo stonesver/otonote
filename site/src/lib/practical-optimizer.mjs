@@ -7,14 +7,19 @@ import { compilePairingModels, draftFromPairing, compareScoredFormations } from 
 import { createEventPipeline } from './scoring-rules/event-rules.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
 import { compileGekisouEffects } from '../../../packages/scoring/scoring-rules/gekisou-skill-runtime.mjs';
+import { normalizePerformanceScenario } from '../../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { skillMechanismIssue } from '../../../packages/scoring/scoring-rules/skill-mechanism-error.mjs';
+import { createCalculationScheduler } from './calculation-scheduler.mjs';
 
 const signature = draft => draft.slots.map(s => `${s.memberCardId}|${s.supportCardId}`).join(';');
-const pause = () => new Promise(resolve => setTimeout(resolve, 0));
-export const PRACTICAL_PLAN = Object.freeze({ version: 1, localRounds: 1, screenOrders: 10, finalists: 6, finalOrders: 120 });
+export const practicalScoringScenario = (scenario = {}, precision = 'full') => ({ ...scenario,
+  batches: precision === 'full' ? Math.max(2, scenario.batches ?? 1) : 1 });
+export const PRACTICAL_PLAN = Object.freeze({ version: 3, localRounds: 1, screenOrders: 10, finalists: 6, finalOrders: 120,
+  gekisouFinalists: 4, refinementSeeds: 2, refinementCandidates: 24 });
 export const PRACTICAL_SEARCH_WARNINGS = Object.freeze([
   '实用推荐采用多方向起点和一轮局部粗筛，不穷举卡库，不保证全局或局部最优。',
   '粗筛中的技能特征不是分数；只有最终复算的队伍会作为推荐结果。',
+  '激奏对领先的不同卡组追加一轮限量换卡模拟，按本次目标分数比较，不以 JUST 次数代替最终得分。',
   '快速模拟使用 10 种均衡技能顺序；最终使用全部 120 种。仅检查有限站位，不枚举全部 24 种站位。'
 ]);
 
@@ -55,22 +60,77 @@ export function* practicalNeighbours(draft, inventory) {
   for (const slot of [0, 1, 3, 4]) yield change('leader', slots => { [slots[2], slots[slot]] = [slots[slot], slots[2]]; });
 }
 
+// Card collections compete for simulation slots separately from placement.
+// This does not assert that different pairings or leaders have equal scores.
+const composition = draft => ['memberCardId', 'supportCardId'].map(key =>
+  draft.slots.map(slot => slot[key]).sort().join(',')).join(';');
+function distinctCompositions(candidates) {
+  const seen = new Set();
+  return candidates.filter(candidate => {
+    const key = composition(candidate.draft);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+
+// Rank replacements using the existing seed profiles, then round-robin over
+// profiles, edit kinds and seeds before taking a second choice from any bucket.
+function refinementNeighbours(seeds, input, legal, excluded, limit, weights) {
+  const powers = new Map(weights.powers.map(([leader, edges]) => [leader, new Map(edges)]));
+  const profiles = weights.profiles.map(profile => ({ ...profile, features: new Map(profile.features) }));
+  const proxy = (draft, profile) => draft.slots.reduce((sum, slot) => {
+    const key = `${slot.memberCardId}|${slot.supportCardId}`;
+    return sum + profile.powerWeight * (powers.get(draft.slots[2].memberCardId).get(key) ?? -1e12) + profile.features.get(key);
+  }, 0);
+  const pools = seeds.map(seed => [...practicalNeighbours(seed.draft, input.inventory)]
+    .filter(c => !excluded.has(signature(c.draft)) && powers.has(c.draft.slots[2].memberCardId) && legal(c.draft)));
+  const buckets = [];
+  for (const profile of profiles) for (const kind of ['member', 'support', 'pairing', 'leader']) for (const neighbours of pools) {
+    const bucket = neighbours.filter(c => c.kind === kind).map(c => ({ ...c, rank: proxy(c.draft, profile), origins: new Set(['score-refinement']) }))
+      .sort((a,b) => b.rank-a.rank || signature(a.draft).localeCompare(signature(b.draft)));
+    if (bucket.length) buckets.push(bucket);
+  }
+  const selected = [];
+  for (let index = 0; selected.length < limit; index++) {
+    let found = false;
+    for (const bucket of buckets) {
+      const candidate = bucket[index];
+      if (!candidate) continue;
+      found = true;
+      const key = signature(candidate.draft);
+      if (excluded.has(key)) continue;
+      excluded.add(key); selected.push(candidate);
+      if (selected.length === limit) break;
+    }
+    if (!found) break;
+  }
+  return selected;
+}
+
 /** @param {import("./calculation/optimizer-types.ts").OptimizerOptions} options
  * @returns {Promise<import("./calculation/optimizer-types.ts").OptimizerReport>} */
 export async function optimizePractical({ rules, draft, scope = 'selected', inventory, constraints = {}, theoreticalGrowth, chart,
-  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value || (b.apTimingPlan?.apMarginMs??0)-(a.apTimingPlan?.apMarginMs??0) || (a.apTimingPlan?.adjustments.length??0)-(b.apTimingPlan?.adjustments.length??0), finalistLimit = PRACTICAL_PLAN.finalists, retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, modelCache, scoreCache, signal, onProgress = () => {}, yieldControl = pause }) {
+  mode = 'ordinary', objective = 'expected_song_score', gekisouScenario = {}, performanceScenario, maxWindowCards = 1, resultLimit = 3, eventAdapters = [], extraProfiles = [], transformScore = value => value, compareCandidates = (a,b) => b.value-a.value || (b.apTimingPlan?.apMarginMs??0)-(a.apTimingPlan?.apMarginMs??0) || (a.apTimingPlan?.adjustments.length??0)-(b.apTimingPlan?.adjustments.length??0),
+  finalistLimit = mode === 'gekisou' && objective !== 'formation_power' ? PRACTICAL_PLAN.gekisouFinalists : PRACTICAL_PLAN.finalists,
+  retainedOrigins = [], candidateCache, candidateCacheKey, pairCache, pairCacheKey, modelCache, scoreCache, fullEvaluator, signal, onProgress = () => {}, yieldControl = createCalculationScheduler() }) {
   if(!Number.isInteger(finalistLimit)||finalistLimit<2||finalistLimit>24)throw Error('Invalid finalist limit');
   if(!Number.isInteger(maxWindowCards)||maxWindowCards<0||maxWindowCards>5)throw Error('扩窗卡上限应为 0–5');
   if(!Number.isInteger(resultLimit)||resultLimit<1||resultLimit>24)throw Error('Invalid result limit');
   if(objective==='formation_power'&&performanceScenario?.profile==='ap_timing')performanceScenario=undefined;
   const input = resolveSearchInput(rules, draft, { scope, inventory, constraints, theoreticalGrowth });
   if (!['ordinary', 'gekisou'].includes(mode)) throw new Error('演出模式无效');
+  const player = mode === 'gekisou' && objective === 'expected_song_score' && performanceScenario
+    ? normalizePerformanceScenario(performanceScenario) : null;
+  const verificationScenario = player && player.profile !== 'explicit' && (player.timingSpreadMs > 0 || player.missRate > 0)
+    ? { ...player, seed: (player.seed + 1) >>> 0 } : null;
+  const refinementLimit = Math.max(0, PRACTICAL_PLAN.refinementCandidates - (verificationScenario ? finalistLimit : 0));
   const stages = [{ id: 'prepare', label: '准备卡片与技能', completed: 0, total: null },
     { id: 'seeds', label: '生成不同配队起点', completed: 0, total: null },
     { id: 'neighbours', label: '检查一轮换卡与配对', completed: 0, total: null },
     { id: 'screen', label: '快速模拟候选', completed: 0, total: null },
     { id: 'final', label: '完整复算领先队伍', completed: 0, total: null }];
-  const report = { plan: {...PRACTICAL_PLAN, finalists: finalistLimit}, stages, directions: [], neighbourChecks: 0, neighbourGenerated: 0, screened: 0, finalists: 0, scoreCacheHits: 0, scoreCalculations: 0, fullScoreCalculations: 0, screenScoreCalculations: 0, unsupportedPairs: [], unsupportedCandidates: [], unsupportedLeaders: [] };
+  if (verificationScenario) stages.push({ id: 'verify', label: '复核发挥样本', completed: 0, total: null });
+  const report = { plan: {...PRACTICAL_PLAN, finalists: finalistLimit, refinementCandidates: refinementLimit}, stages, directions: [], neighbourChecks: 0, neighbourGenerated: 0, screened: 0, refined: 0, verified: 0, finalists: 0, scoreCacheHits: 0, scoreCalculations: 0, fullScoreCalculations: 0, screenScoreCalculations: 0, unsupportedPairs: [], unsupportedCandidates: [], unsupportedLeaders: [] };
   const results = [], warnings = [...input.assumptions, ...PRACTICAL_SEARCH_WARNINGS];
   if(performanceScenario?.profile==='ap_timing')warnings[warnings.length-1]='结果限于已比较的候选队伍，未证明全局最优。';
   let baselineResult = null;
@@ -105,19 +165,24 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
   // Caller owns a cache bound to the exact rules, chart and personal inputs.
   // Cache only raw simulation values: reward transforms always run afresh.
   const evaluators = new Map();
+  if (fullEvaluator) evaluators.set('full', fullEvaluator);
   const rawScore = (draft, precision) => {
     const key=precision+':'+signature(draft);
     if(scoreCache?.has(key)){report.scoreCacheHits++;return scoreCache.get(key);}
-    if(!evaluators.has(precision))evaluators.set(precision,createCandidateEvaluator({rules,chart,mode,objective,eventAdapters,performanceScenario,scorePrecision:precision,
-      gekisouScenario:{...gekisouScenario,batches:precision==='screen'?1:Math.max(2,gekisouScenario.batches??1)}}));
+    if(!evaluators.has(precision))evaluators.set(precision,createCandidateEvaluator({rules,chart,mode,objective,eventAdapters,
+      performanceScenario:precision==='verify'?verificationScenario:performanceScenario,scorePrecision:precision==='verify'?'screen':precision,
+      gekisouScenario:practicalScoringScenario(gekisouScenario,precision)}));
+    const evaluator=evaluators.get(precision), hits=evaluator.work.cacheHits;
     let value;
-    try { value=evaluators.get(precision).score(draft); }
+    try { value=evaluator.score(draft); }
     catch (error) {
       const issue = skillMechanismIssue(error);
       report.unsupportedCandidates.push({ ...issue, slots: draft.slots });
       return null;
     }
-    report.scoreCalculations++;report[precision==='full'?'fullScoreCalculations':'screenScoreCalculations']++;scoreCache?.set(key,value);return value;
+    if(evaluator.work.cacheHits>hits)report.scoreCacheHits++;
+    else {report.scoreCalculations++;report[precision==='full'?'fullScoreCalculations':'screenScoreCalculations']++;}
+    scoreCache?.set(key,value);return value;
   };
   const screened = [];
   for (const candidate of screenDrafts.values()) {
@@ -127,8 +192,28 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     update(3, report.screened, screenDrafts.size); await yieldControl();
   }
   screened.sort(compareCandidates);
-  // Reserve representation for each relevant mission and the single-window
-  // alternative, then fill by screening score. Final order is ALWAYS rescored.
+  const initialBest = screened[0];
+  const refine = mode === 'gekisou' && objective !== 'formation_power';
+  if (refine && initialBest) {
+    stages[3].label = '模拟换卡与配对';
+    const pairs = new Set(prepared.validPairs), windows = new Set(prepared.windows);
+    const characters = new Map(rules.tables.MemberCard.map(card => [`member-card-${card._id}`, card._characterID]));
+    const legal = d => legalPracticalDraft(d, input, id => characters.get(id), id => windows.has(id), maxWindowCards)
+      && d.slots.every(s => pairs.has(`${s.memberCardId}|${s.supportCardId}`));
+    const neighbours = refinementNeighbours(distinctCompositions(screened).slice(0, PRACTICAL_PLAN.refinementSeeds), input, legal,
+      new Set([...screenDrafts.values()].map(c => signature(c.draft))), refinementLimit, prepared.refinementWeights);
+    const total = report.screened + neighbours.length;
+    for (const candidate of neighbours) {
+      if (signal?.aborted) return result('cancelled');
+      const value = rawScore(candidate.draft, 'screen');
+      if (value) screened.push({ ...candidate, ...transformScore(value, candidate.draft) });
+      report.screened++; report.refined++;
+      update(3, report.screened, total); await yieldControl();
+    }
+    screened.sort(compareCandidates);
+  }
+  // Refined Gekisou searches reserve score leaders and different card sets.
+  // Other searches retain their mission profiles. All finals are rescored.
   const finalists = [], seen = new Set();
   const choose = c => { if (c && !seen.has(signature(c.draft)) && finalists.length < finalistLimit) { seen.add(signature(c.draft)); finalists.push(c); } };
   choose(screened[0]);
@@ -137,11 +222,13 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     choose(screened.find(c=>c.origins.has('cumulative')));
     choose([...screened].sort((a,b)=>(b.apTimingScreen.score-b.apTimingScreen.onTimeScore)-(a.apTimingScreen.score-a.apTimingScreen.onTimeScore))[0]);
   }
-  if(performanceScenario)choose([...screened].sort((a,b)=>(b.scoreDistribution?.p10??b.minimumScore??b.value)-(a.scoreDistribution?.p10??a.minimumScore??a.value))[0]);
+  if(!refine && performanceScenario)choose([...screened].sort((a,b)=>(b.scoreDistribution?.p10??b.minimumScore??b.value)-(a.scoreDistribution?.p10??a.minimumScore??a.value))[0]);
   // Always retain the current legal team so screening cannot recommend a
   // strictly worse replacement under the final scoring model.
   choose(screened.find(c => c.origins.has('current')));
-  for (const id of [...retainedOrigins, ...missions.map(t => `mission-${t}`), ...(missions.includes(3) ? ['window'] : [])]) choose(screened.find(c => c.origins.has(id)));
+  if (refine) choose(initialBest);
+  for (const id of refine ? retainedOrigins : [...retainedOrigins, ...missions.map(t => `mission-${t}`), ...(missions.includes(3) ? ['window'] : [])]) choose(screened.find(c => c.origins.has(id)));
+  if (refine) for (const c of distinctCompositions(screened)) choose(c);
   for (const c of screened) choose(c);
   if (screened.some(c=>c.origins.has('current'))) {
     const value = rawScore(input.draft,'full');
@@ -160,10 +247,38 @@ export async function optimizePractical({ rules, draft, scope = 'selected', inve
     onProgress({ phase: 'practical-result', bestCandidate: [...results].sort(compareCandidates)[0] }); await yieldControl();
   }
   if (signal?.aborted) return result('cancelled');
+  if (verificationScenario && results.length) {
+    const checked = [];
+    for (const candidate of results) {
+      if (signal?.aborted) return result('cancelled');
+      const raw = rawScore(candidate.draft, 'verify');
+      if (raw) checked.push({ ...transformScore(raw, candidate.draft), id: candidate.id });
+      report.verified++; update(5, report.verified, results.length); await yieldControl();
+    }
+    if (signal?.aborted) return result('cancelled');
+    const winner = [...results].sort(compareCandidates)[0];
+    const alternative = checked.sort(compareCandidates)[0];
+    winner.performanceCheck = { status: checked.length !== results.length ? 'incomplete'
+      : alternative.id === winner.id ? 'unchanged' : 'reversed',
+      seed: verificationScenario.seed, samples: verificationScenario.samples,
+      orderCount: PRACTICAL_PLAN.screenOrders, candidateCount: checked.length };
+  }
   return result('completed');
 }
 
-async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,modelCache,signal,yieldControl,update,report,objective,performanceScenario}) {
+/** Cheap song screening uses the same legal, skill-aware seed generation as
+ * full team search; it does not run neighbours or certify a song optimum. */
+export async function preparePracticalSongSeeds({rules,draft,inventory,constraints={},mode='gekisou',maxWindowCards=5,
+  performanceScenario,pairCache,pairCacheKey,signal,yieldControl=createCalculationScheduler()}) {
+  const input=resolveSearchInput(rules,draft,{scope:'owned',inventory,constraints});
+  const report={directions:[],neighbourChecks:0,neighbourGenerated:0,unsupportedPairs:[],unsupportedLeaders:[]};
+  const prepared=await prepareCandidates({rules,input,mode,maxWindowCards,performanceScenario,
+    eventAdapters:[],extraProfiles:[],objective:'expected_song_score',pairCache,pairCacheKey,
+    signal,yieldControl,update:()=>{},report,seedOnly:true});
+  return prepared&&{draft:input.draft,rows:prepared.rows,complete:!report.unsupportedPairs.length&&!report.unsupportedLeaders.length};
+}
+
+async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,extraProfiles,pairCache,pairCacheKey,modelCache,signal,yieldControl,update,report,objective,performanceScenario,seedOnly=false}) {
   const calculator = createFormationCalculator(rules, { eventAdapters }), members = new Map(rules.tables.MemberCard.map(r => [`member-card-${r._id}`, r]));
   const supports = new Map(rules.tables.SupportCard.map(r => [`support-card-${r._id}`, r]));
   const characterFor = id => members.get(id)._characterID;
@@ -226,13 +341,13 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
     if (signal?.aborted) return null;
     for (const s of input.inventory.supportCardIds) {
       const pair = { slots: [{ memberCardId: m, supportCardId: s }], modifiers: input.draft.modifiers };
-      let skill;
+      let skill, gekisou = [];
       try {
         // Power-only work does not depend on any skill execution capability.
         if (objective === 'formation_power') skill = { liveEffects: [], extensionMs: 0 };
         else {
           skill = resolver(pair)[0]; dynamicResolver?.(pair);
-          if (mode === 'gekisou') compileGekisouEffects(rules, pair, Boolean(performanceScenario), missions);
+          if (mode === 'gekisou') gekisou = compileGekisouEffects(rules, pair, Boolean(performanceScenario), missions);
         }
       } catch (error) {
         report.unsupportedPairs.push({ memberCardId: m, supportCardId: s, ...skillMechanismIssue(error) });
@@ -240,7 +355,9 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
       }
       features.set(`${m}|${s}`, { cumulative:skill.liveEffects.filter(e=>e.active&&e.cumulative).reduce((n,e)=>n+e.rate*e.durationMs/1000,0), live: skill.liveEffects.filter(e => e.active).reduce((n, e) => n + e.rate * e.durationMs / 1000, 0),
         extension: skill.extensionMs / 1000, attribute: members.get(m)._cardType === music?._musicType ? 1 : 0,
-        missions: [0, 1, 2, 3].map(t => memberFeatures.get(m).missions[t] + supportFeatures.get(s).missions[t]) });
+        missions: mode === 'gekisou' && objective !== 'formation_power'
+          ? effectFeatures(gekisou.filter(e => e.active).map(e => ({ mission: e.missionType, effect: e.definition }))).missions
+          : [0, 1, 2, 3].map(t => memberFeatures.get(m).missions[t] + supportFeatures.get(s).missions[t]) });
     }
     update(0, memberCount + leaderCount + index + 1, 2 * memberCount + leaderCount);
     await yieldControl();
@@ -319,6 +436,7 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
   }
   if (!seedRows.length && !report.unsupportedPairs.length && !report.unsupportedLeaders.length) throw new Error('当前筛选与必选条件下无法生成实用候选');
   if (legal(input.draft)) add(input.draft, { id: 'current' }, 'current');
+  if (seedOnly) return {rows:[...screenDrafts.values()].map(c=>({slots:c.draft.slots,origins:[...c.origins],kind:c.kind}))};
   const neighboursPerSeed = 5 * (input.inventory.memberCardIds.length - 1 + input.inventory.supportCardIds.length - 1) + 14;
   const totalNeighbours = seedRows.length * neighboursPerSeed;
   for (const seed of seedRows) {
@@ -339,5 +457,14 @@ async function prepareCandidates({rules,input,mode,maxWindowCards,eventAdapters,
     }
   }
   update(2, report.neighbourGenerated, totalNeighbours);
-  return {missions,rows:[...screenDrafts.values()].map(c=>({slots:c.draft.slots,origins:[...c.origins],kind:c.kind}))};
+  const refinementWeights = mode === 'gekisou' && objective !== 'formation_power' ? {
+    powers: models.map(model => [model.leader, model.edges.map(edge => [edge.key, edge.weight])]),
+    profiles: profiles.map(profile => ({ powerWeight: profile.powerWeight ?? 1,
+      features: [...features].map(([key, feature]) => {
+        const [memberCardId,supportCardId] = key.split('|');
+        return [key, scale * (profile.featureWeight ?? 0.4) * profile.feature(feature, {memberCardId,supportCardId})];
+      }) }))
+  } : null;
+  return {missions, refinementWeights, validPairs: [...features.keys()], windows: input.inventory.supportCardIds.filter(isWindow),
+    rows:[...screenDrafts.values()].map(c=>({slots:c.draft.slots,origins:[...c.origins],kind:c.kind}))};
 }

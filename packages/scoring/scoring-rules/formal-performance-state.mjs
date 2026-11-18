@@ -32,7 +32,9 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
   };
   const initial = { life: maximumLife, guard: 0, reduction: 0 };
   let cacheBucket = -1, cache = initial;
+  let lastQueryMs, lastQueryLife;
   function add(command) {
+    lastQueryMs = undefined;
     const bucket = bucketOf(command.timeMs);
     if (!buckets.has(bucket)) {
       buckets.set(bucket, []);
@@ -45,6 +47,9 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
     if (cacheBucket >= bucket) cacheBucket = bucket - 1;
   }
   function at(timeMs) {
+    // Several effects query the same frame. Without a new command, neither
+    // the answer nor the native cached prefix changes on an identical query.
+    if (timeMs === lastQueryMs) return lastQueryLife;
     const target = bucketOf(timeMs), reuse = cacheBucket >= 0 && cacheBucket < target;
     // applyLifeCommand returns a new state; neither commands nor callers can
     // mutate this prefix. Repeated frame queries need no defensive copies.
@@ -60,6 +65,7 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
       if (command.timeMs > timeMs) break;
       state = applyLifeCommand(state, command, maximumLife);
     }
+    lastQueryMs = timeMs; lastQueryLife = state.life;
     return state.life;
   }
   return { add, at };

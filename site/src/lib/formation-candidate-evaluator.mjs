@@ -3,24 +3,33 @@ import {createFormalSongCalculator} from './scoring-rules/formal-song-score.mjs'
 import {createGekisouSongCalculator} from './scoring-rules/gekisou-song-score.mjs';
 import {gekisouPlacements} from './scoring-rules/formation-placements.mjs';
 import {createScenarioSongCalculator} from '../../../packages/scoring/scoring-rules/performance-scenario-calculator.mjs';
+import {stableSnapshotHash} from './scoring-engine.mjs';
 const metrics = {expected_song_score:'expectedScore',minimum_song_score:'minimumScore',maximum_song_score:'maximumScore'};
 
 /** One context per worker. Master indexes and chart reconstruction are reused. */
 export function createCandidateEvaluator({rules,chart,mode='ordinary',objective='formation_power',gekisouScenario,performanceScenario,scorePrecision='full',eventAdapters=[]}, existing={}) {
+  // This cache belongs to this exact calculator context (chart, rules, samples
+  // and precision). Include the whole draft so growth/account changes cannot hit.
+  const work={calculations:0,cacheHits:0}, cache=existing.scoreCache;
   const calculator = existing.calculator ?? createFormationCalculator(rules,{eventAdapters});
   const song = existing.song ?? (metrics[objective] ? performanceScenario
     ? createScenarioSongCalculator(rules,chart,{mode,performanceScenario,scenario:gekisouScenario,scorePrecision,eventAdapters}) : mode==='gekisou'
     ? createGekisouSongCalculator(rules,chart,{scenario:gekisouScenario,scorePrecision,eventAdapters}) : createFormalSongCalculator(rules,chart,{scorePrecision,eventAdapters}) : null);
   function score(candidate) {
+    const key=cache ? stableSnapshotHash(candidate) : null;
+    if(cache?.has(key)){work.cacheHits++;return cache.get(key);}
+    work.calculations++;
     const power=calculator.calculate(candidate), result=song?.calculate(candidate);
-    return {power:power.total.total,value:result ? result.apTimingPlan?.score ?? result.apTimingScreen?.score ?? result[metrics[objective]] : power.total.total,breakdown:power.breakdown,
+    const value={power:power.total.total,value:result ? result.apTimingPlan?.score ?? result.apTimingScreen?.score ?? result[metrics[objective]] : power.total.total,breakdown:power.breakdown,
       ...(result ? {scorePrecision:result.scorePrecision,orderCount:result.orderCount,expectedScore:result.expectedScore,minimumScore:result.minimumScore,maximumScore:result.maximumScore,
         scoreDistribution:result.scoreDistribution,inputHash:result.inputHash,performanceScenario:result.performanceScenario??performanceScenario,apTimingPlan:result.apTimingPlan,apTimingScreen:result.apTimingScreen,
         bestOrder:result.bestOrder,worstOrder:result.worstOrder,randomSampling:result.randomSampling,randomSources:result.randomSources,
         performanceSummary:result.performanceSummary,warnings:result.warnings,scenario:result.scenario,
-        ...(mode==='gekisou' ? {sections:result.sections?.map(section=>({...section,taskEventCount:song.timeline?.events?.filter(event=>event.timeMs>=section.startMs&&event.timeMs<=section.endMs).length})),rankingBonus:result.rankingBonus,rankingBonusShare:result.rankingBonusShare,
+        ...(mode==='gekisou' ? {noteScore:result.noteScore,eventFixedScore:result.eventFixedScore,
+          sections:result.sections?.map(section=>({...section,taskEventCount:song.timeline?.events?.filter(event=>event.timeMs>=section.startMs&&event.timeMs<=section.endMs).length})),rankingBonus:result.rankingBonus,rankingBonusShare:result.rankingBonusShare,
           standardError:result.standardError,sampleCount:result.sampleCount,randomSampling:result.randomSampling,
           scenario:result.scenario,verificationStatus:result.verificationStatus} : {skillScoreGain:result.skillScoreGain})} : {})};
+    cache?.set(key,value);return value;
   }
   async function evaluate(candidate,{signal,yieldControl=async()=>{},onProgress}={}) {
     const placements=mode==='gekisou' && song ? gekisouPlacements(candidate) : [candidate];
@@ -34,5 +43,5 @@ export function createCandidateEvaluator({rules,chart,mode='ordinary',objective=
     }
     return signal?.aborted ? null : best;
   }
-  return {score,evaluate};
+  return {score,evaluate,work};
 }

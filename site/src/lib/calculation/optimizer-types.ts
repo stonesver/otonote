@@ -41,7 +41,7 @@ export interface OptimizerRequest {
   gekisouScenario?: GekisouScenario; recommendationGoal?: 'score' | 'stable' | 'missions';
   searchMethod?: 'practical'; topN?: number; concurrency?: number;
   maxEvaluations?: number; variantLimit?: number; maxWindowCards?: number;
-  calculationScope?: CalculationScope | null; playlistCandidates?: ChartCandidate[];
+  calculationScope?: CalculationScope | null; playlistCandidates?: ChartCandidate[]; songShortlist?: boolean;
 }
 export interface ScoreSection {
   index: number; missionType: number; combo: number; luckPoints: number; just: number;
@@ -89,7 +89,8 @@ export interface OptimizerReport {
   results: OptimizerCandidate[]; evaluated: number; warnings: string[];
   mode?: CalculationMode; objective?: CalculationObjective;
   sourceReleaseId?: string; ruleSetVersion?: string; inputHash?: string;
-  practical?: {directions: {id: string; label: string; status?: string}[]; neighbourChecks: number; screened: number; finalists: number};
+  practical?: {directions: {id: string; label: string; status?: string}[]; neighbourChecks: number; screened: number; finalists: number; refined?: number; verified?: number};
+  fullScoring?: {calculations: number; cacheHits: number};
   closeness?: {kind: 'unknown' | 'close' | 'separated'; gap: number; margin?: number} | null;
   upperBound?: number | null; optimalityGap?: number | null; topNComplete?: boolean;
   checkpoint?: {schemaVersion: number; inputHash: string; evaluated: number; frontier: unknown[]; results: unknown[]} | null;
@@ -105,9 +106,15 @@ export interface PlaylistReport {
   failures: {id?: string; trackId: string; difficulty: string; title: string; message: string}[];
   total: number; done: number; results: OptimizerCandidate[]; coverageComplete: boolean;
   optimality: 'per_chart_results_only'; calculationScope?: CalculationScope | null;
+  selectedCoverageComplete?: boolean;
+  screening?: {
+    status: 'completed' | 'cancelled'; total: number; done: number;
+    selected: ChartCandidate[]; failures: {candidate: ChartCandidate; message: string}[];
+    coverageComplete: boolean; globalBestGuaranteed: boolean;
+  };
 }
 interface ProgressFields {
-  phase: 'planning' | 'practical' | 'planning-result' | 'practical-result' | 'fallback' | 'pair_weights' | 'leader_weights' | 'placements' | 'search';
+  phase: 'planning' | 'practical' | 'planning-result' | 'practical-result' | 'fallback' | 'pair_weights' | 'leader_weights' | 'placements' | 'search' | 'song-screen' | 'song-recheck';
   stage?: string; message?: string; completed?: number; total?: number;
   stages?: {id: string; label: string; completed: number; total: number | null}[];
   bestCandidate?: OptimizerCandidate | null;
@@ -119,6 +126,7 @@ export type OptimizerProgress = ProgressFields & (
   {phase: 'practical'; stage: string; completed: number; total: number; stages: NonNullable<ProgressFields['stages']>} |
   {phase: 'planning-result' | 'practical-result'; bestCandidate: OptimizerCandidate} |
   {phase: 'fallback'; message: string} |
+  {phase: 'song-screen' | 'song-recheck'; chartDone: number; chartTotal: number; chartTitle: string; message: string} |
   {phase: 'pair_weights' | 'leader_weights' | 'placements'; completed: number; total: number} |
   {phase: 'search'; completed: number; frontier: number; concurrency: number; best: number | null; upperBound: number}
 );
@@ -135,6 +143,7 @@ export interface OptimizerOptions extends OptimizerRequest {
   eventAdapters?: unknown[]; extraProfiles?: unknown[]; resultLimit?: number; finalistLimit?: number; retainedOrigins?: string[];
   candidateCache?: Map<string, unknown>; candidateCacheKey?: string;
   pairCache?: Map<string, unknown>; pairCacheKey?: string; modelCache?: Map<string, unknown>; scoreCache?: Map<string, unknown>;
+  fullEvaluator?: {score: (draft: TeamDraft) => Omit<OptimizerCandidate,'draft'>; work: {calculations: number; cacheHits: number}};
   transformScore?: (score: Omit<OptimizerCandidate, 'draft'>, draft: TeamDraft) => Omit<OptimizerCandidate, 'draft'>;
   compareCandidates?: (a: OptimizerCandidate, b: OptimizerCandidate) => number;
   batchSize?: number; evaluateBatch?: (drafts: TeamDraft[]) => Promise<(OptimizerCandidate | null)[]>;

@@ -68,7 +68,9 @@ export function selectPlanningDirections(candidates, { goal = 'score', limit = 3
       : objective === 'maximum_song_score' ? '在相同发挥样本中，这队出现过的最高分较高。'
       : objective === 'minimum_song_score' ? '在相同发挥样本中，这队出现过的最低分较高。'
       : '在当前计算条件下，这队的平均分较高。';
-    const tradeoff = winner.apTimingPlan ? hasApTimingInstructions(winner.apTimingPlan) ? '需特定帧对齐的额外分数，见回放详情。' : '技能顺序与分数范围见回放。' : direction.id === 'missions' && !hasOpponents ? '没有填写对手，任务计数优势不等于一定拿第一。'
+    const tradeoff = direction.id === 'score' && winner.performanceCheck?.status === 'reversed'
+      ? '换一组发挥样本快速复核后，领先队伍发生变化；当前分差不代表稳定提升。'
+      : winner.apTimingPlan ? hasApTimingInstructions(winner.apTimingPlan) ? '需特定帧对齐的额外分数，见回放详情。' : '技能顺序与分数范围见回放。' : direction.id === 'missions' && !hasOpponents ? '没有填写对手，任务计数优势不等于一定拿第一。'
       : gap > 0 ? `平均分比本次最高方案少 ${Math.round(gap).toLocaleString()} 分。`
       : direction.id === 'stable' ? '这是参考样本的比较，不是实战保底。' : '换一首歌或改变发挥条件后，结果可能不同。';
     chosen.set(key, { ...winner, direction: { id: direction.id, label: direction.label, reason, tradeoff, alsoSuitable: [] },

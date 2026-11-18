@@ -1,4 +1,6 @@
-import type {OptimizerCommand, OptimizerMessage, OptimizerProgress, OptimizerReport} from './calculation/optimizer-types.ts';
+import {chartKey} from './calculation-scope.mjs';
+import {screenTeamSongs} from './song-shortlist.mjs';
+import type {OptimizerCommand, OptimizerMessage, OptimizerProgress, OptimizerReport, PlaylistReport} from './calculation/optimizer-types.ts';
 import {runPlaylistTeamBatch} from './playlist-team-batch.ts';
 import {optimizePractical} from './practical-optimizer.mjs';
 import {optimizeInventory} from './inventory-optimizer.mjs';
@@ -22,11 +24,29 @@ self.addEventListener('message',async ({data}: MessageEvent<OptimizerCommand>)=>
     lastStage=stage;nextProgress=now+120;post({requestId,type:'progress',progress});
   };
   try {
-    if(payload.playlistCandidates){const result=await runPlaylistTeamBatch({candidates:payload.playlistCandidates,payload,signal:controller.signal,onProgress:send,onPartial:result=>post({requestId,type:'playlist-partial',result})});post({requestId,type:'result',result});return;}
+    if(payload.playlistCandidates){
+      let screening: PlaylistReport['screening'] = undefined,charts: Map<string, import('./calculation/optimizer-types.ts').ChartData> | undefined;
+      if(payload.songShortlist&&payload.playlistCandidates.length>6)({charts,...screening}=await screenTeamSongs({candidates:payload.playlistCandidates,payload,signal:controller.signal,onProgress:send}));
+      const candidates=screening?.selected??payload.playlistCandidates;
+      const annotate=(result: PlaylistReport): PlaylistReport=>{
+        if(!payload.songShortlist)return result;
+        const score=(row: PlaylistReport['rows'][number])=>Math.max(...row.result.results.map(team=>team.value));
+        const rows=[...result.rows].sort((a,b)=>score(b)-score(a));
+        const sorted={...result,rows,results:rows.flatMap(row=>row.result.results)};
+        return screening?{...sorted,screening,selectedCoverageComplete:result.coverageComplete,
+          coverageComplete:result.coverageComplete&&screening.coverageComplete&&candidates.length===screening.total}:sorted;
+      };
+      const result: PlaylistReport=candidates.length?await runPlaylistTeamBatch({candidates,payload,signal:controller.signal,onProgress:send,
+        ...(charts?{loadChart:async candidate=>charts!.get(chartKey(candidate))!}:{}),
+        onPartial:result=>post({requestId,type:'playlist-partial',result:annotate(result)})})
+        :{kind:'playlist-team-batch',status:controller.signal.aborted?'cancelled':'completed',rows:[],failures:[],results:[],done:0,total:0,
+          coverageComplete:false,optimality:'per_chart_results_only',calculationScope:payload.calculationScope};
+      post({requestId,type:'result',result:annotate(result)});return;
+    }
     if(payload.planningScenario || payload.performanceScenario){
       // Exact-request cache, including rules, chart, growth, constraints and
       // sampling settings. Bump the namespace when planning semantics change.
-      const key='planning-result-v1:'+await searchDigest({model:SCORE_MODEL_VERSION,payload});
+      const key='planning-result-v2:'+await searchDigest({model:SCORE_MODEL_VERSION,payload});
       // This namespace only stores completed planning reports from this worker.
       const cached=await resultStore.get(key) as OptimizerReport | null;
       if(active!==controller)return;

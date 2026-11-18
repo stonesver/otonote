@@ -36,6 +36,17 @@ test('a worker crash rejects active and queued work instead of losing search cov
  workers[0].listeners.error();assert.ok((await jobs).every(r=>r.status==='rejected'));assert.ok(workers.every(w=>w.terminated));
  await assert.rejects(pool.run({i:4}));
 });
+test('isolated jobs release completed workers before starting queued work and still cap concurrency',async()=>{
+ const workers=[],pool=createCalculationWorkerPool({size:2,reuseWorkers:false,createWorker:()=>{const w=new WorkerStub();workers.push(w);return w;}});
+ const jobs=[0,1,2].map(i=>pool.run({i}));
+ assert.equal(workers.length,2);
+ workers[1].reply('b');
+ assert.equal(workers[1].terminated,true);assert.equal(workers.length,3);
+ assert.equal(workers.filter(w=>!w.terminated).length,2);
+ workers[1].reply('late');workers[2].reply('c');workers[0].reply('a');
+ assert.deepEqual(await Promise.all(jobs),['a','b','c']);
+ assert.ok(workers.every(w=>w.terminated));pool.close();
+});
 test('cancellation rejects queued work and ignores late progress/results',async()=>{
  const worker=new WorkerStub(),pool=createCalculationWorkerPool({size:1,createWorker:()=>worker});let progress=0;
  const pending=Promise.allSettled([pool.run({},()=>progress++),pool.run({})]);pool.close();

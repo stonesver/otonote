@@ -1,12 +1,18 @@
+import {planningUiText} from './team-planning-translations.mjs';
 import {createCalculationScopeControl} from './calculation-scope-ui.mjs';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
 
 export function setupTeamScopeControls(workbench,{onChange}) {
-  const q=s=>workbench.querySelector(s),task=el('select');task.setAttribute('aria-label','配队任务');
-  for(const [value,text] of [['single','当前谱面'],['playlist','歌单逐曲']]){const o=el('option',text);o.value=value;task.append(o);}
-  const label=el('label','配队任务');label.dataset.playlistTask='';const note=el('small','歌单内每张谱面分别推荐队伍。');note.className='team-playlist-note';label.append(task,note);q('[data-optimize-pairing]').parentElement.before(label);
-  const scope=createCalculationScopeControl({host:workbench,mount:label.parentElement,data:workbench.data,toolKey:'team',getEnabled:()=>task.value==='playlist',getFixedTitle:()=>'当前谱面',getMode:()=>q('[data-pairing-mode]').value,onChange:()=>{onChange();workbench.songPicker?.refresh();}});
-  workbench.calculationScope=scope;task.addEventListener('change',onChange);
+  const ui=text=>planningUiText(text,workbench.data.locale);
+  const q=s=>workbench.querySelector(s),task=el('select');task.setAttribute('aria-label',ui('配队任务'));
+  for(const [value,text] of [['single','当前谱面'],['shortlist','按卡池选歌'],['playlist','歌单逐曲']]){const o=el('option',ui(text));o.value=value;task.append(o);}
+  const label=el('label',ui('配队任务'));label.dataset.playlistTask='';const note=el('small',ui('按卡池选歌先筛出最多 6 张高分候选谱面再配队；歌单逐曲会计算全部谱面。'));note.className='team-playlist-note';label.append(task,note);q('[data-optimize-pairing]').parentElement.before(label);
+  const difficultyLabel=el('label',ui('筛歌难度')),difficulty=el('select');difficulty.setAttribute('aria-label',ui('筛歌难度'));
+  for(const value of [...new Set(workbench.data.charts.map(c=>c.difficulty)),'all']){const option=el('option',value==='all'?ui('全部难度'):value.toUpperCase());option.value=value;difficulty.append(option);}
+  difficulty.value=workbench.draft.selectedDifficulty??'expert';difficultyLabel.append(difficulty);difficultyLabel.hidden=true;label.after(difficultyLabel);
+  difficulty.addEventListener('change',onChange);
+  const scope=createCalculationScopeControl({host:workbench,mount:label.parentElement,data:workbench.data,toolKey:'team',getFilters:()=>task.value==='shortlist'?{difficulty:difficulty.value}:{},getEnabled:()=>task.value!=='single',getFixedTitle:()=>'当前谱面',getMode:()=>q('[data-pairing-mode]').value,onChange:()=>{onChange();workbench.songPicker?.refresh();}});
+  workbench.calculationScope=scope;task.addEventListener('change',()=>{difficultyLabel.hidden=task.value!=='shortlist';onChange();});
   const carry=event=>{const link=event.target.closest?.('a[href]');if(link?.href.includes('/tools/'))scope.carry(link);};workbench.addEventListener('click',carry);
   return {task,scope,destroy(){workbench.removeEventListener('click',carry);scope.destroy();delete workbench.calculationScope;}};
 }

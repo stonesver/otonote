@@ -19,6 +19,15 @@ test('personal goal changes presentation order and does not change scores', () =
   const result = selectPlanningDirections([row('score', 100, 60, 10), row('steady', 90, 85, 20)], { goal: 'stable' });
   assert.equal(result[0].direction.id, 'stable'); assert.equal(result[0].value, 90);
 });
+test('an independent-sample reversal is shown without replacing the full-score ranking',()=>{
+  const best=row('best',100,70,20),other=row('other',99,80,10);
+  best.performanceCheck={status:'reversed',orderCount:10,samples:3};
+  const results=selectPlanningDirections([best,other]);
+  assert.equal(results[0].value,100);
+  assert.match(results[0].direction.tradeoff,/快速复核.*领先队伍发生变化/);
+  best.performanceCheck.status='unchanged';
+  assert.doesNotMatch(selectPlanningDirections([best,other])[0].direction.tradeoff,/稳定提升|稳定领先/);
+});
 test('ranking comparison requires opponent assumptions on every team', () => {
   const a = row('a', 100, 60, 10), b = row('b', 90, 85, 20);
   a.scenario = b.scenario = { opponents: [{ id: 'rival' }] };

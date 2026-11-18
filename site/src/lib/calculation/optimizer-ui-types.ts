@@ -10,7 +10,7 @@ export interface PlanningControls {
 }
 export interface TeamScopeControls {
   task: {value: string};
-  scope: {snapshot?: CalculationScope | null; refresh(): void; require(options: object): CalculationScope};
+  scope: {snapshot?: CalculationScope | null; refresh(): void; require(options?: object): CalculationScope};
   destroy(): void;
 }
 export interface OptimizerWorkbench extends HTMLElement {

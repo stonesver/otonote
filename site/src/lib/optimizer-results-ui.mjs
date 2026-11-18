@@ -5,7 +5,7 @@ import {cardGrowthLabel} from './card-growth-labels.mjs';
 import {requestTeamSave,openTeamWorkspace} from './shared-team-context.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 import {createRecommendationTeamView} from './recommendation-team-view.mjs';
-import {scoreComposition} from './score-visuals.mjs';
+import {scoreComposition,recommendationScoreSummary} from './score-visuals.mjs';
 import {scoringScenarioSearch} from './scoring-rules/scenario-search.mjs';
 import {toolRoute} from './tool-route.mjs';
 const ui=text=>planningUiText(text,typeof document==='undefined'?'zh-CN':document.documentElement.lang);
@@ -32,6 +32,8 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
       trainingDescriptions:(planning?.trainingChanges??[]).map(change=>trainingDescription(change,workbench)),
       createTeamView:()=>createRecommendationTeamView(workbench,result.draft,{hideGrowthNote:true,mode,scenario:result.scenario,conditionsOnly:objective==='formation_power',summary:result})});
 
+    if(mode==='gekisou'&&objective!=='formation_power'){const summary=recommendationScoreSummary(result);if(summary)row.append(summary);}
+
     const actions=el('div',null,'recommendation-actions'),apply=el('button','编辑队伍');apply.type='button';
     apply.addEventListener('click',()=>{workbench.draft=structuredClone(result.draft);workbench.planningScenarios?.restore();workbench.commit();openTeamWorkspace('editor');});actions.append(apply);
     const save=el('button','保存队伍','team-save-result');save.type='button';
@@ -45,9 +47,7 @@ export function renderOptimizerResults(workbench,results,{mode,objective,live=fa
     // Expensive skill and chart views are created only when requested.
     detail.addEventListener('toggle',()=>{
       if(!detail.open||detail.dataset.loaded)return;detail.dataset.loaded='true';
-      if(direction?.tradeoff)detail.append(el('p',direction.tradeoff));
       detail.append(el('p',`目标值 ${number(result.value)}`));
-      if(direction?.reason)detail.append(el('p',direction.reason));
       if(result.performanceSummary)detail.append(el('p',typeof result.performanceSummary==='string'?result.performanceSummary:result.performanceSummary.label??''));
       if(result.sections?.length)detail.append(scoreComposition(result.sections,result.expectedScore));
       if(objective!=='formation_power')detail.append(el('p',`综合力 ${number(result.power)} · 本次比较范围 ${number(result.minimumScore)} – ${number(result.maximumScore)} 分`,'recommendation-caption'));

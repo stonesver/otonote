@@ -29,6 +29,8 @@ test('dynamic training assumptions and limits translate without translating card
   assert.equal(translateTeamPlanningText('培养计划 · 最多练 2 张 · 保持突破、觉醒'),'Upgrade plan · at most 2 cards · keep breakthroughs and awakening');
   assert.equal(translateTeamPlanningText('这套队伍需要练好 2 张卡'),'This team needs 2 card upgrades');
   assert.equal(translateTeamPlanningText('春日影'),'春日影');
+  assert.doesNotMatch(planningUiText('复核发挥样本','en'),/[\u4e00-\u9fff]/);
+  assert.doesNotMatch(planningUiText('换一组发挥样本快速复核后，领先队伍发生变化；当前分差不代表稳定提升。','en'),/[\u4e00-\u9fff]/);
 });
 test('restored recommendation goals choose consistent score objectives',()=>{
   assert.equal(planningObjectiveForGoal('stable'),'minimum_song_score');
@@ -89,4 +91,13 @@ test('partial leader coverage warning translates in English', () => {
   const text = '部分卡片配对含尚未实现的计分机制，已跳过 2 个配对、0 个候选、1 位队长；推荐仅覆盖可完整计算的队伍。';
   assert.match(planningUiText(text, 'en'), /2 pairings, 0 candidates and 1 leader choices/);
   assert.doesNotMatch(planningUiText(text, 'en'), /[\u4e00-\u9fff]/);
+});
+
+test('song screening choices and coverage counts translate without promising a global best',()=>{
+  for(const text of ['按卡池选歌','卡池筛歌','复核候选歌曲','卡池选歌目前用于激奏平均分比较。',
+    '已初筛 84 / 84 张谱面，选出 6 张候选；精算完成 6 / 6 张。',
+    '候选综合两轮抽样选择，未精算的谱面不代表低分，不能保证包含全曲最高分。']){
+    assert.doesNotMatch(planningUiText(text,'en'),/[\u4e00-\u9fff]/);
+    assert.equal(planningUiText(text,'zh-CN'),text);
+  }
 });

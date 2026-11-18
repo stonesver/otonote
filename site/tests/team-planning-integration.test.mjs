@@ -6,6 +6,7 @@ import { refreshPlanningPreset, evaluatePresetPool } from '../src/lib/preset-por
 import { generatePresetCandidates } from '../src/lib/preset-candidates.mjs';
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
 import { createFormationCalculator } from '../src/lib/scoring-rules/formation-power.mjs';
+import { createCandidateEvaluator } from '../src/lib/formation-candidate-evaluator.mjs';
 
 // Tracked rules provide complete skill/account tables. Card strengths and a
 // tiny authored chart below are synthetic; no private charts or imports needed.
@@ -56,6 +57,30 @@ function fixture() {
 const containsReserve = draft => draft.slots.some(slot => slot.memberCardId === reserveId);
 const run = (context, options = {}) => optimizeTeamPlanning({ ...context, objective: 'formation_power', yieldControl,
   planningScenario: { scope: 'owned' }, ...options });
+
+test('LUCK current and trained scores use the same full sampling contract', async () => {
+  const context=fixture();
+  const music=context.rules.tables.LiveMusic.find(row=>row._id===100001);
+  [1,2,3].forEach(i=>music[`_gekisouMission${i}`]=2);
+  context.chart.notes=Array.from({length:120},(_,i)=>({id:`luck-${i}`,type:'tap',tick:1000+i*50,position:0,size:1}));
+  const options={mode:'gekisou',objective:'expected_song_score',performanceScenario:{profile:'ideal',samples:1},gekisouScenario:{batches:1,seed:42}};
+  const evaluator=createCandidateEvaluator({...context,...options,gekisouScenario:{batches:2,seed:42}});
+  for(const planningScenario of [{scope:'owned'},context.planningScenario]) {
+    const report=await run(context,{...options,planningScenario});
+    assert.ok(report.results.length);
+    if(!planningScenario.plan?.enabled) {
+      assert.equal(report.fullScoring.calculations,report.practical.finalists);
+      assert.ok(report.fullScoring.cacheHits>=report.practical.finalists);
+    }
+    for(const row of report.results) {
+      const actual=structuredClone(row.draft);
+      for(const slot of actual.slots) for(const id of [slot.memberCardId,slot.supportCardId]) actual.modifiers.growth[id]=context.inventory.growth[id];
+      assert.equal(row.planning.plannedTeamCurrentValue,evaluator.score(actual).value);
+      assert.equal(row.value,evaluator.score(row.draft).value);
+      if(!row.growthComparison.trainedCardCount) assert.equal(row.planning.plannedTeamCurrentValue,row.value);
+    }
+  }
+});
 
 test('reference recommendation works with empty slots and no inventory, without inventing an actual delta', async () => {
   const context = fixture();

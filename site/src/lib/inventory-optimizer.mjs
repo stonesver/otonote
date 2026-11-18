@@ -19,6 +19,8 @@ export function compareScoredFormations(candidate, baseline) {
   if (!baseline) return null;
   const delta = candidate.value - baseline.value;
   return { scoreDelta: delta, powerDelta: candidate.power - baseline.power,
+    noteScoreDelta: candidate.noteScore == null || baseline.noteScore == null ? null : candidate.noteScore - baseline.noteScore,
+    rankingBonusDelta: candidate.rankingBonus == null || baseline.rankingBonus == null ? null : candidate.rankingBonus - baseline.rankingBonus,
     scoreChangePercent: baseline.value ? delta / baseline.value * 100 : null,
     powerChangePercent: baseline.power ? (candidate.power - baseline.power) / baseline.power * 100 : null,
     // These are differences between two WHOLE formations, not an attribution

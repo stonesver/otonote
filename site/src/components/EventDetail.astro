@@ -1,4 +1,5 @@
 ---
+import {formatEventTime, eventTimeLabel} from '../lib/event-time.mjs';
 import type { EventArchiveData, EventMediaMap, EventIdentity as Identity, EventCard } from '../lib/event-archive';
 import '../styles/event-archive.css';
 import '../styles/event-editorial.css';
@@ -35,7 +36,7 @@ const points = (value: number) => !en && value >= 10000 && value % 1000 === 0 ? 
       <EventHero event={event} artwork={artworks[event.id]} locale={locale} />
       <EventIdentity identity={identities[event.id]} locale={locale}><button class="ef-text-button" data-event-dialog={dialogId('bonus')} aria-haspopup="dialog">{t('加成详情', 'Bonus details')} <EventIcon name="arrow" size={15} /></button></EventIdentity>
       <StickyBanner event={event} logo={artworks[event.id]?.logo} attributes={identities[event.id]?.attributes} locale={locale} />
-      <div class="ef-schedule"><Countdown start={event.schedule.startAt} end={event.schedule.endAt} edition={event.edition} timeZone={event.schedule.timeZone} locale={locale} /><EventIcon name="calendar" size={15} /><span>{copy.displayEnd}：{event.schedule.displayEndAt ?? '—'}</span><small>{event.schedule.timeZone ?? t(event.edition === 'jp' ? '倒计时按日本时间 UTC+9 估算' : '原始资料未注明时区', event.edition === 'jp' ? 'Countdown estimated in Japan time, UTC+9' : 'Source timezone unspecified')}</small></div>
+      <div class="ef-schedule"><Countdown start={event.schedule.startAt} end={event.schedule.endAt} edition={event.edition} timeZone={event.schedule.timeZone} locale={locale} /><EventIcon name="calendar" size={15} /><span>{copy.displayEnd}：{formatEventTime(event.schedule.displayEndAt, event.edition, event.schedule.timeZone, true)}</span><small>{eventTimeLabel(event.edition, locale === 'en')}</small></div>
 
       <section class="ef-section" id={dialogId('cards')}>
         <div class="ea-section-head"><div><p class="ea-kicker">EVENT CARDS</p><h2><EventIcon name="card" />{t('活动卡牌', 'Event cards')}</h2></div><span>{eventCards.length} {t('张 · 专属加成与活动奖励', 'cards · bonuses & rewards')}</span></div>
@@ -130,7 +131,7 @@ const points = (value: number) => !en && value >= 10000 && value % 1000 === 0 ? 
       </Dialog>
       <Dialog id={dialogId('exchange')} title={t('活动兑换所', 'Event exchange')} locale={locale}>
         {event.eventItem && <div class="ea-currency"><Reward reward={event.eventItem} media={media} locale={locale} compact /></div>}
-        {event.exchanges.map(shop => <section><div class="ea-shop-meta"><h3>{shop.name}</h3><p>{shop.endAt} {t('截止', 'ends')}</p></div><div class="ea-products">{shop.products.map(product => <div class="ea-product"><Reward reward={product.reward} media={media} locale={locale} /><div class="ea-product-cost"><span><EventIcon name="ticket" size={15} /><b>{number(product.cost)}</b>{product.paymentSteps.length > 0 && <small>{t('起', '+')}</small>}</span><small>{t('限购', 'Limit')} {number(product.limit)}</small></div></div>)}</div></section>)}
+        {event.exchanges.map(shop => <section><div class="ea-shop-meta"><h3>{shop.name}</h3><p>{formatEventTime(shop.endAt, event.edition, event.schedule.timeZone, true)} {t('截止', 'ends')}</p></div><div class="ea-products">{shop.products.map(product => <div class="ea-product"><Reward reward={product.reward} media={media} locale={locale} /><div class="ea-product-cost"><span><EventIcon name="ticket" size={15} /><b>{number(product.cost)}</b>{product.paymentSteps.length > 0 && <small>{t('起', '+')}</small>}</span><small>{t('限购', 'Limit')} {number(product.limit)}</small></div></div>)}</div></section>)}
         <p class="ea-note">{t('显示基础兑换消耗；阶梯价格、限购重置与实际购买状态以游戏内为准。', 'Base costs shown. Check the game for stepped pricing, limit resets and availability.')}</p>
       </Dialog>
       {event.challengeSongs.map(song => <Dialog id={dialogId(`song-${song.musicId}`)} title={`${song.name} · ${t('单曲榜奖励', 'Song ranking rewards')}`} locale={locale}>

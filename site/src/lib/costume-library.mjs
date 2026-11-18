@@ -35,7 +35,7 @@ export function validateCostumes(value, context) {
 }
 
 export function costumeState(startAt, region, now = Date.now()) {
-  const start = eventTimestamp(startAt, region);
+  const start = eventTimestamp(startAt, region, region === 'jp' ? 'Asia/Tokyo' : 'Asia/Taipei');
   return start == null ? 'unknown' : now < start ? 'upcoming' : 'released';
 }
 

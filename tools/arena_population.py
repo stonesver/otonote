@@ -174,8 +174,8 @@ def probe_population(reader,thresholds,*,max_reads=MAX_BAND_READS,spacing=1,dead
 class ArenaPopulationClient(ArenaRankingClient):
     def discover(self):
         host=super().discover()
-        if getattr(self,'population_master',None)!=self.plan['masterVersion']:
-            raise LoginError('arena_population_master_mismatch')
+        # Parent discovery verifies exact-version or byte-identical rank rules.
+        self.verified_master=self.population_master
         return host
 
     def _public_rpc(self,host,method):
@@ -184,7 +184,7 @@ class ArenaPopulationClient(ArenaRankingClient):
         return raw
 
     def export(self,identity,device_id,host,progress=lambda stage:None):
-        if getattr(self,'population_master',None)!=self.plan['masterVersion']:
+        if getattr(self,'population_master',None)!=getattr(self,'verified_master',self.plan['masterVersion']):
             raise LoginError('arena_population_master_mismatch')
         auth=self.authenticate(identity,device_id,host,progress)
         observations=[];remaining=MAX_RUN_READS;last_rpc=None
@@ -211,7 +211,8 @@ class ArenaPopulationClient(ArenaRankingClient):
                 observed=datetime.now(timezone.utc)
                 if self.plan.get('populationValidUntil') and observed>=absolute(self.plan['populationValidUntil']):raise LoginError('arena_population_season_ended')
                 observations.append(dict(schemaVersion=2,serverId=self.server_id,seasonId=self.plan['seasonId'],bandId=band,
-                    method='rank_boundary_probe',accuracy='estimate',sourceReleaseId=self.plan['contentReleaseId'],masterVersion=self.population_master,
+                    method='rank_boundary_probe',accuracy='estimate',sourceReleaseId=self.plan['contentReleaseId'],
+                    masterVersion=self.plan['masterVersion'],observedMasterVersion=self.population_master,
                     startedAt=started.isoformat(),observedAt=observed.isoformat(),expiresAt=(observed+timedelta(hours=6)).isoformat(),**counts))
             if string(self.rpc(host,'app.masterdata.MasterdataService/Version',b'',()),1,optional=True)!=self.population_master:
                 raise LoginError('arena_population_master_mismatch')

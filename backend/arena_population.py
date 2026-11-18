@@ -29,11 +29,15 @@ def validate_population(value,server,season,band):
     if not isinstance(rows,list) or not 1 <= len(rows) <= 7:
         raise ValueError('invalid_arena_population_tiers')
     version=value['schemaVersion'];extra={}
+    if 'observedMasterVersion' in value:
+        if not re.fullmatch(r'[a-f0-9]{32}',str(value['observedMasterVersion'])):
+            raise ValueError('invalid_arena_population_source')
+        extra['observedMasterVersion']=value['observedMasterVersion']
     if version==2:
         low=number(value.get('totalLower'));high=number(value.get('totalUpper'))
         if value.get('rangeMethod')!='observed_window_envelope' or not low<=total<=high or reads>48:
             raise ValueError('invalid_arena_population_range')
-        extra=dict(totalLower=low,totalUpper=high,rangeMethod=value['rangeMethod'])
+        extra.update(totalLower=low,totalUpper=high,rangeMethod=value['rangeMethod'])
     checked=[];seen=set();previous=-1
     for row in rows:
         if not isinstance(row,dict):raise ValueError('invalid_arena_population_tiers')

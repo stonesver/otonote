@@ -148,6 +148,20 @@ class EventCatalogTest(unittest.TestCase):
         self.assertEqual(event["exchanges"][0]["products"][0]["reward"]["resourceId"], 64)
         self.assertEqual(event["exchanges"][0]["endAt"], "2026-10-19 20:59:59")
 
+    def test_reused_currency_keeps_each_exchange_with_its_opening_event(self):
+        old = self.tables["MasterEvent"][0]
+        self.tables["MasterEvent"].append({**old, "_id": 2,
+            "_startAt": "2026/10/09 15:00:00", "_endAt": "2026/10/17 14:59:59"})
+        self.tables["MasterExchange"].append({**self.tables["MasterExchange"][0],
+            "_id": 2, "_startAt": "2026-10-09 15:00:00", "_endAt": "2026-10-28 20:59:59"})
+        self.write()
+        for edition in ("global", "jp"):
+            with self.subTest(edition=edition):
+                events = self.build(edition=edition)["records"]
+                self.assertEqual([[s["id"] for s in e["exchanges"]] for e in events], [[1], [2]])
+                # The old exchange remains valid past its event and into the next event.
+                self.assertEqual(events[0]["exchanges"][0]["endAt"], "2026-10-19 20:59:59")
+
     def test_missing_reward_is_explicit_not_zero_or_omitted(self):
         self.tables["MasterReward"] = [r for r in self.tables["MasterReward"] if r["_id"] != 1]
         self.write()

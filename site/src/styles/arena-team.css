@@ -24,6 +24,24 @@ arena-team-workbench { display:block; }
 .arena-studio summary { cursor:pointer; list-style:none; }
 .arena-studio summary::-webkit-details-marker { display:none; }
 .arena-hint { font-size:12px; color:var(--arena-muted); overflow-wrap:anywhere; }
+.arena-luck-distribution { margin:12px 0; border-block:1px solid var(--arena-line); padding:12px 0; }
+.arena-luck-distribution>summary { font-size:13px; font-weight:600; cursor:pointer; }
+.arena-luck-distribution>summary small { margin-left:10px; color:var(--arena-muted); font-weight:400; }
+.arena-distribution-controls { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,1fr); gap:12px; margin-top:12px; }
+.arena-distribution-controls label { display:grid; min-width:0; gap:5px; font-size:12px; color:var(--arena-muted); }
+.arena-distribution-ranks { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.arena-distribution-actions { display:flex; gap:8px; }
+.arena-distribution-actions>button:first-child { background:var(--arena-accent); color:var(--tool-surface); }
+.arena-distribution-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }
+.arena-distribution-metrics>div:first-child { grid-column:1/-1; }
+.arena-distribution-metrics dt { font-size:12px; color:var(--arena-muted); }
+.arena-distribution-metrics dd { margin:4px 0 0; font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; }
+.arena-distribution-metrics>div:first-child dd { color:var(--arena-accent); font-size:22px; }
+.arena-luck-distribution>progress { width:100%; margin-top:8px; }
+@media(max-width:600px) {
+  .arena-distribution-controls,.arena-distribution-metrics { grid-template-columns:minmax(0,1fr); }
+  .arena-distribution-metrics dd { font-size:15px; }
+}
 
 /* A single setup sheet: open columns, icon choices and one primary action. */
 .arena-settings { scroll-margin-top:84px; border-top:1px solid var(--arena-line); border-bottom:1px solid var(--arena-line); }
@@ -337,6 +355,12 @@ arena-team-workbench { display:block; }
 .arena-insights>[role=tabpanel]:focus-visible { outline:2px solid var(--tool-focus); outline-offset:3px; }
 .arena-score-details .arena-metrics dd { font-size:20px; }
 .arena-score-details { padding:10px 0; border-bottom:1px solid var(--arena-line); font-size:12px; }
+.arena-reference-comparison { width:100%; overflow-x:auto; margin-top:8px; }
+.arena-reference-comparison table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+.arena-reference-comparison caption { text-align:left; font-weight:600; padding:6px 0; }
+.arena-reference-comparison th,.arena-reference-comparison td { text-align:right; padding:7px 5px; border-bottom:1px solid var(--arena-line); white-space:nowrap; }
+.arena-reference-comparison th:first-child,.arena-reference-comparison td:first-child { text-align:left; }
+.arena-reference-comparison th { color:var(--arena-muted); font-weight:500; }
 .arena-score-details .arena-metrics { margin-top:12px; }
 .arena-score-details .arena-metrics dd { font-size:18px; }
 .arena-team-skills { padding:8px 0; border-bottom:1px solid var(--arena-line); }

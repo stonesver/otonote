@@ -58,3 +58,13 @@ export function arenaSongPreview(song, { rank, opponents }) {
     }))
   };
 }
+
+/** Settle each COMPLETE replay before taking quantiles. Fixed ranks are a
+ * reward assumption, not conditioning the lottery on actually winning. */
+export function arenaLuckScoreDistribution(samples, ranks) {
+  const scores = samples.map(sample => sample.noteScore + sample.sections.reduce((sum, section, index) =>
+    sum + section.bonuses[ranks[index] - 1], 0)).sort((a, b) => a - b);
+  const quantile = p => scores[Math.ceil(scores.length * p) - 1];
+  return { count: scores.length, mean: scores.reduce((sum, score) => sum + score, 0) / scores.length,
+    p10: quantile(0.1), p90: quantile(0.9), minimum: scores[0], maximum: scores.at(-1) };
+}

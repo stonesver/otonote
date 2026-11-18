@@ -6,7 +6,7 @@ const points = value => value == null ? '—' : `${(value / 10000).toFixed(1)} �
 
 /** A compact shortlist opens the full, sortable candidate gallery. */
 export function createArenaCandidatePicker({ report, cards, onSelect }) {
-  const luck = report.method === 'expected_rank_envelope';
+  const luck = ['expected_rank_envelope', 'reference_opponent_regret'].includes(report.method);
   const closeIds = new Set(report.search?.completion?.status === 'close' ? report.search.completion.candidateIds : []);
   const main = report.candidates[0], element = el('section', '', 'arena-candidate-picker');
   element.setAttribute('aria-label', '候选队伍切换');
@@ -28,7 +28,7 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
   element.append(header, comparisonNote, featured, dialog);
   let rows = [], selectedId = main.id, comparedId = main.id, preview, valid = true, sort = 'recommendation', page = 0, scoreContext = '';
   const pageSize = 6;
-  const name = row => row.candidate.id === main.id ? '综合推荐' : row.candidate.id === report.preferredCandidateId ? '偏好方案' : `方案 ${row.index + 1}`;
+  const name = row => row.candidate.id === main.id ? '综合推荐' : row.candidate.id === report.comparisonTeam?.id ? '自配队对照' : row.candidate.id === report.preferredCandidateId ? '偏好方案' : `方案 ${row.index + 1}`;
   const delta = row => row.score == null ? '请修正对手计数' : row.candidate.id === main.id ? '推荐基准'
     : `比推荐 ${row.score >= baseline() ? '+' : '−'}${points(Math.abs(row.score - baseline()))}`;
   const baseline = () => rows.find(row => row.candidate.id === main.id).score;
@@ -95,7 +95,7 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
       const item = el('li'), button = el('button', '', 'arena-candidate-row'); button.type = 'button'; button.setAttribute('aria-label', `查看方案 ${row.index + 1}`);
       button.setAttribute('aria-pressed', String(row.candidate.id === selectedId));
       const title = el('span', '', 'arena-candidate-title'); title.append(el('b', name(row)), el('small', row.candidate.name));
-      if (row === best) title.append(el('em', unknown() ? '上限最高' : '最高分'));
+      if (row === best) title.append(el('em', unknown() ? luck ? '第一均分最高' : '上限最高' : '最高分'));
       if (row.candidate.id !== main.id && closeIds.has(row.candidate.id)) title.append(el('em', '推荐接近'));
       if (row.candidate.id === selectedId) title.append(el('em', '正在查看', 'arena-candidate-selected'));
       const value = el('span', '', 'arena-candidate-value'); scoreContent(value, row); value.append(el('small', `最大损失 ${points(row.candidate.worstLoss)}`, 'arena-candidate-loss'));
@@ -105,7 +105,7 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
     pageLabel.textContent = `${page + 1} / ${Math.ceil(rows.length / pageSize)} 页`;
     previous.disabled = page === 0; next.disabled = (page + 1) * pageSize >= rows.length;
     list.scrollTop = 0;
-    for (const button of sortGroup.children) { if (button.dataset.sort === 'score') button.textContent = unknown() ? '上限从高到低' : '分数从高到低'; button.setAttribute('aria-pressed', String(button.dataset.sort === sort)); button.disabled = !valid; }
+    for (const button of sortGroup.children) { if (button.dataset.sort === 'score') button.textContent = unknown() ? luck ? '第一均分从高到低' : '上限从高到低' : '分数从高到低'; button.setAttribute('aria-pressed', String(button.dataset.sort === sort)); button.disabled = !valid; }
   };
   for (const [value, label] of [['score', '分数从高到低'], ['recommendation', '推荐顺序']]) {
     const button = el('button', label); button.type = 'button'; button.dataset.sort = value;
@@ -122,19 +122,25 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
     if (contextKey !== scoreContext) page = 0;
     scoreContext = contextKey;
     rows = valid ? arenaCandidateOrder(report.candidates, preview, sort) : report.candidates.map((candidate, index) => ({ candidate, index, score: null }));
-    const basisText = !valid ? '请修正对手计数后比较分数' : unknown() ? '对手未知 · 下限至上限' : preview.mode === 'opponents'
+    const basisText = !valid ? '请修正对手计数后比较分数' : unknown() ? luck ? '三段末位／第一均分' : '对手未知 · 下限至上限' : preview.mode === 'opponents'
       ? `${report.songs[preview.songIndex].title} · 对手试算`
       : `三段均第 ${preview.mode === 'first' ? 1 : report.stage.participantCount} 名${report.songs.length > 1 ? ' · 曲池加权' : ''}`;
-    basis.textContent = `${basisText} · ${sort === 'score' ? unknown() ? '按得分上限降序' : '按整场分数降序' : '按最大损失从小到大'}${unknown() ? ' · 范围对应三段末位至三段第一' : ' · 分差相对推荐队伍'} · 换卡高亮，相对当前队伍`;
+    basis.textContent = `${basisText} · ${sort === 'score' ? unknown() ? luck ? '按第一平均分降序' : '按得分上限降序' : '按整场分数降序' : '按最大损失从小到大'}${unknown() ? luck ? ' · 单局可以超出两端均分' : ' · 范围对应三段末位至三段第一' : ' · 分差相对推荐队伍'} · 换卡高亮，相对当前队伍`;
     const recommendation = rows.find(row => row.candidate.id === main.id), best = highest();
     const alternative = best && best !== recommendation ? best : rows.find(row => row.candidate.id !== main.id);
     featured.replaceChildren();
     const preferred = rows.find(row => row.candidate.id === report.preferredCandidateId);
     const shortlist = [{ row: recommendation, label: '综合推荐' }];
+    const self = rows.find(row => row.candidate.id === report.comparisonTeam?.id);
+    if (self && self !== recommendation) shortlist.push({ row: self, label: '自配队对照' });
     if (preferred) shortlist.push({ row: preferred, label: `${arenaSkillRoles[report.skillPreferences.preference]}偏好方案`, preferred: true });
-    else if (alternative) shortlist.push({ row: alternative, label: alternative === best ? unknown() ? '上限最高队' : '当前最高分' : name(alternative) });
+    else if (alternative && !shortlist.some(({ row }) => row === alternative)) shortlist.push({ row: alternative, label: alternative === best ? unknown() ? luck ? '第一均分最高队' : '上限最高队' : '当前最高分' : name(alternative) });
     const validationWinner = report.validation?.status === 'changed' ? rows.find(row => row.candidate.id === report.validation.winnerId) : null;
     if (validationWinner && !shortlist.some(({ row }) => row === validationWinner)) shortlist.push({ row: validationWinner, label: '独立复核首选' });
+    for (const scenario of main.referenceScenarios ?? []) {
+      const leader = rows.find(row => row.candidate.id === scenario.leaderId);
+      if (leader && !shortlist.some(({ row }) => row === leader)) shortlist.push({ row: leader, label: `${scenario.label}对手 · 高分队` });
+    }
     const closeAlternative = rows.find(row => row.candidate.id !== main.id && closeIds.has(row.candidate.id));
     if (closeAlternative && !shortlist.some(({ row }) => row === closeAlternative)) shortlist.push({ row: closeAlternative, label: '接近方案' });
     if (!shortlist.some(({ row }) => row.candidate.id === selectedId)) comparedId = selectedId;
@@ -148,10 +154,11 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
       title.append(el('b', label));
       if (row.candidate.id === selectedId) title.append(el('small', '当前查看', 'arena-shortcut-current'));
       const score = el('span', '', 'arena-shortcut-score');
-      score.append(el('small', luck ? unknown() ? '整场平均分范围' : '整场平均分' : unknown() ? '整场得分范围' : '整场得分'));
+      score.append(el('small', luck ? unknown() ? '三段末位／第一均分' : '整场平均分' : unknown() ? '整场得分范围' : '整场得分'));
       const amount = el('strong', unknown() ? `${points(row.candidate.sameRankScore).replace(' 万', '')}–${points(row.candidate.firstRankScore)}` : points(row.score));
       score.append(amount);
       if (!unknown()) score.append(el('small', delta(row), 'arena-shortcut-delta'));
+      if (row === self) score.append(el('small', `自配队「${report.comparisonTeam.name}」${row === recommendation ? ' · 与综合推荐相同' : ''}`));
       if (entry.preferred) {
         const role = report.skillPreferences.preference, counts = row.candidate.skillCounts;
         score.append(el('small', `成员 ${counts.member[role]} · 留影 ${counts.support[role]} 张${arenaSkillRoles[role]}`));

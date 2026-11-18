@@ -16,6 +16,10 @@ import { arenaSongPreview } from '../src/lib/arena-team-preview.mjs';
 
 function input() {
   const { rules, chart } = fixture({ missions: [2, 2, 2] });
+  // The reference opponent bank exercises every published skill level. The
+  // authored damage fixture normally defines only level 1 for its own tests.
+  const effects = rules.tables.GekisouSkillEffect.filter(row => row._gekisouSkillID === 900004);
+  for (let level = 2; level <= 5; level++) rules.tables.GekisouSkillEffect.push(...effects.map(row => ({ ...row, _id: row._id + level * 10, _level: level })));
   const manager = createInventoryManager(rules), inventory = manager.empty();
   for (const kind of ['member', 'support']) for (const card of rules.tables[kind === 'member' ? 'MemberCard' : 'SupportCard']) {
     const id = `${kind}-card-${card._id}`; inventory[`${kind}CardIds`].push(id); inventory.growth[id] = manager.preset(id, kind, 'minimum');
@@ -120,11 +124,21 @@ test('LUCK candidate generation and evaluation preserve actual growth, source in
   for (const c of source.candidates) for (const slot of c.draft.slots) for (const id of [slot.memberCardId, slot.supportCardId]) assert.deepEqual(c.draft.modifiers.growth[id], before.inventory.growth[id]);
   assert.deepEqual(data.profile, before);
   const report = await searchArenaTeams({ ...data, performanceScenario: data.performance }, { luckOptions: { candidateLimit: 3, neighbourLimit: 0 } });
-  assert.equal(report.method, 'expected_rank_envelope');
+  assert.equal(report.method, 'reference_opponent_regret');
   assert.equal(report.orderCount, null);
   assert.ok(report.candidates.every(c => c.songs.length === data.songs.length && c.songs.every(s => s.samples.length >= 12)));
   assert.notEqual(report.validation.status, 'pending');
   await assert.rejects(searchArenaTeams({ ...data, stage: { ...data.stage, missions: [2, 3, 2] } }), /混段/);
+});
+
+test('the legacy LUCK objective remains available for algorithm comparisons', async () => {
+  const data = input();
+  const report = await searchArenaTeams({ ...data, performanceScenario: data.performance },
+    { luckOptions: { comparisonMode: 'legacy', candidateLimit: 3, neighbourLimit: 0 } });
+  assert.equal(report.method, 'expected_rank_envelope');
+  assert.equal(report.referenceOpponents, undefined);
+  assert.equal(report.search.phase, 'complete');
+  assert.deepEqual(report.candidates, rankLuckCandidates(report.candidates, report.songs));
 });
 
 test('LUCK full-card reference works without a profile and preserves reference growth through expansion', async () => {
@@ -164,6 +178,26 @@ test('LUCK workers preserve serial samples, recommendation and independent valid
     assert.deepEqual(b.validation, a.validation);
     assert.deepEqual(b.sampling, a.sampling);
   } finally { serial.close(); parallel.close(); }
+});
+
+test('LUCK commits a full reorder buffer when its oldest job finishes during a scheduler yield', { timeout: 2000 }, async () => {
+  const data = input();
+  data.songs = Array.from({ length: 4 }, () => data.songs[0]);
+  let dispatched = 0, releaseFirst;
+  const session = createArenaLuckSearch(data, { candidateLimit: 1, neighbourLimit: 0,
+    yieldControl: async () => { if (dispatched === 4) releaseFirst(); },
+    createEvaluator: () => ({ width: 2, close() {}, run({ candidate, start, end }) {
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([1000, 10, 100, 1, 10, 100, 1, 10, 100, 1], i);
+      const result = { id: candidate.id, rows: [{ power: 1, packed }] };
+      return ++dispatched === 1 ? new Promise(resolve => { releaseFirst = () => resolve(result); }) : Promise.resolve(result);
+    } }) });
+  try {
+    const result = await session.run();
+    assert.equal(result.search.phase, 'complete');
+    assert.equal(result.candidates[0].songs.length, 4);
+    assert.ok(result.candidates[0].songs.every(song => song.samples.length >= 72));
+  } finally { session.close(); }
 });
 
 test('LUCK preview ranks joint tuples before averaging and exposes empirical point quantiles', () => {
@@ -213,7 +247,7 @@ test('validation disagreement automatically adds disjoint samples in one run', a
   const session = createArenaLuckSearch(input(), { candidateLimit: 2, neighbourLimit: 0,
     onSnapshot: report => snapshots.push(report.validation.status),
     createEvaluator: () => ({ width: 1, close() {}, async run({ candidate, start, end, phase }) {
-      firstId ??= candidate.id;
+      if (phase < 2) firstId ??= candidate.id;
       const packed = new Float64Array((end - start) * 10);
       for (let i = start; i < end; i++) {
         const score = candidate.id !== firstId ? 140 : phase === 1 || i >= 72 ? 200 : 100;
@@ -382,6 +416,95 @@ test('a noiseless complete search stops automatically and a repeat run performs 
   } finally { session.close(); }
 });
 
+test('validation opponents are deferred until after first results and resume without replaying jobs', async () => {
+  const jobs = new Set(); let paused = false, validationPaused = false;
+  const session = createArenaLuckSearch(input(), { candidateLimit: 2, neighbourLimit: 0,
+    onSnapshot: report => { if (!paused && report.search.phase === 'luck-screen') { paused = true; session.stop(); } },
+    onProgress: progress => { if (!validationPaused && progress.phase === 'luck-reference-validate') { validationPaused = true; session.stop(); } },
+    createEvaluator: () => ({ close() {}, async run({ candidate, start, end, phase, songIndex }) {
+      const key = [candidate.id, start, end, phase, songIndex].join(':');
+      assert.ok(!jobs.has(key), `duplicate replay ${key}`); jobs.add(key);
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([1000, 10, 100, 1, 10, 100, 1, 10, 100, 1], i);
+      return { id: candidate.id, rows: [{ power: 1, packed }] };
+    } }) });
+  try {
+    const partial = await session.run();
+    assert.ok(partial.candidates.length);
+    assert.deepEqual(partial.referenceOpponents.samplesPerBank, [72, 0]);
+    assert.equal(partial.referenceOpponents.validationReady, false);
+    const validating = await session.run();
+    assert.equal(validating.search.phase, 'luck-reference-validate');
+    assert.equal(validating.search.stopped, true);
+    const result = await session.run();
+    assert.equal(result.search.phase, 'complete');
+    assert.deepEqual(result.referenceOpponents.samplesPerBank, [72, 72]);
+    assert.equal(result.validation.cross.cells.length, 8);
+  } finally { session.close(); }
+});
+
+test('saved formations use current growth and remain protected even when outside the leading candidates', async () => {
+  const data = input(), base = await createLuckCandidateSource(data.rules, data.profile, data.context, data.songs, { limit: 1 });
+  const draft = structuredClone(base.candidates[0].draft);
+  [draft.slots[0].supportCardId, draft.slots[1].supportCardId] = [draft.slots[1].supportCardId, draft.slots[0].supportCardId];
+  draft.modifiers.growth = {}; // Saved growth must not overwrite actual inventory growth.
+  const comparisonTeam = { id: 'saved-team', name: '我的编成', draft }, before = structuredClone(comparisonTeam);
+  const source = await createLuckCandidateSource(data.rules, data.profile, data.context, data.songs, { limit: 1, comparisonTeam });
+  assert.equal(source.candidates.length, 2);
+  assert.deepEqual(source.seeds, base.seeds);
+  const self = source.candidates.find(row => row.id === source.comparisonId);
+  assert.deepEqual(self.draft.modifiers, base.candidates[0].draft.modifiers);
+  assert.deepEqual(self.draft.slots, draft.slots);
+  assert.deepEqual(comparisonTeam, before);
+  const duplicate = await createLuckCandidateSource(data.rules, data.profile, data.context, data.songs,
+    { limit: 1, comparisonTeam: { ...comparisonTeam, draft: base.candidates[0].draft } });
+  assert.equal(duplicate.candidates.length, 1);
+  assert.equal(duplicate.candidates[0].comparison.id, comparisonTeam.id);
+  const unavailable = structuredClone(comparisonTeam), otherRules = structuredClone(data.rules);
+  otherRules.tables.SupportCard.push({ ...otherRules.tables.SupportCard[0], _id: 6 });
+  unavailable.draft.slots[0].supportCardId = 'support-card-6';
+  await assert.rejects(createLuckCandidateSource(otherRules, data.profile, data.context, data.songs, { comparisonTeam: unavailable }), /自配队无法/);
+  let selfValidated = 0;
+  const session = createArenaLuckSearch({ ...data, comparisonTeam }, { candidateLimit: 1, neighbourLimit: 4,
+    createEvaluator: () => ({ close() {}, async run({ candidate, start, end, phase }) {
+      if (candidate.comparison && phase === 1) selfValidated = end;
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([candidate.comparison ? 1 : 10000, 10, 100, 1, 10, 100, 1, 10, 100, 1], i);
+      return { id: candidate.id, rows: [{ power: 1, packed }] };
+    } }) });
+  try {
+    const report = await session.run(), row = report.candidates.find(row => row.id === source.comparisonId);
+    assert.equal(report.comparisonTeam.status, 'evaluated');
+    assert.notEqual(report.candidates[0].id, row.id);
+    assert.ok(report.evaluated > 24);
+    assert.ok(report.candidates.indexOf(row) >= 24);
+    assert.equal(row.songs[0].samples.length, 72);
+    assert.equal(selfValidated, 72);
+    assert.ok(report.validation.cross.cells.every(cell => cell.recommendationGap === 0));
+  } finally { session.close(); }
+});
+
+test('opponent-only disagreement grows reference samples to the ceiling without repeating settled own replays', async () => {
+  const data = input(), source = await createLuckCandidateSource(data.rules, data.profile, data.context, data.songs, { limit: 2 });
+  const highScoreId = source.candidates[0].id;
+  const session = createArenaLuckSearch(data, { candidateLimit: 2, neighbourLimit: 0,
+    createEvaluator: () => ({ close() {}, async run({ candidate, start, end, phase }) {
+      const own = phase < 2, highScore = candidate.id === highScoreId;
+      const points = own ? highScore ? 50 : 150 : phase < 14 ? 0 : 100;
+      const score = own && highScore ? 2000000 : 1800000;
+      const packed = new Float64Array((end - start) * 10);
+      for (let i = 0; i < packed.length; i += 10) packed.set([score, points, 1000000, 1, points, 1000000, 1, points, 1000000, 1], i);
+      return { id: candidate.id, rows: [{ power: 1, packed }] };
+    } }) });
+  try {
+    const report = await session.run();
+    assert.equal(report.search.completion.status, 'unresolved');
+    assert.equal(report.sampling.max, 72);
+    assert.deepEqual(report.referenceOpponents.samplesPerBank, [576, 576]);
+    assert.deepEqual(report.validation.cross.needs, { candidate: false, opponent: true });
+  } finally { session.close(); }
+});
+
 test('large song pools pause between songs, resume partial blocks, and never publish a partial pool', async () => {
   const data = input();
   data.songs = Array.from({ length: 50 }, (_, i) => ({ ...data.songs[0], weight: i + 1 }));
@@ -401,7 +524,7 @@ test('large song pools pause between songs, resume partial blocks, and never pub
     } }) });
   try {
     const partial = await session.run();
-    assert.equal(jobs.size, 2);
+    assert.equal([...jobs].filter(key => !key.startsWith('reference-')).length, 2);
     assert.equal(partial.candidates.length, 0);
     assert.equal(partial.search.canContinue, true);
     const validating = await session.run();
@@ -454,7 +577,7 @@ test('unresolved independent rankings finish at the sample ceiling without invit
   let firstId;
   const session = createArenaLuckSearch(input(), { candidateLimit: 2, neighbourLimit: 0,
     createEvaluator: () => ({ width: 1, close() {}, async run({ candidate, start, end, phase }) {
-      firstId ??= candidate.id;
+      if (phase < 2) firstId ??= candidate.id;
       const score = (candidate.id === firstId) === (phase === 0) ? 2000 : 1000;
       const packed = new Float64Array((end - start) * 10);
       for (let i = 0; i < packed.length; i += 10) packed.set([score, 1, 0, 1, 1, 0, 1, 1, 0, 1], i);

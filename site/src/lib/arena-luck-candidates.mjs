@@ -4,8 +4,24 @@ import { maximumPairing } from './scoring-rules/maximum-pairing.mjs';
 import { compilePairingModels, draftFromPairing } from './inventory-optimizer.mjs';
 import { createTeamDraft } from './team-draft.mjs';
 import { stableSnapshotHash } from './scoring-engine.mjs';
+import { compileGekisouEffects } from '../../../packages/scoring/scoring-rules/gekisou-skill-runtime.mjs';
+import { checkTeamCompatibility } from './team-workspace-compatibility.mjs';
 
 const roles = new Map([[11001, '涨槽'], [11002, 'RUSH 点数'], [11003, '槽量补充'], [11005, '抽奖保底'], [2000, 'RUSH 得分'], [3004, '生命保护']]);
+
+/** Additional exploration witnesses, never a substitute for replay ranking.
+ * Keep power/active-skill tradeoffs instead of letting power alone discard a
+ * weaker-stat card with a stronger applicable band branch. */
+export function luckSkillTradeoffs(candidates, values) {
+  const groups = new Map();
+  for (const candidate of candidates) {
+    if (!groups.has(candidate.family)) groups.set(candidate.family, []);
+    groups.get(candidate.family).push({ candidate, values: [candidate.power, ...values(candidate)] });
+  }
+  return [...groups.values()].flatMap(group => group.filter(row => !group.some(other =>
+    other.values.every((value, i) => value >= row.values[i]) && other.values.some((value, i) => value > row.values[i])
+  )).map(row => row.candidate));
+}
 
 /** Retain different mechanisms before spending frame replays. Power chooses
  * seeds WITHIN a constraint; it never supplies the final recommendation. */
@@ -30,13 +46,37 @@ export function selectLuckSeeds(candidates, limit) {
 }
 
 export async function createLuckCandidateSource(rules, profile, context, songs, {
-  limit = 32, replacementLimit = 32, cardScope = 'owned', onProgress, yieldControl = async () => {}, shouldStop = () => false
+  limit = 32, replacementLimit = 32, cardScope = 'owned', preserveSkillTradeoffs = false, comparisonTeam = null, onProgress, yieldControl = async () => {}, shouldStop = () => false
 } = {}) {
   if (!['owned', 'reference'].includes(cardScope)) throw Error('未知的卡库范围');
   const base = createTeamDraft({ selectedSongId: songs[0].trackId, selectedDifficulty: songs[0].difficulty,
     modifiers: { ...structuredClone(profile?.account ?? {}), growth: structuredClone(profile?.inventory?.growth ?? {}) } });
   const input = resolveSearchInput(rules, base, { scope: cardScope, inventory: profile?.inventory, constraints: { bandId: context.bandId } });
   const power = createFormationCalculator(rules), t = rules.tables;
+  let comparison;
+  if (comparisonTeam) {
+    // Only the formation transfers. Every candidate shares this search's
+    // inventory growth, account bonuses, stage, song and performance inputs.
+    const draft = { ...input.draft, slots: structuredClone(comparisonTeam.draft.slots) };
+    const compatibility = checkTeamCompatibility(draft, { rules,
+      allowedMemberIds: input.inventory.memberCardIds, allowedSupportIds: input.inventory.supportCardIds });
+    if (!compatibility.compatible) throw Error(`自配队无法参与当前比较：${compatibility.issues[0].message}`);
+    comparison = { id: stableSnapshotHash(draft.slots), name: '自配队对照', family: '自配队对照', draft,
+      power: power.calculate(draft).total.total, comparison: { id: comparisonTeam.id, name: comparisonTeam.name } };
+  }
+  const pairStrengths = new Map(), types = [...roles.keys()];
+  const skillStrengths = candidate => {
+    // Growth and missions are fixed for this source. Applicability depends on
+    // the member/support pair, so reusing a pair needs no effect compilation.
+    const keys = candidate.draft.slots.map(slot => `${slot.memberCardId}:${slot.supportCardId}`);
+    if (keys.some(key => !pairStrengths.has(key))) {
+      const effects = compileGekisouEffects(rules, candidate.draft, false, [2, 2, 2]).filter(effect => effect.active);
+      keys.forEach((key, slot) => pairStrengths.set(key, types.map(type => effects
+        .filter(effect => effect.slotIndex === slot && effect.definition._skillEffectType === type)
+        .reduce((sum, effect) => sum + effect.definition._effectValue, 0))));
+    }
+    return types.map((_, i) => keys.reduce((sum, key) => sum + pairStrengths.get(key)[i], 0));
+  };
   const cardRoles = new Map();
   for (const kind of ['member', 'support']) for (const id of input.inventory[`${kind}CardIds`]) {
     const card = power.card(id, kind), member = kind === 'member';
@@ -94,10 +134,14 @@ export async function createLuckCandidateSource(rules, profile, context, songs, 
       await yieldControl();
     }
   }
-  const candidates = selectLuckSeeds(generated, limit), seen = new Set(candidates.map(c => c.id));
+  const seeds = selectLuckSeeds(generated, limit);
+  const candidates = seeds.map(row => row.id === comparison?.id ? { ...row, comparison: comparison.comparison } : row);
+  if (comparison && !candidates.some(row => row.id === comparison.id)) candidates.push(comparison);
+  const seen = new Set(candidates.map(c => c.id));
   const pending = new Map(), expanded = new Set();
   return {
-    candidates, generated: new Set(generated.map(c => c.id)).size,
+    candidates, seeds, comparisonId: comparison?.id ?? null,
+    generated: new Set([...generated.map(c => c.id), ...(comparison ? [comparison.id] : [])]).size,
     complete: completed === seedSongs.length * tasks.length * 2,
     get pending() { return pending.size; },
     get expanded() { return expanded.size; },
@@ -137,6 +181,7 @@ export async function createLuckCandidateSource(rules, profile, context, songs, 
         // size. Keep every captain/pairing variant and balance card changes
         // across mechanisms before power. Every selected proposal is queued.
         proposals.push(...selectLuckSeeds(replacements, replacementLimit));
+        if (preserveSkillTradeoffs) proposals.push(...luckSkillTradeoffs(replacements, skillStrengths));
       }
       if (shouldStop()) return null;
       for (const row of proposals) pending.set(row.id, row);

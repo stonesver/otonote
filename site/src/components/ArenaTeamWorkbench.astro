@@ -28,6 +28,10 @@ const client = JSON.stringify({ ...data,
           <label class="arena-player-field">对局人数<select name="participantCount" data-quick>{[5,4,3,2].map(n=><option value={n}>{n} 人</option>)}</select></label>
           <label>使用卡片<select name="cardScope"><option value="owned">我的卡库</option><option value="reference">全卡库参考 · 满养成</option></select></label>
           <p class="arena-hint" data-arena-card-scope-note>按个人卡库的实际养成计算。</p>
+          <div data-arena-comparison hidden>
+            <label>自配队对照（可选）<select name="comparisonTeam" data-quick-native><option value="">不加入对照</option></select></label>
+            <p class="arena-hint" data-arena-comparison-note></p>
+          </div>
         </section>
         <section class="arena-skill-settings" data-arena-skills>
           <div class="arena-setup-heading"><h2>技能偏好</h2></div>
@@ -79,7 +83,7 @@ const client = JSON.stringify({ ...data,
       <p class="arena-method-intro" data-arena-method-intro>看整场得分，也看 JUST 带来的名次奖励。</p>
       <dl>
         <div><dt>对手未知，怎么选队？</dt><dd data-arena-method-comparison>比较不同对手计数下，换成另一支候选最多能多拿多少分。优先推荐这个差距更小的队伍。</dd></div>
-        <div><dt>分数范围怎么看？</dt><dd>左端是三段末位，右端是三段第一，使用所选卡库养成和参考发挥。多首歌默认同等重要；可在高级设置调整各曲影响。</dd></div>
+        <div><dt>分数范围怎么看？</dt><dd data-arena-method-range>左端是三段末位，右端是三段第一，使用所选卡库养成和参考发挥。多首歌默认同等重要；可在高级设置调整各曲影响。</dd></div>
         <div><dt>知道对手计数以后呢？</dt><dd>切到「对手试算」，输入三段计数，就能比较各队在当前歌曲的名次和得分。</dd></div>
       </dl>
     </dialog>

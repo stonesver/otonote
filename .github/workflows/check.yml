@@ -42,6 +42,7 @@ jobs:
           node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs site/tests/costumes.test.mjs site/tests/site-notifications.test.mjs site/tests/notice-admin-controls.test.mjs
           node --test site/tests/event-song-ranking.test.mjs site/tests/event-result-presentation.test.mjs site/tests/event-mistake-reference.test.mjs site/tests/event-mistake-reference-view.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs site/tests/calculator-multiselect.test.mjs
           python3 -m unittest tests.test_event_catalog -q
+          python3 -m unittest tests.test_arena_master_compatibility -q
           node --test site/tests/event-content.test.mjs site/tests/event-card-model.test.mjs
           node --test site/tests/tools-loading.test.mjs site/tests/web-client-dependencies.test.mjs site/tests/calculation-progress.test.mjs site/tests/challenge-optimizer-ui.test.mjs
           node --test site/tests/entity-identity.test.mjs site/tests/shared-directory-integration.test.mjs site/tests/edition-library.test.mjs site/tests/shared-song-rankings.test.mjs site/tests/card-skill-filtering.test.mjs

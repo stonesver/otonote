@@ -22,6 +22,7 @@ from backend.arena_rankings import RPC, absolute, validate_observation
 from tools.arena_content import validate_arena_publication, arena_master_version
 from tools.collect_player_rankings import pause_required, high_score_deck
 from tools.global_game_config import GLOBAL_SERVERS
+from tools.ranking_regions import verify_arena_rank_tables
 from tools.growth_export import fields
 from tools.growth_login import GameClient, LoginError, Profile, SdkClient, integer, single, string
 from tools.import_arena_rankings import publish_observations
@@ -145,7 +146,7 @@ class ArenaRankingClient(GameClient):
     def discover(self):
         host=super().discover()
         if self.plan.get('masterVersion') and getattr(self,'arena_master',None)!=self.plan['masterVersion']:
-            raise LoginError('arena_master_version_mismatch')
+            verify_arena_rank_tables(self, self.plan['masterVersion'], getattr(self, 'arena_master', None))
         return host
 
     def export(self, identity, device_id, host, progress=lambda stage: None):

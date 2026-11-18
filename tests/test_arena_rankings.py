@@ -156,15 +156,18 @@ class ArenaRankingTests(unittest.TestCase):
         data=projection();data.update(sourceMasterVersion='a'*32,serverScopes=['global-hmt','global-en','global-kr'],
             sourceMasterVersions={'global-hmt':'a'*32,'global-en':'b'*32,'global-kr':'c'*32})
         sdk=Mock()
-        with patch.object(GameClient,'discover',return_value='synthetic-host'):
+        with patch.object(GameClient,'discover',return_value='synthetic-host'), \
+                patch('tools.collect_arena_rankings.verify_arena_rank_tables',
+                      side_effect=LoginError('arena_rank_tables_changed')) as verify:
             for server,version in data['sourceMasterVersions'].items():
                 plan=read_plan(data,'d'*64,server,now=NOW)
                 self.assertEqual(plan['masterVersion'],version)
                 game=ArenaRankingClient(plan);game.arena_master=version
                 self.assertEqual(game.discover(),'synthetic-host')
                 game.arena_master='e'*32
-                with self.assertRaisesRegex(LoginError,'master_version_mismatch'):
+                with self.assertRaisesRegex(LoginError,'arena_rank_tables_changed'):
                     run_capture(plan,Profile('FAKE'),'synthetic','synthetic',Path('/unused'),game_factory=lambda p:game,sdk_factory=sdk)
+                verify.assert_called_with(game, version, 'e' * 32)
         sdk.assert_not_called()
 
     def test_capture_auth_cleared_and_failed_read_never_published(self):

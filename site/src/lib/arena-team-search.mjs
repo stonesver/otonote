@@ -119,7 +119,7 @@ export async function evaluateArenaCandidates({ rules, context, songs, performan
     omitted: candidates.filter(candidate => omitted.has(candidate.id)).map(candidate => omitted.get(candidate.id)) };
 }
 
-export async function searchArenaTeams({ rules: sourceRules, profile, stage, songs, performanceScenario, cardScope = 'owned', skillPreferences }, { onProgress, onSnapshot, onLuckSession, luckOptions = {}, yieldControl = async () => {}, evaluateCandidates = evaluateArenaCandidates } = {}) {
+export async function searchArenaTeams({ rules: sourceRules, profile, stage, songs, performanceScenario, cardScope = 'owned', skillPreferences, comparisonTeam = null }, { onProgress, onSnapshot, onLuckSession, luckOptions = {}, yieldControl = async () => {}, evaluateCandidates = evaluateArenaCandidates } = {}) {
   const { context, rules } = applyArenaContext(sourceRules, stage);
   if (!songs?.length) throw Error('请至少选择一首歌曲作为评估范围');
   if (songs.some(s => !Number.isFinite(s.weight) || s.weight <= 0)) throw Error('曲目权重须为正数');
@@ -135,7 +135,7 @@ export async function searchArenaTeams({ rules: sourceRules, profile, stage, son
     mission = current;
   }
   if (mission === 2) {
-    const session = createArenaLuckSearch({ sourceRules, rules, profile, context, songs, performance, cardScope }, { ...luckOptions, onProgress, onSnapshot, yieldControl });
+    const session = createArenaLuckSearch({ sourceRules, rules, profile, context, songs, performance, cardScope, comparisonTeam }, { ...luckOptions, onProgress, onSnapshot, yieldControl });
     onLuckSession?.(session);
     try { return await session.run(); } finally { if (!onLuckSession) session.close(); }
   }

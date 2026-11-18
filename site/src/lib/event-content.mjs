@@ -1,3 +1,5 @@
+import { eventTimestamp } from './event-time.mjs';
+
 /** Keep event identifiers inside their source server and release. */
 export function validatedEvents(archive, context) {
   const records = archive.records ?? [];
@@ -5,7 +7,12 @@ export function validatedEvents(archive, context) {
     || records.some(event => event.edition !== archive.edition || event.sourceReleaseId !== archive.sourceReleaseId))) {
     throw new Error("Event archive does not belong to the selected edition/release");
   }
-  return records;
+  // Older published archives joined shops by currency alone. Reused currency
+  // must not leak another event's rewards into pages or reward-card selection.
+  return records.map(event => ({...event, exchanges:event.exchanges.filter(shop => {
+    const start = eventTimestamp(event.schedule.startAt, event.edition, event.schedule.timeZone);
+    return start !== null && eventTimestamp(shop.startAt, event.edition, event.schedule.timeZone) === start;
+  })}));
 }
 export const eventStoryEntryId = episode => `story-entry-main-${episode.id}`;
 /** Match exact episode IDs as Another chapters share chapter IDs with main stories. */

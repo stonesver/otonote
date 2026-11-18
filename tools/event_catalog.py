@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 
 from tools.resource_pipeline.localization import resolve_localized_text
@@ -191,8 +192,13 @@ def build_event_archive(root: Path, release_id: str, *, edition: str | None, loc
         shops = []
         event_item = row.get("_eventItemId")
         for shop in source.rows("MasterExchange"):
-            # Explicit currency relation; do not infer an event association from names/dates.
+            # Currency IDs are reused between events. The shop opens with its event;
+            # its closing date can extend beyond that event and must not select owners.
             if not event_item or (shop.get("_paymentResourceType"), shop.get("_paymentResourceId")) != (1, event_item):
+                continue
+            event_start, shop_start = configured_time(row.get("_startAt")), configured_time(shop.get("_startAt"))
+            if (not event_start or not shop_start
+                    or datetime.fromisoformat(event_start.replace("/", "-")) != datetime.fromisoformat(shop_start.replace("/", "-"))):
                 continue
             products = [{"id": p["_id"], "reward": source.resource(p), "cost": p.get("_paymentResourceCount"),
                          "limit": p.get("_limitCount"), "resetType": p.get("_resetType"),
@@ -200,7 +206,7 @@ def build_event_archive(root: Path, release_id: str, *, edition: str | None, loc
                          "startAt": configured_time(p.get("_startAt")), "endAt": configured_time(p.get("_endAt"))}
                         for p in source.rows("MasterExchangeProduct") if p.get("_exchangeId") == shop["_id"]]
             shops.append({"id": shop["_id"], "name": source.name("MasterExchange", shop["_id"]),
-                          "relation": "event_currency", "startAt": configured_time(shop.get("_startAt")),
+                          "relation": "event_currency_and_start", "startAt": configured_time(shop.get("_startAt")),
                           "endAt": configured_time(shop.get("_endAt")), "products": products})
         flags = {name: not row[field] if type(row.get(field)) is bool else None for name, field in
                  (("eventPoints", "_isRankingDisabled"), ("music", "_isMusicRankingDisabled"), ("totalMusic", "_isTotalMusicRankingDisabled"))}

@@ -1,0 +1,70 @@
+/* Shared surface hierarchy: tinted navigation, white content, paired action accents. */
+html[data-shell="sidebar"] {
+  .site-brand__mark { background:var(--theme-surface); }
+  .site-breadcrumb strong { font-size:15px; font-weight:700; }
+  .page-editions { padding-top:14px; }
+  .page-editions > div { background:var(--theme-surface); }
+  /* Keep artwork on white; the secondary color identifies the filter action. */
+  .card-directory-section .catalog-controls { margin-bottom:8px; }
+  .card-directory-section .search-control { border:1px solid var(--theme-border); background:var(--theme-surface); box-shadow:none; border-radius:9px; }
+  .card-directory-section .search-control:focus-within { border-color:var(--theme-accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--theme-focus) 18%,transparent); }
+  .card-directory-section .filter-drawer-trigger { background:var(--theme-secondary); color:var(--theme-on-secondary); border-color:var(--theme-secondary); font-weight:700; box-shadow:none; }
+  .card-directory-section .result-bar { padding-block:8px; margin-bottom:12px; border:0; }
+  .card-directory-section .result-bar b { color:var(--theme-accent); font-size:18px; font-variant-numeric:tabular-nums; }
+  .card-directory-section .catalog-tile { border-color:var(--theme-border); box-shadow:none; }
+  .filter-drawer-dialog > .filter-drawer-header { border-bottom:1px solid var(--theme-border); background:var(--theme-surface); }
+  .filter-drawer-dialog .filter-drawer-footer { background:color-mix(in srgb,var(--theme-secondary) 25%,var(--theme-surface)); }
+
+  /* Filled headings, white forms and an elevated action summary form separate levels. */
+  .tool-studio.tool-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench {
+    .event-setup-rail { background:transparent; border:0; }
+    :is(.event-default-setup,.team-setup,.ds-score-setup,.task-condition-panel) { background:var(--theme-surface); border-color:var(--theme-border); }
+    :is(.event-setup-title,.ds-panel-title,.ds-score-setup > summary,.task-condition-panel > header) { background:var(--theme-secondary); color:var(--theme-on-secondary); padding:13px 16px; margin:0 0 6px; font-size:14px; }
+    .task-event-plan-empty { border:0; border-radius:10px; padding:18px 20px; background:var(--theme-surface); }
+    .task-event-plan-empty > header h2 { font-size:16px; }
+    .event-pool-readiness { padding:10px 12px; border:0; border-left:3px solid var(--theme-accent); border-radius:0; background:var(--tool-tint); }
+    .event-plan-configuration { border:0; border-radius:0; background:transparent; }
+    .event-plan-configuration > summary { padding-block:10px; font-size:14px; }
+    .event-plan-fields > .task-condition-group > h3 { color:var(--theme-accent); font-size:13px; margin-bottom:6px; }
+    :is(.event-default-setup,.team-setup,.ds-score-setup,.event-plan-configuration) select { background:var(--theme-surface); border:1px solid var(--theme-border); }
+    .ds-score-fields .task-song-row:not(:has(img)) > strong { grid-column:1/-1; }
+    .task-number-stepper { background:var(--theme-surface); border:1px solid var(--theme-border); }
+    .event-action-dock { background:var(--theme-surface); border:1px solid var(--theme-border); border-top:3px solid var(--theme-secondary); border-radius:10px; padding:12px 18px; box-shadow:0 5px 18px color-mix(in srgb,var(--theme-shadow-color) 12%,transparent); }
+    .event-action-dock .event-action-copy { color:var(--theme-text); }
+    .event-action-dock .event-action-copy small { color:var(--theme-muted); }
+    .event-action-dock .event-primary { min-height:42px; padding-inline:22px; font-size:14px; font-weight:750; }
+    .ds-task-switcher { border:0; padding:0; gap:4px; background:transparent; box-shadow:none; }
+    .ds-task-switcher > button { padding-inline:16px; min-height:40px; border:0; border-radius:7px; background:transparent; }
+    .ds-task-switcher > button[aria-pressed="true"] { color:var(--theme-on-accent); background:var(--theme-accent); box-shadow:none; }
+    .ds-task-switcher > button:not([aria-pressed="true"]):hover { background:var(--tool-tint); }
+  }
+}
+
+@media(min-width:701px) {
+  html[data-shell="sidebar"] .tool-studio.tool-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench .task-workbench-shell { gap:24px; grid-template-columns:240px minmax(0,1fr); }
+}
+@media(max-width:700px) {
+  html[data-shell="sidebar"] .tool-studio.tool-studio.tool-design-system[data-tool-kind][data-tool-kind] .task-workbench {
+    .task-event-plan-empty { padding:14px 12px; margin-top:0; }
+    .event-action-dock { padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px)); }
+    .event-action-dock:not(:has(.event-calculation:not([hidden]) .calculation-progress:not([hidden]))) .event-action-copy { display:grid; flex:1; max-width:calc(100% - 116px); }
+    .event-action-copy strong { font-size:12px; }
+    .event-action-copy small { font-size:11px; }
+    .event-action-dock .event-primary { min-height:42px; padding-inline:16px; font-size:13px; }
+    .event-plan-fields { padding-top:4px; }
+    .event-plan-fields > .task-condition-group > h3 { margin-bottom:0; }
+    .event-plan-fields > .task-condition-group:first-child > h3 { display:none; }
+    .ds-task-switcher > button { padding-inline:10px; min-height:42px; }
+  }
+}
+@media(max-width:1100px) {
+  html[data-shell="sidebar"] .site-header :is(.theme-picker-trigger,.global-search-trigger,.nav-toggle,.context-switcher > summary) { background:transparent; border-color:transparent; border-radius:7px; box-shadow:none; }
+}
+@media(max-width:560px) {
+  html[data-shell="sidebar"] .site-header .site-breadcrumb strong { font-size:14px; }
+  html[data-shell="sidebar"] .site-header .context-switcher > summary {
+    width:44px; min-width:44px; height:44px; padding:0; place-items:center;
+    &::before { content:"文"; font-size:17px; font-weight:650; }
+    & > :is(span,strong) { display:none; }
+  }
+}

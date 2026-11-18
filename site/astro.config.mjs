@@ -1,3 +1,4 @@
+import {svelte} from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from "astro/config";
 import { fileURLToPath } from "node:url";
 import { profile } from "./product-profile.mjs";
@@ -49,6 +50,7 @@ export default defineConfig({
   },
   integrations,
   vite: {
+    plugins: [svelte()],
     define: {
       "import.meta.env.PUBLIC_SITE_PROFILE": JSON.stringify(profile),
       // Preserve the source location when the server loader is bundled for prerendering.

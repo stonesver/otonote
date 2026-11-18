@@ -120,6 +120,31 @@ function sharedFixture() {
   return {env, objects, calls, path, data, entry, descriptor, descriptorKey, url, h};
 }
 
+test('review gate blocks candidate JSON, media, HEAD and Range until approved', async () => {
+  const f = sharedFixture();
+  f.env.PUBLICATION_REVIEW = 'required';
+  const access = `content/access/${id}.json`;
+  const jsonPath = `content/releases/${id}/en/catalog.json`;
+  f.objects.set(jsonPath, Buffer.from('{}'));
+  for (const path of [jsonPath, `content/releases/${id}/manifest.json`, `content/releases/${id}/${f.path}`]) {
+    for (const options of [{}, {method: 'HEAD'}, {headers: {Range: 'bytes=1-3'}}]) {
+      const result = await gateway.fetch(new Request('https://example.org/' + path, options), f.env);
+      assert.equal(result.status, 404);
+      assert.equal(result.headers.get('Cache-Control'), 'no-store');
+    }
+  }
+  assert.ok(f.calls.every(([key]) => key === access));
+  f.objects.set(access, encode({schemaVersion: 1, releaseId: id, region: 'global', manifestSha256: f.descriptor.manifestSha256}));
+  assert.equal((await gateway.fetch(new Request(f.url), f.env)).status, 200);
+  assert.equal((await gateway.fetch(new Request('https://example.org/' + jsonPath), f.env)).status, 200);
+  // Access is checked afresh, including when immutable storage mappings were cached.
+  f.objects.delete(access);
+  assert.equal((await gateway.fetch(new Request(f.url), f.env)).status, 404);
+  f.objects.set(access, encode({schemaVersion: 1, releaseId: 'b'.repeat(24)}));
+  assert.equal((await gateway.fetch(new Request(f.url), f.env)).status, 503);
+  assert.equal(contentKey('/' + access), null);
+});
+
 test('shared media keeps logical URL and MIME, including range and HEAD', async () => {
   const f = sharedFixture();
   const response = await gateway.fetch(new Request(f.url), f.env);

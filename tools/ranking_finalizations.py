@@ -33,7 +33,7 @@ def checked_plan(plan, server):
     if not isinstance(boards, list) or not 1 <= len(boards) <= 20:
         raise ValueError('invalid_remembered_ranking_plan')
     for board in boards:
-        if not isinstance(board, dict) or board.get('type') not in ('music', 'event-points') or 'entries' in board:
+        if not isinstance(board, dict) or board.get('type') not in ('music', 'event-points', 'total-music') or 'entries' in board:
             raise ValueError('invalid_remembered_ranking_plan')
         if board['type'] == 'music' and (type(board.get('challengeMusicId')) is not int
                 or not 1 <= board['challengeMusicId'] <= (1 << 31) - 1

@@ -13,7 +13,7 @@ const copy = eventCopy(locale);
 const records = [...(archive.records ?? [])].filter(event => !story || event.story.episodes.length).sort((a,b) => (b.schedule.startAt ?? "").localeCompare(a.schedule.startAt ?? "") || b.id - a.id);
 ---
 <div class="event-archive content-shell ef-directory" data-event-directory>
-  <header class="ea-heading"><p class="ea-kicker">OTONOTE / {story ? "EVENT STORIES" : "EVENT ARCHIVE"}</p><h1>{story ? copy.stories : copy.title}</h1><p>{story ? copy.storyIntro : copy.intro}</p></header>
+
   {records.length > 0 ? <>
     <div class="ea-toolbar"><p><strong data-event-count>{records.length}</strong> {copy.events}</p><label class="ea-search"><EventIcon name="search" size={18} /><span class="visually-hidden">{copy.search}</span><input type="search" data-event-search placeholder={copy.search} /></label></div>
     <div class:list={["ea-cards", {"ea-cards--single": records.length === 1}]}>{records.map(event => {

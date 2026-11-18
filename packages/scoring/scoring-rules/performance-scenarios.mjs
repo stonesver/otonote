@@ -7,6 +7,7 @@ import { requireInteger } from './formation-power.mjs';
 export const PERFORMANCE_SCENARIO_VERSION = 'performance-scenario-v1';
 export const TIMING_PERFORMANCE_VERSION = 'ournotes-performance-timing-v1';
 export const PERFORMANCE_PROFILES = Object.freeze([
+  { id: 'ap_timing', label: 'AP 微操冲分', timingSpreadMs: 0, missRate: 0, description: '比较 60／120 帧共用的 AP 操作方案，优先保留判定余量。' },
   { id: 'ideal', label: '理想发挥', timingSpreadMs: 0, missRate: 0, description: '零毫秒偏差、不漏击；JUST 段按可用判定窗口计算。' },
   { id: 'steady', label: '连击较稳的参考发挥', timingSpreadMs: 65, missRate: 0, description: '每个音符偏差在 -65 至 65 毫秒间均匀抽样，不额外漏击；这是参考条件，不代表你的实测水平。' },
   { id: 'practice', label: '练习中的参考发挥', timingSpreadMs: 110, missRate: 0.02, description: '偏差在 -110 至 110 毫秒间均匀抽样，另有 2% 漏击；可以指定难段。' },
@@ -18,6 +19,8 @@ export function normalizePerformanceScenario(input = {}) {
   const profile = input.profile ?? 'steady';
   const preset = PERFORMANCE_PROFILES.find(row => row.id === profile);
   if (!preset && profile !== 'explicit') throw new Error('未知的发挥情景');
+  if (profile === 'ap_timing') return { version: PERFORMANCE_SCENARIO_VERSION, profile, frameRate: 60, samples: 1,
+    timingBiasMs: 0, timingSpreadMs: 0, missRate: 0, difficultRanges: [], description: preset.description };
   if (profile === 'explicit' && !input.performance) throw new Error('指定发挥需要完整判定文件');
   const seed = requireInteger(input.seed ?? 20261004, 'player seed', 0, 0xffffffff);
   const samples = requireInteger(input.samples ?? (profile === 'ideal' || profile === 'explicit' ? 1 : 3), 'player samples', 1, 16);
@@ -44,6 +47,7 @@ export function normalizePerformanceScenario(input = {}) {
  * any card's window expansion or converter; RNG is separate from game luck. */
 export function createPerformanceScenario(rules, chart, input = {}, sampleIndex = 0) {
   const scenario = normalizePerformanceScenario(input);
+  if (scenario.profile === 'ap_timing') throw new Error('AP 微操需要结合队伍搜索，不能生成与队伍无关的发挥样本');
   if (scenario.profile === 'explicit') return structuredClone(scenario.performance);
   requireInteger(sampleIndex, 'player sample index', 0, 15);
   const timeline = prepareFormalChart(rules, { ...chart, sourceReleaseId: chart.sourceReleaseId ?? rules.sourceReleaseId });
@@ -62,29 +66,41 @@ export function createPerformanceScenario(rules, chart, input = {}, sampleIndex 
 /** Table-informed timing scenario, not a recreation of touch hit-testing.
  * Automatic subnotes are retained as chart events; explicit judgements remain
  * the route for captured outcomes whose raw operations cannot be recovered. */
-const timingRows = (rules, type) => rules.tables.LiveJudgementTiming.filter(row => row._assistLevel === 0 && row._noteSimulateJudgement >= 1 && row._noteSimulateJudgement <= 6 && row._noteJudgementType === type)
-  .sort((a, b) => a._judgementPriority - b._judgementPriority);
-
-function timingJudgement(event, { justEnabled = false, justExpansion = () => 0 } = {}, rowsFor) {
+export function resolveTimingJudgement(rules, event, { justEnabled = false, justExpansion = () => 0 } = {}) {
   if (event.originalJudgement != null) return event.originalJudgement;
   if (event.missed) return 1;
   const offset = event.timingOffsetMs;
-  const type = formalJudgementType(event.type, event.critical), rows = rowsFor(type);
-  if (!rows.some(row => justEnabled || row._noteSimulateJudgement !== 6)) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
-  return rows.find(row => (justEnabled || row._noteSimulateJudgement !== 6) && Math.abs(offset) <= (offset < 0 ? row._beforeMs : row._afterMs) +
+  const type = formalJudgementType(event.type, event.critical);
+  const rows = rules.tables.LiveJudgementTiming.filter(row => row._assistLevel === 0 && row._noteSimulateJudgement >= 1 && row._noteSimulateJudgement <= 6 && row._noteJudgementType === type && (justEnabled || row._noteSimulateJudgement !== 6))
+    .sort((a, b) => a._judgementPriority - b._judgementPriority);
+  if (!rows.length) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
+  return rows.find(row => Math.abs(offset) <= (offset < 0 ? row._beforeMs : row._afterMs) +
     (row._noteSimulateJudgement === 6 ? justExpansion(offset < 0 ? row._beforeMs : row._afterMs) : 0))?._noteSimulateJudgement ?? 1;
 }
 
-export function resolveTimingJudgement(rules, event, options) {
-  return timingJudgement(event, options, type => timingRows(rules, type));
-}
-
-/** Rules are fixed for a replay. Index each note type once; expansion and
- * JUST availability still resolve against the current frame's skill state. */
+/** Bind the priority-ordered windows once for a replay, rather than sorting
+ * the same table for every judgement. No cache survives a rules snapshot. */
 export function createTimingJudgementResolver(rules) {
-  const rows = new Map();
-  return (event, options) => timingJudgement(event, options, type => {
-    if (!rows.has(type)) rows.set(type, timingRows(rules, type));
-    return rows.get(type);
-  });
+  const windows = new Map();
+  for (const row of rules.tables.LiveJudgementTiming) {
+    if (row._assistLevel !== 0 || row._noteSimulateJudgement < 1 || row._noteSimulateJudgement > 6) continue;
+    if (!windows.has(row._noteJudgementType)) windows.set(row._noteJudgementType, []);
+    windows.get(row._noteJudgementType).push(row);
+  }
+  for (const [type, rows] of windows) {
+    rows.sort((a, b) => a._judgementPriority - b._judgementPriority);
+    windows.set(type, [rows.filter(row => row._noteSimulateJudgement !== 6), rows]);
+  }
+  return (event, { justEnabled = false, justExpansion = () => 0 } = {}) => {
+    if (event.originalJudgement != null) return event.originalJudgement;
+    if (event.missed) return 1;
+    const type = formalJudgementType(event.type, event.critical), rows = windows.get(type)?.[Number(justEnabled)];
+    if (!rows?.length) throw new Error(`缺少音符类型 ${type} 的判定窗口`);
+    const offset = event.timingOffsetMs;
+    for (const row of rows) {
+      const base = offset < 0 ? row._beforeMs : row._afterMs;
+      if (Math.abs(offset) <= base + (row._noteSimulateJudgement === 6 ? justExpansion(base) : 0)) return row._noteSimulateJudgement;
+    }
+    return 1;
+  };
 }

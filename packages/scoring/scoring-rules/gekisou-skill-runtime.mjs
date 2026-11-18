@@ -42,6 +42,9 @@ export function compileGekisouEffects(rules, draft, dynamic = false, missions = 
       return { ...effect, key: `${skill.kind}:${skill.slotIndex}:${definition._id}`, missionType: skill.missionType,
         kind: skill.kind, slotIndex: skill.slotIndex, sourceCardId: skill.sourceCardId, band, operator, targets, programs, cumulativeProgram,
         hasIntervals: Object.values(programs).some(p => p.intervals.length),
+        eventDriven: [11001, 11002, 11003, 11005, 2000, 3004].includes(definition._skillEffectType) &&
+          !programs._skillTriggerConditionGroup.idleEventful &&
+          !programs._skillReleaseConditionGroup.idleRandom && !programs._effectExecuteLimitResetConditionGroup.idleRandom,
         active: [programs._skillConditionGroup, programs._skillTriggerConditionGroup].every(p => p.possible({ band, life: maximumLife, dynamic })),
         random: chanceConditions.some(c => c._conditionValues[0] > 0 && c._conditionValues[0] < 100),
         probability: chanceConditions.length === 1 ? (chanceConditions[0]._isPositive ? chanceConditions[0]._conditionValues[0] : 100 - chanceConditions[0]._conditionValues[0]) : chanceConditions.length ? null : 100 };
@@ -50,27 +53,48 @@ export function compileGekisouEffects(rules, draft, dynamic = false, missions = 
 }
 
 export function createGekisouEffectState(effect, budget = { uses: 0 }) {
-  return { ...effect, get uses() { return budget.uses; }, set uses(value) { budget.uses = value; },
-    pending: 0, executing: false, triggered: false, windows: [],
-    scoreFactor: 0, startMs: null, endMs: Infinity, cumulativeRaw: 0,
-    exhaustedFrame: -1, counters: {}, wasMatched: false };
+  return new GekisouEffectState(effect, budget);
 }
 
-/** The sole activation/lifetime controller. The caller reuses a frame context;
- * band/counters are rebound for each effect. Operators consume it synchronously. */
+// Keep the shared execution budget behind prototype accessors. Per-instance
+// accessor literals force dictionary properties in V8's hottest frame loop.
+class GekisouEffectState {
+  constructor(effect, budget) {
+    Object.assign(this, effect);
+    this.budget = budget;
+    this.pending = 0; this.executing = false; this.triggered = false; this.windows = [];
+    this.scoreFactor = 0; this.startMs = null; this.endMs = Infinity; this.cumulativeRaw = 0;
+    this.exhaustedFrame = -1; this.counters = {}; this.wasMatched = false;
+  }
+  get uses() { return this.budget.uses; }
+  set uses(value) { this.budget.uses = value; }
+}
+
+function endEffect(e, ctx, timeMs) {
+  e.operator.stop?.(e, ctx, timeMs);
+  ctx.factor(e, 0, timeMs);
+  e.executing = false; e.endMs = timeMs;
+  e.windows.at(-1).endMs = timeMs;
+  ctx.dirty(); ctx.trace(e, 'end');
+}
+
+function consumeEvent(program, e, ctx) {
+  if (program.empty) return false;
+  for (let i = -1; i < ctx.section.previousLots.length; i++) {
+    const event = i < 0 ? ctx : { ...ctx, lot: ctx.section.previousLots[i] };
+    const branch = program.match(event, ctx.random);
+    if (branch) { program.consume(branch, e.counters); return true; }
+  }
+  return false;
+}
+
+/** The sole activation/lifetime controller. Context holds current inputs and
+ * previous Gekisou.Update counters/lots; operators only change game state. */
 export function advanceGekisouEffect(e, ctx) {
   const r = e.definition, p = e.programs, trigger = p._skillTriggerConditionGroup;
   ctx.band = e.band; ctx.counters = e.counters;
-  const end = timeMs => {
-    e.operator.stop?.(e, ctx, timeMs);
-    ctx.factor(e, 0, timeMs);
-    e.executing = false; e.endMs = timeMs;
-    e.windows.at(-1).endMs = timeMs;
-    ctx.dirty(); ctx.trace(e, 'end');
-  };
-  const events = [ctx, ...ctx.section.previousLots.map(lot => ({ ...ctx, lot }))];
   if (e.executing && (ctx.closing || ctx.frame >= e.endFrame || e.operator.exhausted?.(e))) {
-    end(ctx.frame >= e.endFrame && !ctx.closing ? e.endMs : ctx.timeMs);
+    endEffect(e, ctx, ctx.frame >= e.endFrame && !ctx.closing ? e.endMs : ctx.timeMs);
   }
   const waiting = !e.executing && (e.operator.ready?.(e, ctx) ?? true);
   if (e.hasIntervals && !ctx.closing && ctx.frame < ctx.section.settleFrame) {
@@ -80,17 +104,9 @@ export function advanceGekisouEffect(e, ctx) {
       e.counters[c.id] = (e.counters[c.id] ?? 0) + ctx.notes.filter(n => c.targets.includes(n.judgement)).length;
     }
   }
-  const consumeEvent = program => {
-    if (program.empty) return false;
-    for (const event of events) {
-      const branch = program.match(event, ctx.random);
-      if (branch) { program.consume(branch, e.counters); return true; }
-    }
-    return false;
-  };
-  const release = e.executing && consumeEvent(p._skillReleaseConditionGroup);
-  if (release) end(ctx.timeMs);
-  if (consumeEvent(p._effectExecuteLimitResetConditionGroup)) {
+  const release = e.executing && consumeEvent(p._skillReleaseConditionGroup, e, ctx);
+  if (release) endEffect(e, ctx, ctx.timeMs);
+  if (consumeEvent(p._effectExecuteLimitResetConditionGroup, e, ctx)) {
     e.uses = 0;
   }
   if (ctx.closing || release) return;
@@ -99,12 +115,15 @@ export function advanceGekisouEffect(e, ctx) {
   // RUSH is a sustained state; threshold conditions are reached events and
   // retain their handle until duration/release. Neither depends on effect ID.
   if (e.executing && r._skillTriggerType === 2 && trigger.sustained(e.activationBranch) &&
-    (!trigger.stillMatches(e.activationBranch, ctx) || !eligible)) end(ctx.timeMs);
-  const contexts = trigger.lottery || p._skillConditionGroup.lottery ? events : [ctx];
-  for (const event of contexts) {
-    const branch = trigger.empty ? (event.entering && !event.lot ? [] : null) : trigger.match(event);
-    if (!branch || e.executing || !(e.operator.ready?.(e, event) ?? true) ||
-      (r._effectExecuteLimitCount > 0 && e.uses >= r._effectExecuteLimitCount) ||
+    (!trigger.stillMatches(e.activationBranch, ctx) || !eligible)) endEffect(e, ctx, ctx.timeMs);
+  const lotCount = trigger.lottery || p._skillConditionGroup.lottery ? ctx.section.previousLots.length : 0;
+  for (let i = -1; i < lotCount; i++) {
+    // Deterministic predicates have no side effects. An executing effect
+    // cannot activate, so do not construct or match another activation event.
+    if (e.executing || (r._effectExecuteLimitCount > 0 && e.uses >= r._effectExecuteLimitCount)) break;
+    const event = i < 0 ? ctx : { ...ctx, lot: ctx.section.previousLots[i] };
+    const branch = trigger.empty ? (event.entering && !event.lot ? [] : null) : i < 0 ? matched : trigger.match(event);
+    if (!branch || !(e.operator.ready?.(e, event) ?? true) ||
       (!trigger.eventful(branch) && e.wasMatched) || !p._skillConditionGroup.match(event)) continue;
     const successful = trigger.match(event, ctx.random);
     const activationCondition = successful && p._skillConditionGroup.match(event, ctx.random);

@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from tools import r2_state
 from tests.test_r2_state import FakePrivateBucket
@@ -281,6 +281,53 @@ class StateReuseTests(unittest.TestCase):
 
 
 class S3EvidenceTests(unittest.TestCase):
+    def streaming_bucket(self, payloads, expected):
+        from botocore.response import StreamingBody
+        streams = [io.BytesIO(payload) for payload in payloads]
+        client = Mock()
+        client.get_object.side_effect = [
+            {'Body': StreamingBody(stream, len(expected)), 'ContentLength': len(expected),
+             'ETag': '"response-' + str(index) + '"'}
+            for index, stream in enumerate(streams)]
+        return r2_state.PrivateS3Bucket(client, 'private'), streams
+
+    def test_truncated_stream_restarts_object_and_uses_only_successful_get_evidence(self):
+        expected = b'complete verified object'
+        for download in (False, True):
+            with self.subTest(download=download), tempfile.TemporaryDirectory() as tmp:
+                bucket, streams = self.streaming_bucket([expected[:4], expected], expected)
+                target = Path(tmp) / 'object'
+                with patch('tools.r2_state.sleep'):
+                    if download:
+                        proof = bucket.download_file('object', target, r2_state.digest(expected), len(expected))
+                        self.assertEqual(target.read_bytes(), expected)
+                        self.assertEqual(proof['etag'], '"response-1"')
+                    else:
+                        self.assertTrue(bucket.verify_file('object', r2_state.digest(expected), len(expected)))
+                self.assertEqual(bucket.client.get_object.call_count, 2)
+                self.assertTrue(all(stream.closed for stream in streams))
+
+    def test_repeated_truncation_stops_after_three_attempts_and_removes_partial_file(self):
+        from botocore.exceptions import IncompleteReadError
+        expected = b'complete verified object'
+        bucket, streams = self.streaming_bucket([expected[:4]] * 3, expected)
+        with tempfile.TemporaryDirectory() as tmp, patch('tools.r2_state.sleep'):
+            target = Path(tmp) / 'object'
+            with self.assertRaises(IncompleteReadError):
+                bucket.download_file('object', target, r2_state.digest(expected), len(expected))
+            self.assertFalse(target.exists())
+        self.assertEqual(bucket.client.get_object.call_count, 3)
+        self.assertTrue(all(stream.closed for stream in streams))
+
+    def test_complete_but_corrupt_object_is_not_retried(self):
+        expected = b'good'
+        bucket, streams = self.streaming_bucket([b'evil'], expected)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, 'missing or damaged'):
+                bucket.download_file('object', Path(tmp) / 'object', r2_state.digest(expected), len(expected))
+        self.assertEqual(bucket.client.get_object.call_count, 1)
+        self.assertTrue(streams[0].closed)
+
     def test_bucket_identity_includes_endpoint_and_bucket(self):
         class Client:
             class meta:

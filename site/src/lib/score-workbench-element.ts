@@ -1,3 +1,4 @@
+import { readThemePalette, observeTheme } from "./theme-palette.mjs";
 import {
   MOBILE_SCORE_PIXELS_PER_SECOND,
   SCORE_PIXELS_PER_SECOND,
@@ -108,6 +109,7 @@ export function registerScoreWorkbenchElement(): void {
     labels!: ScoreWorkbenchLabels;
     viewMode = "scroll";
     sheetDirty = true;
+    disconnectTheme: (() => void) | undefined;
     focusedSegment: number | null = null;
     atlasRange: { start: number; end: number } | null = null;
     restoringScroll = false;
@@ -154,6 +156,7 @@ export function registerScoreWorkbenchElement(): void {
     };
 
     connectedCallback() {
+      this.disconnectTheme = observeTheme(this, () => { this.sheetDirty = true; this.render(); });
       window.addEventListener("song-detail-view-change", this.handleModuleChange);
       const labelsNode = this.querySelector<HTMLScriptElement>(
         "[data-score-runtime-labels]"
@@ -664,7 +667,7 @@ export function registerScoreWorkbenchElement(): void {
       canvas.style.height = `${plan.height}px`;
       const context = canvas.getContext("2d");
       if (!context) return;
-      paintScoreTrack(context, plan, this.selectedHitKey);
+      paintScoreTrack(context, plan, this.selectedHitKey, readThemePalette(canvas));
       this.hitTargets = plan.hitTargets;
     }
 
@@ -717,6 +720,7 @@ export function registerScoreWorkbenchElement(): void {
     }
 
     disconnectedCallback() {
+      this.disconnectTheme?.();
       window.removeEventListener("song-detail-view-change", this.handleModuleChange);
       this.intersectionObserver?.disconnect();
       this.intersectionObserver = undefined;

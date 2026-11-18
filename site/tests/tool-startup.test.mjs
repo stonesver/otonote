@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {prepareTool, stageClientTools,whenDocumentParsed} from '../src/runtime/tool-startup.mjs';
+import {prepareTool, stageClientTools,whenDocumentParsed,readToolJson} from '../src/runtime/tool-startup.mjs';
 
 test('tool preparation starts after parsing while deferred analytics can still be pending',()=>{
  const document=new EventTarget();document.readyState='loading';let starts=0;
@@ -94,4 +94,29 @@ for (const stage of ['data','module']) test(`${stage} failure leaves controls lo
 
 test('unavailable tools do not load dormant modules or data', async () => {
   await prepareTool({document:{querySelector:()=>null},readJson:()=>assert.fail(),importModule:()=>assert.fail()});
+});
+
+
+test('split rules load alongside page data and reach the workbench without a JSON round trip', async () => {
+  const f = fixture(), calls = [], rules = { tables: { MemberCard: [{ _id: 1 }] } }, data = { labels: {} };
+  f.nodes[0].matches = () => true;
+  Object.assign(f.nodes[0].dataset, { deferredRules: 'rules', rulesSha256: 'rules-hash', rulesField: 'formalRules' });
+  await prepareTool({ ...f.options,
+    readJson: async (url, hash) => { calls.push([url, hash]); return url === 'rules' ? rules : url === 'cards' ? data : {}; },
+    importModule: async () => {
+      assert.equal(readToolJson(f.nodes[0]), data);
+      assert.equal(readToolJson(f.nodes[0]).formalRules, rules);
+      assert.equal(f.nodes[0].textContent, '');
+    }
+  });
+  assert.deepEqual(calls, [['cards','cards'],['rules','rules-hash'],['songs','songs']]);
+  assert.deepEqual(readToolJson({ textContent: '{"inline":true}' }), { inline: true });
+});
+
+test('failed rules integrity keeps a split-data tool locked', async () => {
+  const f = fixture();
+  Object.assign(f.nodes[0].dataset, { deferredRules: 'rules', rulesSha256: 'bad', rulesField: 'rules' });
+  await prepareTool({ ...f.options, readJson: async url => { if (url === 'rules') throw Error('integrity'); return {}; },
+    importModule: () => assert.fail('no partially initialized tool') });
+  assert.equal(f.region.inert, true); assert.equal(f.ready(), 0); assert.equal(f.retry.hidden, false);
 });

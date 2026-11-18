@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"], "types": ["svelte"],
+    "strict": true, "noEmit": true, "allowJs": true, "checkJs": false,
+    "allowImportingTsExtensions": true, "verbatimModuleSyntax": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/lib/calculation/**/*.ts", "src/lib/production-optimizer-worker.ts", "src/lib/inventory-optimizer-ui.ts", "src/lib/team-planning-optimizer.ts", "src/lib/playlist-team-batch.ts", "src/components/calculation/**/*.svelte", "tests/types/**/*.ts"]
+}

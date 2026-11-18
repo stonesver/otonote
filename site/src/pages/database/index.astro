@@ -1,42 +1,16 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import {itemIndex, skillIndex} from "../../lib/shared-database";
-import {catalog} from "../../lib/shared-catalog";
 import { bandItemDatabase } from "../../lib/shared-band-items";
 import "../../styles/database.css";
 
-const projectionCount =
-  catalog.memberCards.length +
-  catalog.supportCards.length;
 ---
 
 <BaseLayout title="游戏数据库">
-  <section class="db-hero" data-copy-layer="primary">
-    <div class="content-shell db-hero-grid">
-      <div>
-        <div class="eyebrow">GAME SYSTEM LEDGER</div>
-        <h1>规则如何连接到<br /><em>每一张卡</em></h1>
-        <p>查找技能、道具和乐队强化，也可以从卡牌反查它们的用途与条件。</p>
-      </div>
-      <div class="db-hero-index" aria-label="数据库收录统计">
-        <div><span>SKILLS</span><strong>{skillIndex.length}</strong></div>
-        <div><span>ITEMS</span><strong>{itemIndex.length}</strong></div>
-        <div><span>BAND ITEMS</span><strong>{bandItemDatabase.items.length}</strong></div>
-        <div><span>CARD VIEWS</span><strong>{projectionCount}</strong></div>
-      </div>
-    </div>
-  </section>
 
   <section class="db-directory">
     <div class="content-shell">
-      <header class="section-heading">
-        <div>
-          <div class="eyebrow">RELATION INDEX</div>
-          <h2>从规则进入，或从卡牌反查</h2>
-          <p>选择技能或道具查看详细效果、获取方式、升级材料和关联卡牌。</p>
-        </div>
-        <span class="db-version">日服与国际版合并收录</span>
-      </header>
+      <p class="db-version">日服与国际版合并收录</p>
 
       <div class="db-ledger">
         <a class="db-ledger-row" href="/database/skills/">
@@ -70,7 +44,6 @@ const projectionCount =
           <span class="db-ledger-arrow">→</span>
         </a>
       </div>
-
 
     </div>
   </section>

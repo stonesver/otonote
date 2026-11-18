@@ -1,4 +1,7 @@
-/** Bounded persistent evaluation workers, with per-batch cancellation. */
+/** Bounded persistent evaluation workers, with per-batch cancellation.
+ * @param {unknown} context
+ * @param {number} size
+ * @param {{signal?: AbortSignal, createWorker?: () => Worker}} options */
 export async function createFormationWorkerPool(context, size, {signal, createWorker=()=>new Worker(new URL('./formation-evaluation-worker.mjs',import.meta.url),{type:'module'})}={}) {
   const slots=[];let sequence=0,closed=false;
   function close(){if(closed)return;closed=true;for(const slot of slots){slot.worker.terminate();slot.pending?.reject(new Error('Calculation worker closed'));slot.readyReject?.(new Error('Calculation worker closed'));}signal?.removeEventListener('abort',cancel);}

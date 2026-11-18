@@ -6,18 +6,19 @@ import re
 import time
 
 CODES = {'worker_errors', 'worker_budget', 'worker_metrics_stale', 'schedule_stale', 'receipt_missing', 'poll_stale', 'run_stuck', 'run_failed', 'delivery_unknown',
-         'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget'}
+         'delivery_lag', 'remote_unavailable', 'ranking_stale', 'ranking_paused', 'disk_budget',
+         'trigger_failed', 'trigger_unconfirmed', 'trigger_stale'}
 
 STAGES = ('configuration', 'prepare', 'baseline', 'image', 'proxy', 'light_prepare',
           'light_gate', 'restore', 'capacity', 'client', 'production_gate',
-          'produce', 'functional', 'upload', 'receipt', 'retention', 'checkpoint', 'promote')
+          'produce', 'functional', 'upload', 'receipt', 'retention', 'checkpoint', 'publication', 'promote')
 
 def read_health(workspace):
     unavailable = {'status': 'unavailable'}
     try:
         path = Path(workspace) / 'update-health.json'
         now = time.time()
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 256 * 1024:
             return unavailable
         value = json.loads(path.read_text())
         observed = value.get('observedAt')
@@ -25,7 +26,30 @@ def read_health(workspace):
                 or not math.isfinite(observed) or not -60 <= now - observed <= 360
                 or value.get('status') not in ('healthy', 'waiting', 'attention')):
             return unavailable
-        result = {'status': value['status'], 'observedAt': observed, 'alerts': [], 'history': [], 'runs': {}}
+        result = {'status': value['status'], 'observedAt': observed, 'alerts': [], 'history': [], 'runs': {}, 'delivery': {}}
+        reviews = value.get('publicationReviews', {'status': 'unavailable'})
+        if reviews.get('status') not in ('ready', 'disabled', 'unavailable'):
+            return unavailable
+        result['publicationReviews'] = {'status': reviews['status']}
+        if reviews['status'] == 'ready':
+            fields = ('region', 'publication', 'releaseId', 'manifestSha256', 'contentReleaseId',
+                      'revision', 'status', 'publishAt', 'serverScopes', 'updatedAt', 'summary')
+            result['publicationReviews']['regions'] = {
+                region: {key: row[key] for key in fields} if row else None
+                for region in ('global', 'jp')
+                for row in [reviews['regions'].get(region)]}
+        for region, row in value.get('delivery', {}).items():
+            if region not in ('global', 'jp') or row.get('status') not in (
+                    'unavailable', 'running', 'failed', 'produced', 'awaiting_delivery', 'delivered', 'unchanged'):
+                return unavailable
+            clean = {'status': row['status']}
+            if row['status'] != 'unavailable' or 'currentDelivered' in row:
+                if (not re.fullmatch('[a-f0-9]{24}', row.get('releaseId', ''))
+                        or not re.fullmatch('[a-f0-9]{64}', row.get('manifestSha256', ''))
+                        or type(row.get('currentDelivered')) is not bool):
+                    return unavailable
+                clean.update({k: row[k] for k in ('releaseId', 'manifestSha256', 'currentDelivered')})
+            result['delivery'][region] = clean
         for field in ('alerts', 'history'):
             rows = value.get(field)
             if not isinstance(rows, list) or len(rows) > 40:
@@ -62,6 +86,10 @@ def read_health(workspace):
                 return unavailable
             result['runs'][region] = {key: row[key] for key in ('runId', 'status', 'sourceSha')}
             result['runs'][region].update(event=row.get('event', 'unknown'), failedStage=row.get('failedStage'))
+            origin = row.get('origin', row.get('event', 'unknown'))
+            if origin not in ('unknown', 'schedule', 'workflow_dispatch', 'external'):
+                return unavailable
+            result['runs'][region]['origin'] = origin
         worker = value.get('worker', {'status': 'not_configured'})
         if not isinstance(worker, dict) or worker.get('status') not in ('ready', 'not_configured', 'unavailable'):
             return unavailable

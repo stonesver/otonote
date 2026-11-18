@@ -12,8 +12,10 @@ test('AP basis and next-grade gap use score thresholds, including exact crossing
  assert.throws(()=>applyAPBasis(row,'manual'));assert.equal(row.scoreRank,undefined);
 });
 test('AP forecast works without events and retains full skill-order scoring',()=>{
- const rules=JSON.parse(readFileSync(new URL('../src/data/formal-scoring-rules.json',import.meta.url)));
- const chart=JSON.parse(readFileSync(new URL('../public/data/music-charts/music-chart-10003803.json',import.meta.url)));chart.sourceReleaseId=rules.sourceReleaseId;
+ const rules=JSON.parse(readFileSync(new URL('../../packages/scoring/data/formal-scoring-rules.json',import.meta.url)));
+ const chart={id:'music-chart-10000103',trackId:'music-100001',difficulty:'expert',sourceReleaseId:rules.sourceReleaseId,
+   bpmEvents:[{tick:0,bpm:125}],skillTimings:[1,2,3,4,5],feverRanges:[],
+   notes:[100,1000,2000,3000,4000,5000,6000].map((tick,i)=>({id:'ap-'+i,type:'tap',tick,position:0,size:1}))};
  const music=rules.tables.LiveMusic.find(m=>`music-${m._id}`===chart.trackId);music._liveScoreRankGroup=999;
  rules.tables.LiveScoreRank=[2,3,4,5,6,7].map((rank,i)=>({_group:999,_liveScoreRank:rank,_requiredScore:i*1000000}));
  delete rules.tables.Event;
@@ -31,12 +33,12 @@ test('AP forecast works without events and retains full skill-order scoring',()=
  assert.deepEqual(linked.slots,draft.slots);assert.equal(linked.selectedSongId,chart.trackId);
  assert.equal(params.get('eventMode'),'challenge');assert.equal(params.get('cost'),'800');assert.equal(params.get('apBasis'),'minimumScore');
 });
-test('eco scheduler rests between CPU slices and shares overlapping pauses',async()=>{
+test('scheduler shares overlapping event-loop pauses',async()=>{
  let time=0,finish;const sleeps=[];
  const scheduler=createCalculationScheduler({now:()=>time,sleep:ms=>{sleeps.push(ms);return new Promise(r=>finish=r);}});
- await scheduler();assert.deepEqual(sleeps,[]);time=20;
- const a=scheduler(),b=scheduler();assert.deepEqual(sleeps,[40]);finish();await Promise.all([a,b]);
- time=25;await scheduler();assert.deepEqual(sleeps,[40]);
+ await scheduler();assert.deepEqual(sleeps,[]);time=48;
+ const a=scheduler(),b=scheduler();assert.deepEqual(sleeps,[0]);finish();await Promise.all([a,b]);
+ time=53;await scheduler();assert.deepEqual(sleeps,[0]);
 });
 
 

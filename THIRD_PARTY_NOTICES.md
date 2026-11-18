@@ -13,12 +13,17 @@
 | [Astro](https://astro.build/) | 7.1.0 | 页面模板与静态投影构建 | MIT；[LICENSE](https://github.com/withastro/astro/blob/main/LICENSE) |
 | `@astrojs/check` | 0.9.9 | Astro / TypeScript 检查 | MIT；[项目](https://github.com/withastro/language-tools) |
 | `@astrojs/compiler` | 2.13.1 | Astro 编译工具 | MIT；[LICENSE](https://github.com/withastro/compiler/blob/main/LICENSE) |
+| [Svelte](https://svelte.dev/) | 5.57.3 | 推荐结果组件与客户端编译 | MIT；[LICENSE](https://github.com/sveltejs/svelte/blob/main/LICENSE.md) |
+| `svelte-check` | 4.7.8 | Svelte 组件与类型检查 | MIT；[LICENSE](https://github.com/sveltejs/language-tools/blob/master/LICENSE) |
+| `@sveltejs/vite-plugin-svelte` | 7.3.1 | 传统本地开发入口的组件编译 | MIT；[LICENSE](https://github.com/sveltejs/vite-plugin-svelte/blob/main/LICENSE) |
 | [TypeScript](https://www.typescriptlang.org/) | 6.0.3 | 页面逻辑、类型与编译工具 | Apache-2.0；[LICENSE](https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt) |
 | [Three.js](https://threejs.org/) | 0.162.0 | 演出场景 WebGL 渲染 | MIT；[LICENSE](https://github.com/mrdoob/three.js/blob/r162/LICENSE) |
 | [PixiJS](https://pixijs.com/) | 7.4.3 | Live2D 预览的二维渲染 | MIT；[LICENSE](https://github.com/pixijs/pixijs/blob/v7.4.3/LICENSE) |
 | [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) | 0.5.0-beta | PixiJS 与 Live2D 的集成 | MIT；[LICENSE](https://github.com/guansss/pixi-live2d-display/blob/master/LICENSE) |
 | `@esotericsoftware/spine-threejs` | 4.2.67 | Spine 动画与 Three.js 的集成 | Spine Runtimes License Agreement；[上游许可](https://github.com/EsotericSoftware/spine-runtimes/blob/4.2/LICENSE) |
 | [PostCSS](https://postcss.org/) | 8.5.25 | 样式构建依赖 | MIT；[LICENSE](https://github.com/postcss/postcss/blob/main/LICENSE) |
+
+Svelte 相关条目按本次锁定包核对；独立代码包在 `licenses/svelte-LICENSE.md` 保留所用运行库的完整许可。
 
 独立网页构建脚本还直接调用了锁文件中的 `esbuild`（0.28.1，MIT，[来源](https://github.com/evanw/esbuild/blob/main/LICENSE.md)）和 `@astrojs/compiler-rs`（0.3.1，MIT，许可记录见安装包）。Spine 同时依赖 `@esotericsoftware/spine-core` 4.2.67，仍适用 Spine 专门许可。其余传递依赖以锁文件和实际包内声明为准，不在这份摘要中逐项展开。
 

@@ -1,4 +1,4 @@
-import {optimizeTeamPlanning} from './team-planning-optimizer.mjs';
+import {optimizeTeamPlanning} from './team-planning-optimizer.ts';
 import {optimizePractical} from './practical-optimizer.mjs';
 
 self.addEventListener('message',async({data:{id,task}})=>{

@@ -30,6 +30,7 @@ export function parseDelimited(text) {
 
 export function createInventoryManager(rules, cards=[]) {
   const calculator=createFormationCalculator(rules), byId=new Map(cards.map(c=>[c.id,c]));
+  /** @returns {import("./calculation/growth-types.ts").Inventory} */
   function validate(input) {
     const normalized=createInventory(rules,input),growth={};
     if(!input.growth||typeof input.growth!=='object'||Array.isArray(input.growth))throw new Error('卡库缺少养成数据');
@@ -140,5 +141,5 @@ export function createInventoryManager(rules, cards=[]) {
     }
     return validate(next);
   }
-  return {validate,preset,choices,applyPatch,preview,merge,batch,empty:()=>({...createInventory(rules),growth:{}})};
+  return {validate,preset,choices,applyPatch,preview,merge,batch,empty:/** @returns {import("./calculation/growth-types.ts").Inventory} */ ()=>({...createInventory(rules),growth:{}})};
 }

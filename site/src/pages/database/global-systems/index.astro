@@ -21,7 +21,7 @@ const studio = globalSystems.studioUnits.map(unit => ({ ...unit, itemRewards: Ob
 const bonusValue = (type: number, value: number) => [2, 5, 7].includes(type) ? `${type === 2 ? "−" : "+"}${value / 100}%` : type === 6 ? `+${value / 3600} h` : type === 4 ? say("已解锁", "Unlocked") : `+${value}`;
 ---
 <BaseLayout title={say("TGW · 录音室练习", "TGW · Studio practice")}>
-  <header class="sys-hero content-shell"><div class="eyebrow">GROWTH & DAILY REWARDS</div><h1>{say("TGW 与录音室练习", "TGW & Studio practice")}</h1><p>{say("选择等级，查看特典、领取奖励与练习收益。", "Choose a level to explore benefits and practice rewards.")}</p></header>
+
   <section class="content-shell sys-body growth-body">
     <system-tabs>
       <nav class="sys-tabs" aria-label={say("系统选择", "System selection")}><button type="button" data-view="tgw" aria-pressed="true">T.G.W CARD</button><button type="button" data-view="studio" aria-pressed="false">{say("录音室练习", "Studio practice")}</button></nav>

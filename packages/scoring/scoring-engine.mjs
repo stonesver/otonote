@@ -15,14 +15,32 @@ function canonicalize(value) {
   return value;
 }
 
-export function stableSnapshotHash(value) {
-  const text = JSON.stringify(canonicalize(value));
-  let hash = 0x811c9dc5;
+function hashText(text, hash = 0x811c9dc5) {
   for (let index = 0; index < text.length; index += 1) {
     hash ^= text.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return `fnv1a32:${hash.toString(16).padStart(8, "0")}`;
+  return hash;
+}
+
+const formatHash = hash => `fnv1a32:${hash.toString(16).padStart(8, "0")}`;
+
+export function stableSnapshotHash(value) {
+  return formatHash(hashText(JSON.stringify(canonicalize(value))));
+}
+
+/** Snapshot the fixed fields once; changing one field preserves the exact
+ * canonical JSON and FNV identity used by stableSnapshotHash. */
+export function createSnapshotFieldHasher(snapshot, field) {
+  const fixed = canonicalize({ ...snapshot, [field]: null });
+  const keys = Object.keys(fixed), index = keys.indexOf(field);
+  const entries = keys.map(key => JSON.stringify(key) + ':' + JSON.stringify(fixed[key]));
+  const before = entries.slice(0, index), after = entries.slice(index + 1);
+  const prefix = hashText('{' + (before.length ? before.join(',') + ',' : '') + JSON.stringify(field) + ':');
+  const suffix = (after.length ? ',' + after.join(',') : '') + '}';
+  return value => value === undefined
+    ? formatHash(hashText('{' + [...before, ...after].join(',') + '}'))
+    : formatHash(hashText(suffix, hashText(JSON.stringify(canonicalize(value)), prefix)));
 }
 
 const numberOrZero = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;

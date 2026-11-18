@@ -69,6 +69,7 @@ __pycache__/
 /config/*
 !/config/examples/
 !/config/site-product.json
+!/config/arena-sync-schedule.json
 !/config/performance/
 /config/performance/*
 !/config/performance/gates.product-v1.json

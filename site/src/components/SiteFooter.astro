@@ -12,59 +12,13 @@ interface Props {
 const { title, locale, href } = Astro.props;
 const en = locale === "en";
 const ui = getUi(locale);
-const sections = [
-  {
-    title: en ? "Quick links" : "常用入口",
-    links: [
-      ["/characters/", en ? "Characters" : "角色档案"],
-      ["/cards/supports/", en ? "Snapshots" : "留影"],
-      ["/music/", en ? "Music" : "音乐"],
-      ["/tools/deck-builder/", en ? "Deck builder" : "卡组配队"],
-      ["/tools/song-calculator/", en ? "Song calculator" : "歌曲计算"],
-      ["/updates/", en ? "Updates" : "版本记录"]
-    ]
-  }
-];
 ---
-
 <footer class="site-footer archive-footer" id="site-footer">
-  <div class="archive-footer__grid">
-    <div class="archive-footer__intro">
-      <a class="archive-footer__brand" href={href("/")}>
-        <img src={href("/brand/ournotes-mark.svg")} width="44" height="44" alt="" loading="lazy" />
-        <span>{title}</span>
-      </a>
-      <p class="archive-footer__description">{ui.siteNotice}</p>
-      <a class="archive-footer__about" href={href("/about/")}>{en ? "About" : "关于本站"}<span aria-hidden="true"> →</span></a>
-    </div>
-    {sections.map(section => (
-      <nav class="archive-footer__section" aria-label={`${en ? "Footer · " : "页脚 · "}${section.title}`}>
-        <h2>{section.title}</h2>
-        <ul>
-          {section.links.map(([path, label]) => (
-            <li><a href={href(path)}>{label}</a></li>
-          ))}
-        </ul>
-      </nav>
-    ))}
-    <section class="archive-footer__section" aria-labelledby="footer-contact-heading">
-      <h2 id="footer-contact-heading">{en ? "Contact & feedback" : "联系与反馈"}</h2>
-      <p class="archive-footer__feedback">{en ? "Corrections and ideas are welcome." : "欢迎纠错，也欢迎分享你的想法。"}</p>
-      <address class="archive-footer__contact">
-        <a href={`mailto:${SITE_CONTACT.email}`}>{SITE_CONTACT.email}</a>
-        {SITE_CONTACT.repositoryUrl && <a href={SITE_CONTACT.repositoryUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
-      </address>
-    </section>
-  </div>
-  <div class="archive-footer__bottom">
-    <div class="archive-footer__legal">
-      <p>© {new Date().getFullYear()} {title} · {en ? "Made by fans, for fans" : "与热爱同行"}</p>
-      <p>{ui.siteRights} {en ? "Please refer to in-game announcements for the latest information." : "最新游戏内容请以游戏内公告为准。"}</p>
-      <SiteAnalytics locale={locale} />
-    </div>
-    <a class="archive-footer__top" href="#main-content">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
-      <span>{en ? "Back to top" : "回到顶部"}</span>
-    </a>
-  </div>
+  <div class="archive-footer__description"><p>{ui.siteNotice}</p><small>© {new Date().getFullYear()} {title} · {ui.siteRights}</small></div>
+  <address class="archive-footer__contact" aria-label={en ? "Contact & feedback" : "联系与反馈"}>
+    <a href={href("/about/")}>{en ? "About" : "网站说明"}</a>
+    <a href={`mailto:${SITE_CONTACT.email}`}>{en ? "Contact" : "联系"}</a>
+    {SITE_CONTACT.repositoryUrl && <a href={SITE_CONTACT.repositoryUrl} target="_blank" rel="noopener noreferrer">{en ? "Feedback" : "问题反馈"}</a>}
+  </address>
+  <SiteAnalytics locale={locale} />
 </footer>

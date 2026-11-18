@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createBonusConstrainedScoreBound,createBonusConstrainedScoreEnvelopeBound} from '../../packages/scoring/scoring-rules/bonus-constrained-score-bound.mjs';
 import {maximumPairing,partitionPairing} from '../../packages/scoring/scoring-rules/maximum-pairing.mjs';
-import {constrainBonusCards} from '../src/lib/event-yield-optimizer.mjs';
+import {attainableBonusSums,constrainBonusCards} from '../src/lib/event-yield-optimizer.mjs';
 
 function* orders(values,n=values.length){
  if(!n){yield [];return;}
@@ -94,6 +94,24 @@ test('merged normalized chart envelopes bound each chart and retain fractional p
  assert.equal(createBonusConstrainedScoreEnvelopeBound({baseCoefficient:Infinity,gainFor:()=>0}),null);
 });
 
+test('shared immutable pairing domains preserve bounds and witnesses across chart envelopes',()=>{
+ const edges=Array.from({length:6},(_,m)=>Array.from({length:6},(_,s)=>({key:`m${m}|s${s}`,member:`m${m}`,support:`s${s}`,
+  character:m===5?0:m,weight:100+(m*13+s*7)%91,bonus:(m*11+s*3)%31}))).flat();
+ for(const constraints of [{},{memberRequired:['m2'],supportRequired:['s5']},{required:['m2|s1'],forbidden:['m3|s2']}]){
+  const available=edges.filter(e=>!constraints.forbidden?.includes(e.key));
+  const solution=maximumPairing({edges:available,required:constraints.required,requiredMembers:['m0',...(constraints.memberRequired??[])],requiredSupports:constraints.supportRequired});
+  const forced=solution.edges.filter(e=>constraints.required?.includes(e.key)),cache={};
+  for(const [i,threshold] of [0,50,75,100,1000].entries()){
+   const options={baseCoefficient:1+i/10,gainFor:e=>(Number(e.support.slice(1))+i)/10,integerScore:false};
+   const cold=createBonusConstrainedScoreEnvelopeBound(options),warm=createBonusConstrainedScoreEnvelopeBound(options);
+   const args=[available,forced,'m0',solution,0,e=>e.bonus,threshold,constraints,Infinity];
+   assert.equal(warm(...args,cache),cold(...args));
+   assert.deepEqual(warm.witnesses,cold.witnesses,'reuse cannot change seed order or legal witnesses');
+   assert.equal(warm.stats.matchingCalls,cold.stats.matchingCalls-(i?1:0),'later charts reuse the exact bonus maximum');
+  }
+ }
+});
+
 test('normalized proof stops refining once a conservative bound already excludes the grade',()=>{
  const edges=Array.from({length:5},(_,i)=>({key:`m${i}|s${i}`,member:`m${i}`,support:`s${i}`,character:i,weight:100,bonus:0}));
  edges.push({key:'weak|s4',member:'weak',support:'s4',character:4,weight:1,bonus:1000});
@@ -115,8 +133,45 @@ test('a per-call grade cutoff stops matching once its safe envelope already excl
  const expected=full(...args),actual=early(...args,450);
  assert.ok(expected>=401&&expected<450);assert.ok(actual>=401&&actual<450);
  assert.ok(early.stats.matchingCalls<full.stats.matchingCalls);
- // The next stricter grade must still be refined independently.
- assert.equal(early(...args,400),expected);
+ // A reachable lower grade must remain open on the next independent call.
+ assert.ok(early(...args,400)>=401);
+});
+
+test('a bonus-feasible relaxed witness stops refinement when the grade cannot be excluded',()=>{
+ const edges=Array.from({length:5},(_,i)=>({key:`m${i}|s${i}`,member:`m${i}`,support:`s${i}`,character:i,weight:100,bonus:0}));
+ edges.push({key:'weak|s4',member:'weak',support:'s4',character:4,weight:1,bonus:1000});
+ const solution=maximumPairing({edges,requiredMembers:['m0']});
+ const make=()=>createBonusConstrainedScoreEnvelopeBound({baseCoefficient:1,gainFor:()=>0});
+ const full=make(),early=make(),args=[edges,[],'m0',solution,0,e=>e.bonus,1000,{}];
+ // The only bonus-feasible formation has power 401. Proving an upper bound
+ // below 400 is impossible; extra dual probes cannot reject this branch.
+ const expected=full(...args),actual=early(...args,400);
+ assert.ok(expected>=401&&actual>=401);
+ assert.ok(early.stats.matchingCalls<full.stats.matchingCalls,
+  `${early.stats.matchingCalls} redundant solves versus ${full.stats.matchingCalls}`);
+ assert.ok(early.witnesses.some(row=>row.bonus>=1000&&row.weight>=400));
+ // A stricter grade still needs a real exclusion certificate on the next call.
+ const stricter=early(...args,450);
+ assert.ok(stricter>=401&&stricter<450);
+});
+
+test('a fractional bonus-feasible point stops futile dual probes without becoming a legal witness',()=>{
+ const edges=Array.from({length:4},(_,i)=>({key:`m${i}|s${i}`,member:`m${i}`,support:`s${i}`,character:i,weight:25,bonus:0}));
+ edges.push({key:'strong|s4',member:'strong',support:'s4',character:4,weight:900,bonus:0},
+  {key:'bonus|s4',member:'bonus',support:'s4',character:4,weight:100,bonus:100});
+ const solution=maximumPairing({edges,requiredMembers:['m0']});
+ const make=()=>createBonusConstrainedScoreEnvelopeBound({baseCoefficient:1,gainFor:()=>0,integerScore:false});
+ const full=make(),early=make(),args=[edges,[],'m0',solution,0,e=>e.bonus,50,{}];
+ // The only legal bonus-feasible team scores 200. A half/half mixture with
+ // the 1000-power team has bonus 50 and relaxed score 600, so this envelope
+ // cannot certify a bound below 500; the real search must split the domain.
+ const refined=full(...args),stopped=early(...args,500);
+ assert.ok(refined>=600&&refined<601);assert.ok(stopped>=600);
+ assert.ok(early.stats.matchingCalls<full.stats.matchingCalls);
+ assert.ok(early.witnesses.every(row=>row.weight===200||row.weight===1000));
+ assert.ok(early.witnesses.filter(row=>row.bonus>=50).every(row=>row.weight<500));
+ // A higher cutoff remains independently excludable on the same bound.
+ const stricter=early(...args,700);assert.ok(stricter>=600&&stricter<700);
 });
 
 test('conditional card envelopes equal independent card-subset enumeration under mandatory characters',()=>{
@@ -135,6 +190,26 @@ test('conditional card envelopes equal independent card-subset enumeration under
    for(const threshold of [0,150,300,500]){
     const expected=edges.filter(e=>maximum(ms,e.member)+maximum(ss)>=threshold&&maximum(ss,e.support)+maximum(ms)>=threshold);
     assert.deepEqual(constrainBonusCards(edges,state,value,threshold).map(e=>e.key),expected.map(e=>e.key));
+   }
+  }
+ }
+});
+
+test('grouped bonus sums equal independent five-card subset enumeration',()=>{
+ const choose=(rows,n)=>n===0?[[]]:rows.flatMap((row,i)=>choose(rows.slice(i+1),n-1).map(tail=>[row,...tail]));
+ for(let seed=0;seed<12;seed++){
+  const members=Array.from({length:8},(_,i)=>({id:`m${i}`,character:i===7?0:i,rewardBP:(i+seed)%3*100,eventPointBP:(i*seed)%4*50}));
+  const supports=Array.from({length:8},(_,i)=>({id:`s${i}`,rewardBP:(i*seed)%3*100,eventPointBP:(i+seed)%2*50}));
+  const cardBonus=(kind,id)=>(kind==='member'?members:supports).find(row=>row.id===id);
+  for(const state of [{memberRequired:[],supportRequired:[]},{memberRequired:['m0','m2'],supportRequired:['s3']},
+    {memberRequired:['m0','m1','m2','m3','m4'],supportRequired:['s0','s1','s2','s3','s4']}]){
+   const allowed=members.filter(m=>m.id!=='m7'||!state.memberRequired.includes('m0'));
+   const edges=allowed.flatMap(m=>supports.map(s=>({member:m.id,support:s.id,character:m.character})));
+   const ms=choose(allowed,5).filter(team=>new Set(team.map(m=>m.character)).size===5&&state.memberRequired.every(id=>team.some(m=>m.id===id)));
+   const ss=choose(supports,5).filter(team=>state.supportRequired.every(id=>team.some(s=>s.id===id)));
+   for(const kind of ['rewardBP','eventPointBP']){
+    const expected=new Set(ms.flatMap(m=>ss.map(s=>[...m,...s].reduce((sum,card)=>sum+card[kind],0))));
+    assert.deepEqual(attainableBonusSums(edges,state,kind,cardBonus),[...expected].sort((a,b)=>a-b));
    }
   }
  }

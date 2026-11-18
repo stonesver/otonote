@@ -28,7 +28,7 @@ const data=JSON.stringify({formalRules,memberCards,supportCards,skillFilterFacet
 ---
 <BaseLayout title="我的养成">
  <section class="personal-growth-page">
-  <header class="personal-growth-heading"><p>OTONOTE / MY COLLECTION</p><h1>我的养成</h1><div>管理持有卡牌与账号养成，各工具共用当前区服的档案。</div></header>
+
   {available ? <personal-growth-workbench class="team-workbench personal-growth-workbench">
    <script is:inline type="application/json" data-personal-growth-data set:html={data}></script>
    <section class="personal-growth-summary" aria-label="当前养成档案"><div><span data-profile-server>当前区服</span><h2>个人养成档案</h2><p data-profile-summary role="status">正在读取已保存的养成…</p></div><p>保存在当前浏览器。更换设备或清理浏览器前，请导出 JSON 备份。</p></section>

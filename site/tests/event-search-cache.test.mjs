@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eventSearchPartition,bindEventScoreCache,createEventSearchStore,searchDigest,EVENT_SEARCH_VERSION} from '../src/lib/event-search-cache.mjs';
+import {eventSearchPartition,bindEventScoreCache,createEventScoreCacheBinding,createEventSearchStore,searchDigest,EVENT_SEARCH_VERSION} from '../src/lib/event-search-cache.mjs';
 import {planEventSearch} from '../src/lib/event-search-plan.mjs';
 
 test('persistent partition ignores yield knobs but isolates personal data, events and rules',async()=>{
  const rules={sourceReleaseId:'global',tables:{test:[1]}},input={draft:{selectedSongId:'a',selectedDifficulty:'expert',slots:[1],modifiers:{growth:{a:1}}},inventory:{memberCardIds:[1]},scope:'owned'};
  const key=await eventSearchPartition(rules,1,input);
- assert.equal(await eventSearchPartition(rules,1,{...input,goal:'grade',budget:100,basis:'minimumScore',eco:false,searchDepth:'full',draft:{...input.draft,selectedSongId:'b',selectedDifficulty:'easy'}}),key);
+ assert.equal(await eventSearchPartition(rules,1,{...input,goal:'grade',budget:100,basis:'minimumScore',searchDepth:'full',draft:{...input.draft,selectedSongId:'b',selectedDifficulty:'easy'}}),key);
  for(const changed of [{...input,inventory:{memberCardIds:[2]}},{...input,draft:{...input.draft,slots:[2]}},{...input,draft:{...input.draft,modifiers:{growth:{a:2}}}},{...input,scope:'selected'}])assert.notEqual(await eventSearchPartition(rules,1,changed),key);
  assert.notEqual(await eventSearchPartition(rules,2,input),key);
  assert.notEqual(await eventSearchPartition({...rules,tables:{test:[2]}},1,input),key);
@@ -19,6 +19,17 @@ test('raw score binding invalidates chart, growth, difficulty, event and rule ch
  for(const changed of [{...args,chart:{...args.chart,notes:[2]}},{...args,draft:{...args.draft,selectedDifficulty:'easy'}},{...args,draft:{...args.draft,modifiers:{event:{id:1}}}},{...args,draft:{...args.draft,modifiers:{growth:{a:2}}}},{...args,rules:{tables:{a:2}}}]){
   await bindEventScoreCache(cache,args);cache.set('score',100);await bindEventScoreCache(cache,changed);assert.equal(cache.has('score'),false);
  }
+});
+test('a chart job hashes its frozen context once but checks cache ownership on every access',async()=>{
+ let serialized=0;
+ const rules={tables:{}},draft={slots:[]},chart={toJSON(){serialized++;return {id:'one',notes:[1]};}};
+ const bind=await createEventScoreCacheBinding({rules,chart,draft}),cache=new Map();
+ bind(cache);cache.set('score',100);
+ for(let i=0;i<100;i++)bind(cache);
+ assert.equal(serialized,1);assert.equal(cache.get('score'),100);
+ const other=await createEventScoreCacheBinding({rules,chart:{id:'two',notes:[2]},draft});
+ other(cache);assert.equal(cache.has('score'),false);cache.set('score',200);
+ bind(cache);assert.equal(cache.has('score'),false);assert.equal(serialized,1);
 });
 test('scores cached before model versioning are not reused with unchanged chart and Master data',async()=>{
  const args={rules:{tables:{a:1}},chart:{id:'one',notes:[1]},draft:{slots:[1]}};

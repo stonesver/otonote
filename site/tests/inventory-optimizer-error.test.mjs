@@ -2,7 +2,8 @@ import {teamScopeControls} from './helpers/calculation-scopes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { setupInventoryOptimizer } from '../src/lib/inventory-optimizer-ui.mjs';
+import './helpers/svelte-loader.mjs';
+const {setupInventoryOptimizer} = await import('../src/lib/inventory-optimizer-ui.ts');
 import { createTeamDraft } from '../src/lib/team-draft.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
 
@@ -135,4 +136,29 @@ test('formation power without a song remains available without any chart fetch',
 test('current-chart pairing ignores an empty remembered playlist',async t=>{
  const f=fixture(t);f.scopeControls.scope.setSelection({kind:'temporary',entries:[]});f.optimizer.invalidate();await f.run();
  assert.ok(f.worker);assert.equal(f.worker.message.payload.calculationScope.source.kind,'fixed');assert.equal(f.worker.message.payload.calculationScope.chartCount,1);
+});
+
+test('cancel waits for the worker, restart isolates all old messages and keeps the payload',async t=>{
+  const f=fixture(t);await f.run();const first=f.worker,request=structuredClone(first.message);
+  f.q('[data-cancel-pairing]').handlers.click();
+  assert.deepEqual(first.message,{type:'cancel'});
+  assert.equal(first.terminated,undefined);
+  assert.equal(f.workbench.optimizerState.running,true);
+  first.onmessage({data:{requestId:request.requestId,type:'result',result:{status:'cancelled',searchMethod:'planning',optimality:'incomplete',results:[],evaluated:0,warnings:[]}}});
+  assert.equal(first.terminated,true);assert.equal(f.q('[data-search-state]').textContent,'已停止');
+  await f.run();const second=f.worker;
+  assert.notEqual(second,first);assert.notEqual(second.message.requestId,request.requestId);
+  assert.deepEqual(second.message.payload,request.payload);
+  const before={state:structuredClone(f.workbench.optimizerState),progress:f.q('[data-pairing-progress]').textContent};
+  for(const data of [
+    {type:'progress',progress:{phase:'planning',completed:99,total:99,message:'stale progress'}},
+    {type:'result',result:{status:'completed',results:[],warnings:[],evaluated:99,optimality:'incomplete'}},
+    {type:'playlist-partial',result:{kind:'playlist-team-batch',rows:[],results:[],failures:[],done:99,total:99,status:'running'}},
+    {type:'error',error:'stale error'},
+  ])first.onmessage({data:{...data,requestId:request.requestId}});
+  first.onerror();
+  assert.deepEqual(f.workbench.optimizerState,before.state);
+  assert.equal(f.q('[data-pairing-progress]').textContent,before.progress);
+  assert.equal(second.terminated,undefined);
+  f.optimizer.destroy();assert.equal(second.terminated,true);
 });

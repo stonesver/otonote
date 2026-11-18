@@ -17,13 +17,13 @@
 .character-nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .character-nav__entry .character-nav__portrait { width: 64px; height: 64px; }
 .character-nav__entry strong { margin-top: 10px; font-size: 13px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
-.character-nav__entry small { margin-top: 4px; color: #625f60; font: 10px/1.5 var(--font-mono); }
+.character-nav__entry small { margin-top: 4px; color: var(--theme-muted); font: 10px/1.5 var(--font-mono); }
 .character-nav :is(a, button, input):focus-visible { outline: 2px solid var(--gel-blue-dark); outline-offset: 3px; border-radius: 4px; }
 .character-nav__dialog { width: min(760px, calc(100vw - 40px)); max-height: min(780px, calc(100dvh - 64px)); padding: 28px; border: 1px solid var(--line); border-radius: 18px; color: var(--ink); background: var(--paper-light); box-shadow: var(--shadow); overscroll-behavior: contain; }
-.character-nav__dialog::backdrop { background: rgb(17 19 27 / 40%); backdrop-filter: blur(5px); }
+.character-nav__dialog::backdrop { background: color-mix(in srgb, var(--theme-media-shade) 40%, transparent); backdrop-filter: blur(5px); }
 .character-nav__dialog-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .character-nav__dialog-header h2 { margin: 0 0 4px; font: 600 22px/1.4 var(--font-body); }
-.character-nav__dialog-header a { font-size: 12px; color: #625f60; }
+.character-nav__dialog-header a { font-size: 12px; color: var(--theme-muted); }
 .character-nav__dialog-header button { width: 40px; height: 40px; background: var(--paper); border-radius: 50%; cursor: pointer; font-size: 24px; }
 .character-nav__search { display: flex; align-items: center; gap: 12px; margin: 22px 0 8px; padding: 10px 14px; background: var(--paper); border: 1px solid transparent; border-radius: 8px; }
 .character-nav__search:focus-within { border-color: var(--gel-blue-dark); }
@@ -40,7 +40,7 @@
   .character-page { display: block; }
   .character-nav { position: static; padding: 0; }
   .character-nav__rail { display: none; }
-  .character-nav__all { position: fixed; z-index: 20; right: max(20px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); margin: 0; width: auto; gap: 8px; padding: 12px 18px; border: 1px solid var(--line); border-radius: 24px; background: var(--paper-light); box-shadow: 0 4px 20px rgb(17 19 27 / 12%); font-size: 12px; }
+  .character-nav__all { position: fixed; z-index: 20; right: max(20px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); margin: 0; width: auto; gap: 8px; padding: 12px 18px; border: 1px solid var(--line); border-radius: 24px; background: var(--paper-light); box-shadow: 0 4px 20px color-mix(in srgb, var(--theme-shadow-color) 12%, transparent); font-size: 12px; }
   .character-page { padding-bottom: 72px; }
 }
 @media (max-width: 700px) {

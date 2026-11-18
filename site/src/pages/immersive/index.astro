@@ -10,11 +10,10 @@ import '../../styles/immersive.css';
 const en = activeReleaseContext.locale === 'en';
 const say = (zh: string, english: string) => en ? english : zh;
 const href = (path: string) => import.meta.env.BASE_URL === '/' ? path : siteHref(path, activeReleaseContext);
-const playable = catalog.scenes.filter(s => s.assetRoot && (Reflect.get(s, 'cameraVerified') === true || !!immersiveClientProfile(s, activeReleaseContext.region))).length;
 ---
 <BaseLayout title={say('沉浸式场景', 'Immersive scenes')} description={say(`浏览 ${catalog.bands.length} 支乐队的 ${catalog.scenes.length} 个日常情景，保存游戏原图。`, `Explore ${catalog.scenes.length} scenes from ${catalog.bands.length} bands and save original game images.`)}>
   <div class="content-shell immersive-library">
-    <header class="immersive-heading"><div><p class="home-kicker">MOMENTS WITH THE BANDS</p><h1>{say('在她们的日常里，停留片刻。', 'A moment in their everyday lives.')}</h1><p>{say(`${catalog.scenes.length} 个情景 · ${catalog.backgroundCount} 套背景 · ${catalog.bands.length} 支乐队 · ${playable} 个可播放`, `${catalog.scenes.length} scenes · ${catalog.backgroundCount} backgrounds · ${catalog.bands.length} bands · ${playable} playable`)}</p></div><a href={href('/?home=immersive')}>{say('首页融合预览', 'Homepage preview')} ↗</a></header>
+    <header class="immersive-heading"><a href={href('/?home=immersive')}>{say('首页融合预览', 'Homepage preview')} ↗</a></header>
     <p class="immersive-catalog-note">{say('按客户端逐场景设置播放入场，并可独立重播人物动作。已接入的版本通过资源校验后启用，其他版本保留游戏原图。', 'Scenes use individual client camera settings and support character replays. Reviewed versions play after resource verification; other versions keep their original images.')}</p>
     <div class="immersive-filters"><label>{say('乐队', 'Band')}<select data-scene-band><option value="all">{say('全部乐队', 'All bands')}</option>{catalog.bands.map(b => <option value={b.id}>{en ? b.nameEn : b.name}</option>)}</select></label><label><input type="checkbox" data-scene-available />{say('只看已校准动态', 'Verified animations only')}</label><span data-scene-count aria-live="polite">{catalog.scenes.length} / {catalog.scenes.length}</span></div>
     <div class="immersive-catalog-grid">{[...catalog.scenes].sort((a,b) => Number(!!b.assetRoot)-Number(!!a.assetRoot) || String(a.id).localeCompare(String(b.id),'en',{numeric:true})).map(scene => { const Card = scene.assetRoot ? 'a' : 'div'; return <article class="immersive-card" data-scene-band-id={scene.bandId} data-scene-available={String((Reflect.get(scene, 'cameraVerified') === true || !!immersiveClientProfile(scene, activeReleaseContext.region)))}>

@@ -30,7 +30,8 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
     while (lo < hi) { const mid = (lo + hi) >>> 1; if (occupied[mid] < value) lo = mid + 1; else hi = mid; }
     return lo;
   };
-  let cacheBucket = -1, cache = { life: maximumLife, guard: 0, reduction: 0 };
+  const initial = { life: maximumLife, guard: 0, reduction: 0 };
+  let cacheBucket = -1, cache = initial;
   let lastQueryMs, lastQueryLife;
   function add(command) {
     lastQueryMs = undefined;
@@ -50,14 +51,16 @@ export function createLifeReplay(maximumLife, musicLengthMs) {
     // the answer nor the native cached prefix changes on an identical query.
     if (timeMs === lastQueryMs) return lastQueryLife;
     const target = bucketOf(timeMs), reuse = cacheBucket >= 0 && cacheBucket < target;
-    let state = reuse ? { ...cache } : { life: maximumLife, guard: 0, reduction: 0 };
+    // applyLifeCommand returns a new state; neither commands nor callers can
+    // mutate this prefix. Repeated frame queries need no defensive copies.
+    let state = reuse ? cache : initial;
     const first = reuse ? cacheBucket + 1 : 0;
     // Empty buckets are identity transitions. Skip them without changing the
     // native cached prefix or its cursor-only invalidation after late input.
     for (let i = lowerBucket(first); i < occupied.length && occupied[i] < target; i++) {
       for (const command of buckets.get(occupied[i])) state = applyLifeCommand(state, command, maximumLife);
     }
-    if (cacheBucket < target || cacheBucket < 0) { cacheBucket = target - 1; cache = { ...state }; }
+    if (cacheBucket < target || cacheBucket < 0) { cacheBucket = target - 1; cache = state; }
     for (const command of buckets.get(target) ?? []) {
       if (command.timeMs > timeMs) break;
       state = applyLifeCommand(state, command, maximumLife);
@@ -134,6 +137,15 @@ export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, c
     },
     advance(frame, notes = []) {
       currentTime = clock.at(frame).timeMs;
+      // Between note, activation and expiry frames, score/conversion state is
+      // unchanged. Cumulative counts and release predicates consume notes;
+      // ordinary life conditions are evaluated at activation, not each frame.
+      if (!notes.length && frame !== 0 && !triggers.has(frame) && !endings.has(frame)) {
+        let expires = false;
+        for (const converter of converters) if (converter.active && converter.effect.startup &&
+          (frame === 1 ? currentTime >= converter.effect.durationRawMs : currentTime > converter.effect.durationRawMs)) { expires = true; break; }
+        if (!expires) return false;
+      }
       let changed = false;
       const startup = !withoutSkills && frame === 0 ? skills.flatMap((skill, slot) => skill.supportEffects.filter(e => e.startup).map(effect => ({ slot, effect }))) : [];
       const fired = withoutSkills ? [] : (triggers.get(frame) ?? []).sort((a, b) => a.slot - b.slot);
@@ -160,17 +172,20 @@ export function createOrdinarySkillLifecycle({ skills, skillTimes, skillOrder, c
       }
       // UpdateStay and UpdateExecuteFrame both accumulate. Release is checked
       // only in UpdateExecuting, beginning two frames after activation.
-      for (const state of scores.filter(s => s.active)) {
+      for (const state of scores) {
+        if (!state.active) continue;
         const { effect } = state;
-        const released = frame > state.startFrame + 1 && effect.release
-          ? notes.filter(note => effect.release.includes(note.judgement)).at(-1) : null;
+        let released = null;
+        if (frame > state.startFrame + 1 && effect.release) {
+          for (const note of notes) if (effect.release.includes(note.judgement)) released = note;
+        }
         if (released) {
           addFactor({ timeMs: released.timeMs, ownerId: state.ownerId,
             ...Object.fromEntries(Object.entries(state.delta).map(([key,value]) => [key,-value])) }, frame);
           state.active = false; changed = true;
           skillTrace.push({ frame, timeMs: released.timeMs, slotIndex: state.slot, effectId: effect.id, action: 'release' });
         } else if (effect.cumulative && frame < state.endFrame) {
-          state.count += notes.filter(note => effect.cumulative.targets.includes(note.judgement)).length;
+          for (const note of notes) if (effect.cumulative.targets.includes(note.judgement)) state.count++;
           const count = Math.min(effect.cumulative.maximum, Math.floor(Math.fround(Math.fround(state.count) / Math.fround(effect.cumulative.unit))));
           const raw = Math.fround(Math.min(effect.cumulative.maximumBP, Math.imul(count, effect.cumulative.stepBP)) / 10000);
           const rate = Math.fround(Math.floor(Math.fround(raw * 100000)) / 100000);

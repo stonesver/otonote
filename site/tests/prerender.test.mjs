@@ -135,3 +135,17 @@ test('old story category bookmarks redirect to modules while retaining server an
   assert.equal(target.hash,'#results');
  }
 });
+
+
+test('tool pages share an integrity-bound rules payload without duplicating rules in page data', () => {
+  const rules = { tables: { MemberCard: [{ _id: 1 }] }, sourceReleaseId: 'fixture' };
+  const render = (field, labels) => prepareHtml(`<html><head></head><body><main><team-draft-workbench><script type="application/json">${JSON.stringify({ labels, [field]: rules })}</script></team-draft-workbench></main></body></html>`, { ...args, route: 'tools/deck-builder' });
+  const a = render('formalRules', { title: 'Team' }), b = render('rules', { title: 'Rewards' });
+  assert.equal(a.payloads.length, 2); assert.equal(b.payloads.length, 2);
+  assert.equal(a.payloads[0].name, b.payloads[0].name);
+  assert.deepEqual(JSON.parse(a.payloads[0].bytes), rules);
+  assert.deepEqual(JSON.parse(a.payloads[1].bytes), { labels: { title: 'Team' } });
+  assert.match(a.html, /data-rules-field="formalRules"/);
+  assert.match(b.html, /data-rules-field="rules"/);
+  assert.equal((a.html.match(/rel="preload" as="fetch"/g) ?? []).length, 2);
+});

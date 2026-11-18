@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh global-en Arena population
+
+[Timer]
+OnCalendar=*-*-* 01,07,13,19:17:00 Asia/Shanghai
+RandomizedDelaySec=20s
+Persistent=true
+Unit=ournotes-arena-population-capture@global-en.service
+
+[Install]
+WantedBy=timers.target

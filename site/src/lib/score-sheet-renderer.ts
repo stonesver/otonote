@@ -1,3 +1,4 @@
+import { readThemePalette } from "./theme-palette.mjs";
 import { getAtlasSegments, formatScoreTime, SHEET_SEGMENT_SECONDS } from './score-atlas-range.mjs';
 import { paintScoreTrack, renderScoreTrack, type ChartData } from './score-workbench-renderer.ts';
 
@@ -9,19 +10,19 @@ const CARD_HEIGHT = SHEET_SEGMENT_SECONDS * PIXELS_PER_SECOND + 40;
 
 type Segment = { index: number; start: number; end: number; includeEnd?: boolean };
 
-function paintCard(context: CanvasRenderingContext2D, chart: ChartData, segment: Segment, enabled: Set<string>) {
+function paintCard(context: CanvasRenderingContext2D, chart: ChartData, segment: Segment, enabled: Set<string>, palette: Record<string, string>) {
   const bottom = CARD_HEIGHT - 20;
   const plan = renderScoreSegment(chart, segment, enabled);
-  context.fillStyle = '#11131b';
+  context.fillStyle = palette.inverseSurface;
   context.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
   context.save();
   context.translate(32, bottom - plan.height);
   context.beginPath();
   context.rect(0, -18, TRACK_WIDTH, plan.height + 36);
   context.clip();
-  paintScoreTrack(context, plan, null);
+  paintScoreTrack(context, plan, null, palette);
   context.restore();
-  context.fillStyle = '#b8b6c3';
+  context.fillStyle = palette.inverseMuted;
   context.font = '11px monospace';
   context.textAlign = 'right';
   for (let time = Math.ceil(segment.start); time <= segment.end; time++) {
@@ -36,7 +37,7 @@ export function paintScoreCard(canvas: HTMLCanvasElement, chart: ChartData, segm
   const context = canvas.getContext('2d');
   if (!context) return;
   context.scale(2, 2);
-  paintCard(context, chart, segment, enabled);
+  paintCard(context, chart, segment, enabled, readThemePalette(canvas));
 }
 
 // The downloadable contact sheet follows the same row-by-row reading order.
@@ -48,9 +49,10 @@ export function paintScoreSheet(canvas: HTMLCanvasElement, chart: ChartData, tit
   canvas.height = Math.ceil(segments.length / columns) * cellHeight + 96;
   const context = canvas.getContext('2d');
   if (!context) return;
-  context.fillStyle = '#f2efe9';
+  const palette = readThemePalette(canvas);
+  context.fillStyle = palette.canvas;
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = '#703650';
+  context.fillStyle = palette.accent;
   context.font = 'bold 22px sans-serif';
   context.fillText(`${title} · ${chart.difficulty.toUpperCase()} · 谱段图册`, 24, 36);
   context.font = '13px sans-serif';
@@ -58,12 +60,12 @@ export function paintScoreSheet(canvas: HTMLCanvasElement, chart: ChartData, tit
   segments.forEach(segment => {
     const x = 24 + segment.index % columns * cellWidth;
     const y = 96 + Math.floor(segment.index / columns) * cellHeight;
-    context.fillStyle = '#703650';
+    context.fillStyle = palette.accent;
     context.font = 'bold 14px sans-serif';
     context.fillText(`${String(segment.index + 1).padStart(2, '0')}  /  ${formatScoreTime(segment.start)}–${formatScoreTime(segment.end)} s`, x, y);
     context.save();
     context.translate(x, y + 16);
-    paintCard(context, chart, segment, enabled);
+    paintCard(context, chart, segment, enabled, palette);
     context.restore();
   });
 }

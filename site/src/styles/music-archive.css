@@ -14,16 +14,16 @@
   overflow: hidden;
   padding: clamp(76px, 10vw, 138px) 0 clamp(58px, 8vw, 104px);
   background:
-    linear-gradient(112deg, rgb(17 19 27 / 96%) 42%, rgb(17 19 27 / 68%)),
+    linear-gradient(112deg, color-mix(in srgb, var(--theme-inverse-surface) 96%, transparent) 42%, color-mix(in srgb, var(--theme-inverse-surface) 68%, transparent)),
     repeating-linear-gradient(
       90deg,
       transparent 0,
       transparent calc(6.25% - 1px),
-      rgb(255 255 255 / 6%) calc(6.25% - 1px),
-      rgb(255 255 255 / 6%) 6.25%
+      color-mix(in srgb, var(--theme-inverse-text) 6%, transparent) calc(6.25% - 1px),
+      color-mix(in srgb, var(--theme-inverse-text) 6%, transparent) 6.25%
     ),
-    var(--stage-ink);
-  color: var(--paper-light);
+    var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
 }
 
 .music-hero::after {
@@ -33,11 +33,11 @@
   bottom: -32%;
   width: min(48vw, 700px);
   aspect-ratio: 1;
-  border: 1px solid rgb(255 255 255 / 12%);
+  border: 1px solid color-mix(in srgb, var(--theme-inverse-text) 12%, transparent);
   border-radius: 50%;
   box-shadow:
-    0 0 0 44px rgb(255 255 255 / 2%),
-    0 0 0 88px rgb(255 255 255 / 2%);
+    0 0 0 44px color-mix(in srgb, var(--theme-inverse-text) 2%, transparent),
+    0 0 0 88px color-mix(in srgb, var(--theme-inverse-text) 2%, transparent);
 }
 
 .music-hero-grid {
@@ -71,7 +71,7 @@
 .music-hero p {
   max-width: 680px;
   margin-bottom: 0;
-  color: rgb(255 255 255 / 68%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 68%, transparent);
   font-size: clamp(15px, 1.5vw, 18px);
 }
 
@@ -96,7 +96,7 @@
 }
 
 .music-hero-ledger span {
-  color: rgb(255 255 255 / 52%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 52%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.12em;
@@ -206,14 +206,14 @@
   grid-template-columns: 176px minmax(0, 1fr);
   border: 1px solid var(--line);
   background: var(--paper-light);
-  box-shadow: 0 12px 34px rgb(17 19 27 / 5%);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--theme-shadow-color) 5%, transparent);
   transition:
     border-color 180ms ease,
     translate 180ms ease;
 }
 
 .music-tile:hover {
-  border-color: rgb(122 49 85 / 44%);
+  border-color: color-mix(in srgb, var(--theme-accent) 44%, transparent);
   translate: 0 -3px;
 }
 
@@ -221,7 +221,7 @@
   position: relative;
   min-height: 176px;
   overflow: hidden;
-  background: var(--stage-ink-soft);
+  background: var(--theme-inverse-surface);
 }
 
 .music-jacket img {
@@ -236,8 +236,8 @@
   right: 7px;
   bottom: 7px;
   padding: 4px 7px;
-  background: rgb(17 19 27 / 88%);
-  color: white;
+  background: color-mix(in srgb, var(--theme-media-shade) 88%, transparent);
+  color: var(--theme-media-text);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.08em;
@@ -331,7 +331,7 @@
 
 .music-tile-heading p {
   margin: 4px 0 0;
-  color: #78736d;
+  color: var(--theme-muted);
   font-size: var(--text-metadata-size);
 }
 
@@ -367,7 +367,7 @@
   gap: 4px;
   padding: 6px 7px;
   border-top: 2px solid currentColor;
-  background: #f4f2ed;
+  background: var(--theme-canvas);
   color: var(--silver-dark);
 }
 
@@ -383,26 +383,30 @@
 
 .difficulty-chip--easy,
 .difficulty-card--easy {
+  /* Game semantics: chart difficulty color. */
   --difficulty: #4f8b73;
-  color: var(--difficulty);
+  color: color-mix(in srgb, var(--difficulty) 60%, var(--theme-text));
 }
 
 .difficulty-chip--normal,
 .difficulty-card--normal {
+  /* Game semantics: chart difficulty color. */
   --difficulty: #4e7f9d;
-  color: var(--difficulty);
+  color: color-mix(in srgb, var(--difficulty) 60%, var(--theme-text));
 }
 
 .difficulty-chip--hard,
 .difficulty-card--hard {
+  /* Game semantics: chart difficulty color. */
   --difficulty: #a87536;
-  color: var(--difficulty);
+  color: color-mix(in srgb, var(--difficulty) 60%, var(--theme-text));
 }
 
 .difficulty-chip--expert,
 .difficulty-card--expert {
-  --difficulty: var(--lacquer);
-  color: var(--difficulty);
+  /* Game semantics: chart difficulty color. */
+  --difficulty: #7a3155;
+  color: color-mix(in srgb, var(--difficulty) 60%, var(--theme-text));
 }
 
 .music-tile-footer {
@@ -419,8 +423,8 @@
 
 .track-hero {
   padding: clamp(52px, 8vw, 104px) 0;
-  background: var(--stage-ink);
-  color: var(--paper-light);
+  background: var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
 }
 
 .track-hero-grid {
@@ -435,7 +439,7 @@
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--line-light);
-  box-shadow: 34px 34px 0 rgb(255 255 255 / 4%);
+  box-shadow: 34px 34px 0 color-mix(in srgb, var(--theme-inverse-text) 4%, transparent);
 }
 
 .track-jacket-stage img {
@@ -449,7 +453,7 @@
   right: 10px;
   bottom: 10px;
   padding: 5px 8px;
-  background: rgb(17 19 27 / 88%);
+  background: color-mix(in srgb, var(--theme-media-shade) 88%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.1em;
@@ -473,7 +477,7 @@
 }
 
 .track-phonetic {
-  color: rgb(255 255 255 / 48%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 48%, transparent);
   font-size: 14px;
 }
 
@@ -487,7 +491,7 @@
 .track-vocalists span,
 .credit-list dt,
 .track-provenance dt {
-  color: rgb(255 255 255 / 44%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 44%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.1em;
@@ -512,7 +516,7 @@
 
 .credit-list dd {
   margin-top: 3px;
-  color: rgb(255 255 255 / 75%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 75%, transparent);
   font-size: 12px;
 }
 
@@ -523,8 +527,8 @@
   align-items: center;
   margin-bottom: 28px;
   padding: 22px 25px;
-  border: 1px dashed rgb(122 49 85 / 42%);
-  background: rgb(122 49 85 / 5%);
+  border: 1px dashed color-mix(in srgb, var(--theme-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 5%, transparent);
 }
 
 .audio-placeholder span {
@@ -544,7 +548,7 @@
 
 .audio-placeholder p {
   margin: 0;
-  color: #68635d;
+  color: var(--theme-muted);
   font-size: 13px;
 }
 
@@ -559,7 +563,7 @@
   padding: 19px;
   border-top: 4px solid var(--difficulty);
   background: var(--paper-light);
-  box-shadow: 0 12px 34px rgb(17 19 27 / 5%);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--theme-shadow-color) 5%, transparent);
 }
 
 .difficulty-card > span {
@@ -770,7 +774,7 @@
   padding: clamp(22px, 4vw, 34px);
   border: 1px solid var(--gel-blue-dark);
   background:
-    linear-gradient(120deg, rgb(121 174 194 / 18%), transparent 55%),
+    linear-gradient(120deg, color-mix(in srgb, var(--theme-secondary) 18%, transparent), transparent 55%),
     var(--paper-light);
 }
 
@@ -826,8 +830,8 @@
 }
 
 .music-view-tabs button[aria-selected="true"] {
-  color: #fff;
-  background: var(--stage-ink);
+  color: var(--theme-inverse-text);
+  background: var(--theme-inverse-surface);
 }
 
 .music-view-tabs button:disabled {
@@ -1247,7 +1251,7 @@
   width: 148px;
   max-width: none;
   justify-self: start;
-  box-shadow: 14px 14px 0 rgb(255 255 255 / 4%);
+  box-shadow: 14px 14px 0 color-mix(in srgb, var(--theme-inverse-text) 4%, transparent);
 }
 
 .track-hero--compact .back-link {
@@ -1326,8 +1330,8 @@
 }
 
 .music-chart-summary-tabs button[aria-selected="true"] {
-  color: white;
-  background: var(--stage-ink);
+  color: var(--theme-inverse-text);
+  background: var(--theme-inverse-surface);
 }
 
 .music-chart-summary-tabs span {

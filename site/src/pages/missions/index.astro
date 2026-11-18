@@ -19,7 +19,7 @@ const relatedPages = new Set([
 ]);
 ---
 <BaseLayout title={say("任务", "Missions")}>
-  <header class="sys-hero content-shell"><div class="eyebrow">MISSIONS</div><h1>{say("任务", "Missions")}</h1><p>{say("限时挑战、每日积累与成长目标，一眼找到值得完成的任务。", "Explore mission requirements, rewards and milestones.")}</p></header>
+
   <section class="content-shell sys-body"><mission-browser>
     <system-browser data-filter-scope>
       <BrowserControls count={missions.length} categoryKeys={keys} />

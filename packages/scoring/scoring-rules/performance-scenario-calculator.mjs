@@ -4,6 +4,7 @@ import { createGekisouSongCalculator } from './gekisou-song-score.mjs';
 import { skillOrdersFor } from './skill-order-sampling.mjs';
 import { summarizeScoreDistribution } from './score-distribution.mjs';
 import { stableSnapshotHash } from '../scoring-engine.mjs';
+import { createApTimingCalculator } from './ap-timing-plan.mjs';
 
 /** Shared adapter for candidate evaluation. Player samples are created once
  * here; identical chart/scenario/seed means identical raw operations for every
@@ -11,6 +12,10 @@ import { stableSnapshotHash } from '../scoring-engine.mjs';
 export function createScenarioSongCalculator(rules, chart, { mode = 'ordinary', performanceScenario = {}, scenario, scorePrecision = 'full', eventAdapters = [] } = {}) {
   if (!['ordinary', 'gekisou'].includes(mode)) throw new Error('未知演出模式');
   const player = normalizePerformanceScenario(performanceScenario);
+  if (player.profile === 'ap_timing') {
+    if (mode !== 'ordinary') throw new Error('AP 微操目前用于普通演出与挑战出分');
+    return createApTimingCalculator(rules, chart, { scorePrecision, eventAdapters });
+  }
   const inputs = Array.from({ length: player.samples }, (_, i) => createPerformanceScenario(rules, chart, player, i));
   const calculators = inputs.flatMap((performance, sampleIndex) => {
     if (mode === 'gekisou') return [{ sampleIndex, calculator: createGekisouSongCalculator(rules, chart, { performance, performanceOrder: player.profile === 'explicit' ? 'fixed' : 'sampled', scenario, scorePrecision, eventAdapters }) }];

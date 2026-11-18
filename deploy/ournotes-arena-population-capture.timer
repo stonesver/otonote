@@ -1,0 +1,11 @@
+[Unit]
+Description=Low-frequency Arena major-tier population estimates
+
+[Timer]
+OnBootSec=15min
+OnUnitInactiveSec=6h
+RandomizedDelaySec=3min
+Unit=ournotes-arena-population-capture.service
+
+[Install]
+WantedBy=timers.target

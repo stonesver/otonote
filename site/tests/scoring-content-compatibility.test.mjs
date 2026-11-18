@@ -68,6 +68,7 @@ import { createPerformanceSongCalculator, createPerformanceTemplate } from '../.
 import { createFormationCalculator } from '../../packages/scoring/scoring-rules/formation-power.mjs';
 import { createOrdinarySkillLifecycle } from '../../packages/scoring/scoring-rules/formal-performance-state.mjs';
 import { createFrameClock, skillEndFrame } from '../../packages/scoring/scoring-rules/formal-frame-clock.mjs';
+import { TIMING_PERFORMANCE_VERSION } from '../../packages/scoring/scoring-rules/performance-scenarios.mjs';
 import { optimizeInventory } from '../src/lib/inventory-optimizer.mjs';
 
 function ordinaryFixture() {
@@ -108,6 +109,46 @@ test('ordinary cumulative support ramps at matching judgements, caps, expires an
   assert.throws(()=>createFormalSkillResolver(r)(d),/Cumulative/);
 });
 
+test('AP cumulative scores depend on frame alignment and activation-note timing even with the same best order',()=>{
+  const {r,c,d,effect}=ordinaryFixture();
+  c.notes=Array.from({length:10},(_,i)=>({id:`timing-${i}`,type:'tap',tick:900+i*100}));
+  Object.assign(effect,{_skillEffectType:2001,_effectValue:2000,_maxEffectValue:8000,_skillCumulativeConditionID:990});
+  r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[2],_conditionTargetIDs:[41,46],_maxCumulativeCount:4});
+  const ideal=createFormalSongCalculator(r,c).calculate(d);
+  const run=({phase=0,activationOffset=0}={})=>{
+    const performance=createPerformanceTemplate(r,c);
+    performance.version=TIMING_PERFORMANCE_VERSION;
+    performance.skillOrder=ideal.bestOrder;
+    performance.frames=Array.from({length:700},(_,i)=>({timeMs:Math.floor(i*1000/60+phase),deltaSeconds:1/60}));
+    const clock=createFrameClock({frames:performance.frames});
+    performance.judgements=performance.judgements.map(({scoreIndex,timeMs})=>{
+      const timingOffsetMs=scoreIndex===1?activationOffset:0;
+      return {scoreIndex,timeMs,timingOffsetMs,missed:false,inputFrame:clock.indexAt(timeMs+timingOffsetMs)};
+    });
+    return createPerformanceSongCalculator(r,c,{performance}).calculate(d,{includeTrace:true});
+  };
+  const baseline=run();
+  assert.equal(baseline.expectedScore,ideal.maximumScore);
+  for(const scenario of [{phase:1},{activationOffset:-20}]){
+    const result=run(scenario);
+    assert.equal(result.power,baseline.power);
+    assert.deepEqual(result.bestOrder,baseline.bestOrder);
+    assert.equal(result.performance.allPerfect,true);
+    assert.equal(result.performance.judgementCounts[5],c.notes.length);
+    assert.equal(result.performance.convertedCount,0);
+    assert.equal(result.performance.maxCombo,baseline.performance.maxCombo);
+    assert.equal(result.baseScore,baseline.baseScore);
+    assert.ok(result.expectedScore<baseline.expectedScore);
+    assert.ok(result.bestOrderNotes.some((note,i)=>note.scoreUpFactor<baseline.bestOrderNotes[i].scoreUpFactor));
+  }
+  assert.ok(ideal.warnings.some(warning=>warning.includes('累计加分')&&warning.includes('同一技能顺序')));
+  r.tables.SupportCard.find(row=>row._id===1)._supportSkillId01=0;
+  const fixed=createFormalSongCalculator(r,c).calculate(d);
+  assert.ok(!fixed.warnings.some(warning=>warning.includes('累计加分')));
+  assert.equal(run({phase:1}).expectedScore,run().expectedScore);
+  assert.equal(run({activationOffset:-20}).expectedScore,run().expectedScore);
+});
+
 test('GOOD releases only the extra handle, using the last matching note timestamp and native state phases',()=>{
   const skill={slotIndex:0,liveEffects:[{id:1,type:2004,condition:{kind:'always',active:true},targets:[5,6],rate:.1,
     durationRawMs:5000,release:[3]},{id:2,type:2000,condition:{kind:'always',active:true},rate:1,durationRawMs:5000}],supportEffects:[]};
@@ -139,6 +180,22 @@ test('startup BAD/MISS conversion consumes successful matches once and never rea
   assert.ok(result.stateTrace.at(-1).timeMs<20000,'99999 seconds must not extend simulation');
   effect._effectExecuteLimitResetConditionGroup=990;
   assert.throws(()=>createFormalSkillResolver(r,{dynamic:true})(d),/Reset/);
+});
+
+test('startup conversion expires on empty frames with the native first-frame equality rule',()=>{
+  for (const [durationRawMs, activeAfterFrame] of [[16,[true,false,false,false,false]], [50,[true,true,true,true,false]]]) {
+    const skills=Array.from({length:5},()=>({liveEffects:[],supportEffects:[]}));
+    skills[0].supportEffects.push({id:990,type:12006,startup:true,durationRawMs,
+      condition:{kind:'always',active:true},targets:[1,2],value:3,limitCount:0});
+    const clock=createFrameClock({frameRate:60});
+    const lifecycle=createOrdinarySkillLifecycle({skills,skillTimes:[1000,2000,3000,4000,5000],
+      skillOrder:[0,1,2,3,4],clock,life:{at:()=>1000},skillEndFrame});
+    for (const [frame, active] of activeAfterFrame.entries()) {
+      lifecycle.advance(frame);
+      assert.equal(lifecycle.convert(1).judgement,active?3:1,`duration ${durationRawMs}, frame ${frame}`);
+    }
+    assert.equal(lifecycle.skillTrace.length,1);
+  }
 });
 
 function conditionalLeaderFixture() {
@@ -306,7 +363,7 @@ test('cumulative proof gains follow judgement arrivals instead of assuming the c
   assert.ok(mixed.gainFor({key})<mixed.gainFor({key:other}),'equal caps with different units must have distinct profile keys');
 });
 
-test('ramped proof envelopes dominate native 120-order scores for every support pairing and frame rate',()=>{
+test('ramped proof envelopes cover native orders, pairings, frame rates and overlapping skill buckets',()=>{
   const {r,c,d,effect}=ordinaryFixture();
   Object.assign(effect,{_skillEffectType:2001,_effectValue:1750,_maxEffectValue:21000,_skillCumulativeConditionID:990});
   r.tables.SkillCumulativeCondition.push({_id:990,_skillCumulativeConditionType:1000,_conditionValues:[4],_conditionTargetIDs:[41,46],_maxCumulativeCount:12});
@@ -316,10 +373,12 @@ test('ramped proof envelopes dominate native 120-order scores for every support 
   for(const m of d.slots.map(s=>s.memberCardId))for(const s of d.slots.map(s=>s.supportCardId))
     pairSkills.set(m+'|'+s,resolver({...d,slots:[{memberCardId:m,supportCardId:s}]})[0]);
   const permutations=values=>values.length?values.flatMap((v,i)=>permutations(values.filter((_,j)=>i!==j)).map(tail=>[v,...tail])):[[]];
-  for(const frameRate of [30,60,120]){
-    const song=createFormalSongCalculator(r,c,{frameRate,eventAdapters}),input={draft:d};
+  for(const [frameRate,timings] of [[30],[60],[120],[60,[.001,.008,.015,.022,.029]]]){
+    const chart=timings?{...c,skillTimings:timings}:c;
+    const song=createFormalSongCalculator(r,chart,{frameRate,eventAdapters}),input={draft:d};
     for(const metric of ['expectedScore','maximumScore','minimumScore']){
       const bound=createOrdinaryScoreBound({song,pairSkills,legacyFactor:Infinity,input,metric,frameRate,bonusConstraintBound:true});
+      const envelope=bound.normalizedPowerEnvelope(1);
       for(const supports of permutations(d.slots.map(s=>s.supportCardId))){
         const team={...d,slots:d.slots.map((s,i)=>({...s,supportCardId:supports[i]}))},score=song.calculate(team);
         const powers=createFormationCalculator(r,{eventAdapters}).calculate(team).slots;
@@ -329,6 +388,8 @@ test('ramped proof envelopes dominate native 120-order scores for every support 
         const solution={edges,weight:score.power},node={edges,powerIsUpperBound:true};
         const upper=bound.withMinimumBonus(state,node,solution,()=>team,()=>0,0);
         assert.ok(upper>=score[metric],`${frameRate} ${metric}: ${upper} < ${score[metric]}`);
+        const normalized=score.power*(envelope.baseCoefficient+edges.reduce((sum,e)=>sum+envelope.gainFor(e),0));
+        assert.ok(normalized>=score[metric],`${frameRate} ${metric}: normalized ${normalized} < ${score[metric]}`);
       }
     }
   }

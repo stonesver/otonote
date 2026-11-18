@@ -1,3 +1,5 @@
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
+import {readCardBandConstraints,cardBandFilterSummary} from './card-band-constraints.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
 import {eventRewardGrowthNote} from './event-reward-options.mjs';
 import {currentEventDraft,eventTeamSaveButton,createEventTeamView} from './event-team-view.mjs';
@@ -14,8 +16,11 @@ export function setupChallengeOptimizer(tool){
   let worker=null,key='',results=null,paused=false,pausing=false,selectedTeam=null,resultTabs=null,articleCache=new Map(),tabCache=new Map();
   const updates=createCalculationLiveUpdates({hasResults:()=>Boolean(results?.results.length),onResult:result=>{results=result;render();},onProgress:showProgress});
   const stop=(publish=false)=>{worker?.terminate();worker=null;paused=false;pausing=false;updates.stop({flushResult:publish});q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='推荐冲榜队伍';root.setAttribute('aria-busy','false');};
-  const currentDraft=()=>currentEventDraft(tool);
-  const fingerprint=()=>JSON.stringify({calculationScope:tool.calculationScope?.snapshot?.fingerprint,mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
+  const currentDraft=()=>{const draft=currentEventDraft(tool);draft.modifiers??={};
+    if(q('objective').value==='ap_timing')draft.modifiers.performanceScenario={profile:'ap_timing'};
+    else if(draft.modifiers.performanceScenario?.profile==='ap_timing'){delete draft.modifiers.performanceScenario;delete draft.modifiers.apTimingPlan;}
+    return draft;};
+  const fingerprint=()=>JSON.stringify({calculationScope:tool.calculationScope?.snapshot?.fingerprint,mode:tool.q('mode').value,event:tool.q('event').value,draft:currentDraft(),scope:q('scope').value,constraints:readCardBandConstraints(q('member-band'),q('support-band')),objective:q('objective').value,rewards:q('rewards')?.checked??false,rewardGrowth:q('reward-growth')?.value??'level'});
   function sync(){
     root.hidden=tool.q('mode').value!=='challenge'||Boolean(tool.classList?.contains('task-workbench')&&tool.dataset.task!=='challenge');
     if(key!==fingerprint()){
@@ -28,16 +33,17 @@ export function setupChallengeOptimizer(tool){
   }
   function summary(result,ongoing){
     const certificate=result.certifiedSearch;
+    const apTiming=certificate?.scope==='team_for_chart_ap_policies'||result.results?.some(row=>row.apTimingPlan);
     const counts=`候选阶段完整复算 ${result.practical?.finalists??0} 支队伍${certificate?`，上界搜索已展开 ${certificate.expanded??certificate.evaluated} 个分支、完整评估 ${certificate.evaluated} 次；${certificate.candidateBoundPruned??0} 个候选经上界排除，待检查 ${certificate.frontier??'未知'} 个分支`:''}。完整评分比较全部 120 种技能顺序。`;
-    const proof=certificate?.bestProven?'已证明所选范围、当前模型内的最佳出分。备选仅供参考，未证明排名。':'尚未证明所选范围、当前模型内的最优。';
-    const label=ongoing?'正在搜索最佳配队':result.status==='budget_exhausted'?'已达本轮搜索预算，可继续搜索':result.status==='paused'?'搜索已暂停，可继续搜索':['cancelled','aborted'].includes(result.status)?'搜索已停止':'冲榜配队比较结束';
+    const proof=certificate?.bestProven?(apTiming?'已证明所选卡库及预设 AP 微操策略内的最佳配队。备选仅供参考，未证明排名。':'已证明所选范围、当前模型内的最佳出分。备选仅供参考，未证明排名。'):'尚未证明所选范围、当前模型内的最优。';
+    const label=ongoing?'正在搜索最佳配队':result.status==='budget_exhausted'?'已达本轮搜索预算，可继续搜索':result.status==='paused'?'搜索已暂停，可继续搜索':['cancelled','aborted'].includes(result.status)?'搜索已停止':'冲榜配队推荐完成';
     const bound=!certificate?.bestProven&&Number.isFinite(certificate?.upperBound)&&Number.isFinite(certificate?.optimalityGap)?`未排除的分数上界 ${fmt(certificate.upperBound)}，与当前最佳相差至多 ${fmt(certificate.optimalityGap)} 分。`:'';
-    return {label,detail:`${counts}${proof}${bound}`};
+    return {label,detail:`${counts}${proof}${bound}${apTiming?'保留 60／120 帧、77 类时钟与统一 ±5 ms 检查；不包含任意逐键独立偏移。':''}`};
   }
   function showProgress(data){
     if(pausing)return;
     const text=data.type==='snapshot'?summary(data.result,true):{
-      label:'正在搜索最佳配队',
+      label:data.phase==='event-exact'?`验证最佳配队 · 已检查 ${fmt(data.expanded??data.completed??0)} 个分支`:data.stage||'正在搜索最佳配队',
       detail:data.phase==='event-exact'
         ?`已检查 ${fmt(data.expanded??data.completed??0)} 个分支，完整评估 ${fmt(data.evaluated??0)} 次${Number.isFinite(data.frontier)?`，待检查 ${fmt(data.frontier)} 个分支`:''}。分支总数动态变化。`
         :`${data.stage} · ${data.completed??0} / ${data.total??'…'}`
@@ -47,9 +53,10 @@ export function setupChallengeOptimizer(tool){
   }
   function render(){
     const view=[],nextArticles=new Map(),nextTabs=new Map(),focused=document.activeElement?.dataset?.challengeTeamKey;
-    if(q('rewards')?.checked&&q('scope').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value,q('rewards')?.checked??false)}`,'task-event-reward-result-note'));
+    if(q('rewards')?.checked&&q('scope').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value)}`,'task-event-reward-result-note'));
     if(results.searchScope==='reference')view.push(el('p','全卡库参考 · 卡片按满等级、满突破、满觉醒与满技能比较；账号加成沿用当前设置。','event-hint'));
     if(calculationScope)view.push(el('p',scopeSummary(calculationScope)));
+    const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
     const tabs=resultTabs??=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');view.push(tabs);
     const maximum=results.objective==='maximum_song_score',reference=results.searchScope==='reference';
     const identity=row=>row.draft.slots.map(slot=>`${slot.memberCardId}|${slot.supportCardId}`).join(';');
@@ -61,11 +68,13 @@ export function setupChallengeOptimizer(tool){
       const heading=reuse?cached.heading:el('h4'),alternative=reuse?cached.alternative:el('p','备选仅供参考，未证明其排名。','event-hint');
       const label=index===0?(results.certifiedSearch?.bestProven?'最佳配队':'当前最佳候选'):`备选 ${index}`;
       card.hidden=row!==selected;alternative.hidden=index===0;
-      const title=`${label} · ${maximum?'最高':'平均'}估计分 ${fmt(row.value)}`;if(heading.textContent!==title)heading.textContent=title;
+      const title=`${label} · ${row.apTimingPlan?(hasApTimingInstructions(row.apTimingPlan)?'微操预计分':'正拍预计分'):maximum?'最高估计分':'平均估计分'} ${fmt(row.value)}`;if(heading.textContent!==title)heading.textContent=title;
       let tab=tabCache.get(id);if(!tab){tab=el('button');tab.type='button';tab.dataset.challengeTeamKey=id;tab.addEventListener('click',()=>{selectedTeam=id;render();});}
       if(tab.textContent!==label)tab.textContent=label;tab.setAttribute('aria-pressed',String(row===selected));buttons.push(tab);nextTabs.set(id,tab);
       if(!reuse){
-        card.append(heading,el('p',`最高 ${fmt(row.maximumScore)} · 平均 ${fmt(row.expectedScore)} · 最低 ${fmt(row.minimumScore)}`,'event-hint'),alternative);
+        card.append(heading);
+        card.append(el('p',row.apTimingPlan?`已检查最低 ${fmt(row.minimumScore)} · 最高 ${fmt(row.maximumScore)}`:`最高 ${fmt(row.maximumScore)} · 平均 ${fmt(row.expectedScore)} · 最低 ${fmt(row.minimumScore)}`,'event-hint'));
+        card.append(alternative);
         card.append(el('p',`活动内综合力 ${fmt(row.power)}${reference?' · 满养成参考，不代表实际持有':row.delta==null?' · 当前队伍不完整或不在所选卡库，未作对比':` · 比当前队伍${row.delta>=0?'提高':'降低'} ${fmt(Math.abs(row.delta))} 分`}`));
         card.append(createEventTeamView(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value),summary:row}));
         const apply=el('button','应用这支挑战队伍');apply.type='button';apply.addEventListener('click',()=>{
@@ -109,14 +118,17 @@ export function setupChallengeOptimizer(tool){
             paused=true;q('cancel').hidden=true;q('run').disabled=false;q('run').textContent='继续搜索';root.setAttribute('aria-busy','false');
           }else stop();
           results=data.result;render();const text=summary(results,false);
-          feedback.finish(text.label,text.detail,results.certifiedSearch?.bestProven?'complete':'stopped');q('status').textContent=`${text.label}。${text.detail}`;
+          feedback.finish(text.label,text.detail,['paused','budget_exhausted','cancelled','aborted'].includes(results.status)?'stopped':'complete');q('status').textContent=`${text.label}。${text.detail}`;
         }else {stop(true);q('status').textContent=`计算失败：${data.message}`;feedback.finish('计算失败',data.message,'error');}
       });
       worker.addEventListener('error',()=>{if(worker!==active)return;stop(true);q('status').textContent='计算服务加载失败，请重试。';feedback.finish('计算服务加载失败','请重试','error');});
-      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,inventory:profile?.inventory,objective:q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level',rewardGrowthOverride:q('rewards')?.checked??false});
+      worker.postMessage({rules:tool.data.rules,eventId:Number(tool.q('event').value),draft,scope,constraints:readCardBandConstraints(q('member-band'),q('support-band')),inventory:profile?.inventory,objective:q('objective').value==='ap_timing'?'maximum_song_score':q('objective').value,analysisDataUrl:chart.analysisDataUrl,rewardCards:q('rewards')?.checked&&scope!=='reference'?tool.data.eventRewardCards?.[Number(tool.q('event').value)]??[]:[],rewardGrowth:q('reward-growth')?.value??'level'});
     }catch(error){stop();feedback.finish('无法开始计算',error.message,'error');q('status').textContent=error.message;}
   });
-  q('cancel').addEventListener('click',()=>{if(!worker||paused)return;pausing=true;updates.stop({flushResult:true});feedback.update({label:'正在暂停',detail:'保留当前队伍与搜索进度'});worker.postMessage({type:'pause'});q('cancel').hidden=true;q('status').textContent='正在暂停，保留当前搜索进度…';});
+  q('cancel').addEventListener('click',()=>{if(!worker||paused)return;
+    if(q('objective').value==='ap_timing'){stop(true);feedback.finish('微操搜索已停止','保留已完成复算的候选；再次开始会重新比较。','stopped');q('status').textContent='微操搜索已停止，保留已完成复算的候选；再次开始会重新比较。';return;}
+    pausing=true;updates.stop({flushResult:true});feedback.update({label:'正在暂停',detail:'保留当前队伍与搜索进度'});worker.postMessage({type:'pause'});q('cancel').hidden=true;q('status').textContent='正在暂停，保留当前搜索进度…';});
   root.addEventListener('change',event=>{event.stopPropagation();sync();});
+  for(const field of [q('member-band'),q('support-band')])field?.addEventListener('change',()=>sync());
   return {sync,invalidate:()=>{key='';stop();sync();},destroy:()=>{stop();feedback.destroy();}};
 }

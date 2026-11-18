@@ -297,6 +297,32 @@ def create_app(
             return _error(503, "rankings_unavailable", "Rankings are temporarily unavailable")
         return JSONResponse(content=result, headers={"Cache-Control": "no-store"})
 
+    @app.get("/api/v1/arena-rankings")
+    def arena_rankings(server: str = Query(...), season: str = Query(...), band: str = Query(...),
+                       cursor: Optional[str] = Query(None), limit: int = Query(10), rank: int = Query(1)) -> JSONResponse:
+        from backend.arena_rankings import query_arena_rankings, RankingCursorChanged
+        try:
+            result = query_arena_rankings(_state().config.data_root / "observations", server=server,
+                                          season=season, band=band, cursor=cursor, limit=limit, rank=rank)
+        except RankingCursorChanged:
+            return _error(409, "arena_ranking_snapshot_changed", "Reload rankings before continuing")
+        except (ValueError, KeyError, TypeError):
+            return _error(400, "invalid_arena_ranking_query", "Invalid arena ranking query")
+        except OSError:
+            return _error(503, "arena_rankings_unavailable", "Arena rankings are temporarily unavailable")
+        return JSONResponse(content=result, headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/arena-population")
+    def arena_population(server: str = Query(...), season: str = Query(...), band: str = Query(...)) -> JSONResponse:
+        from backend.arena_population import query_population
+        try:
+            result = query_population(_state().config.data_root / "observations",server=server,season=season,band=band)
+        except (ValueError,KeyError,TypeError):
+            return _error(400,"invalid_arena_population","Invalid population observation")
+        except OSError:
+            return _error(503,"arena_population_unavailable","Population observation unavailable")
+        return JSONResponse(content=result,headers={"Cache-Control":"no-store"})
+
     # ----- dataset routes -------------------------------------------------
 
     def _register_dataset_route(path: str, dataset: Dataset) -> None:

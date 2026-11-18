@@ -4,6 +4,14 @@ export const toolTags = ['personal-growth-workbench', 'team-draft-workbench',
 // Component display:grid/flex rules must not override the initial hidden state.
 export const toolPendingStyle = '[data-tool-pending] { display: none !important; }';
 
+// Bootstrap and interaction modules are separate bundles; share parsed data
+// through the owning DOM node without another stringify/parse of the rules.
+const toolJson = Symbol.for('ournotes.tool.json.v1');
+const directJson = '[data-team-draft-data],[data-scoring-research-data],[data-event-inputs],[data-ap-inputs],[data-personal-growth-data]';
+export function readToolJson(node) {
+  return node[toolJson] ?? JSON.parse(node.textContent || '{}');
+}
+
 /** All controls exist at interactive; unrelated deferred scripts may delay DCL. */
 export function whenDocumentParsed(document,start) {
   if(document.readyState!=='loading'){start();return;}
@@ -54,10 +62,18 @@ export async function prepareTool({document, readJson, importModule, locale, onR
   const gate = document.querySelector('[data-tool-gate]');
   const en = locale === 'en';
   try {
-    const payloads = await Promise.all([...region.querySelectorAll('script[data-deferred-json]')].map(async node => ({
-      node, value: await readJson(node.dataset.deferredJson, node.dataset.sha256)
-    })));
-    for (const {node, value} of payloads) node.textContent = JSON.stringify(value);
+    const payloads = await Promise.all([...region.querySelectorAll('script[data-deferred-json]')].map(async node => {
+      const [value, rules] = await Promise.all([
+        readJson(node.dataset.deferredJson, node.dataset.sha256),
+        node.dataset.deferredRules ? readJson(node.dataset.deferredRules, node.dataset.rulesSha256) : undefined
+      ]);
+      if (node.dataset.deferredRules) value[node.dataset.rulesField] = rules;
+      return { node, value };
+    }));
+    for (const {node, value} of payloads) {
+      if (node.matches?.(directJson)) node[toolJson] = value;
+      else node.textContent = JSON.stringify(value);
+    }
     // These modules are preloaded together by the HTML. Evaluate in order, only
     // after all JSON is present, so custom elements never see partial inputs.
     for (const script of document.querySelectorAll('script[data-deferred-module]')) {

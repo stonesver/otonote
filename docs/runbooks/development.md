@@ -25,6 +25,7 @@ flowchart LR
 - 每项任务使用独立分支；并行开发使用独立 worktree，避免把他人的未完成修改打包。
 - PR 验证不下载整套游戏资源。CI 使用已提交的合成样例及计分回放样例，执行来源检查、依赖安装、离线测试和独立网页构建。
 - 本地预览：先执行 `npm --prefix site ci`，再执行 `bash scripts/build-web-client.sh --preview output/code-preview`。输出目录必须尚不存在；再次预览使用新的目录名。预览清单明确标记 `local-preview`，正式发布入口拒绝此产物。
+- 计算边界与结果组件检查：`npm --prefix site run check:calculation`。该入口执行 `tsc` 严格检查及 `svelte-check`，独立网页构建也会执行；范围由 `site/tsconfig.calculation.json` 管理，不代表全部旧 JavaScript 已完成类型迁移。类型反例覆盖消息结构，并在内存中修改真实调用点的目标名、取消消息、报告状态和样本种子，确认错误会被拦截；Worker 回放检查实际结果一致性。控制器回归覆盖取消后的重算与旧消息隔离。
 - 正式候选：`bash scripts/build-web-client.sh --candidate HEAD output/code-candidate`。运行环境使用 Node 22.23.4 与 Python 3.12（见 CI）。必须在干净检出上执行，指定提交必须等于 HEAD。
 - 原有完整静态资源构建脚本保留给资源回放/旧版本维护；网页代码正式交付统一走上述候选入口。
 

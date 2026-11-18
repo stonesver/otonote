@@ -7,7 +7,7 @@
 .bi-band-heading > span { margin-left: auto; color: var(--silver-dark); font-size: 12px; white-space: nowrap; }
 .bi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 .bi-card { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-light); transition: border-color 160ms ease, box-shadow 160ms ease; }
-.bi-card:hover { border-color: var(--band-color); box-shadow: 0 4px 16px rgb(17 19 27 / 7%); }
+.bi-card:hover { border-color: var(--band-color); box-shadow: 0 4px 16px color-mix(in srgb, var(--theme-shadow-color) 7%, transparent); }
 .bi-card-link { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 16px; height: 100%; min-height: 168px; padding: 12px; border-radius: inherit; color: inherit; text-decoration: none; }
 .bi-card-link:focus-visible { outline: 3px solid var(--band-color); outline-offset: 3px; }
 .bi-card-art { display: grid; place-items: center; width: 100px; height: 144px; border-radius: 6px; background: color-mix(in srgb, var(--band-color) 6%, var(--paper)); }
@@ -16,14 +16,14 @@
 .bi-card-copy h3 { margin: 0 0 8px; font-size: 16px; line-height: 1.45; }
 .bi-card-copy p { margin: 0 0 2px; font-size: 12px; color: var(--silver-dark); }
 .bi-card-bonus { display: flex; align-items: baseline; gap: 9px; }
-.bi-card-bonus strong { color: var(--band-color); font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.bi-card-bonus strong { color: color-mix(in srgb, var(--band-color) 60%, var(--theme-text)); font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.3; }
 .bi-card-bonus > span { color: var(--silver-dark); font-size: 11px; font-family: var(--font-mono); }
 .bi-card-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 11px; color: var(--silver-dark); }
-.bi-card-action > span { color: var(--band-color); font-size: 18px; line-height: 1; }
+.bi-card-action > span { color: color-mix(in srgb, var(--band-color) 60%, var(--theme-text)); font-size: 18px; line-height: 1; }
 .bi-noscript { padding: 12px; font-size: 12px; }
 .bi-dialog-open { overflow: hidden; }
-.bi-dialog { width: min(580px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); padding: 0; margin: auto; overflow: auto; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); background: var(--paper-light); box-shadow: 0 24px 100px rgb(0 0 0 / 25%); }
-.bi-dialog::backdrop { background: rgb(19 25 36 / 50%); backdrop-filter: blur(5px); }
+.bi-dialog { width: min(580px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); padding: 0; margin: auto; overflow: auto; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); background: var(--paper-light); box-shadow: 0 24px 100px color-mix(in srgb, var(--theme-shadow-color) 25%, transparent); }
+.bi-dialog::backdrop { background: color-mix(in srgb, var(--theme-media-shade) 50%, transparent); backdrop-filter: blur(5px); }
 .bi-dialog-frame { position: relative; }
 .bi-close { position: absolute; z-index: 1; top: 14px; right: 14px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 50%; color: var(--silver-dark); background: var(--paper-light); font-size: 25px; line-height: 1; cursor: pointer; }
 .bi-close:hover { color: var(--ink); background: var(--paper-deep); }
@@ -43,14 +43,14 @@
 .bi-stepper button { width: 36px; padding: 0; font-size: 20px; }
 .bi-stepper select { min-width: 88px; padding: 0 8px; font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
 .bi-stepper button:disabled { opacity: .35; cursor: default; }
-.bi-stepper button:hover:not(:disabled) { border-color: var(--band-color); color: var(--band-color); }
+.bi-stepper button:hover:not(:disabled) { border-color: var(--band-color); color: color-mix(in srgb, var(--band-color) 60%, var(--theme-text)); }
 .bi-level-control input[type="range"] { display: block; width: 100%; height: 24px; margin: 0; padding: 0; accent-color: var(--band-color); cursor: pointer; }
 .bi-range-labels { display: flex; justify-content: space-between; color: var(--silver-dark); font-family: var(--font-mono); font-size: 10px; }
 .bi-dialog-body { padding: 12px 28px 28px; }
 .bi-effects { display: grid; gap: 8px; margin-bottom: 24px; }
 .bi-effect { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-radius: 10px; background: color-mix(in srgb, var(--band-color) 7%, var(--paper-light)); }
 .bi-effect > span { font-size: 13px; }
-.bi-effect > strong { color: var(--band-color); font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
+.bi-effect > strong { color: color-mix(in srgb, var(--band-color) 60%, var(--theme-text)); font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
 .bi-material-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .bi-material-heading h3 { margin: 0; font-size: 14px; }
 .bi-material-heading > span { color: var(--silver-dark); font-family: var(--font-mono); font-size: 11px; }

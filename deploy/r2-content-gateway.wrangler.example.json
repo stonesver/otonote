@@ -4,6 +4,7 @@
   "compatibility_date": "2026-10-05",
   "workers_dev": true,
   "cache": { "enabled": true },
+  "vars": { "PUBLICATION_REVIEW": "disabled" },
   "r2_buckets": [
     { "binding": "CONTENT", "bucket_name": "otonote-public-content" }
   ]

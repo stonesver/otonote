@@ -1,3 +1,4 @@
+import { readThemePalette } from "./theme-palette.mjs";
 import { shareImageHeight, wrapStoryText } from "./story-share-layout.mjs";
 
 export interface ShareLine {
@@ -43,8 +44,9 @@ export async function createStoryImage(input: ShareImageInput) {
   const missingAvatars = [...images.values()].some(image => !image);
   canvas.width = width * 2;
   canvas.height = height * 2;
+  const palette = readThemePalette();
   ctx.scale(2, 2);
-  ctx.fillStyle = "#f4f6f8";
+  ctx.fillStyle = palette.canvas;
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = input.accent;
   ctx.fillRect(0, 0, width, 6);
@@ -56,14 +58,14 @@ export async function createStoryImage(input: ShareImageInput) {
     return y;
   };
   const rule = (y: number) => {
-    ctx.fillStyle = "#dbe1e6";
+    ctx.fillStyle = palette.border;
     ctx.fillRect(40, y, 460, 1);
   };
-  textBlock([`OTONOTE  /  ${input.excerpt}`], 40, 30, 18, nameFont, "#63717c");
+  textBlock([`OTONOTE  /  ${input.excerpt}`], 40, 30, 18, nameFont, palette.muted);
   let y = textBlock(category, 40, 60, 19, smallFont, input.accent);
-  y = textBlock(chapter, 40, y + 8, 19, smallFont, "#63717c");
-  y = textBlock(title, 40, y + 4, 35, titleFont, "#28323e");
-  textBlock(range, 40, y + 8, 19, smallFont, "#63717c");
+  y = textBlock(chapter, 40, y + 8, 19, smallFont, palette.muted);
+  y = textBlock(title, 40, y + 4, 35, titleFont, palette.text);
+  textBlock(range, 40, y + 8, 19, smallFont, palette.muted);
   rule(headerHeight - 12);
   y = headerHeight;
   for (const row of rows) {
@@ -71,32 +73,32 @@ export async function createStoryImage(input: ShareImageInput) {
       const image = images.get(row.avatar);
       ctx.save();
       ctx.beginPath(); ctx.arc(54, y + 20, 19, 0, Math.PI * 2); ctx.clip();
-      ctx.fillStyle = "#e2e7eb"; ctx.fillRect(35, y + 1, 38, 38);
+      ctx.fillStyle = palette.surfaceDeep; ctx.fillRect(35, y + 1, 38, 38);
       if (image) ctx.drawImage(image, 35, y + 1, 38, 38);
       else {
         ctx.textAlign = "center";
         const initials = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(row.speaker)].slice(0, 2).map(item => item.segment).join("");
-        textBlock([initials], 54, y + 13, 16, `11px ${input.font}`, "#526477");
+        textBlock([initials], 54, y + 13, 16, `11px ${input.font}`, palette.secondaryInk);
       }
       ctx.restore();
-      const nameBottom = textBlock(row.names, 88, y + 2, 18, nameFont, "#44515e");
+      const nameBottom = textBlock(row.names, 88, y + 2, 18, nameFont, palette.textSoft);
       const bubbleY = nameBottom + 4;
       ctx.font = bodyFont;
       const bubbleWidth = Math.min(394, Math.max(48, ...row.text.map(text => ctx.measureText(text).width + 24)));
       ctx.beginPath(); ctx.roundRect(88, bubbleY, bubbleWidth, row.text.length * 27 + 16, [3, 10, 10, 10]);
-      ctx.fillStyle = row.kind === "chat" ? "#e8f1f7" : "#ffffff"; ctx.fill();
-      textBlock(row.text, 100, bubbleY + 8, 27, bodyFont, "#28323e");
+      ctx.fillStyle = row.kind === "chat" ? palette.surfaceDeep : palette.surface; ctx.fill();
+      textBlock(row.text, 100, bubbleY + 8, 27, bodyFont, palette.text);
     } else {
       ctx.textAlign = "center";
-      const labelBottom = textBlock(row.names, width / 2, y + 12, 18, nameFont, "#63717c");
-      textBlock(row.text, width / 2, labelBottom, 27, bodyFont, "#63717c");
+      const labelBottom = textBlock(row.names, width / 2, y + 12, 18, nameFont, palette.muted);
+      textBlock(row.text, width / 2, labelBottom, 27, bodyFont, palette.muted);
       ctx.textAlign = "left";
     }
     y += row.height;
   }
   rule(y + 10);
-  textBlock([`OtoNote · BanG Dream! Our Notes`], 40, y + 28, 18, nameFont, "#44515e");
-  textBlock(source, 40, y + 52, 16, `10px ${input.font}`, "#63717c");
+  textBlock([`OtoNote · BanG Dream! Our Notes`], 40, y + 28, 18, nameFont, palette.textSoft);
+  textBlock(source, 40, y + 52, 16, `10px ${input.font}`, palette.muted);
   try {
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG encoding failed")), "image/png"));
     return { blob, width: canvas.width, height: canvas.height, missingAvatars };

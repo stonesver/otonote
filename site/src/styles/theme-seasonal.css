@@ -1,0 +1,44 @@
+/* A single navigation-stage composition: hold notes form a tree or a count-in burst. */
+:is([data-theme="christmas"], [data-preview-theme="christmas"]) {
+  /* Alpha masks: stage notes inherit the palette instead of recoloring game assets. */
+  --theme-stage-notes-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20280%20280%22%3E%3Crect%20x=%22129%22%20y=%2248%22%20width=%2226%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%22109%22%20y=%2278%22%20width=%2266%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%2290%22%20y=%22108%22%20width=%22104%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%2269%22%20y=%22138%22%20width=%22146%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%2249%22%20y=%22168%22%20width=%22186%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%2227%22%20y=%22198%22%20width=%22230%22%20height=%2212%22%20rx=%226.0%22/%3E%3Cpath%20d=%22M69%20216v78m73-78v78m73-78v78%22%20fill=%22none%22%20stroke=%22black%22%20stroke-width=%222%22%20opacity=%22.28%22/%3E%3C/svg%3E");
+  --theme-stage-hits-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20280%20280%22%3E%3Crect%20x=%22151%22%20y=%2278%22%20width=%2224%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%2272%22%20y=%22138%22%20width=%2232%22%20height=%2212%22%20rx=%226.0%22/%3E%3Crect%20x=%22198%22%20y=%22168%22%20width=%2234%22%20height=%2212%22%20rx=%226.0%22/%3E%3Cpath%20d=%22m142%2014%204%2010%2011%204-11%204-4%2010-4-10-11-4%2011-4z%22/%3E%3C/svg%3E");
+  --theme-stage-wide-notes-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20420%2064%22%3E%3Cg%20transform=%22translate%2830%29%22%3E%3Crect%20x=%22305%22%20y=%2220%22%20width=%2218%22%20height=%227%22%20rx=%223.5%22/%3E%3Crect%20x=%22293%22%20y=%2233%22%20width=%2242%22%20height=%227%22%20rx=%223.5%22/%3E%3Crect%20x=%22280%22%20y=%2246%22%20width=%2268%22%20height=%227%22%20rx=%223.5%22/%3E%3Crect%20x=%22266%22%20y=%2259%22%20width=%2296%22%20height=%227%22%20rx=%223.5%22/%3E%3C/g%3E%3C/svg%3E");
+  --theme-stage-wide-hits-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20420%2064%22%3E%3Cg%20transform=%22translate%2830%29%22%3E%3Crect%20x=%22316%22%20y=%2233%22%20width=%2218%22%20height=%227%22%20rx=%223.5%22/%3E%3Crect%20x=%22283%22%20y=%2246%22%20width=%2223%22%20height=%227%22%20rx=%223.5%22/%3E%3Cpath%20d=%22m314%202%202%205%205%202-5%202-2%205-2-5-5-2%205-2z%22/%3E%3C/g%3E%3C/svg%3E");
+}
+:is([data-theme="new-year"], [data-preview-theme="new-year"]) {
+  /* Alpha masks: stage notes inherit the palette instead of recoloring game assets. */
+  --theme-stage-notes-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20280%20280%22%3E%3Cg%20transform=%22translate%28140%20257%29%22%3E%3Cg%20transform=%22rotate%28-67%29%22%3E%3Crect%20x=%22-6%22%20y=%22-178%22%20width=%2212%22%20height=%22140%22%20rx=%226%22/%3E%3Cpath%20d=%22M0-191v-18%22%20stroke=%22black%22%20stroke-width=%223%22%20stroke-linecap=%22round%22/%3E%3C/g%3E%3Cg%20transform=%22rotate%28-38%29%22%3E%3Crect%20x=%22-6%22%20y=%22-208%22%20width=%2212%22%20height=%22170%22%20rx=%226%22/%3E%3Cpath%20d=%22M0-221v-18%22%20stroke=%22black%22%20stroke-width=%223%22%20stroke-linecap=%22round%22/%3E%3C/g%3E%3Cg%20transform=%22rotate%28-8%29%22%3E%3Crect%20x=%22-6%22%20y=%22-236%22%20width=%2212%22%20height=%22198%22%20rx=%226%22/%3E%3Cpath%20d=%22M0-249v-18%22%20stroke=%22black%22%20stroke-width=%223%22%20stroke-linecap=%22round%22/%3E%3C/g%3E%3Cg%20transform=%22rotate%2826%29%22%3E%3Crect%20x=%22-6%22%20y=%22-214%22%20width=%2212%22%20height=%22176%22%20rx=%226%22/%3E%3Cpath%20d=%22M0-227v-18%22%20stroke=%22black%22%20stroke-width=%223%22%20stroke-linecap=%22round%22/%3E%3C/g%3E%3Cg%20transform=%22rotate%2860%29%22%3E%3Crect%20x=%22-6%22%20y=%22-182%22%20width=%2212%22%20height=%22144%22%20rx=%226%22/%3E%3Cpath%20d=%22M0-195v-18%22%20stroke=%22black%22%20stroke-width=%223%22%20stroke-linecap=%22round%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --theme-stage-hits-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20280%20280%22%3E%3Cg%20transform=%22translate%28140%20257%29%22%3E%3Crect%20x=%22-7%22%20y=%22-178%22%20width=%2214%22%20height=%2226%22%20rx=%227%22%20transform=%22rotate%28-67%29%22/%3E%3Crect%20x=%22-7%22%20y=%22-236%22%20width=%2214%22%20height=%2226%22%20rx=%227%22%20transform=%22rotate%28-8%29%22/%3E%3Crect%20x=%22-7%22%20y=%22-182%22%20width=%2214%22%20height=%2226%22%20rx=%227%22%20transform=%22rotate%2860%29%22/%3E%3C/g%3E%3Cpath%20d=%22m222%2052%204%2011%2011%204-11%204-4%2011-4-11-11-4%2011-4z%22/%3E%3C/svg%3E");
+  --theme-stage-wide-notes-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20420%2064%22%3E%3Cg%20transform=%22translate%28330%2080%29%22%3E%3Crect%20x=%22-4%22%20y=%22-158%22%20width=%228%22%20height=%22136%22%20rx=%224%22%20transform=%22rotate%28-76%29%22/%3E%3Crect%20x=%22-4%22%20y=%22-126%22%20width=%228%22%20height=%22104%22%20rx=%224%22%20transform=%22rotate%28-48%29%22/%3E%3Crect%20x=%22-4%22%20y=%22-110%22%20width=%228%22%20height=%2288%22%20rx=%224%22%20transform=%22rotate%28-18%29%22/%3E%3Crect%20x=%22-4%22%20y=%22-104%22%20width=%228%22%20height=%2282%22%20rx=%224%22%20transform=%22rotate%2819%29%22/%3E%3Crect%20x=%22-4%22%20y=%22-110%22%20width=%228%22%20height=%2288%22%20rx=%224%22%20transform=%22rotate%2853%29%22/%3E%3C/g%3E%3C/svg%3E");
+  --theme-stage-wide-hits-mask:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20420%2064%22%3E%3Cg%20transform=%22translate%28330%2080%29%22%3E%3Crect%20x=%22-4%22%20y=%22-158%22%20width=%228%22%20height=%2218%22%20rx=%224%22%20transform=%22rotate%28-76%29%22/%3E%3Crect%20x=%22-4%22%20y=%22-110%22%20width=%228%22%20height=%2218%22%20rx=%224%22%20transform=%22rotate%28-18%29%22/%3E%3Crect%20x=%22-4%22%20y=%22-110%22%20width=%228%22%20height=%2218%22%20rx=%224%22%20transform=%22rotate%2853%29%22/%3E%3C/g%3E%3C/svg%3E");
+}
+
+html:is([data-theme="new-year"],[data-theme="christmas"])[data-shell="sidebar"] {
+  .site-nav { isolation:isolate; }
+  .site-nav::before,.site-nav::after {
+    content:""; position:absolute; z-index:-1; inset:auto 0 -22px; height:280px;
+    pointer-events:none; mask-repeat:no-repeat; mask-position:center bottom; mask-size:280px 280px;
+  }
+  .site-nav::before { background:var(--theme-accent); opacity:.11; mask-image:var(--theme-stage-notes-mask); }
+  .site-nav::after { background:var(--theme-secondary); opacity:.5; mask-image:var(--theme-stage-hits-mask); }
+  .nav-bottom::before { content:none; }
+  /* A quiet light field joins the toolbar to the sidebar; no borders or extra spacing. */
+  .site-header { background:linear-gradient(110deg,var(--theme-shell-surface) 55%,color-mix(in srgb,var(--theme-secondary) 12%,var(--theme-surface)) 100%); }
+}
+@media(max-width:1100px) {
+  html:is([data-theme="new-year"],[data-theme="christmas"])[data-shell="sidebar"] {
+    .site-header { isolation:isolate; }
+    .site-header::before,.site-header::after {
+      content:""; position:absolute; z-index:-1; inset:0; pointer-events:none;
+      mask-repeat:no-repeat; mask-position:right center; mask-size:auto 100%;
+    }
+    .site-header::before { background:var(--theme-accent); opacity:.13; mask-image:var(--theme-stage-wide-notes-mask); }
+    .site-header::after { background:var(--theme-secondary); opacity:.32; mask-image:var(--theme-stage-wide-hits-mask); }
+  }
+}
+/* Picker previews use the same stage, with neutral content panels. */
+.theme-picker-preview:is([data-preview-theme="new-year"],[data-preview-theme="christmas"]) {
+  .theme-picker-preview__nav::after { inset:auto -12px -6px; height:58px; background:var(--preview-accent); opacity:.2; mask:var(--theme-stage-notes-mask) center bottom / contain no-repeat; }
+  .theme-picker-preview__panels::after { content:none; }
+}

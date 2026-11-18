@@ -19,9 +19,7 @@ const bandDetails = new Map(catalog.bands.map(band => [band.masterId, band]));
 ---
 <BaseLayout title={title} description={hints[category]}>
   <div class="st-library content-shell" data-story-library data-filter-scope>
-    <header class="st-heading">
-      <div><p class="st-eyebrow">OTONOTE / STORY COLLECTION</p><h1>{title}</h1><p class="st-intro">{hints[category]}</p></div>
-    </header>
+
     {!entries.length ? <p class="st-empty">{copy.unavailable}</p> : <>
       <div class="st-band-shelf" role="group" aria-label={copy.bandFilter}>
         <span class="st-shelf-label">{copy.bandFilter}</span>

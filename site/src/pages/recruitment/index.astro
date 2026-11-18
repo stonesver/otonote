@@ -22,7 +22,7 @@ const groups = [
 ].filter(group => group.pools.length);
 ---
 <BaseLayout title={say("招募", "Recruitment")}>
-  <header class="sys-hero content-shell"><div class="eyebrow">RECRUITMENT</div><h1>{say("招募", "Recruitment")}</h1><p>{say("查看招募卡片、抽取消耗与概率。", "Explore featured cards, draw costs and rates.")}</p></header>
+
   <section class="content-shell sys-body"><recruitment-browser><system-browser data-filter-scope>
     <BrowserControls count={pools.length} categoryKeys={["permanent", "limited", "event", "birthday", "ticket", "pass", "ad"]} placeholder={say("搜索招募名称…", "Search recruitment…")} />
     <div class="recruit-groups" data-results>

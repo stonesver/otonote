@@ -23,7 +23,7 @@ export function renderRankingDetail(root,row,{mode='ordinary',locale='zh-CN',ser
   if(starts?.length){
     const section=make('section','','ranking-detail-skills'),title=make('h3',say('五次技能发动','Five skill activations'));
     section.append(title);const slots=make('ol','','ranking-skill-slots');
-    starts.forEach((time,index)=>{const slot=make('li');slot.style.setProperty('--slot-color',['#5892b0','#5b9e8b','#9d83b5','#b2975d','#ae7b92'][index%5]);
+    starts.forEach((time,index)=>{const slot=make('li');slot.style.setProperty('--slot-color',`var(--theme-chart-${index%5+1})`);
       const top=make('div');top.append(make('b',String(index+1).padStart(2,'0')),make('strong',`${number(time,2)} s`));slot.append(top);
       const gain=row.positionContributions?.[index];
       slot.append(make('small',row.skillProfile?.every(skill=>!skill.percent||!skill.seconds)?say('无加分技能','No score skills'):Number.isFinite(gain)?say(`平均 +${number(gain)} 分`,`Mean +${number(gain)}`):row.skillProfile?say('遍历技能顺序','Compare skill orders'):say(`+${number(row.benchmark?.skillPercent)}% · ${number(row.benchmark?.skillSeconds,2)} s`,`+${number(row.benchmark?.skillPercent)}% · ${number(row.benchmark?.skillSeconds,2)} s`)));

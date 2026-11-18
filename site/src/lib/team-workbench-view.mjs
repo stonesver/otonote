@@ -2,6 +2,7 @@ import {enhanceTaskSwitcher} from './tool-task-switcher.mjs';
 import {createTeamSearchPlaceholder} from './team-search-placeholder.mjs';
 import {planningUiText} from './team-planning-translations.mjs';
 import {selectedOptionText} from './tool-quick-options.mjs';
+import {cardBandFilterSummary} from './card-band-constraints.mjs';
 
 /** Presentation only: readiness, cancellation and results remain owned by the optimizer. */
 export function teamWorkbenchState({running=false, finished=false, hasResults=false}={}, feedbackState, comparing=false) {
@@ -27,8 +28,8 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   const events = new AbortController();
   const listen = (n,event,handler) => n.addEventListener(event,handler,{signal:events.signal});
   host.classList.add('team-builder-view');
-  const tasks=q('.journey-tasks'), saved=q('[data-journey-task="saved"]');
-  const resultStep=q('[data-journey-step="3"]'), results=q('[data-pairing-results]');
+  const tasks=q('.team-task-switch'), saved=q('[data-team-task="saved"]');
+  const resultStep=q('[data-team-results]'), results=q('[data-pairing-results]');
   const run=q('[data-optimize-pairing]'), cancel=q('[data-cancel-pairing]');
   const feedback=q('[data-calculation-progress="pairing"]'), progress=q('[data-pairing-progress]');
   const guidance=q('[data-calculator-guidance]'), notes=q('.calculator-notes');
@@ -49,7 +50,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   const planning=button('培养设置');
   cardActions.append(manage,edit,planning);
   const scopeNote=node('small',null,'team-scope-note');
-  cards.append(kind.closest('label'),scopeNote,cardActions);
+  cards.append(kind.closest('label'),scopeNote,q('[data-search-card-bands]'),cardActions);
   const modeField=mode.closest('label');modeField.hidden=false;
   grid.append(song,cards,modeField,profile.closest('label'));
   const goals=q('[data-pairing-objective]').closest('.task-condition-group');
@@ -58,7 +59,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   grid.append(goals,growth);
   context.append(node('h2','计算条件','ds-panel-title'),grid);
   if(host.calculationScope){grid.append(q('[data-playlist-task]'));context.append(host.calculationScope.root);}
-  q('.journey-choices').hidden=true;
+  q('.workbench-mode-choices').hidden=true;
   const footer=node('div',null,'team-setup-actions'), advancedSummary=node('span',null,'team-advanced-summary');
   adjust.textContent=ui('高级设置');adjust.classList.add('team-advanced-entry');
   footer.append(adjust,advancedSummary);context.append(footer,guidance);
@@ -83,7 +84,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   q('.calculator-start').hidden=true;
   aside.hidden=true;tags.hidden=true;
   enhanceTaskSwitcher(tasks,[
-    {button:q('[data-journey-task="automatic"]'),icon:'team'},
+    {button:q('[data-team-task="automatic"]'),icon:'team'},
     {button:saved,icon:'compare'},
   ]);
 
@@ -106,7 +107,6 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
 
   function refresh() {
     const comparing=saved.getAttribute('aria-pressed')==='true';
-    for(const step of [0,1,2])q(`[data-journey-step="${step}"]`).hidden=true;
     workspaceStatus.hidden=!host.teamWorkspaceContext?.error;
     setText(cancel,ui('停止'));
     const optimizer=host.optimizerState??{};
@@ -139,12 +139,12 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
     const custom=explicit||['[data-performance-spread]','[data-performance-miss]','[data-performance-start]','[data-performance-end]'].some(s=>q(s).value!=='')||Number(q('[data-performance-bias]').value)!==0;
     const playlistTask=q('[data-playlist-task] select')?.value==='playlist';song.hidden=playlistTask;const playlistNote=q('.team-playlist-note');if(playlistNote)playlistNote.hidden=!playlistTask;
     setText(summarySong,playlistTask?'歌单逐曲推荐 · 每曲独立队伍':songLabel.textContent);
-    setText(summaryConditions,[selectedOptionText(kind),selectedOptionText(mode),ui(explicit?'导入演出记录':custom?'自定义发挥':selectedOptionText(profile)),playlistTask?host.calculationScope?.summary:null].filter(Boolean).join(' · '));
+    setText(summaryConditions,[selectedOptionText(kind),selectedOptionText(mode),ui(explicit?'导入演出记录':custom?'自定义发挥':selectedOptionText(profile)),cardBandFilterSummary(q('[data-search-band]'),q('[data-search-support-band]'),host.data.locale),playlistTask?host.calculationScope?.summary:null].filter(Boolean).join(' · '));
     setText(dockTitle,songLabel.textContent);
     setText(dockNote,summaryConditions.textContent);
     setText(run,state==='setup'||state==='running'?ui('推荐队伍'):host.data.locale==='en'?'Recommend again':'重新推荐');
     const customConstraints=q('[data-search-constraints]').value.trim();
-    const limited=customConstraints&&customConstraints!=='{}'||['[data-search-band]','[data-search-attribute]','[data-search-support-attribute]'].some(s=>[...q(s).selectedOptions].some(o=>o.value))||q('[data-planning-window-limit]').value!=='5';
+    const limited=customConstraints&&customConstraints!=='{}'||['[data-search-band]','[data-search-support-band]','[data-search-attribute]','[data-search-support-attribute]'].some(s=>[...q(s).selectedOptions].some(o=>o.value))||q('[data-planning-window-limit]').value!=='5';
     setText(advancedSummary,[ui(({expected_song_score:'平均分',minimum_song_score:'较低分表现',maximum_song_score:'较高分表现',formation_power:'综合力'})[q('[data-pairing-objective]').value]),ui(limited?'已设编成限制':'不限卡片'),...(custom?[ui('自定义发挥')]:[])].join(' · '));
     setText(modify,ui(expanded?'收起条件':'修改条件'));
     modify.setAttribute('aria-expanded',String(expanded));
@@ -159,7 +159,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
     q('#optimizer-results').hidden=!resultCount;
     q('#optimizer-results-title').closest('header').hidden=!resultCount;
     notes.hidden=state==='running'||state==='error'||!optimizer.finished;
-    const help=q('.journey-help');if(help)help.hidden=comparing;
+    const help=q('.team-help');if(help)help.hidden=comparing;
   }
   const observer=new MutationObserver(refresh);
   observer.observe(results,{childList:true});

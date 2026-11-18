@@ -20,9 +20,9 @@ export function createCandidateEvaluator({rules,chart,mode='ordinary',objective=
     if(cache?.has(key)){work.cacheHits++;return cache.get(key);}
     work.calculations++;
     const power=calculator.calculate(candidate), result=song?.calculate(candidate);
-    const value={power:power.total.total,value:result ? result[metrics[objective]] : power.total.total,breakdown:power.breakdown,
+    const value={power:power.total.total,value:result ? result.apTimingPlan?.score ?? result.apTimingScreen?.score ?? result[metrics[objective]] : power.total.total,breakdown:power.breakdown,
       ...(result ? {scorePrecision:result.scorePrecision,orderCount:result.orderCount,expectedScore:result.expectedScore,minimumScore:result.minimumScore,maximumScore:result.maximumScore,
-        scoreDistribution:result.scoreDistribution,inputHash:result.inputHash,performanceScenario:result.performanceScenario??performanceScenario,
+        scoreDistribution:result.scoreDistribution,inputHash:result.inputHash,performanceScenario:result.performanceScenario??performanceScenario,apTimingPlan:result.apTimingPlan,apTimingScreen:result.apTimingScreen,
         bestOrder:result.bestOrder,worstOrder:result.worstOrder,randomSampling:result.randomSampling,randomSources:result.randomSources,
         performanceSummary:result.performanceSummary,warnings:result.warnings,scenario:result.scenario,
         ...(mode==='gekisou' ? {noteScore:result.noteScore,eventFixedScore:result.eventFixedScore,

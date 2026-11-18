@@ -121,3 +121,20 @@ class ReleaseCandidatesTest(unittest.TestCase):
         with self.assertRaisesRegex(PreflightError, 'digest'):
             self.build(compiler=mutate)
         self.assertFalse(self.output.exists())
+
+    def test_review_is_not_copied_and_mutation_during_build_is_rejected(self):
+        review = self.root / 'arena-review.json'
+        review.write_text(json.dumps({'schemaVersion': 1, 'region': self.entry['region'],
+            'sourceReleaseId': self.entry['contentReleaseId'], 'serverScopes': []}))
+        self.entry['arenaReview'] = {'path': 'arena-review.json', 'sha256': digest(review)}
+        self.write_plan([self.entry])
+        report = self.build()
+        self.assertFalse(any('arena-review' in name for name in report['files']))
+        self.output = self.root / 'output' / 'changed-review'
+        def mutate(source, target, locales, root):
+            result = self.compiler(source, target, locales, root)
+            review.write_text('{}')
+            return result
+        with self.assertRaisesRegex(PreflightError, 'changed'):
+            self.build(compiler=mutate)
+        self.assertFalse(self.output.exists())

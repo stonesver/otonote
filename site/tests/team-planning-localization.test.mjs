@@ -1,5 +1,6 @@
 import {optimizerReadiness} from '../src/lib/optimizer-guidance.mjs';
-import {planningSearchStatus} from '../src/lib/inventory-optimizer-ui.mjs';
+import './helpers/svelte-loader.mjs';
+const {planningSearchStatus} = await import('../src/lib/inventory-optimizer-ui.ts');
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';

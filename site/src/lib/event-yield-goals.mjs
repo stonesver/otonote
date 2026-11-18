@@ -1,7 +1,13 @@
-export function compareEventPlans(a,b,goal='badges'){
+export function compareEventRewards(a,b,goal='badges'){
  if(goal==='grade'&&a.reward.scoreRank!==b.reward.scoreRank)return b.reward.scoreRank-a.reward.scoreRank;
  const metric=goal==='eventPoints'?'eventPoints':'badges',other=metric==='badges'?'eventPoints':'badges';
- return b.total[metric]-a.total[metric]||b.total[other]-a.total[other]||(a.song?.seconds??Infinity)-(b.song?.seconds??Infinity)||b.expectedScore-a.expectedScore;
+ return b.total[metric]-a.total[metric]||b.total[other]-a.total[other]||(a.song?.seconds??Infinity)-(b.song?.seconds??Infinity)||0;
+}
+
+export function compareEventPlans(a,b,goal='badges'){
+ return compareEventRewards(a,b,goal)
+  ||(a.scoreBasis==='minimumScore'&&b.scoreBasis==='minimumScore'?b.minimumScore-a.minimumScore:0)
+  ||b.expectedScore-a.expectedScore||b.power-a.power||0;
 }
 
 export const EVENT_YIELD_GOAL_LABELS={badges:'道具总收益优先',eventPoints:'活动 pt 总收益优先',grade:'先最高档位，再道具收益'};
@@ -32,10 +38,9 @@ export function selectEventYieldRows(rows,goal='both',limit=10){
 }
 
 /** Display ordering never changes the reward objective or input results. */
-export function orderEventYieldRows(rows,sort='yield',goal='both'){
- const duration=row=>Number.isFinite(row.song?.seconds)?row.song.seconds:Infinity;
+export function orderEventYieldRows(rows,goal='both'){
  const compare=(a,b)=>compareEventPlans(a,b,goal==='both'?'badges':goal)||a.song.id.localeCompare(b.song.id)||String(a.id).localeCompare(String(b.id));
- return [...rows].sort(sort==='short'?(a,b)=>duration(a)-duration(b)||compare(a,b):compare);
+ return [...rows].sort(compare);
 }
 
 /** Both currency differences refer to the same goal's leading plan. */

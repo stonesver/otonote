@@ -8,6 +8,7 @@ rules, skill coverage and rankings are published as one immutable snapshot.
 from __future__ import annotations
 
 import argparse
+import base64
 from copy import deepcopy
 import json
 import math
@@ -24,6 +25,33 @@ from tools.r2_shared_media import (SharedMediaResolver, _control, _immutable,
 from tools.materialize_r2_content import parse_pointer, parse_manifest, required_records
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def unpack_arena_review_bundle(raw, expected, target):
+    """Read a digest-pinned private input without extracting arbitrary paths."""
+    from tools.arena_content import TABLES
+    if not SHA256.fullmatch(expected) or len(raw)>16*1024**2 or digest(raw)!=expected:
+        raise ValueError('arena review bundle digest or size mismatch')
+    value=json.loads(raw)
+    if not isinstance(value,dict) or set(value)!={'review','files'} or not isinstance(value['files'],dict):
+        raise ValueError('invalid arena review bundle')
+    review=value['review']
+    if not isinstance(review,dict) or not isinstance(review.get('tables'),dict) or not set(review['tables'])<=set(TABLES):
+        raise ValueError('invalid arena review tables')
+    allowed={name+'.json' for name in review['tables']}
+    for icon in review.get('rankIcons',[]):
+        name=icon.get('path')
+        if not isinstance(name,str) or not re.fullmatch(r'rank-icons/rank-[1-7]\.webp',name):
+            raise ValueError('invalid arena review icon path')
+        allowed.add(name)
+    if set(value['files'])!=allowed:raise ValueError('arena review bundle inventory mismatch')
+    decoded={name:base64.b64decode(body,validate=True) for name,body in value['files'].items()}
+    if sum(map(len,decoded.values()))>12*1024**2:raise ValueError('arena review bundle exceeds bounds')
+    target=Path(target);target.mkdir(parents=True,exist_ok=False)
+    for name,body in decoded.items():
+        path=target/name;path.parent.mkdir(exist_ok=True);path.write_bytes(body)
+    review_raw=canonical(review);(target/'review.json').write_bytes(review_raw)
+    return target/'review.json',digest(review_raw)
 
 
 def verified_media(bucket, media):
@@ -141,12 +169,34 @@ def repair_reference_rules(source, manifest, path, expected):
     return replacements
 
 
+def reviewed_arena_projections(manifest,master_root,review_path,expected_sha256):
+    """Compile pinned Arena tables for the exact already-published game release."""
+    if not SHA256.fullmatch(expected_sha256):raise ValueError('invalid arena review digest')
+    raw=Path(review_path).read_bytes()
+    if len(raw)>SMALL_LIMIT or digest(raw)!=expected_sha256:raise ValueError('arena review digest mismatch')
+    review=json.loads(raw)
+    if (review.get('sourceReleaseId')!=manifest['contentReleaseId'] or review.get('region')!=manifest['region']
+            or not review.get('masterVersion') or review['masterVersion']!=manifest.get('releaseRecord',{}).get('masterVersion')):
+        raise ValueError('arena review does not match published Master')
+    from tools.arena_content import build_arena_content,validate_arena_publication
+    outputs={}
+    for locale in manifest['locales']:
+        value=build_arena_content(master_root,manifest['contentReleaseId'],manifest['region'],locale,review)
+        validate_arena_publication(value,manifest['contentReleaseId'],manifest['region'])
+        outputs[locale]=canonical(value)
+    return outputs
+
+
 def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
-              publish=False, compute=calculate, scoring_rules=None, expected_rules_sha256=None):
+              publish=False, publication=None, compute=calculate, scoring_rules=None, expected_rules_sha256=None,
+              arena_review=None,arena_master_root=None,expected_arena_review_sha256=None):
     if not SHA256.fullmatch(expected):
         raise ValueError('an explicit existing pointer digest is required')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', source_run):
         raise ValueError('invalid source run identity')
+    from tools.publication_review import enabled
+    if publish and enabled(bucket) and publication is None:
+        raise ValueError('publication review requires an Actions publication identity')
     work = Path(work)
     if work.exists():
         raise ValueError('recompute workspace must be new')
@@ -157,6 +207,13 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
         raise ValueError('rule repair needs both a file and its reviewed digest')
     replacements = (repair_reference_rules(source, manifest, scoring_rules, expected_rules_sha256)
                     if scoring_rules is not None else {})
+    arena_inputs=(arena_review,arena_master_root,expected_arena_review_sha256)
+    if any(v is not None for v in arena_inputs) and not all(v is not None for v in arena_inputs):raise ValueError('arena publication requires review, master root and digest')
+    arena=reviewed_arena_projections(manifest,arena_master_root,arena_review,expected_arena_review_sha256) if arena_review is not None else {}
+    arena_paths={}
+    for locale,raw in arena.items():
+        name=manifest['locales'][locale]['files'].get('projection/arena.json',{}).get('path',locale+'/arena.json')
+        check_public_path(name);arena_paths[locale]=name;replacements[name]=raw
     compute(source, output, model)
     counts, coverage = {}, {}
     for locale in ('zh-CN', 'en'):
@@ -182,10 +239,11 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     target = work/'prepared'; target.mkdir()
     updated = deepcopy(manifest); updated['root'] = new_root
     new_files = {}
-    for name in files:
+    for locale,name in arena_paths.items():updated['locales'][locale]['files']['projection/arena.json']={'path':name}
+    for name in sorted(set(files)|set(replacements)):
         if name == 'manifest.json':
             continue
-        raw = replacements.get(name, (source/name).read_bytes())
+        raw = replacements[name] if name in replacements else (source/name).read_bytes()
         # Rebind URLs only; authored content, release identities and media stay intact.
         if name.endswith('.json'):
             raw = raw.replace(old_root.encode(), new_root.encode())
@@ -205,6 +263,7 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     new_pointer.pop('libraryPointers', None)
     report = {'region':region,'model':model,'counts':counts,'previousPointer':pointer,
               'nextPointer':new_pointer,'sourcePointerSha256':expected, 'scoringCoverage':coverage}
+    if arena_review is not None:report['arenaReviewSha256']=expected_arena_review_sha256
     if scoring_rules is not None:
         report['scoringRepair'] = {'reviewedSha256':expected_rules_sha256,'coverage':coverage}
     (work/'verification.json').write_bytes(canonical(report))
@@ -244,6 +303,13 @@ def recompute(bucket, region, expected, work, *, model, source_run, workers=8,
     resolver = SharedMediaResolver(_control(bucket), identifier, raw_manifest)
     if resolver.all_records() != media:
         raise ValueError('new media references differ from verified source')
+    if publication is not None:
+        from tools.r2_publication import record_prepared
+        saved_inventory = {name: {'sha256': sha, 'bytes': (target/name).stat().st_size}
+                           for name, sha in new_files.items()}
+        saved_inventory.update({name: {'sha256': row['sha256'], 'bytes': row['bytes']}
+                                for name, row in media.items()})
+        record_prepared(bucket, region, publication, expected, target, canonical(new_pointer), updated, saved_inventory)
     result = _promote_verified_pointer(bucket, canonical(new_pointer), region, expected, source_run=source_run)
     (work/'publication.json').write_bytes(canonical(result))
     return {**report, **result}
@@ -255,15 +321,20 @@ def main():
     parser.add_argument('--expected-current', required=True)
     parser.add_argument('--model', required=True)
     parser.add_argument('--source-run', required=True)
+    parser.add_argument('--publication')
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--publish', action='store_true')
     parser.add_argument('--scoring-rules', type=Path)
     parser.add_argument('--expected-rules-sha256')
+    parser.add_argument('--arena-review',type=Path)
+    parser.add_argument('--arena-master-root',type=Path)
+    parser.add_argument('--expected-arena-review-sha256')
     args = parser.parse_args()
     try:
         report = recompute(S3Bucket.from_environment(workers=8), args.region, args.expected_current,
-                           args.work, model=args.model, source_run=args.source_run, publish=args.publish,
-                           scoring_rules=args.scoring_rules, expected_rules_sha256=args.expected_rules_sha256)
+                           args.work, model=args.model, source_run=args.source_run, publish=args.publish, publication=args.publication,
+                           scoring_rules=args.scoring_rules, expected_rules_sha256=args.expected_rules_sha256,
+                           arena_review=args.arena_review,arena_master_root=args.arena_master_root,expected_arena_review_sha256=args.expected_arena_review_sha256)
         print(json.dumps(report, ensure_ascii=False))
     except Exception as error:
         # Keep transport credentials and private endpoint details out of workflow output.

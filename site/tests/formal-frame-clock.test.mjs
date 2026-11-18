@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { createFrameClock, gekisouReleaseFrames, skillEndFrame, executingSkillEnd, nativeSkillDuration } from '../src/lib/scoring-rules/formal-frame-clock.mjs';
 import { replayScoreTimeline, liveSkillCommands } from '../src/lib/scoring-rules/formal-score-replay.mjs';
 
+test('compact phase clocks match the corresponding explicit audio timestamps',()=>{
+  for(const frameRate of [60,120])for(const phaseMs of [0,.5,2+1/6,1000/frameRate-.5]){
+    const frames=Array.from({length:500},(_,i)=>({timeMs:Math.floor(i*1000/frameRate+phaseMs),deltaSeconds:1/frameRate}));
+    const compact=createFrameClock({frameRate,phaseMs}),explicit=createFrameClock({frameRate,frames});
+    for(let time=0;time<3000;time++)assert.equal(compact.indexAt(time),explicit.indexAt(time));
+  }
+});
+
 test('f32 stopwatch changes the completion frame at 120 FPS', () => {
   const actual = gekisouReleaseFrames(createFrameClock({frameRate:120}), 0, 200);
   assert.deepEqual(actual, {endFrame:0,settleFrame:24,releaseFrame:85});

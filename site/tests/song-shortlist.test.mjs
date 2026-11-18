@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Worker} from 'node:worker_threads';
 import {fixture} from './fixtures/gekisou-skill-fixture.mjs';
 import {screenTeamSongs,selectSongShortlist} from '../src/lib/song-shortlist.mjs';
-import {runPlaylistTeamBatch} from '../src/lib/playlist-team-batch.mjs';
+import {runPlaylistTeamBatch} from '../src/lib/playlist-team-batch.ts';
 
 function inputs(){
   const {rules,chart,draft}=fixture({missions:[1,2,3]});
@@ -59,7 +59,7 @@ test('production worker screens before full search and reports selected versus o
   const context=inputs();
   for(const count of [8,6]){
   const candidates=context.candidates.slice(0,count);
-  const worker=new Worker(new URL('./helpers/browser-worker-host.mjs',import.meta.url),{workerData:{entry:new URL('../src/lib/production-optimizer-worker.mjs',import.meta.url).href}});
+  const worker=new Worker(new URL('./helpers/browser-worker-host.mjs',import.meta.url),{workerData:{entry:new URL('../src/lib/production-optimizer-worker.ts',import.meta.url).href}});
   try{
     const result=await new Promise((resolve,reject)=>{
       worker.on('error',reject);worker.on('message',data=>{if(data.type==='error')reject(Error(data.error));if(data.type==='result')resolve(data.result);});

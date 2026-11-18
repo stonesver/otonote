@@ -185,6 +185,9 @@ def publish_content(candidate, store, *, scoring_rules=None, recognition_index=N
                         relative = str(path.relative_to(data)); value = read_json(path)
                         from tools.library_metadata import enrich_projection
                         value = enrich_projection(relative, value, source_root/'public', data)
+                        if relative == 'arena.json':
+                            from tools.arena_content import validate_arena_publication
+                            validate_arena_publication(value, release, edition)
                         if relative == 'catalog.json' and value.get('projectionContext') != {k:context[k] for k in ('contentReleaseId','region','channel','locale')}:
                             raise ValueError('mixed projection identity')
                         # Media index has an internal digest of the rewritten records.

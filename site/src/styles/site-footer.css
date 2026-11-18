@@ -1,43 +1,14 @@
-/* Compact shared footer; full navigation remains available in the site menu. */
 [data-shell="sidebar"] .site-footer.archive-footer {
-  display: block;
-  padding: 28px var(--gutter) max(20px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--line);
-  color: var(--gel-blue-dark);
-  background: color-mix(in srgb, var(--gel-blue) 7%, var(--paper-light));
-  container: site-footer / inline-size;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 24px;
+  padding:18px var(--gutter) max(18px, env(safe-area-inset-bottom));
+  border-top:1px solid var(--line); background:transparent; color:var(--silver-dark);
 }
-.archive-footer__grid, .archive-footer__bottom { max-width: 1280px; margin-inline: auto; }
-.archive-footer__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 24px 36px; padding-bottom: 20px; }
-.archive-footer__grid > *, .archive-footer__legal { min-width: 0; overflow-wrap: anywhere; }
-.archive-footer__intro { max-width: 420px; }
-.archive-footer__brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); }
-.archive-footer__brand span { font: 600 24px/1.2 var(--font-display); letter-spacing: -.025em; }
-.archive-footer__brand img { flex-shrink: 0; width: 32px; height: 32px; }
-.archive-footer .archive-footer__description { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: var(--silver-dark); }
-.archive-footer__about { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 13px; color: var(--lacquer); }
-.archive-footer__feedback { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: var(--silver-dark); }
-.archive-footer__contact { display: flex; flex-direction: column; align-items: flex-start; margin-top: 4px; font-size: 12px; font-style: normal; line-height: 1.6; }
-.archive-footer__contact > * { display: inline-flex; align-items: center; min-height: 36px; }
-.archive-footer__section h2 { margin: 0 0 4px; font-size: 13px; color: var(--lacquer); line-height: 1.5; }
-.archive-footer__section ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
-.archive-footer__section a { display: flex; align-items: center; min-height: 44px; padding-block: 8px; font-size: 13px; line-height: 1.5; }
-.archive-footer a:hover { color: var(--lacquer); }
-.archive-footer a:focus-visible { outline: 2px solid var(--lacquer); outline-offset: 3px; border-radius: 3px; }
-.archive-footer__bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
-.archive-footer__legal { max-width: 880px; }
-.archive-footer__legal p { max-width: none; margin: 0; font-size: 11px; line-height: 1.8; color: var(--silver-dark); }
-.archive-footer__legal p + p { margin-top: 4px; }
-.archive-footer__top { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 6px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper-light); font-size: 12px; }
-@container site-footer (max-width: 620px) {
-  .archive-footer__grid { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-bottom: 12px; }
-  .archive-footer__intro { max-width: none; }
-  .archive-footer__section ul { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
-  .archive-footer__contact { flex-direction: row; flex-wrap: wrap; gap: 0 16px; }
-  .archive-footer__bottom { align-items: flex-start; gap: 12px; }
-  .archive-footer__top { width: 44px; padding: 0; }
-  .archive-footer__top span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-}
-@media (max-width: 760px) {
-  [data-shell="sidebar"] .site-footer.archive-footer { padding-top: 24px; }
-}
+.archive-footer__description { flex:1; min-width:min(100%, 280px); }
+.archive-footer__description p { margin:0 0 4px; font-size:12px; line-height:1.6; }
+.archive-footer__description small { font-size:11px; }
+.archive-footer__contact { display:flex; flex-wrap:wrap; gap:4px 18px; font-style:normal; font-size:12px; }
+.archive-footer__contact a { display:inline-flex; align-items:center; min-height:36px; }
+.archive-footer a:hover { color:var(--lacquer); }
+.archive-footer a:focus-visible { outline:2px solid var(--lacquer); outline-offset:4px; }
+
+.archive-footer [data-site-analytics] { flex-basis:100%; margin-top:0; font-size:11px; }

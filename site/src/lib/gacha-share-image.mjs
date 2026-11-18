@@ -1,3 +1,4 @@
+import {readThemePalette} from './theme-palette.mjs';
 import {RARITIES} from './gacha-history.mjs';
 import {loadShareArtwork} from './gacha-card-art.mjs';
 
@@ -14,7 +15,8 @@ export async function createGachaShareImage(data, {signal} = {}) {
   if (!ctx) throw Error('当前浏览器无法生成图片。');
   const font = '"Avenir Next", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
   const mono = '"SFMono-Regular", "Roboto Mono", monospace';
-  const colors = {ink:'#293e59', muted:'#748399', line:'#e0e7ef', member:'#597bac', support:'#529d96', up:'#c79540', unknown:'#a8b2c1'};
+  const palette = readThemePalette();
+  const colors = {ink:palette.text, muted:palette.muted, line:palette.border, member:palette.chart1, support:palette.chart2, up:palette.warning, unknown:palette.muted};
   const width=720, pad=32, inner=width-pad*2, gap=16, cardWidth=(inner-gap*2)/3;
   const sections=data.kinds.map(k=>{
     const cards=data.highlights.filter(card=>card.kind===k.kind);
@@ -52,16 +54,16 @@ export async function createGachaShareImage(data, {signal} = {}) {
   };
   const badge=(value,x,y,up=false)=>{
     ctx.font=`600 10px ${font}`;const w=ctx.measureText(value).width+14;
-    rect(x,y,w,22,up?'#efdbab':'#fffffff0',4);text(value,x+7,y+6,10,up?'#71521f':'#354b66','600');return w;
+    rect(x,y,w,22,up?palette.warning:palette.surface,4);text(value,x+7,y+6,10,up?palette.onAccent:palette.text,'600');return w;
   };
   try {
-    rect(0,0,width,height,'#f0f4f9');rect(14,14,width-28,height-28,'#fff',12);
+    rect(0,0,width,height,palette.canvas);rect(14,14,width-28,height-28,palette.surface,12);
     text('OTONOTE / GACHA COLLECTION',pad,36,10,colors.muted,'600',mono);
     text('抽卡记录',pad,70,32,colors.ink,'700');
     text(fit(data.poolName,inner,14),pad,120,14,colors.muted);
     text(data.from?`${data.from} — ${data.to} · ${data.timeZoneLabel??'UTC+8'}`:'记录时间未提供',pad,149,11,colors.muted);
     rule(180);
-    const metrics=[['本次抽数',data.total,colors.ink],['SSR 角色卡',data.kinds[0].ssr,colors.member],['SSR 留影',data.kinds[1].ssr,colors.support],['当期 UP',data.pickup,'#a57d38']];
+    const metrics=[['本次抽数',data.total,colors.ink],['SSR 角色卡',data.kinds[0].ssr,colors.member],['SSR 留影',data.kinds[1].ssr,colors.support],['当期 UP',data.pickup,palette.warningInk]];
     metrics.forEach(([label,value,color],i)=>{const x=pad+i*inner/4;text(label,x,203,11,colors.muted);text(value,x,230,34,color,'500',mono);});
     if(data.pickupUnknown)text(`另有 ${data.pickupUnknown} 条 UP 未判定`,pad+inner*.75,273,9,colors.muted);
     rule(299);
@@ -73,7 +75,7 @@ export async function createGachaShareImage(data, {signal} = {}) {
       if(!section.cards.length){text('当前范围内没有已识别的 SSR、EX、BD 或 UP 卡牌。',pad,y+40,11,colors.muted);y+=section.height;continue;}
       section.cards.forEach((card,index)=>{
         const x=pad+(index%3)*(cardWidth+gap),top=y+39+Math.floor(index/3)*section.rowHeight;
-        rect(x,top,cardWidth,section.imageHeight,'#eaf0f6',6);
+        rect(x,top,cardWidth,section.imageHeight,palette.surfaceDeep,6);
         const image=images.get(card);
         if(image){
           const scale=Math.max(cardWidth/image.naturalWidth,section.imageHeight/image.naturalHeight);
@@ -94,14 +96,14 @@ export async function createGachaShareImage(data, {signal} = {}) {
     const panelWidth=(inner-gap)/2;
     data.kinds.forEach((k,index)=>{
       const x=pad+index*(panelWidth+gap),color=colors[k.kind];
-      rect(x,chartY,panelWidth,chartHeight,'#f3f6fa',8);
+      rect(x,chartY,panelWidth,chartHeight,palette.canvas,8);
       rect(x+16,chartY+23,6,6,color,3);text(k.label,x+29,chartY+18,13,colors.ink,'600');
       text(`${k.total} 张`,x+panelWidth-80,chartY+20,12,colors.muted);
       text(`SSR ${k.ssr}`,x+16,chartY+49,17,color,'600');
       text(k.rate===null?'暂无记录':`${k.unknown?'已确认 ':''}${k.rate.toFixed(2)}%`,x+panelWidth-112,chartY+54,10,colors.muted);
       k.distribution.forEach((row,i)=>{
         const top=chartY+89+i*28,barX=x+58,barW=panelWidth-143;
-        text(row.label,x+16,top,10,colors.muted);rect(barX,top+3,barW,8,'#e1e7ef',2);
+        text(row.label,x+16,top,10,colors.muted);rect(barX,top+3,barW,8,palette.surfaceDeep,2);
         let offset=barX;
         for(const [key,fill] of [['nonPickup',color],['pickup',colors.up],['pickupUnknown',colors.unknown]]){
           const w=barW*row[key]/Math.max(1,k.total);if(w)rect(offset,top+3,w,8,fill);offset+=w;
@@ -109,7 +111,7 @@ export async function createGachaShareImage(data, {signal} = {}) {
         text(row.count,x+panelWidth-73,top,10,colors.ink,'500',mono);
         text(k.total?`${(row.count/k.total*100).toFixed(1)}%`:'—',x+panelWidth-45,top+1,8,colors.muted,'400',mono);
       });
-      text(`当期 UP ${k.pickup} 张`,x+16,chartY+chartHeight-30,11,'#a17b39');
+      text(`当期 UP ${k.pickup} 张`,x+16,chartY+chartHeight-30,11,palette.warningInk);
       if(k.pickupUnknown)text(`未判定 ${k.pickupUnknown}`,x+panelWidth-112,chartY+chartHeight-29,10,colors.muted);
     });
     rule(footerY);footnotes.forEach((line,i)=>text(line,pad,footerY+20+i*19,10,colors.muted));

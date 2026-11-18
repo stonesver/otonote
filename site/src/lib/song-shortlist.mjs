@@ -20,7 +20,9 @@ export function selectSongShortlist(rows,limit=6) {
 }
 
 /** Current-growth song suggestions. Full team optimization follows separately;
- * failures and incomplete skill coverage stay visible in the screening report. */
+ * failures and incomplete skill coverage stay visible in the screening report.
+ * @param {{candidates: import('./calculation/optimizer-types.ts').ChartCandidate[], payload: import('./calculation/optimizer-types.ts').OptimizerRequest, limit?: number, signal?: AbortSignal, onProgress?: (progress: import('./calculation/optimizer-types.ts').OptimizerProgress) => void, yieldControl?: () => Promise<void>, loadChart?: (candidate: import('./calculation/optimizer-types.ts').ChartCandidate) => Promise<import('./calculation/optimizer-types.ts').ChartData>}} options
+ */
 export async function screenTeamSongs({candidates,payload,limit=6,signal,onProgress=()=>{},yieldControl=createCalculationScheduler(),
   loadChart=async candidate=>{const response=await fetch(candidate.analysisDataUrl,{signal});if(!response.ok)throw Error('谱面加载失败');return response.json();}}) {
   const {rules,mode,objective}=payload;
@@ -32,6 +34,7 @@ export async function screenTeamSongs({candidates,payload,limit=6,signal,onProgr
   const variant=[...createGrowthSearchVariants(resolved,{limit:1})][0],pairCache=new Map();
   const rows=[],failures=[];let done=0;
   const cancelled=()=>Boolean(signal?.aborted);
+  /** @returns {NonNullable<import('./calculation/optimizer-types.ts').PlaylistReport['screening']> & {charts: Map<string, import('./calculation/optimizer-types.ts').ChartData>, rows: typeof rows, method: string, limit: number, screenOrders: number, screenPlayerSamples: number, verificationPlayerSamples: number}} */
   const snapshot=()=>({charts:cancelled()?new Map():new Map(selectSongShortlist(rows,limit).map(row=>[chartKey(row.candidate),recheck.get(row.index).chart])),
     status:cancelled()?'cancelled':'completed',total:candidates.length,done,rows,
     selected:cancelled()?[]:selectSongShortlist(rows,limit).map(r=>r.candidate),failures,

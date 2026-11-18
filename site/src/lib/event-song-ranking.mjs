@@ -35,7 +35,12 @@ export function sortEventSongs(rows,metric='short') {
 export function eventGradeEstimate(model,musicId,score,basis='expectedScore'){
  if(!['expectedScore','minimumScore','maximumScore'].includes(basis))throw Error('Invalid AP score basis');
  const rank=model.scoreRank(musicId,score[basis]);
- return {scoreRank:rank,scoreBasis:basis,estimatedScore:score[basis],minimumRank:model.scoreRank(musicId,score.minimumScore),maximumRank:model.scoreRank(musicId,score.maximumScore)};
+ const distribution=score.scoreDistribution,counts=new Map();
+ if(distribution?.kind==='skill_orders'&&distribution.complete){
+  for(const outcome of distribution.outcomes){const grade=model.scoreRank(musicId,outcome.score);counts.set(grade,(counts.get(grade)??0)+outcome.count);}
+ }
+ return {scoreRank:rank,scoreBasis:basis,estimatedScore:score[basis],minimumRank:model.scoreRank(musicId,score.minimumScore),maximumRank:model.scoreRank(musicId,score.maximumScore),
+  ...(counts.size?{gradeProbabilities:[...counts].sort(([a],[b])=>b-a).map(([rank,count])=>({rank,count,probability:count/distribution.count}))}:{})};
 }
 
 // Reward rounding happens inside model.rewards BEFORE taking the expectation.
@@ -55,6 +60,7 @@ export function eventRewardForScore(model, result, options) {
 
 // AP score under the chosen skill-order basis, not a bound for real play.
 export function estimateEventSong({rules,model,chart,draft,candidate,options}) {
+ if(options.scoreBasis==='ap_timing')throw Error('活动收益使用正拍估分；微操请在冲分工具中计算。');
  if(options.mode==='gekisou')throw Error('激奏需要团队结算评分，不能用个人估分推算。');
  const result=estimateAPChart({rules,draft,chart,candidate,mode:options.mode,eventId:model.event._id,basis:options.scoreBasis??'expectedScore'});
  const reward=eventRewardForScore(model,result,options);

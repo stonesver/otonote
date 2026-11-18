@@ -1,7 +1,6 @@
 ---
 import "../../../styles/tool-studio.css";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import ToolPageHeader from '../../../components/ToolPageHeader.astro';
 import {catalog,getAsset} from '../../../lib/catalog';
 import {filterVisualOptions} from '../../../lib/filter-visuals';
 import {gameModeDatabase} from '../../../lib/game-modes';
@@ -23,7 +22,7 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
 ---
 <BaseLayout title="队伍 AP 估分">
 <div class="tool-studio" data-tool-kind="ap-grade">
- <ToolPageHeader kind="ap-grade" title="队伍 AP 估分" description="选一支队伍，找出更容易打到高档位的歌曲。AP 指所有音符均为 Perfect。" meta="队伍估分 · 分档线 · 选歌" />
+
  <section class="catalog-section"><div class="content-shell">
  <p class="event-links"><a href={href('/tools/song-ranking/')+(href('/tools/song-ranking/').includes('?')?'&':'?')+'view=grade'}>无需选卡：查看各首歌的达档综合力与分数线</a></p>
  {available?<ap-grade-tool class="event-workbench ap-workbench">
@@ -40,13 +39,12 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
     <label>谱面难度（可多选）<select data-ap-difficulty multiple data-quick data-quick-all="all" data-quick-required><option value="all">全部</option><option data-difficulty="expert" value="expert" selected>EXPERT</option><option data-difficulty="hard" value="hard">HARD</option><option data-difficulty="normal" value="normal">NORMAL</option><option data-difficulty="easy" value="easy">EASY</option></select></label>
     <label class="ap-level-control">等级上限<input data-ap-level data-quick="20,25,28,30,40" type="number" min="1" max="40" value="40" /></label>
    </div>
-   <label class="event-eco"><input type="checkbox" data-ap-eco />节能计算</label>
    <p class="event-hint">按 AP、满生命、无辅助估分，仅计算当前队伍，不搜索其他卡组。普通与挑战分别计算，激奏需使用团队结算档位。接近分档线时请用实打确认。</p>
    <div class="event-controls"><button class="event-primary" data-ap-run>计算各首歌的 AP 档位</button><button data-ap-cancel hidden>停止判档计算</button></div><p data-ap-status role="status"></p>
   </section>
-  <section class="event-panel ap-results-panel"><h2><span class="studio-step">3</span>选歌与联动</h2><p>平均、最低和最高估分对应不同技能顺序。切换下方判档依据或排序会直接使用已算出的结果，无需重新计算。</p>
+  <section class="event-panel ap-results-panel"><h2><span class="studio-step">3</span>选歌与联动</h2><p>正拍平均、最低和最高分对应不同技能顺序。微操支持 60 / 120 帧，首次切换需重新计算。</p>
    <div class="ap-option-groups">
-    <label>判档依据<select data-ap-basis data-quick><option value="expectedScore">平均分</option><option value="minimumScore">最低分</option><option value="maximumScore">最高分</option></select></label>
+    <label>判档依据<select data-ap-basis data-quick><option value="expectedScore">正拍平均分</option><option value="minimumScore">正拍最低分</option><option value="maximumScore">正拍最高分</option><option value="ap_timing">AP 微操</option></select></label>
     <label>排列顺序<select data-ap-sort data-quick><option value="grade">档位优先</option><option value="short">短歌优先</option><option value="score">估分优先</option></select></label>
     <label>歌曲搜索<input type="search" data-ap-query placeholder="输入歌曲名称" /></label>
    </div><p class="event-hint">档位优先时，同档歌曲按时长排列。</p>

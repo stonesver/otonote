@@ -15,13 +15,13 @@ const selectedModels = validRelease ? models.models.filter(m => !characterId || 
 const characters = [
   ...catalog.characters.filter(c => selectedModels.some(m => m.characterId === c.masterId)).map(c => {
     const face = c.portraitAssetIds.map(getAsset).find(a => a?.containerPath.endsWith('/character_face_icon.png'));
-    return { id: c.masterId, name: c.displayName, color: c.mainColor || '#77bbdd', category: 'member', aliases: c.aliases,
+    return { id: c.masterId, name: c.displayName, color: c.mainColor || 'var(--theme-secondary)', category: 'member', aliases: c.aliases,
       group: c.bandId, groupName: catalog.bands.find(b => b.id === c.bandId)?.displayName || '',
       portrait: face ? face.thumbnailUrl || face.previewUrl : '' };
   }),
   ...((models as { characters?: { id: string; names: Record<string, string>; aliases: string[] }[] }).characters || [])
     .filter(c => selectedModels.some(m => String(m.characterId) === c.id))
-    .map(c => ({ id: c.id, name: c.names[en ? 'en' : 'zh-CN'] || c.id, color: '#8c98a6', category: 'story', aliases: c.aliases,
+    .map(c => ({ id: c.id, name: c.names[en ? 'en' : 'zh-CN'] || c.id, color: 'var(--theme-muted)', category: 'story', aliases: c.aliases,
       group: 'story', groupName: say('剧情角色', 'Story characters'), portrait: '' }))
 ];
 const payload = { models: selectedModels, characters, characterId, base, en, compact };

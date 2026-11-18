@@ -156,8 +156,8 @@
   right: 9px;
   bottom: 9px;
   padding: 4px 6px;
-  background: rgb(17 19 27 / 78%);
-  color: white;
+  background: color-mix(in srgb, var(--theme-media-shade) 78%, transparent);
+  color: var(--theme-media-text);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.06em;
@@ -270,7 +270,7 @@
   padding: 12px;
   border: 1px solid var(--line);
   background: var(--paper-light);
-  box-shadow: 0 22px 54px rgb(17 19 27 / 18%);
+  box-shadow: 0 22px 54px color-mix(in srgb, var(--theme-shadow-color) 18%, transparent);
 }
 
 .facet-option-search {
@@ -285,7 +285,7 @@
   min-height: 38px;
   padding: 7px 9px;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--theme-surface);
 }
 
 .facet-option-list {
@@ -310,7 +310,7 @@
 }
 
 .facet-check:hover {
-  background: #f0ede6;
+  background: var(--theme-canvas);
 }
 
 .facet-check input {
@@ -365,7 +365,7 @@
   padding: 5px 9px;
   border: 1px solid color-mix(in srgb, var(--lacquer) 34%, var(--line));
   border-radius: 999px;
-  background: #f8eef2;
+  background: color-mix(in srgb, var(--theme-accent) 7%, var(--theme-surface));
   color: var(--lacquer);
   cursor: pointer;
   font-size: 12px;
@@ -404,7 +404,7 @@
   margin: 0;
   overflow: hidden;
   aspect-ratio: auto;
-  background: var(--stage-ink-soft);
+  background: var(--theme-inverse-surface);
 }
 
 .catalog-tile.compact-catalog-tile .tile-media > img,
@@ -454,8 +454,8 @@
   min-height: 0;
   padding: 2px 3px;
   border: 0;
-  background: rgb(17 19 27 / 76%);
-  color: white;
+  background: color-mix(in srgb, var(--theme-media-shade) 76%, transparent);
+  color: var(--theme-media-text);
   font-size: 12px;
   line-height: 1;
   letter-spacing: 0.04em;
@@ -556,7 +556,7 @@
   justify-content: space-between;
   margin: 0;
   overflow: hidden;
-  color: #77716b;
+  color: var(--theme-muted);
   font-size: 12px;
   line-height: 1.15;
   text-overflow: ellipsis;

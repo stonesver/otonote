@@ -38,6 +38,12 @@ class RunRecordTests(unittest.TestCase):
         self.assertEqual(self.current()['outcome'], 'promoted')
         self.assertIsNotNone(self.current()['lastSuccessAt'])
 
+    def test_awaiting_review_is_not_reported_as_promoted(self):
+        self.publish(1, 'success', promote={'outcome': 'success', 'outputs': {'publicStatus': 'awaiting_review'}})
+        self.assertEqual(self.current()['outcome'], 'produced')
+        self.publish(2, 'success', light_gate={'outcome': 'success', 'outputs': {'publicStatus': 'awaiting_review'}})
+        self.assertEqual(self.current()['outcome'], 'produced')
+
     def test_cross_region_fails_closed(self):
         self.publish(1, 'running')
         raw = self.current();raw['region'] = 'jp'
@@ -54,3 +60,15 @@ class RunRecordTests(unittest.TestCase):
         self.assertEqual(self.current()['lastScheduledAt'], scheduled)
         self.assertNotEqual(self.current()['observedAt'], scheduled)
         self.assertEqual(self.current()['event'], 'workflow_dispatch')
+
+    def test_external_schedule_keeps_planned_time_separate_from_actual_start(self):
+        planned = '2026-10-13T06:00:00Z'
+        started = self.now + dt.timedelta(hours=6, minutes=2)
+        record.publish(self.bucket,'global',1,1,'a'*40,'success',{},started,scheduled_for=planned)
+        self.assertEqual(self.current()['scheduledFor'],planned)
+        self.assertEqual(self.current()['lastScheduledAt'],planned)
+        record.publish(self.bucket,'global',2,1,'a'*40,'success',{},started+dt.timedelta(hours=1))
+        self.assertEqual(self.current()['lastScheduledAt'],planned)
+        self.assertNotIn('scheduledFor',self.current())
+        with self.assertRaisesRegex(ValueError,'external schedule'):
+            record.build('global',3,1,'a'*40,'success',{},now=started,scheduled_for='2026-10-14T06:00:00Z')

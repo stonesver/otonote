@@ -35,6 +35,10 @@ class RepositoryHygieneTests(unittest.TestCase):
         self.git("config", "user.name", "Test")
         self.git("config", "user.email", "test@example.invalid")
 
+    def test_public_arena_calendar_is_explicitly_allowed_without_other_config_exceptions(self):
+        self.assertIsNone(classify_path('config/arena-sync-schedule.json'))
+        self.assertEqual(classify_path('config/arena-private.json'),'actual-configuration')
+
     def test_actual_configuration_and_runtime_never_selected(self):
         for name in ("config/release-inputs.json", "config/global-update.server.json", "config/environments/global-production.toml", ".env", ".env.production", "deploy/qqbot.env", "deploy/qqbot.env copy.example", "packaging/growth-tool/sdk.bhk.xml", "output/result.json", ".git/config", ".claude/settings.json", "site/src/data/generated/rules.json", "site/src/data/scoring-evidence-global-report.json", "site/public/gallery/private.webp"):
             with self.subTest(path=name):
@@ -44,6 +48,19 @@ class RepositoryHygieneTests(unittest.TestCase):
         for name in ("config/site-product.json", "config/performance/gates.product-v1.json", "config/examples/updater.example.json", "deploy/qqbot.env.example", "packages/scoring/data/rules.json", "tools/runtime_bundle.py", "analysis/crypto/decrypt_master.py", "deploy/player-rankings-capture.Dockerfile"):
             self.assertIsNone(classify_path(name), name)
         self.assertFalse(scan_bytes("deploy/qqbot.env.example", b"APP_SECRET=replace-with-your-secret\n"))
+
+    def test_svelte_components_are_source_and_still_scanned(self):
+        name = "site/src/components/calculation/Result.svelte"
+        self.assertIsNone(classify_path(name))
+        self.assertIsNotNone(classify_path("site/src/data/generated/Result.svelte"))
+        self.assertIsNotNone(classify_path("output/Result.svelte"))
+        self.assertIsNotNone(classify_path("config/Result.svelte"))
+        self.put(name, "<p>Result</p>")
+        manifest = export_source(self.root, self.base / "svelte-export")
+        self.assertEqual([item["path"] for item in manifest["files"]], [name])
+        self.put(name, "<script>const value = 'ghp_" + "a" * 36 + "';</script>")
+        with self.assertRaises(HygieneError):
+            export_source(self.root, self.base / "unsafe-svelte")
 
     def test_only_reviewed_arena_evidence_is_selected(self):
         reviewed = REVIEWED_ARENA_EVIDENCE.read_bytes()

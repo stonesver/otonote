@@ -229,7 +229,7 @@ test("music directory keeps one mobile column and the complete track decision", 
     {
       explicitDefault: /<MusicTile\s+track=\{track\}\s+variant="default"\s*\/>/.test(page),
       explicitRelatedType: /variant\?:\s*"default"\s*\|\s*"related"/.test(tile),
-      compactDirectory: page.includes("music-hero--directory") && page.includes("music-catalog-section--directory"),
+      compactDirectory: !page.includes("music-hero--directory") && !/<h1(?:\s|>)/.test(page) && page.includes("music-catalog-section--directory"),
       mobileSingleColumn:
         finalMobileDirectoryRule > finalTwoColumnRule &&
         css.slice(finalMobileDirectoryRule, finalMobileDirectoryRule + 180)

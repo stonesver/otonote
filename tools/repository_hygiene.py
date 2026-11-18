@@ -19,7 +19,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 
 POLICY_VERSION = 1
-PUBLIC_CONFIG = frozenset({"config/site-product.json", "config/performance/gates.product-v1.json",
+PUBLIC_CONFIG = frozenset({"config/site-product.json", "config/arena-sync-schedule.json", "config/performance/gates.product-v1.json",
                            "config/performance/gates.v1.json", "config/performance/browser-baseline.v1.json"})
 SOURCE_ROOTS = frozenset({"backend", "tools", "tests", "scripts", "analysis", "shared", "packages", "docs", "deploy", "config", "site", "packaging", "catalog", ".github", ".githooks"})
 ROOT_FILES = frozenset({"README.md", "CONTRIBUTING.md", "THIRD_PARTY_NOTICES.md", "LICENSE", "LICENSE.md", "AGENTS.md", ".gitignore", ".dockerignore", ".nvmrc", "pyproject.toml", "pytest.ini", "package.json", "package-lock.json"})
@@ -93,6 +93,8 @@ def classify_path(path: str) -> str | None:
         return "outside-source-allowlist"
     if parts[0] not in SOURCE_ROOTS:
         return "outside-source-allowlist"
+    if path.startswith("site/src/components/") and p.suffix == ".svelte":
+        return None
     if p.suffix in TEXT_SUFFIXES or p.name in {"Dockerfile", "LICENSE", "pre-commit"} or p.name.startswith("Dockerfile."):
         return None
     # Static design assets only, never binaries elsewhere or game/runtime data.

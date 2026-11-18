@@ -43,13 +43,13 @@ const en = locale === 'en';
   .site-notifications:has([data-site-notification-dialog][open]) :is(.site-notice-dock,.site-update) { visibility:hidden; }
   .site-notice-dock, .site-update { position:fixed; z-index:65; left:calc(50% + var(--notification-offset)/2); transform:translateX(-50%); width:min(560px,calc(100vw - var(--notification-offset) - 48px)); box-sizing:border-box; }
   .site-notice-dock { top:calc(var(--header-height,68px) + 10px + env(safe-area-inset-top)); display:flex; justify-content:center; }
-  .site-notifications-panel { position:relative; width:100%; border:1px solid var(--line); border-radius:22px; background:var(--paper-light); box-shadow:0 6px 24px rgb(17 19 27 / 8%); }
+  .site-notifications-panel { position:relative; width:100%; border:1px solid var(--line); border-radius:22px; background:var(--paper-light); box-shadow:0 6px 24px color-mix(in srgb, var(--theme-shadow-color) 8%, transparent); }
   .site-notifications-content { max-height:min(280px,32dvh); padding:0 5px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; border-radius:inherit; }
   .site-notifications button { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-height:44px; padding:7px 12px; border:1px solid transparent; border-radius:999px; background:transparent; color:var(--ink); font:600 12px/1.5 var(--font-body); cursor:pointer; transition:background-color 140ms ease,color 140ms ease; }
   .site-notifications .site-notifications-minimize { position:absolute; top:4px; right:3px; z-index:1; width:44px; padding:0; color:var(--silver-dark); font-size:23px; font-weight:400; }
   .site-notifications :is(.site-notifications-minimize,.site-notice-dismiss,.site-notifications-dismiss-collapsed):hover { background:var(--paper); color:var(--lacquer); }
   .site-notifications :is(button,a,summary):focus-visible { outline:2px solid var(--lacquer); outline-offset:-2px; }
-  .site-notifications-collapsed { display:flex; align-items:center; padding:0 3px; border:1px solid var(--line); border-radius:999px; background:var(--paper-light); box-shadow:0 5px 18px rgb(17 19 27 / 8%); }
+  .site-notifications-collapsed { display:flex; align-items:center; padding:0 3px; border:1px solid var(--line); border-radius:999px; background:var(--paper-light); box-shadow:0 5px 18px color-mix(in srgb, var(--theme-shadow-color) 8%, transparent); }
   .site-notifications .site-notifications-launcher { gap:7px; padding:6px 10px; color:var(--lacquer); }
   .site-notifications .site-notifications-launcher:hover { background:var(--paper); }
   .site-notifications .site-notifications-dismiss-collapsed { width:44px; padding:0; color:var(--silver-dark); font-size:20px; font-weight:400; }
@@ -70,14 +70,14 @@ const en = locale === 'en';
   .notification-ticker[data-overflow="true"] .notification-track { animation:notification-scroll var(--ticker-duration,15s) linear infinite alternate; }
   .notification-ticker:hover .notification-track, .notification-ticker:focus-within .notification-track { animation-play-state:paused; }
   .site-notifications .site-notice-dismiss { width:44px; padding:0; color:var(--silver-dark); font-size:22px; font-weight:400; }
-  .site-update { --notice-accent:var(--lacquer); bottom:calc(var(--notification-bottom) + env(safe-area-inset-bottom)); display:flex; align-items:flex-start; gap:10px; padding:5px 12px; border:1px solid color-mix(in srgb,var(--lacquer) 13%,var(--paper-light)); border-radius:22px; background:var(--paper-light); box-shadow:0 6px 24px rgb(17 19 27 / 8%); }
+  .site-update { --notice-accent:var(--lacquer); bottom:calc(var(--notification-bottom) + env(safe-area-inset-bottom)); display:flex; align-items:flex-start; gap:10px; padding:5px 12px; border:1px solid color-mix(in srgb,var(--lacquer) 13%,var(--paper-light)); border-radius:22px; background:var(--paper-light); box-shadow:0 6px 24px color-mix(in srgb, var(--theme-shadow-color) 8%, transparent); }
   .site-update .site-update-label { margin-top:5px; }
   .site-notifications .site-update .notification-ticker { min-height:32px; }
   .site-update-copy { flex:1; min-width:0; color:color-mix(in srgb,var(--ink) 73%,var(--paper-light)); }
   .site-update-actions { display:flex; align-items:center; gap:4px; }
   .site-notifications .site-update-actions button { min-width:32px; width:32px; min-height:32px; padding:0; }
   .site-update-actions svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
-  .site-notifications [data-site-refresh] { background:var(--lacquer); color:var(--paper-light); border-color:var(--lacquer); }
+  .site-notifications [data-site-refresh] { background:var(--lacquer); color:var(--theme-on-accent); border-color:var(--lacquer); }
   .site-notifications [data-site-refresh]:hover { background:var(--lacquer-bright); border-color:var(--lacquer-bright); }
   .site-notifications .site-update-actions [data-site-refresh] { position:relative; background:transparent; border:0; }
   .site-update-actions [data-site-refresh]::before { content:''; position:absolute; inset:2px; border-radius:50%; background:var(--lacquer); }
@@ -85,8 +85,8 @@ const en = locale === 'en';
   .site-update-actions [data-site-refresh] svg { position:relative; }
   .site-notifications [data-site-update-later] { color:var(--silver-dark); }
   .site-notifications [data-site-update-later]:hover { color:var(--lacquer); background:var(--paper); }
-  .site-notification-dialog { box-sizing:border-box; width:min(520px,calc(100vw - 32px)); max-height:80dvh; margin:auto; padding:18px 24px 24px; overflow-y:auto; border:1px solid var(--line); border-radius:22px; background:var(--paper-light); color:var(--ink); box-shadow:0 20px 70px rgb(17 19 27 / 18%); }
-  .site-notification-dialog::backdrop { background:rgb(17 19 27 / 28%); }
+  .site-notification-dialog { box-sizing:border-box; width:min(520px,calc(100vw - 32px)); max-height:80dvh; margin:auto; padding:18px 24px 24px; overflow-y:auto; border:1px solid var(--line); border-radius:22px; background:var(--paper-light); color:var(--ink); box-shadow:0 20px 70px color-mix(in srgb, var(--theme-shadow-color) 18%, transparent); }
+  .site-notification-dialog::backdrop { background:color-mix(in srgb, var(--theme-media-shade) 28%, transparent); }
   .site-notification-dialog-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--lacquer); font-size:12px; font-weight:600; }
   .site-notifications .site-notification-dialog-heading button { width:44px; padding:0; color:var(--silver-dark); font-size:24px; font-weight:400; }
   .site-notification-dialog h2 { margin:6px 0 14px; font:650 18px/1.6 var(--font-body); overflow-wrap:anywhere; }

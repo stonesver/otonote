@@ -4,24 +4,24 @@
   padding: clamp(78px, 10vw, 140px) 0 clamp(64px, 8vw, 110px);
   border-bottom: 1px solid var(--line-light);
   background:
-    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px) 0 0 / 64px 64px,
-    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px) 0 0 / 64px 64px,
-    var(--stage-ink);
-  color: white;
+    linear-gradient(90deg, color-mix(in srgb, var(--theme-inverse-text) 4%, transparent) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(color-mix(in srgb, var(--theme-inverse-text) 4%, transparent) 1px, transparent 1px) 0 0 / 64px 64px,
+    var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
 }
 
 .db-hero::after {
   position: absolute;
   width: 42vw;
   height: 42vw;
-  border: 1px solid rgb(121 174 194 / 25%);
+  border: 1px solid color-mix(in srgb, var(--theme-secondary) 25%, transparent);
   border-radius: 50%;
   content: "";
   right: -15vw;
   top: -20vw;
   box-shadow:
-    0 0 0 50px rgb(121 174 194 / 4%),
-    0 0 0 100px rgb(121 174 194 / 3%);
+    0 0 0 50px color-mix(in srgb, var(--theme-secondary) 4%, transparent),
+    0 0 0 100px color-mix(in srgb, var(--theme-secondary) 3%, transparent);
 }
 
 .db-hero-grid,
@@ -56,13 +56,13 @@
 .db-hero p {
   max-width: 660px;
   margin: 34px 0 0;
-  color: rgb(255 255 255 / 68%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 68%, transparent);
   font-size: clamp(15px, 1.5vw, 19px);
 }
 
 .db-hero-index {
   min-width: 220px;
-  border-left: 1px solid rgb(255 255 255 / 18%);
+  border-left: 1px solid color-mix(in srgb, var(--theme-inverse-text) 18%, transparent);
 }
 
 .db-hero-index > div {
@@ -71,13 +71,13 @@
   justify-content: space-between;
   gap: 30px;
   padding: 13px 0 13px 22px;
-  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-inverse-text) 12%, transparent);
 }
 
 .db-hero-index span,
 .db-version,
 .db-page-count span {
-  color: rgb(255 255 255 / 48%);
+  color: color-mix(in srgb, var(--theme-muted) 48%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
   letter-spacing: 0.14em;
@@ -128,7 +128,7 @@
 
 .db-ledger-row:hover {
   padding-left: 12px;
-  background: rgb(255 253 247 / 65%);
+  background: color-mix(in srgb, var(--theme-surface) 65%, transparent);
 }
 
 .db-ledger-code {
@@ -136,7 +136,7 @@
   z-index: 1;
   width: 52px;
   padding: 6px 0;
-  color: white;
+  color: var(--theme-on-accent);
   background: var(--lacquer);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
@@ -212,7 +212,7 @@
   padding: clamp(68px, 8vw, 110px) 0 clamp(46px, 6vw, 76px);
   border-bottom: 1px solid var(--line);
   background:
-    linear-gradient(120deg, transparent 62%, rgb(121 174 194 / 12%)),
+    linear-gradient(120deg, transparent 62%, color-mix(in srgb, var(--theme-secondary) 12%, transparent)),
     var(--paper);
 }
 
@@ -322,7 +322,7 @@
   place-items: center;
   border-right: 1px solid var(--line);
   background:
-    linear-gradient(145deg, rgb(121 174 194 / 15%), transparent),
+    linear-gradient(145deg, color-mix(in srgb, var(--theme-secondary) 15%, transparent), transparent),
     var(--paper-deep);
 }
 
@@ -434,8 +434,8 @@
 .db-record-hero {
   padding: clamp(62px, 8vw, 108px) 0;
   border-bottom: 1px solid var(--line-light);
-  background: var(--stage-ink);
-  color: white;
+  background: var(--theme-inverse-surface);
+  color: var(--theme-inverse-text);
 }
 
 .db-record-hero-grid {
@@ -450,10 +450,10 @@
   width: 170px;
   aspect-ratio: 1;
   place-items: center;
-  border: 1px solid rgb(255 255 255 / 18%);
+  border: 1px solid color-mix(in srgb, var(--theme-inverse-text) 18%, transparent);
   background:
-    radial-gradient(circle, rgb(121 174 194 / 20%), transparent 70%),
-    var(--stage-ink-soft);
+    radial-gradient(circle, color-mix(in srgb, var(--theme-secondary) 20%, transparent), transparent 70%),
+    var(--theme-inverse-surface);
 }
 
 .db-record-icon img {
@@ -463,7 +463,7 @@
 }
 
 .db-record-icon > span {
-  color: rgb(255 255 255 / 45%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 45%, transparent);
   font-family: var(--font-mono);
   font-size: 28px;
 }
@@ -482,7 +482,7 @@
 .db-record-hero p {
   max-width: 780px;
   margin: 0;
-  color: rgb(255 255 255 / 68%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 68%, transparent);
 }
 
 .db-record-meta {
@@ -494,8 +494,8 @@
 
 .db-record-meta span {
   padding: 5px 8px;
-  border: 1px solid rgb(255 255 255 / 15%);
-  color: rgb(255 255 255 / 55%);
+  border: 1px solid color-mix(in srgb, var(--theme-inverse-text) 15%, transparent);
+  color: color-mix(in srgb, var(--theme-inverse-text) 55%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-metadata-size);
 }
@@ -851,8 +851,8 @@
 
 .band-item-hero {
   background:
-    linear-gradient(115deg, transparent 48%, rgb(51 136 187 / 11%)),
-    repeating-linear-gradient(90deg, transparent 0 79px, rgb(17 19 27 / 4%) 80px),
+    linear-gradient(115deg, transparent 48%, color-mix(in srgb, var(--theme-secondary) 11%, transparent)),
+    repeating-linear-gradient(90deg, transparent 0 79px, color-mix(in srgb, var(--theme-shadow-color) 4%, transparent) 80px),
     var(--paper);
 }
 
@@ -950,8 +950,8 @@
   place-items: center;
   border-bottom: 1px solid var(--line);
   background:
-    linear-gradient(45deg, rgb(17 19 27 / 3%) 25%, transparent 25%) 0 0 / 20px 20px,
-    linear-gradient(-45deg, rgb(17 19 27 / 3%) 25%, transparent 25%) 0 10px / 20px 20px,
+    linear-gradient(45deg, color-mix(in srgb, var(--theme-text) 3%, transparent) 25%, transparent 25%) 0 0 / 20px 20px,
+    linear-gradient(-45deg, color-mix(in srgb, var(--theme-text) 3%, transparent) 25%, transparent 25%) 0 10px / 20px 20px,
     var(--paper-deep);
 }
 
@@ -969,7 +969,7 @@
   width: 82%;
   height: 82%;
   object-fit: contain;
-  filter: drop-shadow(0 10px 18px rgb(17 19 27 / 18%));
+  filter: drop-shadow(0 10px 18px color-mix(in srgb, var(--theme-shadow-color) 18%, transparent));
 }
 
 .band-item-card-image > span {
@@ -1027,7 +1027,7 @@
 }
 
 .band-item-card-copy a:hover {
-  color: white;
+  color: var(--theme-on-accent);
   background: var(--lacquer);
 }
 
@@ -1042,15 +1042,15 @@
 }
 
 .band-item-dialog::backdrop {
-  background: rgb(10 12 18 / 78%);
+  background: color-mix(in srgb, var(--theme-media-shade) 78%, transparent);
   backdrop-filter: blur(5px);
 }
 
 .band-item-dialog-frame {
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 13%);
+  border: 1px solid color-mix(in srgb, var(--theme-inverse-text) 13%, transparent);
   background: var(--paper);
-  box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--theme-shadow-color) 45%, transparent);
 }
 
 .band-item-dialog-header {
@@ -1061,10 +1061,10 @@
   align-items: center;
   min-height: 144px;
   padding: 12px 18px 12px 12px;
-  color: white;
+  color: var(--theme-inverse-text);
   background:
-    linear-gradient(110deg, rgb(121 174 194 / 20%), transparent 58%),
-    var(--stage-ink);
+    linear-gradient(110deg, color-mix(in srgb, var(--theme-secondary) 20%, transparent), transparent 58%),
+    var(--theme-inverse-surface);
 }
 
 .band-item-dialog-image {
@@ -1072,15 +1072,15 @@
   width: 120px;
   aspect-ratio: 1;
   place-items: center;
-  border: 1px solid rgb(255 255 255 / 13%);
-  background: rgb(255 255 255 / 5%);
+  border: 1px solid color-mix(in srgb, var(--theme-inverse-text) 13%, transparent);
+  background: color-mix(in srgb, var(--theme-inverse-text) 5%, transparent);
 }
 
 .band-item-dialog-image img {
   width: 88%;
   height: 88%;
   object-fit: contain;
-  filter: drop-shadow(0 8px 18px rgb(0 0 0 / 35%));
+  filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--theme-shadow-color) 35%, transparent));
 }
 
 .band-item-dialog-title > span {
@@ -1095,7 +1095,7 @@
 
 .band-item-dialog-title p {
   margin: 0;
-  color: rgb(255 255 255 / 62%);
+  color: color-mix(in srgb, var(--theme-inverse-text) 62%, transparent);
   font-size: var(--text-metadata-size);
 }
 
@@ -1103,16 +1103,16 @@
   align-self: start;
   width: 42px;
   height: 42px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  color: white;
+  border: 1px solid color-mix(in srgb, var(--theme-inverse-text) 18%, transparent);
+  color: var(--theme-inverse-text);
   background: transparent;
   font-size: 24px;
   cursor: pointer;
 }
 
 .band-item-dialog-header > button:hover {
-  color: var(--stage-ink);
-  background: white;
+  color: var(--theme-inverse-surface);
+  background: var(--theme-inverse-text);
 }
 
 .band-item-level-tabs {
@@ -1140,7 +1140,7 @@
 }
 
 .band-item-level-tabs button[aria-pressed="true"] {
-  color: white;
+  color: var(--theme-on-accent);
   background: var(--lacquer);
 }
 

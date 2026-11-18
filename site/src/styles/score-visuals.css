@@ -1,17 +1,17 @@
 /* Card pairs form the lineup; one continuous track explains the song score. */
 .score-lineup { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin:20px 0; }
-.score-pair { min-width:0; background:#f7f6fa; border:1px solid #e2dee8; border-radius:12px; overflow:hidden; }
-.score-pair[data-leader=true] { border-color:#99738f; background:#f2eaf1; }
-.score-position { padding:7px 6px; text-align:center; font:600 11px var(--font-body); color:var(--calc-muted); border-bottom:1px solid #e2dee8; }
-.score-pair[data-leader=true] .score-position { background:#763b63; color:white; }
+.score-pair { min-width:0; background:var(--theme-surface); border:1px solid var(--theme-border); border-radius:12px; overflow:hidden; }
+.score-pair[data-leader=true] { border-color:var(--theme-accent); background:color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface)); }
+.score-position { padding:7px 6px; text-align:center; font:600 11px var(--font-body); color:var(--calc-muted); border-bottom:1px solid var(--theme-border); }
+.score-pair[data-leader=true] .score-position { background:var(--theme-accent); color:var(--theme-on-accent); }
 .score-face { padding:10px; display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
 .score-face>img { width:100%; height:100px; object-fit:contain; }
-.score-face--support { border-top:1px dashed #d7d0dc; }
+.score-face--support { border-top:1px dashed var(--theme-border); }
 .score-face--support>img { height:46px; }
 .score-face>strong { font:600 12px/1.5 var(--font-body); overflow-wrap:anywhere; }
 .score-face>small { color:var(--calc-muted); font:10px var(--font-body); }
 .score-card-fallback { width:100%; min-height:64px; display:grid; place-items:center; color:var(--calc-accent); font:700 15px/1.6 var(--font-body); text-align:center; }
-.score-composition { margin:20px 0; padding:18px; background:#f8f8fb; border-radius:12px; }
+.score-composition { margin:20px 0; padding:18px; background:var(--theme-surface); border-radius:12px; }
 .score-composition h4 { font-size:13px; margin:0 0 14px; }
 .score-segments { display:flex; gap:3px; height:14px; border-radius:5px; overflow:hidden; }
 .score-segments>span { min-width:0; flex-basis:0; }
@@ -22,12 +22,12 @@
 .score-legend small,.score-footnote { font:11px/1.6 var(--font-body); color:var(--calc-muted); }
 .score-footnote { margin:14px 0 0; }
 .score-ranking { display:grid; gap:12px; list-style:none; margin:20px 0; padding:0; }
-.score-ranking>li { padding:15px!important; background:#f7f6fa!important; border:0!important; border-radius:10px; }
+.score-ranking>li { padding:15px!important; background:var(--theme-surface)!important; border:0!important; border-radius:10px; }
 .score-rank-heading { display:flex; align-items:baseline; gap:12px; }.score-rank-heading>span { color:var(--calc-muted); font:12px var(--font-mono); }.score-rank-heading>strong { flex:1; font:600 13px var(--font-body); }.score-rank-heading>b { font:600 20px var(--font-mono); }
-.score-rank-track { height:6px; border-radius:5px; overflow:hidden; background:#e6e1e9; margin:12px 0 8px; }.score-rank-track>span { display:block; height:100%; background:#a386a2; }.score-ranking>li:first-child .score-rank-track>span { background:#763b63; }
+.score-rank-track { height:6px; border-radius:5px; overflow:hidden; background:var(--theme-canvas); margin:12px 0 8px; }.score-rank-track>span { display:block; height:100%; background:var(--theme-accent); }.score-ranking>li:first-child .score-rank-track>span { background:var(--theme-accent); }
 .score-ranking small { font:11px var(--font-body); color:var(--calc-muted); }
-.score-replacement { padding:22px; background:#f7f8fb; border-radius:14px; margin:16px 0; }
-.score-gain { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 12px; }.score-gain>span { flex-basis:100%; font:13px var(--font-body); }.score-gain>strong { font:700 clamp(28px,5vw,40px) var(--font-mono); }.score-gain>small { font:12px var(--font-body); }.score-gain[data-direction=up] { color:#23776b; }.score-gain[data-direction=down] { color:#a3414e; }
+.score-replacement { padding:22px; background:var(--theme-surface); border-radius:14px; margin:16px 0; }
+.score-gain { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 12px; }.score-gain>span { flex-basis:100%; font:13px var(--font-body); }.score-gain>strong { font:700 clamp(28px,5vw,40px) var(--font-mono); }.score-gain>small { font:12px var(--font-body); }.score-gain[data-direction=up] { color:var(--theme-success-ink); }.score-gain[data-direction=down] { color:var(--theme-danger-ink); }
 .score-before-after { display:flex; gap:40px; margin:20px 0; }.score-before-after>div { display:grid; gap:6px; }.score-before-after span { font:12px var(--font-body); color:var(--calc-muted); }.score-before-after strong { font:600 22px var(--font-mono); }
 .score-deltas { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; border-top:1px solid var(--calc-line); padding-top:14px; }.score-deltas>div { display:grid; gap:8px; }.score-deltas span { font:11px var(--font-body); }.score-deltas strong { font:600 20px var(--font-mono); }
 .recommendation-alternative>summary { cursor:pointer; font:600 14px var(--font-body); padding:8px 0; }

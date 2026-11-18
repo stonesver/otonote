@@ -1,5 +1,5 @@
-.db-detail-dialog { width: min(780px, calc(100vw - 48px)); max-height: min(860px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--paper-light); color: var(--ink); box-shadow: 0 28px 100px rgb(0 0 0 / 25%); overscroll-behavior: contain; }
-.db-detail-dialog::backdrop { background: rgb(14 20 28 / 58%); backdrop-filter: blur(6px); }
+.db-detail-dialog { width: min(780px, calc(100vw - 48px)); max-height: min(860px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--paper-light); color: var(--ink); box-shadow: 0 28px 100px color-mix(in srgb, var(--theme-shadow-color) 25%, transparent); overscroll-behavior: contain; }
+.db-detail-dialog::backdrop { background: color-mix(in srgb, var(--theme-media-shade) 58%, transparent); backdrop-filter: blur(6px); }
 .db-dialog-bar { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 2; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--paper-light); }
 .db-dialog-bar > span { font-size: 12px; font-weight: 700; color: var(--silver-dark); }
 .db-dialog-bar button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: inherit; font-size: 24px; cursor: pointer; }
@@ -17,7 +17,7 @@
 .db-section-heading > span { color: var(--silver-dark); font-size: 11px; }
 .db-level-picker { display: flex; flex-wrap: wrap; gap: 7px; }
 .db-level-picker button { display: inline-flex; align-items: center; gap: 5px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; font: 700 13px var(--font-mono); cursor: pointer; }
-.db-level-picker button[aria-pressed="true"] { background: var(--lacquer); border-color: var(--lacquer); color: white; }
+.db-level-picker button[aria-pressed="true"] { background: var(--lacquer); border-color: var(--lacquer); color: var(--theme-on-accent); }
 .db-level-picker small { font-size: 9px; opacity: .7; }
 .db-skill-panel { margin-top: 16px; padding: 20px; border-radius: 10px; border-left: 3px solid var(--lacquer); background: var(--paper-deep); }
 .db-skill-panel p { margin: 0; font-size: 16px; line-height: 1.9; white-space: pre-line; }

@@ -1,0 +1,18 @@
+[Unit]
+Description=OurNotes HMT Arena population capture
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/ournotes-rankings/capture.env
+ExecStart=/usr/bin/docker run --rm --name ournotes-arena-population-capture --read-only --cap-drop ALL --security-opt no-new-privileges --user 10001:10001 --memory 128m --memory-swap 128m --cpus 0.25 --pids-limit 64 --tmpfs /tmp:rw,noexec,nosuid,size=16m --mount type=bind,source=/etc/ournotes-rankings/credentials,target=/run/ranking-credentials,readonly --mount type=bind,source=${RANKING_SDK_RESOURCES},target=/run/ranking-sdk/resources.xml,readonly --mount type=bind,source=/srv/ournotes-data/observations/global-hmt,target=/data/observations/global-hmt --mount type=bind,source=/var/lib/ournotes-rankings-capture,target=/state --mount type=bind,source=/var/lib/ournotes-rankings-lock,target=/lock --entrypoint python ${RANKING_CAPTURE_IMAGE} -m tools.collect_arena_rankings --server global-hmt --root /data/observations --state-dir /state --lock-dir /lock --sdk-resources /run/ranking-sdk/resources.xml --population
+ExecStop=-/usr/bin/docker stop --time 15 ournotes-arena-population-capture
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+TimeoutStartSec=1100
+TimeoutStopSec=25

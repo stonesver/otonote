@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './fixtures/gekisou-skill-fixture.mjs';
 import { optimizePractical } from '../src/lib/practical-optimizer.mjs';
-import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.mjs';
+import { optimizeTeamPlanning } from '../src/lib/team-planning-optimizer.ts';
 import { compilePairingModels } from '../src/lib/inventory-optimizer.mjs';
 import { eventYieldOracleFixture } from './helpers/event-yield-oracle-fixture.mjs';
 import { optimizeEventYield } from '../src/lib/event-yield-optimizer.mjs';

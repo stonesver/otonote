@@ -1,3 +1,5 @@
+import {hasApTimingInstructions} from './ap-timing-presentation.mjs';
+
 /** Read an already-scored order. This summary never simulates or sorts skills. */
 export function skillOrderModel(result) {
   if (!result) return null;
@@ -8,7 +10,7 @@ export function skillOrderModel(result) {
     || order.some(slot => !Number.isInteger(slot) || slot < 0 || slot > 4)) return null;
   const explicit = variant?.kind === 'explicit' || (result.performanceScenario?.profile === 'explicit' && result.orderCount === 1);
   const sampled = Boolean(result.randomSampling || playback?.randomSampling || result.randomSources?.player || result.randomSources?.game);
-  const kind = sampled ? 'sample' : explicit ? 'explicit' : result.scorePrecision === 'screen' ? 'screen' : 'best';
+  const kind = result.apTimingPlan ? hasApTimingInstructions(result.apTimingPlan) ? 'timing' : 'on_time' : sampled ? 'sample' : explicit ? 'explicit' : result.scorePrecision === 'screen' ? 'screen' : 'best';
   return { kind, order: [...order] };
 }
 
@@ -18,7 +20,7 @@ export function skillOrderSummary(data, draft, result) {
   const en = document.documentElement.lang.startsWith('en');
   const say = (zh, english) => en ? english : zh;
   const node = (tag, text, cls) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (cls) n.className = cls; return n; };
-  const titles = { best: say('最高分顺序', 'Highest-score order'), sample: say('最高分样本顺序', 'Highest-sample order'),
+  const titles = { timing: say('微操方案技能顺序', 'Timing plan skill order'), on_time: say('正拍技能顺序', 'On-time skill order'), best: say('最高分顺序', 'Highest-score order'), sample: say('最高分样本顺序', 'Highest-sample order'),
     explicit: say('指定回放顺序', 'Entered replay order'), screen: say('粗筛最高分顺序', 'Screening order') };
   const root = node('section', null, 'activation-order');
   root.setAttribute('aria-label', titles[model.kind]);

@@ -6,11 +6,12 @@ import { SearchQueue } from './scoring-rules/search-queue.mjs';
 import { compilePairingModels, draftFromPairing, compareScoredFormations } from './inventory-optimizer.mjs';
 import { createCandidateEvaluator } from './formation-candidate-evaluator.mjs';
 import { createOrdinaryScoreBound } from '../../../packages/scoring/scoring-rules/ordinary-score-bound.mjs';
+import { createApTimingScoreBound } from '../../../packages/scoring/scoring-rules/ap-timing-score-bound.mjs';
 
 /** Complete legal pairing partitions with independently bounded score/bonuses.
  * The budget limits work, never the candidate library. A sampled player scenario
  * keeps its existing practical path until a corresponding bound is available. */
-export async function searchEventFormations({ rules, draft, chart, scope, inventory, eventAdapters = [],
+export async function searchEventFormations({ rules, draft, chart, scope, inventory, constraints = {}, eventAdapters = [],
   objective = 'expected_song_score', boundMetric, seeds = [], bonusFor, upperCandidate, transformScore = r => r,
   compareCandidates = (a,b) => b.value-a.value, rankCandidates = compareCandidates, maxEvaluations = 24, topN = 3,
   signal, yieldControl = async () => {}, onProgress = () => {}, scoreCache,
@@ -19,16 +20,21 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   if (!Number.isInteger(maxEvaluations) || maxEvaluations < 0) throw new Error('Invalid event search budget');
   if (!Number.isInteger(topN) || topN < 1 || topN > 100) throw new Error('Invalid event result limit');
   if (!Number.isInteger(proofCount) || proofCount < 1 || proofCount > topN) throw new Error('Invalid event proof count');
-  if (draft.modifiers?.performanceScenario) return { results: seeds, optimality: 'practical_checked',
+  const apTiming = draft.modifiers?.performanceScenario?.profile === 'ap_timing';
+  if (draft.modifiers?.performanceScenario && !apTiming) return { results: seeds, optimality: 'practical_checked',
     searchStatus: 'player_scenario_bound_unavailable', evaluated: 0, upperBound: null, optimalityGap: null };
-  const input = resolveSearchInput(rules, draft, { scope, inventory });
+  const input = resolveSearchInput(rules, draft, { scope, inventory, constraints });
+  const required = input.constraints.lockedPairs.map(pair => `${pair.memberCardId}|${pair.supportCardId}`);
+  const requiredMembers = [...new Set([...input.constraints.requiredMemberIds, ...input.constraints.lockedPairs.map(pair => pair.memberCardId)])];
+  const requiredSupports = [...new Set([...input.constraints.requiredSupportIds, ...input.constraints.lockedPairs.map(pair => pair.supportCardId)])];
   const cardDomains = partitionCards && !bonusFor;
   const characterFor = cardDomains ? new Map(rules.tables.MemberCard.map(row=>[`member-card-${row._id}`,row._characterID])) : null;
   const models = await compilePairingModels(rules, input, { eventAdapters, signal, yieldControl, pairCache, pairCacheKey, modelCache });
   if (!models) return { results: seeds, optimality: 'incomplete', searchStatus: 'cancelled', evaluated: 0 };
   const song = createFormalSongCalculator(rules, chart, { eventAdapters });
-  const evaluator = createCandidateEvaluator({ rules, chart, objective, eventAdapters }, { song });
-  const resolver = createFormalSkillResolver(rules), pairSkills = new Map(), maxima = [];
+  const evaluator = createCandidateEvaluator({ rules, chart, objective, eventAdapters,
+    performanceScenario:draft.modifiers?.performanceScenario }, apTiming ? {} : { song });
+  const resolver = createFormalSkillResolver(rules, {dynamic:apTiming}), pairSkills = new Map(), maxima = [];
   for (const memberCardId of input.inventory.memberCardIds) {
     let max = 0;
     for (const supportCardId of input.inventory.supportCardIds) {
@@ -41,7 +47,9 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   }
   const metric = boundMetric ?? { expected_song_score:'expectedScore', maximum_song_score:'maximumScore', minimum_song_score:'minimumScore' }[objective];
   if (!['expectedScore','minimumScore','maximumScore'].includes(metric)) throw new Error('Invalid event score objective');
-  const scoreBound = createOrdinaryScoreBound({ ...scoreBoundOptions, song, pairSkills, legacyFactor: Math.fround((1+2*maxima.sort((a,b)=>b-a).slice(0,5).reduce((a,b)=>a+b,0))*1.0001), input, metric });
+  const scoreBound = (apTiming ? createApTimingScoreBound : createOrdinaryScoreBound)({ ...scoreBoundOptions, rules, song, pairSkills,
+    legacyFactor: apTiming ? Infinity : Math.fround((1+2*maxima.sort((a,b)=>b-a).slice(0,5).reduce((a,b)=>a+b,0))*1.0001), input, metric });
+  if (!scoreBound) return {results:seeds,optimality:'practical_checked',searchStatus:'player_scenario_bound_unavailable',evaluated:0,upperBound:null,optimalityGap:null};
   // Event grade may use minimumScore, but its final tie-break uses expectedScore.
   const tieBound = bonusFor && includeTieScoreBound && metric !== 'expectedScore'
     ? createOrdinaryScoreBound({ song, pairSkills, legacyFactor: Math.fround((1+2*maxima.slice(0,5).reduce((a,b)=>a+b,0))*1.0001), input, metric: 'expectedScore' })
@@ -50,7 +58,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   // One global bonus ceiling can certify the retained reward tuples after
   // bounding reachable grades. Avoid two bonus flows per leader (and their
   // large edge matrices) when no further reward improvement is possible.
-  if (bonusCeiling && seeds.length >= proofCount) {
+  if (bonusCeiling && seeds.length >= proofCount && !required.length && !requiredMembers.length && !requiredSupports.length) {
     for (const model of models) {
       const state={leader:model.leader,required:[],forbidden:[]};
       const power=maximumPairing({edges:model.edges,requiredMembers:[model.leader]});
@@ -99,7 +107,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
     return bonusModels.get(leader);
   };
   const solveBonus=(state,kind)=>{
-    const result=maximumPairing({required:state.required,forbidden:state.forbidden,requiredMembers:[state.leader],
+    const result=maximumPairing({required:state.required,forbidden:state.forbidden,requiredMembers:[state.leader,...requiredMembers],requiredSupports,
       edges:byLeader.get(state.leader).edges,weight:bonusModel(state.leader)[kind]});
     return {...result,weight:result.edges.reduce((sum,e)=>sum+bonusFor.pair(e)[kind],0)};
   };
@@ -108,7 +116,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   const preservePriority = !bonusFor && !scoreBoundOptions.jointPowerBound;
   const solve = (state, cutoff = -Infinity) => {
     let model = byLeader.get(state.leader);
-    const options = { required: state.required, forbidden: state.forbidden, requiredMembers: [state.leader] };
+    const options = { required: state.required, forbidden: state.forbidden, requiredMembers: [state.leader,...requiredMembers], requiredSupports };
     if (cardDomains) {
       const members=state.memberRequired,supports=state.supportRequired;
       const characters=new Map(members.map(id=>[characterFor.get(id),id]));
@@ -154,8 +162,8 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
   };
   const clear=()=>{queue.clear();certificate?.clear();active.clear();};
   for (const model of models) {
-    const state=solve({leader:model.leader,required:[],forbidden:[],...(cardDomains?{
-      memberRequired:[model.leader],supportRequired:[],memberExcluded:[],supportExcluded:[]
+    const state=solve({leader:model.leader,required:[...required],forbidden:[],...(cardDomains?{
+      memberRequired:[...new Set([model.leader,...requiredMembers])],supportRequired:[...requiredSupports],memberExcluded:[],supportExcluded:[]
     }:{})});
     if(state)push(state);
   }
@@ -186,7 +194,7 @@ export async function searchEventFormations({ rules, draft, chart, scope, invent
         if (raw) { scoreCacheHits++; if(scoreCounters)scoreCounters.scoreCacheHits++; }
         else { fullScoreCalculations++; raw=evaluator.score(candidate);scoreCache?.set(key,raw);if(scoreCounters)scoreCounters.scoreCalculations++; }
         const transformed = transformScore(raw,candidate);
-        const value = { ...transformed, draft:candidate, id:signature(candidate), origins:['certified-search'],
+        const value = { ...transformed, draft:raw.apTimingPlan ? {...candidate,modifiers:{...candidate.modifiers,apTimingPlan:raw.apTimingPlan}} : candidate, id:signature(candidate), origins:['certified-search'],
           delta:baselineResult ? transformed.value-baselineResult.value : null,
           comparison:compareScoredFormations(transformed,baselineResult) };
         if (compareCandidates(state.upper,value)>0) throw new Error('Event bound below evaluated candidate');

@@ -51,12 +51,12 @@ const bands = track.bandIds
 
 ---
 
-<BaseLayout
+<BaseLayout contentHeading
   title={track.title}
   description={`${track.title}曲目资料、四档难度与谱面分析。`}
   image={jacket?.previewUrl}
 >
-  <song-detail-page class="song-record-page" style={`--song-band:${bands[0]?.mainColor ?? '#6c9abb'}`}>
+  <song-detail-page class="song-record-page" style={`--song-band:${bands[0]?.mainColor ?? 'var(--theme-secondary)'}`}>
     <section class="song-album" aria-labelledby="song-title">
       <div class="content-shell song-album-inner">
         <div class="song-album-topline">
@@ -114,7 +114,6 @@ const bands = track.bandIds
       </section>
 
       <MusicScoreRewards track={track} />
-
 
     </div>
 

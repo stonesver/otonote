@@ -11,6 +11,7 @@ const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const accountFields = ['bandItems', 'bandItemTotals', 'characterRanks', 'tgwCardRank'];
 
 /** One durable profile per server. Content releases validate data, never identify its owner. */
+/** @param {{rules: import("./calculation/optimizer-types.ts").ScoringRules, vipRanks?: {rank: number}[], context?: {region: string, serverId: string | null}, storage?: Storage}} options */
 export function createPersonalGrowthStore({rules, vipRanks = [], context = currentServerContext(), storage}) {
   storage ??= {
     getItem:k=>globalThis.localStorage.getItem(k), setItem:(k,v)=>globalThis.localStorage.setItem(k,v),

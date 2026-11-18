@@ -1,3 +1,4 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
 import {setupTaskWorkbench} from './task-workbench.mjs';
 import {createEventTaskSelection,createEventPhaseSelection,defaultEventId} from './event-task-selection.mjs';
 import {materializeTeamAssumptions} from './workbench-team-input.mjs';
@@ -19,7 +20,7 @@ const percent=node=>{if(node.value.trim()==='')throw Error('请填写游戏显�
 class EventEfficiencyTool extends HTMLElement {
  connectedCallback(){
   if(this.ready)return;this.ready=true;
-  this.data=JSON.parse(this.querySelector('[data-event-inputs]').textContent);
+  this.data=readToolJson(this.querySelector('[data-event-inputs]'));
   this.q=s=>this.querySelector(`[data-${s}]`);
   this.draft=createTeamDraft(parseTeamDraftSearch(location.search,{memberCardIds:new Set(this.data.memberCards.map(c=>c.id)),supportCardIds:new Set(this.data.supportCards.map(c=>c.id)),musicTrackIds:new Set(this.data.tracks.map(t=>t.id))},location.hash).draft);
   this.personalGrowthStore=createPersonalGrowthStore({rules:this.data.rules,vipRanks:this.data.vipRanks});
@@ -29,13 +30,14 @@ class EventEfficiencyTool extends HTMLElement {
   const eventId=defaultEventId(this.data.rules.tables.Event??[],linked.get('eventId'));
   if(eventId!=null)this.q('event').value=eventId;
   for(const [param,field] of [['eventMode','mode'],['eventId','event'],['scoreRank','rank'],['boost','boost'],['cost','cost']]){
+   if(param==='scoreRank'&&(linked.get('apBasis')==='ap_timing'||this.draft.modifiers.performanceScenario?.profile==='ap_timing'))continue;
    const value=linked.get(param),node=this.q(field);if(value!=null&&[...node.options].some(o=>o.value===value))node.value=value;
   }
   if(['expectedScore','minimumScore','maximumScore'].includes(linked.get('apBasis')))this.q('yield-basis').value=linked.get('apBasis');
 
   this.challengeOptimizer=setupChallengeOptimizer(this);
   this.yieldOptimizer=setupEventYieldOptimizer(this);
-  this.songPicker=setupCalculatorSongPicker(this,{getSelection:()=>this.draft,allowedTrackIds:()=>this.q('mode').value==='challenge'?new Set(this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`)):null,onSelect:selection=>{Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId;this.q('song-disclosure').open=false;this.render();}});
+  this.songPicker=setupCalculatorSongPicker(this,{getSelection:()=>this.draft,allowedTrackIds:()=>this.q('mode').value==='challenge'?new Set(this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`)):null,onSelect:selection=>{Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId;this.render();}});
   this.addEventListener('change',event=>{if(event.target.closest('[data-card-dialog]')||event.target.closest('[data-song-picker]'))return;if(event.target.matches('[data-mode]')&&this.dataset.task==='team'){const {mode,songScope,...selection}=this.yieldPhases.switchTo(this.q('mode').value,songState());Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId??'';this.q('yield-songs').value=songScope;}if(event.target.matches('[data-mode],[data-event]'))this.songPicker?.reset();this.render();});this.q('suggest').addEventListener('click',()=>this.suggest());
   this.q('copy-bonus').addEventListener('click',()=>{if(this.rewardBP!=null){this.q('challenge-bonus').value=this.rewardBP/100;this.q('challenge-point-bonus').value=this.eventPointBP/100;this.render();}});
   this.q('save').addEventListener('click',()=>{if(this.current){this.saved={...this.current};this.render();}});
@@ -58,7 +60,8 @@ class EventEfficiencyTool extends HTMLElement {
    applyDraft:draft=>{if(this.dataset.task==='quick'){const state=selections.switchTo('team',songState());this.q('mode').value=state.mode;this.q('yield-songs').value=state.songScope;}this.draft=createTeamDraft(draft);this.q('song').value=this.draft.selectedSongId??'';this.q('bonus-source').value='team';this.dataset.task=this.dataset.task==='challenge'?'challenge':'team';for(const button of this.querySelectorAll('[data-event-task]'))button.setAttribute('aria-pressed',String(button.dataset.eventTask===this.dataset.task));this.render();}
   });
   setupTaskWorkbench(this,'event');
-  if(linked.has('apBasis'))this.q('team-status').textContent='已带入 AP 预测的队伍、歌曲和估计档位，可按实打调整。';
+  if(linked.get('apBasis')==='ap_timing'||this.draft.modifiers.performanceScenario?.profile==='ap_timing')this.q('team-status').textContent='已带入队伍和养成；收益按正拍估分。';
+  else if(linked.has('apBasis'))this.q('team-status').textContent='已带入 AP 预测的队伍、歌曲和估计档位，可按实打调整。';
  }
  disconnectedCallback(){this.taskWorkbench?.destroy();this.teamWorkspaceCleanup?.();this.shortcuts?.destroy();this.challengeOptimizer?.destroy();this.yieldOptimizer?.destroy();}
  model(){return createEventEfficiency({tables:this.data.rules.tables,sourceReleaseId:this.data.rules.sourceReleaseId,eventId:Number(this.q('event').value)});}
@@ -74,12 +77,12 @@ class EventEfficiencyTool extends HTMLElement {
   this.q('rewards').replaceChildren();this.q('cycle').textContent='';this.q('comparison').textContent='';
   this.q('boost-wrap').hidden=mode==='challenge';this.q('cost-wrap').hidden=mode!=='challenge';
   this.q('budget-details').hidden=mode==='challenge';
-  this.q('pool-hint').textContent=this.q('pool').value==='owned'?'使用已保存卡库的实际等级、突破、觉醒与技能，比较队伍和歌曲。':'保留当前十张卡，比较队长、留影配对和歌曲；缺失养成沿用计算器默认值。';
+  this.q('pool-hint').textContent=this.q('pool').value==='reference'?'全卡库按卡片满养成比较；账号、乐器和 TGW 使用页面设置，不代表实际持有。':this.q('pool').value==='owned'?'使用已保存卡库的实际等级、突破、觉醒与技能，比较队伍和歌曲。':'保留当前十张卡，比较队长、留影配对和歌曲；缺失养成沿用计算器默认值。';
   this.q('mode-hint').textContent=mode==='challenge'?'挑战演出消耗挑战 pt，不耗火。下方仅展示本活动的挑战歌曲。':'普通演出获得徽章、活动 pt 和挑战 pt；后者还能用于挑战演出。';
   this.q('rank-hint').textContent=mode==='challenge'?'填写活动内挑战的稳定评分；普通歌曲估分不包含挑战专属加成。':'填写稳定评分。可用下方分数计算辅助判断，最终以游戏内结算为准。';
   this.songPicker?.refresh();
   const allowed=mode==='challenge'?this.data.rules.tables.ChallengeMusic.filter(r=>r._eventId===Number(this.q('event').value)).map(r=>`music-${r._liveMusicId}`):null;
-  if(allowed&&!allowed.includes(this.q('song').value)){this.q('song').value='';this.draft.selectedSongId=null;this.draft.selectedDifficulty=null;this.q('song-disclosure').open=true;this.songPicker?.sync();}
+  if(allowed&&!allowed.includes(this.q('song').value)){this.q('song').value='';this.draft.selectedSongId=null;this.draft.selectedDifficulty=null;this.songPicker?.sync();}
   this.q('selected-song').textContent=this.q('song').value?`${this.q('song').selectedOptions[0].textContent} · ${(this.draft.selectedDifficulty??'expert').toUpperCase()}`:'选择一首歌曲';
   this.q('save').disabled=true;this.q('copy-bonus').disabled=true;
   for(const key of ['value','bonus','point-bonus','badges','points','cp'])this.q('summary-'+key).textContent='—';

@@ -47,7 +47,7 @@ function resolveLegacySearchInput(rules, draft, { scope = "selected", inventory,
   if (!draft?.slots || draft.slots.length !== 5) throw new Error("Exactly five slots required");
   if (!["selected", "owned", "theoretical"].includes(scope)) throw new Error("Unknown search scope");
   if (!constraints || typeof constraints !== "object" || Array.isArray(constraints)) throw new Error("Invalid constraints");
-  const validKeys = ["bandId", "attribute", "supportAttribute", "leaderId", "requiredMemberIds", "requiredSupportIds",
+  const validKeys = ["bandId", "supportBandId", "attribute", "supportAttribute", "leaderId", "requiredMemberIds", "requiredSupportIds",
     "excludedMemberIds", "excludedSupportIds", "lockedPairs"];
   for (const key of Object.keys(constraints)) if (!validKeys.includes(key)) throw new Error(`Unknown constraint: ${key}`);
   const result = structuredClone(draft);
@@ -92,7 +92,7 @@ function resolveLegacySearchInput(rules, draft, { scope = "selected", inventory,
       supportCardId: canonicalCardId(p.supportCardId, "support") }))
   };
   const chars = new Map(rules.tables.Character.map((c) => [c._id, c]));
-  for (const key of ["bandId", "attribute", "supportAttribute"]) {
+  for (const key of ["bandId", "supportBandId", "attribute", "supportAttribute"]) {
     if (constraints[key] !== undefined && constraints[key] !== null) normalized[key] = Array.isArray(constraints[key])
       ? [...new Set(constraints[key].map(value => requireInteger(value, key, 1, 99)))]
       : requireInteger(constraints[key], key, 1, 99);
@@ -104,7 +104,9 @@ function resolveLegacySearchInput(rules, draft, { scope = "selected", inventory,
       return !normalized[kind === "member" ? "excludedMemberIds" : "excludedSupportIds"].includes(id)
         && (kind === "member" ? matches(normalized.bandId, chars.get(row._characterID)._bandID)
           && matches(normalized.attribute, row._cardType)
-          : matches(normalized.supportAttribute, row._cardType));
+          : matches(normalized.supportAttribute, row._cardType)
+            && (normalized.supportBandId == null || (row._characterIDs ?? []).some(characterId =>
+              matches(normalized.supportBandId, chars.get(characterId)?._bandID))));
     });
     for (const id of pool[`${kind}CardIds`]) {
       const growth = result.modifiers.growth?.[id];

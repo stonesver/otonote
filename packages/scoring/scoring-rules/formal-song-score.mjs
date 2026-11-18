@@ -110,6 +110,10 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
     const scoreAdapters = eventPipeline.context.effects.some(e => e.phase === 'note_score' || e.phase === 'fixed_score');
     const skills = resolveSkills(draft);
     const replaySkills = requiresOrdinarySkillReplay(skills) ? resolveDynamicSkills(draft) : null;
+    const warnings = [...timeline.warnings];
+    if (replaySkills?.some(skill => skill.liveEffects.some(effect => effect.active && effect.cumulative))) {
+      warnings.push('队伍含累计加分技能：同一技能顺序下，AP 得分仍可能随判定时机变化；这里的最高／最低分只比较理想输入下的技能顺序。');
+    }
     const common = { totalPower: power.total.total, scoreAdjustmentFactor: setting("note_score_adjustment_factor"),
       musicScoreLevelFactor: timeline.difficultyFactor, judgementFactorPercent: judgement,
       luckScoreFactorPercent: 100, convertedNoteCount: timeline.convertedNoteCount,
@@ -198,7 +202,7 @@ export function createFormalSongCalculator(rules, chart, { eventAdapters = [], s
       chart: { id: timeline.chartId, level: timeline.level, difficultyFactor: timeline.difficultyFactor,
         convertedNoteCount: timeline.convertedNoteCount, eventCount: timeline.events.length,
         masterFullCombo: timeline.masterFullCombo, skillTimes: timeline.skillTimes, chartHash: timeline.chartHash },
-      warnings: timeline.warnings, ...(includeTrace ? { bestOrderNotes: bestTrace.notes, bestOrderFixedScore: bestTrace.fixedScore,
+      warnings, ...(includeTrace ? { bestOrderNotes: bestTrace.notes, bestOrderFixedScore: bestTrace.fixedScore,
         skillPlayback: { skills, skillTimes: timeline.skillTimes, frameRate, variants: [
           { kind: 'best', order: [...bestOrder], ...bestTrace },
           { kind: 'worst', order: [...worstOrder], ...worstTrace }

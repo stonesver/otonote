@@ -26,7 +26,7 @@ const today = calendarDate(now);
         const related = birthdayContent(character.id, catalog.memberCards, globalSystems.gachaPools);
         const pool = preferredBirthdayPool(related.pools, now);
         const card = preferredBirthdayCard(related.cards, pool);
-        return <article class="birthday-card" data-birthday-card data-month={character.birthday.month} data-day={character.birthday.day} data-birthday-state={birthdayProximity(days)} style={`--birthday-color:${/^#[\da-f]{6}$/i.test(character.mainColor) ? character.mainColor : '#79aec2'}`} hidden={index >= 4}>
+        return <article class="birthday-card" data-birthday-card data-month={character.birthday.month} data-day={character.birthday.day} data-birthday-state={birthdayProximity(days)} style={`--birthday-color:${/^#[\da-f]{6}$/i.test(character.mainColor) ? character.mainColor : 'var(--theme-secondary)'}`} hidden={index >= 4}>
           <a class="birthday-person" href={href(`/characters/${character.id}/`)}>
             <div class="birthday-date"><time data-birthday-date datetime={date}>
               <span class="birthday-date-short">{String(character.birthday.month).padStart(2, '0')}/{String(character.birthday.day).padStart(2, '0')}</span>

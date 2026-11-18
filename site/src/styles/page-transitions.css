@@ -73,7 +73,7 @@ html[data-transition-speed="slow"] {
     z-index: 1;
     transform-origin: var(--page-hinge) 50%;
     backface-visibility: hidden;
-    box-shadow: 18px 0 48px rgb(17 19 27 / 26%);
+    box-shadow: 18px 0 48px color-mix(in srgb, var(--theme-shadow-color) 26%, transparent);
     animation: book-turn var(--book-duration) cubic-bezier(.3, .05, .25, 1) both;
   }
   [data-page-transition="book"]::view-transition-new(root) { animation: none; opacity: 1; }

@@ -8,8 +8,7 @@ const {region,locale} = activeReleaseContext;
 const en = locale === 'en';
 ---
 <nav class="page-editions content-shell" aria-label={en ? 'Content edition' : '内容版本'} data-page-editions>
-  <span>{en ? 'Content edition' : '内容版本'}</span>
-  <div>{(['global','jp'] as const).map(edition => <a href={counterparts.find(c=>c.edition===edition)?.href ?? pageEditionHref(Astro.url.pathname,Astro.url.search,edition,locale)} data-page-edition={edition} data-counterpart={counterparts.find(c=>c.edition===edition)?.href} aria-current={region === edition ? 'page' : undefined}>{edition === 'jp' ? (en ? 'Japan' : '日服') : (en ? 'Global' : '国际服')}</a>)}</div>
+  <div>{(['global','jp'] as const).map(edition => <a href={counterparts.find(c=>c.edition===edition)?.href ?? pageEditionHref(Astro.url.pathname,Astro.url.search,edition,locale)} data-page-edition={edition} data-counterpart={counterparts.find(c=>c.edition===edition)?.href} aria-current={region === edition ? 'page' : undefined} aria-label={edition === 'jp' ? (en ? 'Japan' : '日服') : (en ? 'Global' : '国际服')} title={edition === 'jp' ? (en ? 'Japan' : '日服') : (en ? 'Global' : '国际服')}><span class="edition-symbol" data-edition={edition} aria-hidden="true">{edition === 'global' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/></svg>}</span></a>)}</div>
   <small data-edition-message role="status"></small>
 </nav>
 <script>

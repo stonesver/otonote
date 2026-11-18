@@ -1,3 +1,5 @@
+import {readToolJson} from '../runtime/tool-startup.mjs';
+import {eventToolSearch} from './ap-grade.mjs';
 import {setupTaskWorkbench} from './task-workbench.mjs';
 import {materializeTeamAssumptions} from './workbench-team-input.mjs';
 import {createWorkbenchTeamView} from './workbench-team-view.mjs';
@@ -27,7 +29,7 @@ class ScoringResearchWorkbench extends HTMLElement {
   async connectedCallback() {
     const dataNode = this.querySelector("[data-scoring-research-data]");
     if (!(dataNode instanceof HTMLScriptElement)) return;
-    this.data = JSON.parse(dataNode.textContent || "{}");
+    this.data = readToolJson(dataNode);
     this.labels = this.data.labels;
     try {
       const {mode,scenario}=readScoringScenarioSearch(window.location.search);
@@ -58,7 +60,6 @@ class ScoringResearchWorkbench extends HTMLElement {
     if(this.draft.slots.every(slot=>slot.memberCardId&&slot.supportCardId))try{const refreshed=refreshToolTeamGrowth(this.data.formalRules,this.draft,createPersonalGrowthStore({rules:this.data.formalRules,vipRanks:this.data.vipRanks}).read()?.inventory);this.draft=refreshed.draft;this.growthIsReference=toolTeamInputState(this.draft,this.known).growthIsReference;}catch(error){this.scenarioError=error.message;parsed.issues.push({code:'planning_unavailable',severity:'warning',message:error.message});}
     this.inputIssues=parsed.issues;this.inputRequest=0;this.scoreRequest=0;
     this.shortcuts=setupQuickOptions(this);
-    this.querySelector('[data-score-song-picker]').open=!this.draft.selectedSongId;
 
     this.querySelector('[data-calculator-song]').value=this.draft.selectedSongId??'';
     this.querySelector('[data-calculator-difficulty]').value=this.draft.selectedDifficulty??'';
@@ -67,7 +68,6 @@ class ScoringResearchWorkbench extends HTMLElement {
     }
     this.songPicker=setupCalculatorSongPicker(this,{getCalculationScope:()=>null,getSelection:()=>this.draft,onSelect:selection=>{
       Object.assign(this.draft,selection);
-      this.querySelector('[data-score-song-picker]').open=false;
       this.querySelector('[data-calculator-song]').value=selection.selectedSongId;
       this.querySelector('[data-calculator-difficulty]').value=selection.selectedDifficulty;
       this.refreshInput();
@@ -76,14 +76,19 @@ class ScoringResearchWorkbench extends HTMLElement {
     const profileSelect=this.querySelector('[data-score-performance-profile]');
     profileSelect.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
     this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);
+    const syncPerformanceMode=()=>{
+      const gekisou=this.querySelector('[data-scoring-mode]').value==='gekisou';
+      profileSelect.querySelector('[value="ap_timing"]').disabled=gekisou;
+      if(gekisou&&this.draft.modifiers.performanceScenario?.profile==='ap_timing'){delete this.draft.modifiers.performanceScenario;delete this.draft.modifiers.apTimingPlan;profileSelect.value='legacy';}
+    };
     profileSelect.addEventListener('change',()=>{
-      if(profileSelect.value==='saved'){if(this.savedPerformanceScenario)this.draft.modifiers.performanceScenario=structuredClone(this.savedPerformanceScenario);else delete this.draft.modifiers.performanceScenario;return this.refreshInput();}
+      if(profileSelect.value==='saved'){if(this.savedPerformanceScenario)this.draft.modifiers.performanceScenario=structuredClone(this.savedPerformanceScenario);else delete this.draft.modifiers.performanceScenario;syncPerformanceMode();return this.refreshInput();}
       if(profileSelect.value==='legacy')delete this.draft.modifiers.performanceScenario;
       else this.draft.modifiers.performanceScenario={profile:profileSelect.value,seed:20261004};
-      this.refreshInput();
+      syncPerformanceMode();this.refreshInput();
     });
     this.querySelector('[data-performance-reset]').addEventListener('click',()=>{delete this.draft.modifiers.performanceScenario;profileSelect.value='legacy';});
-    this.querySelector('[data-scoring-mode]').addEventListener('change',recalculate);
+    this.querySelector('[data-scoring-mode]').addEventListener('change',()=>{syncPerformanceMode();recalculate();});
     this.querySelector('[data-gekisou-scenario]').addEventListener('change',recalculate);
     this.performanceInput=setupPerformanceInput(this,{rules:this.data.formalRules,getChart:()=>this.loadedChart,recalculate,labels:this.labels.performance});
     this.teamWorkspaceCleanup=registerToolTeamContext(this, {
@@ -96,7 +101,7 @@ class ScoringResearchWorkbench extends HTMLElement {
         const profile=this.querySelector('[data-score-performance-profile]');
         profile.value=this.draft.modifiers.performanceScenario?'saved':'legacy';
         this.savedPerformanceScenario=structuredClone(this.draft.modifiers.performanceScenario);
-        this.songPicker?.sync();this.refreshInput();
+        syncPerformanceMode();this.songPicker?.sync();this.refreshInput();
       }
     });
     setupTaskWorkbench(this,'score');
@@ -167,7 +172,7 @@ class ScoringResearchWorkbench extends HTMLElement {
     const result = evaluateScoringResearch(snapshot, this.data.evidence);
     this.render(snapshot, result, summary, this.inputIssues);
     const eventLink=this.querySelector('[data-event-efficiency-link]');
-    if(eventLink)eventLink.href=toolRoute('/tools/event-efficiency/',location.pathname)+serializeTeamDraftSearch(this.draft);
+    if(eventLink)eventLink.href=toolRoute('/tools/event-efficiency/',location.pathname)+eventToolSearch(this.draft);
     this.loadedChart=chart;this.loadedSnapshot=snapshot;
     this.performanceInput?.sync(chart);
     this.taskWorkbench?.refresh();
@@ -258,13 +263,14 @@ class ScoringResearchWorkbench extends HTMLElement {
       const performance=this.performanceInput?.value??null;
       const result = await this.calculateInWorker({mode:'ordinary',rules:this.data.formalRules,chart:{...chart,sourceReleaseId:this.data.sourceReleaseId},draft:this.draft,performance});
       if(request!==this.scoreRequest)return;
+      if(result.apTimingPlan)this.draft.modifiers.apTimingPlan=result.apTimingPlan;
       output.textContent = format(result.expectedScore);
       if(result.performanceScenario)this.querySelector('[data-score-result-assumption]').textContent=labels.savedPerformanceAssumption;
       this.querySelector('[data-skill-activation]').replaceChildren(skillActivation(this,this.draft,{result}));
       this.scoreView?.renderResult(result);
       const comboSummary = this.querySelector("[data-scoring-event-count]");
       if (comboSummary) comboSummary.textContent = String(result.chart.eventCount);
-      details.textContent = interpolate(performance?labels.replayBreakdown:labels.breakdown, { base: format(result.baseScore), gain: format(result.skillScoreGain), min: format(result.minimumScore), max: format(result.maximumScore) });
+      details.textContent = result.apTimingPlan?result.performanceSummary:interpolate(performance?labels.replayBreakdown:labels.breakdown, { base: format(result.baseScore), gain: format(result.skillScoreGain), min: format(result.minimumScore), max: format(result.maximumScore) });
       if(performance){
         this.querySelector('[data-score-result-title]').textContent=labels.replayTitle;
         this.querySelector('[data-score-result-assumption]').textContent=labels.replayAssumption;
@@ -275,8 +281,8 @@ class ScoringResearchWorkbench extends HTMLElement {
       }
       if (inputWarnings.length) details.textContent += ' ' + inputWarnings.join(' ');
       const messages = [
-        performance?labels.replayScenario:labels.scenario,
-        performance?labels.replayOrder:interpolate(labels.orderPercentiles,{p10:format(result.scoreDistribution.p10),p50:format(result.scoreDistribution.p50),p90:format(result.scoreDistribution.p90)}),
+        ...(result.apTimingPlan?[]:[performance?labels.replayScenario:labels.scenario]),
+        result.apTimingPlan?result.performanceSummary:performance?labels.replayOrder:interpolate(labels.orderPercentiles,{p10:format(result.scoreDistribution.p10),p50:format(result.scoreDistribution.p50),p90:format(result.scoreDistribution.p90)}),
         interpolate(labels.topology, { events: result.chart.eventCount, master: result.chart.masterFullCombo }),
         interpolate(labels.factors, { power: format(result.power), factor: result.chart.difficultyFactor.toFixed(3), notes: result.chart.convertedNoteCount }),
         ...result.skills.map((skill) => interpolate(labels.skill, { slot: skill.slotIndex + 1, member: skill.memberLevel, support: skill.supportLevels.join(" / "), duration: skill.extensionMs })),

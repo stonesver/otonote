@@ -3,15 +3,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {selectEventYieldRows,eventYieldGoals,orderEventYieldRows,eventYieldGaps} from '../src/lib/event-yield-goals.mjs';
-import {eventYieldStageInput} from '../src/lib/event-yield-stage.mjs';
+import {emptyEventResultFilters,eventPlanDropProbability,eventResultFilterOptions,filterEventYieldRows} from '../src/lib/event-yield-result-filters.mjs';
+import {eventYieldStageInput,eventYieldChallengeBandNote} from '../src/lib/event-yield-stage.mjs';
 import {setupEventYieldOptimizer,eventYieldCompletionText,eventYieldStopText,eventYieldProgressText} from '../src/lib/event-yield-ui.mjs';
 import {installProgressDom} from './helpers/progress-dom.mjs';
+test('completed individual comparisons describe every song rather than provisional alternatives',()=>{
+ const summary=eventYieldCompletionText({coverageComplete:true,allProven:true,failures:[],rows:Array(93).fill({}),
+  fullyOptimizedCharts:97,available:97,done:97,prunedCharts:0,
+  globalProofs:{badges:{bestProven:true},eventPoints:{bestProven:true}}});
+ assert.equal(summary.individual,true);
+ assert.match(summary.status,/逐曲证明 97 \/ 97/);
+ assert.match(summary.status,/全部方案可分页查看/);
+ assert.doesNotMatch(summary.status,/备选供参考/);
+});
 test('global proof status distinguishes covered charts, alternatives and expected-score ties',()=>{
  const data={coverageComplete:true,complete:true,failures:[],rows:[],fullyOptimizedCharts:3,prunedCharts:88,
  globalProofs:{badges:{bestProven:true,scope:'all_selected_charts_given_challenge_rows'}}};
  const summary=eventYieldCompletionText(data);assert.equal(summary.proven,true);
  assert.match(summary.status,/已证明 3 张谱面的单曲第一名，按全局上界覆盖 88 张/);assert.match(summary.status,/第一名已证明/);
- assert.match(summary.status,/备选供参考/);assert.match(summary.status,/期望分排序未证明/);assert.match(summary.status,/后续挑战以本次已计算方案/);
+ assert.match(summary.status,/备选供参考/);assert.match(summary.status,/分数排序未证明全局最优/);assert.match(summary.status,/后续挑战以本次已计算方案/);
  const incomplete=eventYieldCompletionText({...data,coverageComplete:false});assert.equal(incomplete.proven,false);assert.match(incomplete.status,/尚未证明/);
  assert.match(incomplete.status,/可重新开始完整比较，已保存的估分缓存可复用/);assert.doesNotMatch(incomplete.status,/已算结果会复用/);
 });
@@ -51,12 +61,33 @@ test('cycle stages choose independent collection and AP basis without inheriting
  assert.equal(eventYieldStageInput({...input,challengeScope:'same'},'challenge').scope,'selected');
  assert.equal(eventYieldStageInput({...input,mode:'challenge'},'challenge').scope,'selected');
 });
+test('challenge defaults to unrestricted bands while retaining other constraints and direct challenge filters',()=>{
+ const constraints={bandId:[1],supportBandId:[2],requiredMemberIds:[1],excludedSupportIds:[6]},input={mode:'ordinary',includeChallenge:true,scope:'owned',constraints,draft:{slots:[]}};
+ const original=structuredClone(input),challenge=eventYieldStageInput(input,'challenge');
+ assert.deepEqual(challenge.constraints,{requiredMemberIds:[1],excludedSupportIds:[6]});
+ assert.deepEqual(eventYieldStageInput({...input,challengeBandScope:'same'},'challenge').constraints,constraints);
+ assert.deepEqual(eventYieldStageInput({...input,mode:'challenge'},'challenge').constraints,constraints);
+ assert.deepEqual(input,original);
+ assert.match(eventYieldChallengeBandNote(input),/不限乐队.*不受普通阶段/);
+ assert.match(eventYieldChallengeBandNote({...input,challengeBandScope:'same'},'成员乐队：MyGO!!!!!'),/沿用普通阶段.*MyGO/);
+ assert.equal(eventYieldChallengeBandNote({...input,includeChallenge:false}),'');
+ assert.throws(()=>eventYieldStageInput({...input,challengeBandScope:'invalid'},'challenge'),/无效/);
+});
 test('joint event recommendation exposes both item and event-point objectives',()=>{
  const page=readFileSync(new URL('../src/pages/tools/event-efficiency/index.astro',import.meta.url),'utf8');
  const goals=page.match(/<select\b[^>]*data-yield-goal[^>]*>([\s\S]*?)<\/select>/)?.[1];
  assert.match(goals,/value="badges"/);
  assert.match(goals,/value="eventPoints"/);
  assert.match(goals,/^<option value="both"/);
+});
+test('farming uses ordinary score bases while challenge leaderboards retain AP timing',()=>{
+ const page=readFileSync(new URL('../src/pages/tools/event-efficiency/index.astro',import.meta.url),'utf8');
+ for(const control of ['yield-basis','yield-challenge-basis']){
+  const choices=page.match(new RegExp(`<select\\b[^>]*data-${control}[^>]*>([\\s\\S]*?)<\\/select>`))?.[1];
+  for(const basis of ['expectedScore','minimumScore','maximumScore'])assert.ok(choices?.includes(`value="${basis}"`));
+  assert.doesNotMatch(choices,/ap_timing/);
+ }
+ assert.match(page.match(/<select\b[^>]*data-challenge-opt-objective[^>]*>([\s\S]*?)<\/select>/)?.[1],/value="ap_timing"/);
 });
 test('both objectives retain different teams for the same song instead of hiding its point leader',()=>{
  const base={song:{id:'song',seconds:100},reward:{scoreRank:5},expectedScore:1000};
@@ -76,13 +107,23 @@ test('identical reward plans share both labels without duplicate display or losi
  assert.deepEqual(selectEventYieldRows(result),result);
 });
 
-test('short-song ordering compares both currencies to one goal-specific leading plan',()=>{
+test('result ordering keeps both rewards ahead of duration, including the low-reward shortest song',()=>{
+ const row=(id,seconds,badges,eventPoints)=>({id,song:{id,seconds},reward:{scoreRank:7},expectedScore:1000,total:{badges,eventPoints}});
+ const rows=[row('recommended',150,1000,900),row('shortest',80,700,600),
+  row('equal-shorter',120,1000,900),row('less-secondary',90,1000,800)];
+ const before=structuredClone(rows);
+ assert.deepEqual(orderEventYieldRows(rows,'badges').map(r=>r.id),['equal-shorter','recommended','less-secondary','shortest']);
+ assert.deepEqual(orderEventYieldRows(rows,'eventPoints').map(r=>r.id),['equal-shorter','recommended','less-secondary','shortest']);
+ assert.deepEqual(rows,before);
+});
+
+test('result ordering compares both currencies to one goal-specific leading plan',()=>{
  const make=(id,seconds,badges,eventPoints)=>({id,song:{id,seconds},reward:{scoreRank:5},expectedScore:1000,total:{badges,eventPoints}});
  const rows=[make('long',150,1000,800),make('short',80,800,1000),make('unknown',null,600,600),make('mid',100,900,900)];
  const before=structuredClone(rows),retained=selectEventYieldRows(rows,'both',rows.length*2);
- const sorted=orderEventYieldRows(retained,'short');
- assert.deepEqual(sorted.map(r=>r.id),['short','mid','long','unknown']);
- assert.deepEqual(orderEventYieldRows(retained,'yield','eventPoints').map(r=>r.id),['short','mid','long','unknown']);
+ const sorted=orderEventYieldRows(retained,'badges');
+ assert.deepEqual(sorted.map(r=>r.id),['long','mid','short','unknown']);
+ assert.deepEqual(orderEventYieldRows(retained,'eventPoints').map(r=>r.id),['short','mid','long','unknown']);
  const {reference,gap}=eventYieldGaps(retained,'badges');
  assert.equal(reference.id,'long');
  assert.deepEqual(gap(rows[0]),{badges:0,eventPoints:0});
@@ -94,7 +135,7 @@ test('short-song ordering compares both currencies to one goal-specific leading 
  assert.deepEqual(rows,before);
 });
 
-test('short ordering only rearranges original high-yield candidates and excludes lower-yield short songs',()=>{
+test('result ordering preserves the candidate set and keeps the highest reward first',()=>{
  let retained=[];
  for(let i=0;i<45;i++){
   const row={id:`team-${i}`,song:{id:`song-${i}`,seconds:200-i},reward:{scoreRank:5},expectedScore:1000,total:{badges:1000-i,eventPoints:900-i}};
@@ -103,24 +144,57 @@ test('short ordering only rearranges original high-yield candidates and excludes
  }
  const candidates=selectEventYieldRows(retained,'both');
  assert.equal(candidates.length,5);
- const short=orderEventYieldRows(candidates,'short');
- assert.equal(short[0].song.id,'song-4');
+ const short=orderEventYieldRows(candidates);
+ assert.equal(short[0].song.id,'song-0');
  assert.deepEqual(new Set(short.map(row=>row.id)),new Set(candidates.map(row=>row.id)));
  assert.ok(!short.some(row=>row.song.id==='song-44'));
- assert.deepEqual(eventYieldGaps(candidates).gap(short[0]),{badges:4,eventPoints:4});
+ assert.deepEqual(eventYieldGaps(candidates).gap(short[0]),{badges:0,eventPoints:0});
  assert.equal(selectEventYieldRows(retained,'badges').length,10);
+});
+
+test('result filters intersect levels and song bands, retaining collaboration songs and the input rows',()=>{
+ const tracks=[{id:'a',bandIds:['1'],bandLabels:['First']},{id:'b',bandIds:['1','2'],bandLabels:['First','Second']},{id:'c',bandIds:['2'],bandLabels:['Second']}];
+ const rows=[{song:{trackId:'a',level:25}},{song:{trackId:'b',level:26}},{song:{trackId:'c',level:27}}],before=structuredClone(rows);
+ assert.deepEqual(eventResultFilterOptions(rows,tracks),{levels:[25,26,27],bands:[{value:'1',label:'First'},{value:'2',label:'Second'}]});
+ assert.deepEqual(filterEventYieldRows(rows,emptyEventResultFilters(),{tracks}),rows);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),levels:[25,26],bands:['2']},{tracks}),[rows[1]]);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),bands:['1','2']},{tracks}),rows);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),levels:[25],bands:['2']},{tracks}),[]);
+ assert.deepEqual(rows,before);
+});
+
+test('AP risk filters include the used challenge stages and exclude unknown distributions',()=>{
+ const row=drop=>({song:{},reward:{scoreRank:7},gradeProbabilities:[{rank:6,probability:drop},{rank:7,probability:1-drop}]});
+ const safe=row(0),edge=row(.1),risky=row(.25),unknown={...row(0),gradeProbabilities:[]};
+ const cycle={...safe,continuation:{stages:[{plays:2,row:edge},{plays:0,row:risky}]}};
+ assert.equal(eventPlanDropProbability(cycle),.1);
+ assert.equal(eventPlanDropProbability({...cycle,continuation:{stages:[{plays:1,row:unknown}]}}),null);
+ const rows=[safe,edge,risky,unknown,cycle];
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),maxDropProbability:0}),[safe]);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),maxDropProbability:.1}),[safe,edge,cycle]);
+ assert.deepEqual(filterEventYieldRows(rows,emptyEventResultFilters()),rows);
+});
+
+test('highest reward filtering uses the unfiltered goal leader and both currencies',()=>{
+ const make=(id,level,badges,eventPoints)=>({id,song:{id,level,seconds:100},reward:{scoreRank:7},expectedScore:1000,total:{badges,eventPoints}});
+ const rows=[make('items',27,1000,800),make('same',26,1000,800),make('less-secondary',25,1000,700),make('points',25,900,900)];
+ const filters={...emptyEventResultFilters(),highestRewardOnly:true};
+ assert.deepEqual(filterEventYieldRows(rows,filters,{goal:'badges'}),rows.slice(0,2));
+ assert.deepEqual(filterEventYieldRows(rows,filters,{goal:'eventPoints'}),[rows[3]]);
+ assert.deepEqual(filterEventYieldRows(rows,{...filters,levels:[25]},{goal:'badges'}),[]);
+ assert.deepEqual(eventYieldGaps(rows,'badges').gap(rows[3]),{badges:100,eventPoints:-100});
 });
 
 test('ordinary song filters reach the worker, invalidate results and leave challenge and selected charts intact',t=>{
  const nodes=new Map();
  const node=key=>{
   if(!nodes.has(key))nodes.set(key,{value:'',hidden:false,disabled:false,checked:false,textContent:'',children:[],listeners:{},
-   setAttribute(){},replaceChildren(...children){this.children=children;},addEventListener(type,fn){this.listeners[type]=fn;},querySelector:node});
+   setAttribute(){},replaceChildren(...children){this.children=children;},addEventListener(type,fn){this.listeners[type]=fn;},querySelector:node,querySelectorAll(){return [];}});
   return nodes.get(key);
  };
  const q=key=>node(`[data-yield-${key}]`);
- const tool={q:node,querySelector:node,pairs:[],draft:{slots:[],selectedSongId:'music-2',selectedDifficulty:'hard'},data:{
-  rules:{tables:{LiveMusic:[{_id:1,_musicType:1},{_id:2,_musicType:2}],ChallengeMusic:[{_eventId:1,_liveMusicId:2}]}},
+ const tool={q:node,querySelector:node,personalGrowthStore:{read:()=>null},pairs:[],draft:{slots:[],selectedSongId:'music-2',selectedDifficulty:'hard'},data:{
+  eventRewardCards:{1:[{resourceType:2,resourceId:1}]},rules:{tables:{LiveMusic:[{_id:1,_musicType:1},{_id:2,_musicType:2}],ChallengeMusic:[{_eventId:1,_liveMusicId:2}]}},
   tracks:[{id:'music-1',bandIds:['band-1'],musicType:1},{id:'music-2',bandIds:['band-2'],musicType:2}],
   charts:[{id:'1-e',trackId:'music-1',difficulty:'expert',level:25,analysisDataUrl:'/1'},
    {id:'2-e',trackId:'music-2',difficulty:'expert',level:25,analysisDataUrl:'/2'},
@@ -140,7 +214,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  // The workbench moves conditions/results into sibling columns under the tool.
  node('yield-optimizer').querySelector=()=>{throw new Error('Do not assume filters remain in the legacy panel');};
  installProgressDom(t,q('status'));
- let scopes;const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:(...args)=>(scopes=eventScopeControls(...args))});
+ let scopes,invalidPool=false;const optimizer=setupEventYieldOptimizer(tool,{createScopeControls:(...args)=>(scopes=eventScopeControls(...args)),validateCardPool:()=>{if(invalidPool)throw Error('筛选后需要至少五位不同角色及五张留影');}});
  optimizer.sync();optimizer.run();
  assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['1-e']);
  const progress=q('status').progressNode;workers[0].listeners.message({data:{type:'progress',stage:'普通',title:'歌曲',done:1,total:9,detail:'完整复算 2 / 12'}});assert.equal(progress.children[1].value,1/9);
@@ -157,13 +231,23 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);
  node('mode').value='challenge';q('songs').value='all';optimizer.sync();optimizer.run();
  assert.equal(q('song-filters').hidden,true);assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-e']);
- q('rewards').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
- q('reward-growth').value='maximum';optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowth,'maximum');assert.equal(workers.at(-1).data.input.rewardGrowthOverride,true);
+ q('rewards').checked=true;optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowthOverride??false,false);
+ q('reward-growth').value='maximum';optimizer.sync();assert.equal(workers.at(-1).stopped,true);optimizer.run();assert.equal(workers.at(-1).data.input.rewardGrowth,'maximum');assert.equal(workers.at(-1).data.input.rewardGrowthOverride??false,false);
  // Both phase filters select subsets before the worker can load any charts.
  const multi=(field,values,options=['expert','hard','normal','easy'])=>{
   field.multiple=true;field.options=options.map(value=>({value,selected:values.includes(value)}));
   Object.defineProperty(field,'selectedOptions',{configurable:true,get(){return this.options.filter(o=>o.selected);}});
  };
+ multi(q('member-band'),['1'],['1','2']);multi(q('support-band'),['2'],['1','2']);
+ const previousBandsWorker=workers.at(-1);q('support-band').listeners.change();
+ assert.equal(previousBandsWorker.stopped,true);assert.deepEqual(q('results').children,[]);
+ optimizer.run();assert.deepEqual(workers.at(-1).data.input.constraints,{bandId:[1],supportBandId:[2]});
+ multi(q('member-band'),['1','2'],['1','2']);q('member-band').listeners.change();optimizer.run();
+ assert.deepEqual(workers.at(-1).data.input.constraints,{bandId:[1,2],supportBandId:[2]});
+ assert.equal(workers.at(-1).data.input.challengeBandScope,'all');
+ q('challenge-band-scope').checked=true;q('challenge-band-scope').listeners.change();optimizer.run();assert.equal(workers.at(-1).data.input.challengeBandScope,'same');
+ q('challenge-band-scope').checked=false;q('challenge-band-scope').listeners.change();assert.equal(workers.at(-1).stopped,true);
+ multi(q('member-band'),[],['1','2']);multi(q('support-band'),[],['1','2']);
  tool.data.charts.push({id:'1-h',trackId:'music-1',difficulty:'hard',level:15,analysisDataUrl:'/1-h'},
   {id:'2-n',trackId:'music-2',difficulty:'normal',level:10,analysisDataUrl:'/2-n'},
   {id:'2-easy',trackId:'music-2',difficulty:'easy',level:8,analysisDataUrl:'/2-easy'});
@@ -210,5 +294,7 @@ test('ordinary song filters reach the worker, invalidate results and leave chall
  optimizer.sync();assert.ok(!last.stopped);optimizer.run();assert.equal(workers.length,before);assert.deepEqual(workers.at(-1).data.challengeCandidates.map(c=>c.id),['2-h']);
  q('stages').value='direct';q('songs').value='selected';scopes.main.setSelection({kind:'temporary',entries:[]});optimizer.sync();optimizer.run();assert.deepEqual(workers.at(-1).data.candidates.map(c=>c.id),['2-h']);assert.equal(workers.at(-1).data.input.calculationScopes.main.source.kind,'fixed');
  scopes.main.setSelection({kind:'all'});optimizer.sync();optimizer.run();assert.equal(workers.at(-1).data.input.calculationScopes.main.chartCount,1);
+ invalidPool=true;optimizer.invalidate();const beforeInvalidPool=workers.length;optimizer.run();
+ assert.equal(workers.length,beforeInvalidPool);assert.match(q('status').textContent,/当前阶段卡片范围.*至少五位不同角色及五张留影/);
  optimizer.destroy();
 });

@@ -77,6 +77,15 @@ async function start() {
     preloads.push(preload);
   }
   document.dispatchEvent(new Event('ournotes:shell-dispose'));
+  // Carry the active palette from the cold shell into the rendered page.
+  const pageRoot = document.documentElement;
+  for (const name of ['data-theme', 'data-site-theme']) {
+    if (pageRoot.hasAttribute(name)) documentNext.documentElement.setAttribute(name, pageRoot.getAttribute(name));
+  }
+  for (const name of pageRoot.classList) documentNext.documentElement.classList.add(name);
+  for (const name of pageRoot.style) {
+    if (/^--(?:theme|font)-/.test(name)) documentNext.documentElement.style.setProperty(name, pageRoot.style.getPropertyValue(name), pageRoot.style.getPropertyPriority(name));
+  }
   for (const attr of [...document.documentElement.attributes]) document.documentElement.removeAttribute(attr.name);
   for (const attr of documentNext.documentElement.attributes) document.documentElement.setAttribute(attr.name, attr.value);
   // Keep the loaded link attached while replacing the other head nodes.

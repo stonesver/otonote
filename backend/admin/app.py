@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo
 import urllib.error
 import hmac
 import time
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlencode
 from .store import window_bounds
@@ -21,7 +23,7 @@ from .transport import request_json
 STATIC = Path(__file__).parent / 'static'
 
 
-def create_admin(config, transport=request_json, *, archive_repo=None):
+def create_admin(config, transport=request_json, publication_dispatch=None):
     c = validate_config(config, 'admin')
     preview = c['auth']['mode'] == 'preview'
     proxy_key = None if preview else secret(c['auth']['proxyTokenEnv'])
@@ -30,7 +32,25 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
     sources = {s['id']: s for s in c.get('sources', [])}
     nodes = {n['id']: n for n in c.get('nodes', [])}
     sites = {s['id']: s for s in c.get('sites', [])}
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(app):
+        async def review_timer():
+            from .publications import publish_due, dispatch
+            from starlette.concurrency import run_in_threadpool
+            attempts = {}
+            while True:
+                await run_in_threadpool(publish_due, c, transport, attempts, send=publication_dispatch or dispatch)
+                await asyncio.sleep(60)
+        task = asyncio.create_task(review_timer()) if c.get('publicationReview') and not preview else None
+        try:
+            yield
+        finally:
+            if task:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
     @app.middleware('http')
     async def boundary(request, call_next):
@@ -59,16 +79,15 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
 
     @app.get('/assets/{name}')
     def asset(name: str):
-        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'archive.mjs', 'notices.mjs', 'notice-controls.mjs', 'request.mjs'}:
+        if name not in {'admin.css', 'admin.mjs', 'charts.mjs', 'notices.mjs', 'notice-controls.mjs', 'request.mjs', 'publication-review.mjs'}:
             raise HTTPException(404)
         return FileResponse(STATIC / name, media_type='text/javascript' if name.endswith('mjs') else 'text/css')
 
     @app.get('/api/config')
     def public_config(request: Request):
-        return {'preview': preview, 'sites': [{k: s[k] for k in ('id', 'name', 'timezone', 'nodes') if k in s} for s in sites.values()],
+        return {'preview': preview, 'publicationReview': bool(c.get('publicationReview')), 'sites': [{k: s[k] for k in ('id', 'name', 'timezone', 'nodes') if k in s} for s in sites.values()],
                 'nodes': [{'id': n['id'], 'name': n.get('name', n['id']), 'writable': bool(n.get('writeTokenEnv')) and not preview, 'canPublish': not preview and request.state.actor in n.get('publishUsers', [])} for n in nodes.values()],
-                'connection': 'SSH 本地端口转发', 'sampleSeconds': c['sampleSeconds'],
-                'archive': {'enabled': bool(archive_repo is not None or isinstance(c.get('archive'), dict) and c['archive'].get('enabled')), 'writable': not preview}}
+                'connection': 'SSH 本地端口转发', 'sampleSeconds': c['sampleSeconds']}
 
     @app.get('/api/summary/{site_id}')
     def summary(site_id: str, window: str = 'today'):
@@ -211,6 +230,31 @@ def create_admin(config, transport=request_json, *, archive_repo=None):
         except (OSError, ValueError):
             # A timeout is an unknown submission outcome, never an invitation to duplicate it.
             raise HTTPException(503, 'submission_unknown_check_task_list')
-    from .archive import install as install_archive
-    install_archive(app, c.get('archive'), repo=archive_repo, preview=preview)
+
+    @app.post('/api/nodes/{node_id}/publication-review')
+    async def review_publication(node_id: str, request: Request):
+        node = nodes.get(node_id)
+        if not c.get('publicationReview') or not node or request.state.actor not in node.get('publishUsers', []):
+            raise HTTPException(403, 'publication review not allowed')
+        from .publications import dispatch, validate_decision
+        from starlette.concurrency import run_in_threadpool
+        try:
+            decision = validate_decision(await small_json(request, 4096))
+        except ValueError:
+            raise HTTPException(400, 'invalid publication decision')
+        try:
+            state = await run_in_threadpool(transport, node, '/state')
+            rows = [profile.get('health', {}).get('publicationReviews', {})
+                    for profile in state['profiles'] if profile.get('productionOwner') == 'github-actions-r2']
+            candidates = [row.get('regions', {}).get(decision['region']) for row in rows if row.get('status') == 'ready']
+            if not any(row and row['publication'] == decision['publication'] and row['revision'] == decision['revision']
+                       and row['status'] in ('pending', 'scheduled', 'held') for row in candidates):
+                raise HTTPException(409, 'publication review changed or unavailable; reload')
+            return await run_in_threadpool(publication_dispatch or dispatch, c['publicationReview'], decision)
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403, 404, 422):
+                raise HTTPException(502, 'workflow dispatch rejected; check publication configuration')
+            raise HTTPException(503, 'submission outcome unknown; check Actions before retrying')
+        except (OSError, ValueError, KeyError, TypeError):
+            raise HTTPException(503, 'submission outcome unknown; check Actions before retrying')
     return app

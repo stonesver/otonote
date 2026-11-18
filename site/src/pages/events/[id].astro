@@ -6,6 +6,6 @@ import { activeReleaseContext } from "../../lib/release-context";
 export function getStaticPaths() { return eventRecords.map(event => ({ params: { id: String(event.id) } })); }
 const event = eventRecords.find(event => String(event.id) === Astro.params.id)!;
 ---
-<BaseLayout title={event.name} editionCounterparts={event.editionPresence?.counterparts}>
+<BaseLayout contentHeading title={event.name} editionCounterparts={event.editionPresence?.counterparts}>
   <EventDetail archive={{ records: [event], definitionCount: 1 }} locale={activeReleaseContext.locale} href={eventHref} artworks={eventArtworks} identities={eventIdentities} cards={eventCards} media={eventMedia} />
 </BaseLayout>

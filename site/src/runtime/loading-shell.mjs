@@ -1,6 +1,8 @@
 import { SITE_NAME } from "../lib/site-brand.mjs";
 import { renderSidebarNavigation } from '../lib/sidebar-navigation.mjs';
 import { getUi } from '../lib/ui-i18n.ts';
+import {renderThemePicker} from '../lib/theme-picker-view.mjs';
+import {createThemePreferencesScript} from '../lib/theme-preferences.mjs';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const svg = path => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
@@ -9,7 +11,7 @@ const card = () => `<div class="loading-card"><div class="loading-art"><span cla
 const row = () => `<div class="loading-row"><div class="loading-cover"></div><div>${line()}${line('short')}</div>${line('short')}</div>`;
 
 /** The entry is self-contained and independent of the content release. */
-export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg, appManifest, startupScript, loadingArt = {}, navigationScript = ''}) {
+export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg, appManifest, startupScript, loadingArt = {}, navigationScript = '', shellPreferences = '', themeChrome = ''}) {
   const zh = getUi('zh-CN'), en = getUi('en');
   const label = key => `<span data-loading-en="${escape(en[key])}">${escape(zh[key])}</span>`;
   const link = (path, text, classes = '') => `<a class="${classes}" href="/global/zh-CN${path}" data-loading-route="${path}">${text}</a>`;
@@ -33,22 +35,24 @@ export function renderLoadingShell({css, clientScript, codeRoot, boot, brandSvg,
     list: `<div class="loading-filters">${line()}${line()}</div><div class="loading-rows">${Array.from({length:6},row).join('')}</div>`
   };
   return `<!doctype html><html lang="zh-CN" data-tone="paper" data-shell="sidebar" data-loading="true"><head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#11131b"><title>${SITE_NAME}</title>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color"><title>${SITE_NAME}</title>
     <link rel="icon" href="${codeRoot}favicon.svg" type="image/svg+xml"><link rel="modulepreload" href="${codeRoot}${boot}">
     ${startupScript ? `<script>globalThis[Symbol.for('ournotes.code-manifest.v1')]=${JSON.stringify({...appManifest,root:codeRoot}).replace(/</g,'\\u003c')};${startupScript}</script>` : ''}
-    <style data-loading-style>${css}</style></head><body>
+    <script>${shellPreferences}</script><script>${createThemePreferencesScript()}</script><style data-loading-style>${css}</style><script>${themeChrome}</script></head><body>
     <a class="skip-link" href="#main-content">${label('skipMain')}</a>
     <header class="site-header" data-site-header>
-      ${link('/', `<span class="site-brand__mark" aria-hidden="true">${brandSvg}</span><span class="site-brand__full">${SITE_NAME}</span><span class="site-brand__compact" aria-hidden="true">${SITE_NAME}</span><small data-loading-en="Events · Data · Team tools">活动 · 资料 · 配队工具</small>`, 'site-brand')}
+      ${link('/', `<span class="site-brand__mark" aria-hidden="true">${brandSvg}</span><span class="site-brand__full">${SITE_NAME}</span><span class="site-brand__compact" aria-hidden="true">${SITE_NAME}</span>`, 'site-brand')}
       <nav id="site-navigation" class="site-nav" aria-label="主导航" data-site-nav>${navigation}<div class="nav-bottom">${link('/about/','<span data-loading-en="About">关于本站</span>')}${link('/updates/','<span data-loading-en="Version history">版本记录</span>')}<small>${SITE_NAME} · GLOBAL</small></div></nav>
+      <button class="sidebar-collapse" data-sidebar-collapse type="button" aria-controls="site-navigation" aria-expanded="true" aria-label="收起侧栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="4"/><path d="M9 4v16m6-12-3 4 3 4"/></svg></button>
       <nav class="site-breadcrumb" aria-label="当前位置">${link('/','<span data-loading-en="Overview">首页概览</span>')}<span aria-hidden="true">/</span><strong data-loading-title>${SITE_NAME}</strong></nav>
       <div class="global-search"><button class="global-search-trigger" disabled type="button">${svg('M16 16l4 4 M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0')}<strong>${label('globalSearch')}</strong></button></div>
+      ${renderThemePicker('zh-CN', {loading:true})}
       <details class="context-switcher"><summary aria-label="切换服务器与语言"><span>GLOBAL</span><strong data-loading-locale>简体中文</strong></summary><div class="context-switcher__panel"><a href="/global/zh-CN/">简体中文</a> · <a href="/global/en/">English</a></div></details>
       <button class="nav-toggle" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="site-navigation" data-loading-menu><span></span><span></span></button>
     </header>
     <button class="nav-backdrop" data-loading-backdrop tabindex="-1" aria-label="关闭导航" hidden></button>
     <main id="main-content" aria-busy="true" tabindex="-1"><section class="loading-page">
-      <div class="loading-heading"><h1 data-loading-title>${SITE_NAME}</h1></div>
+      <h1 class="sr-only" data-loading-title>${SITE_NAME}</h1>
       <div class="loading-interlude" data-loading-interlude>
         <div class="loading-mini-stage" aria-hidden="true">
           <span class="loading-stage-orbit"></span><span class="loading-stage-star">✦</span>

@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultPlanningKind,createPlanningSettings,planningSettingsValues,planningSummary,updatePlanningCardPreference} from '../src/lib/team-planning-scenario-ui.mjs';
-import {recommendationScenarioLabel,visibleRecommendations} from '../src/lib/optimizer-results-ui.mjs';
+import {recommendationScenarioLabel,visibleRecommendations} from '../src/lib/recommendation-result-model.mjs';
 const draft={slots:[{memberCardId:'member-card-1',supportCardId:'support-card-1'},...Array.from({length:4},()=>({}))],modifiers:{growth:{'member-card-1':{level:1}}}};
 const context={sourceReleaseId:'test-release',draft};
 const form=(patch={})=>({kind:'reference',profile:'steady',timingBiasMs:0,timingSpreadMs:'',missPercent:'',startSeconds:'',endSeconds:'',explicit:'',...patch});
+test('AP timing settings survive the typed planning form and saved settings round trip',()=>{
+ assert.equal(planningSettingsValues({}).profile,'ap_timing');
+ const settings=createPlanningSettings(form({profile:'ap_timing',goal:'stable',timingBiasMs:99,missPercent:10}),context);
+ assert.deepEqual(settings.performanceScenario,{profile:'ap_timing'});
+ assert.equal(settings.recommendationGoal,'stable');
+ assert.deepEqual(createPlanningSettings(planningSettingsValues(settings),context),settings);
+});
 test('new visitors can calculate reference teams without importing cards',()=>{
   assert.equal(defaultPlanningKind({},{}),'reference');
   assert.equal(defaultPlanningKind({},draft),'selected');

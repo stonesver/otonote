@@ -1,0 +1,191 @@
+{
+  "clientSha256": "514a5b73d038c264b60cc91fd4a747cf178190c6b2096e6d7007c2020e2b1bca",
+  "decodedSha256": "393a166e12f1886597709aa82e93bc58283631d629238e10e22fa10efc3f24eb",
+  "ruleSetVersion": "global-1.0.1-25-code-v6",
+  "effectId": 65,
+  "methods": {
+    "condition": "0x55ed6a0",
+    "trigger": "0x561b3dc",
+    "sustainedUpdate": "0x561e660",
+    "zeroDurationUpdate": "0x5620c4c",
+    "effectUpdate": "0x561f554",
+    "comboApplier": "0x55ff1e0"
+  },
+  "scope": "native condition/trigger/sustained updater/effect updater/applier; synthetic prior-frame counts, not full Unity scheduling or score replay",
+  "substitutions": [
+    "IL2CPP metadata, interface dispatch and GC barriers",
+    "current range, current COMBO, last-note time and frame clock getters",
+    "zero duration and +5 effect getters; empty eligibility, no release, unlimited activation budget",
+    "one-element updater pool and effect-to-handle dictionary storage",
+    "changed-effect result collector and add/remove command sink"
+  ],
+  "rows": [
+    {
+      "combo": 24,
+      "trigger": false,
+      "phase": 0,
+      "activeBonus": 0,
+      "commands": []
+    },
+    {
+      "combo": 25,
+      "trigger": true,
+      "phase": 2,
+      "activeBonus": 5.0,
+      "commands": [
+        {
+          "action": "add",
+          "timeMs": 1019,
+          "value": 5.0,
+          "handle": 1
+        }
+      ]
+    },
+    {
+      "combo": 30,
+      "trigger": true,
+      "phase": 3,
+      "activeBonus": 5.0,
+      "commands": []
+    },
+    {
+      "combo": 0,
+      "trigger": false,
+      "phase": 4,
+      "activeBonus": 0,
+      "commands": [
+        {
+          "action": "remove",
+          "timeMs": 1040,
+          "handle": 1
+        }
+      ]
+    },
+    {
+      "combo": 0,
+      "trigger": false,
+      "phase": 0,
+      "activeBonus": 0,
+      "commands": []
+    },
+    {
+      "combo": 24,
+      "trigger": false,
+      "phase": 0,
+      "activeBonus": 0,
+      "commands": []
+    },
+    {
+      "combo": 25,
+      "trigger": true,
+      "phase": 2,
+      "activeBonus": 5.0,
+      "commands": [
+        {
+          "action": "add",
+          "timeMs": 1069,
+          "value": 5.0,
+          "handle": 3
+        }
+      ]
+    },
+    {
+      "combo": 30,
+      "trigger": true,
+      "phase": 3,
+      "activeBonus": 5.0,
+      "commands": []
+    },
+    {
+      "combo": 24,
+      "trigger": false,
+      "phase": 4,
+      "activeBonus": 0,
+      "commands": [
+        {
+          "action": "remove",
+          "timeMs": 1090,
+          "handle": 3
+        }
+      ]
+    },
+    {
+      "combo": 25,
+      "trigger": true,
+      "phase": 2,
+      "activeBonus": 5.0,
+      "commands": [
+        {
+          "action": "add",
+          "timeMs": 1099,
+          "value": 5.0,
+          "handle": 5
+        }
+      ]
+    },
+    {
+      "combo": 30,
+      "trigger": true,
+      "phase": 3,
+      "activeBonus": 5.0,
+      "commands": []
+    },
+    {
+      "combo": 0,
+      "trigger": false,
+      "phase": 4,
+      "activeBonus": 0,
+      "commands": [
+        {
+          "action": "remove",
+          "timeMs": 1120,
+          "handle": 5
+        }
+      ]
+    },
+    {
+      "combo": 25,
+      "trigger": true,
+      "phase": 2,
+      "activeBonus": 5.0,
+      "commands": [
+        {
+          "action": "add",
+          "timeMs": 1129,
+          "value": 5.0,
+          "handle": 7
+        }
+      ]
+    },
+    {
+      "combo": 0,
+      "trigger": false,
+      "phase": 4,
+      "activeBonus": 0,
+      "commands": [
+        {
+          "action": "remove",
+          "timeMs": 1140,
+          "handle": 7
+        }
+      ]
+    },
+    {
+      "combo": 24,
+      "trigger": false,
+      "phase": 0,
+      "activeBonus": 0,
+      "commands": []
+    }
+  ],
+  "pool": [
+    "get",
+    "release",
+    "get",
+    "release",
+    "get",
+    "release",
+    "get",
+    "release"
+  ]
+}

@@ -13,6 +13,22 @@
 
 离线边界验证：`node --test site/tests/shared-scoring-package.test.mjs`。现有计分、原生回放和 Worker 测试继续通过网站兼容入口验证同一份实现。
 
+## 精确匹配内核
+
+`scoring-rules/maximum-pairing-kernel.ts` 使用 AssemblyScript 编写无托管分配的增广路径内核。
+生成的 WebAssembly 字节嵌入同名 `.mjs`，浏览器 Worker 与 Node 使用同一实现，不另行下载
+运行文件。权重、强制顶点奖励及路径运算保持在 binary64 安全整数范围内，原生评分器不变。
+
+修改内核后，在仓库根目录重新生成并运行独立穷举及约束上界回归：
+
+```sh
+npm exec --yes --package=assemblyscript@0.28.20 -- node tools/build_pairing_kernel.mjs
+node --test site/tests/pairing-bound.test.mjs site/tests/bonus-constrained-score-bound.test.mjs
+```
+
+生成工具也接受已安装的 `asc` 可执行文件路径作为首个参数。普通构建直接使用已提交的内嵌字节，
+无需编译器。测试覆盖通用图与角色／留影压缩图、必选及禁用条件、并列结果，以及交替求解和内存扩展。
+
 ## 发挥与养成场景
 
 `performance-scenarios.mjs` 规范化有版本的原始操作条件；`performance-scenario-calculator.mjs` 将同一批样本用于普通或激奏。玩家样本、技能顺序、LUCK 随机和对手条件分别记录。明确判定不能反推出原始时机；参考输入不等于实机回放。

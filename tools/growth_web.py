@@ -21,13 +21,14 @@ from urllib.parse import parse_qs, urlsplit
 from tools.growth_export import ExportError
 from tools.growth_login import GameClient, LoginError, Profile, SdkClient
 from tools.gacha_history import GachaHistoryClient
+from tools.arena_personal import ArenaPersonalClient, arena_scope
 from tools.game_service_status import GameServiceStatus
 from tools.global_game_config import GLOBAL_SERVERS
 
 ROOT = '/api/growth-export/'
 DIAGNOSTIC_STAGES = frozenset({
     'request', 'discovering', 'sdk_login', 'checking_existing_account',
-    'game_login', 'reading_growth', 'reading_gacha_history',
+    'game_login', 'reading_growth', 'reading_gacha_history', 'reading_arena_rank',
 })
 DIAGNOSTIC_ERRORS = frozenset({
     'origin_refused', 'not_found', 'invalid_request', 'request_too_large',
@@ -52,6 +53,7 @@ DIAGNOSTIC_ERRORS = frozenset({
     'duplicate_public_master_id', 'invalid_history_field',
     'missing_history_prize_id', 'invalid_history_collection',
     'too_many_history_records', 'unsupported_history_response',
+    'invalid_arena_personal_scope', 'invalid_arena_personal_response',
     'missing_history_pool_id', 'invalid_history_prize', 'empty_history_batch',
 })
 DIAGNOSTIC_REASONS = frozenset({
@@ -89,7 +91,8 @@ class GrowthGateway(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, profile, origins, port=0, sdk_factory=SdkClient, game_factory=GameClient,
-                 history_factory=GachaHistoryClient, diagnostic_sink=None, game_status=None):
+                 history_factory=GachaHistoryClient, diagnostic_sink=None, game_status=None,
+                 arena_factory=ArenaPersonalClient):
         self.origins = set(origins)
         if not self.origins:
             raise ValueError('at_least_one_origin_required')
@@ -103,6 +106,7 @@ class GrowthGateway(ThreadingHTTPServer):
             self.hosts.add(p.netloc)
         self.profile, self.sdk_factory, self.game_factory = profile, sdk_factory, game_factory
         self.history_factory = history_factory
+        self.arena_factory = arena_factory
         self.game_status = game_status
         self.nonce = secrets.token_urlsafe(32)
         self.capacity = threading.BoundedSemaphore(2)
@@ -166,7 +170,7 @@ class GrowthGateway(ThreadingHTTPServer):
             return True
 
     def read_growth(self, account, password, *, history=False, progress_callback=None,
-                    failure_callback=None, server_id='global-hmt'):
+                    failure_callback=None, server_id='global-hmt', arena=None):
         stage = 'discovering'
         def progress(value):
             nonlocal stage
@@ -182,14 +186,18 @@ class GrowthGateway(ThreadingHTTPServer):
                     return 503, {'error': 'game_maintenance', 'gameStatus': observation,
                                  'stage': stage}
             progress(stage)
-            game = (self.history_factory if history else self.game_factory)(server_id=server_id)
+            if arena is not None:
+                arena_scope(*arena)
+            factory = self.arena_factory if arena is not None else self.history_factory if history else self.game_factory
+            game = factory(server_id=server_id)
             host = game.discover()
             progress('sdk_login')
             sdk = self.sdk_factory(replace(self.profile, version=game.client_version,
                                            language=GLOBAL_SERVERS[server_id]['language']))
             identity = sdk.login(account, password)
             account = password = ''
-            snapshot = game.export(identity, sdk.device_id, host, progress)
+            snapshot = (game.export_rank(identity, sdk.device_id, host, *arena, progress=progress)
+                        if arena is not None else game.export(identity, sdk.device_id, host, progress))
             return 200, {'snapshot': snapshot}
         except (LoginError, ExportError) as exc:
             if failure_callback:
@@ -200,6 +208,7 @@ class GrowthGateway(ThreadingHTTPServer):
             return 502, {'error': 'upstream_unavailable', 'stage': stage}
         finally:
             account = password = ''
+            identity = sdk = game = None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -249,14 +258,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {'error': 'unsupported_game_server'})
         result = {'enabled': True, 'region': 'global', 'serverId': server_id,
                   'servers': list(GLOBAL_SERVERS), 'nonce': self.server.nonce,
-                  'gachaHistory': True, 'authMethods': ['email_password']}
+                  'gachaHistory': True, 'arenaPersonal': True, 'authMethods': ['email_password']}
         if self.server.game_status is not None:
             result['gameStatus'] = self.server.game_status.server(server_id)
         return self.reply(200, result)
 
     def do_POST(self):
         path = self.path.rstrip('/')
-        route = {ROOT + 'read': 'growth', ROOT + 'gacha-history': 'gacha_history'}.get(path)
+        route = {ROOT + 'read': 'growth', ROOT + 'gacha-history': 'gacha_history', ROOT + 'arena-rank': 'arena_rank'}.get(path)
         if route is None:
             return self.reply(404, {'error': 'not_found'})
         request_id = diagnostic_request_id(self.headers.get('X-Request-ID'))
@@ -292,13 +301,16 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 8192:
                 return self.reply(413, {'error': 'request_too_large'})
             body = json.loads(self.rfile.read(size))
-            if (not isinstance(body, dict) or set(body) not in ({'account', 'password'}, {'account', 'password', 'serverId'})
+            allowed = ({'account', 'password', 'serverId', 'seasonId', 'bandId'},) if path == ROOT + 'arena-rank' else ({'account', 'password'}, {'account', 'password', 'serverId'})
+            if (not isinstance(body, dict) or set(body) not in allowed
                     or not isinstance(body.get('serverId', 'global-hmt'), str)
                     or body.get('serverId', 'global-hmt') not in GLOBAL_SERVERS
                     or not isinstance(body['account'], str) or not 1 <= len(body['account'].strip()) <= 320
                     or not isinstance(body['password'], str) or not 1 <= len(body['password'].encode()) <= 4096):
                 return self.reply(400, {'error': 'invalid_request'})
-        except (ValueError, OSError):
+            if path == ROOT + 'arena-rank':
+                arena_scope(body['seasonId'], body['bandId'])
+        except (ValueError, OSError, LoginError):
             return self.reply(400, {'error': 'invalid_request'})
         if not self.server.capacity.acquire(blocking=False):
             return self.reply(429, {'error': 'busy'})
@@ -307,10 +319,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(429, {'error': 'rate_limited'})
             account, password = body.pop('account'), body.pop('password')
             server_id = body.pop('serverId', 'global-hmt')
+            arena = (body.pop('seasonId'), body.pop('bandId')) if path == ROOT + 'arena-rank' else None
             body.clear()
             status, result = self.server.read_growth(
                 account, password, history=path == ROOT + 'gacha-history',
-                progress_callback=progress, failure_callback=failure, server_id=server_id)
+                progress_callback=progress, failure_callback=failure, server_id=server_id, arena=arena)
             account = password = ''
             self.reply(status, result)
         finally:

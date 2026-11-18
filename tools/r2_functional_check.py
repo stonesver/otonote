@@ -19,7 +19,7 @@ def read(path, limit=16 * 1024 * 1024):
     return raw
 
 
-def check(store, region, *, require_recognition=False):
+def check(store, region, *, require_recognition=False, require_arena=False):
     store = Path(store).resolve()
     pointer = json.loads(read(store / ('current.json' if region == 'global' else 'jp/current.json'), 4096))
     match = re.fullmatch(r'/content/releases/([a-f0-9]{24})/manifest.json', pointer.get('manifest', ''))
@@ -43,9 +43,14 @@ def check(store, region, *, require_recognition=False):
         documents = {}
         recognition_name = 'supplemental/card-recognition.json'
         has_recognition = recognition_name in manifest['locales'][locale]['files']
+        arena_name = 'projection/arena.json'
+        has_arena = arena_name in manifest['locales'][locale]['files']
+        if require_arena and not has_arena:
+            raise ValueError('required Arena projection absent')
         if require_recognition and not has_recognition:
             raise ValueError('required screenshot recognition index absent')
-        for name in (*DOCUMENTS, *((recognition_name,) if has_recognition else ())):
+        for name in (*DOCUMENTS, *((recognition_name,) if has_recognition else ()),
+                     *((arena_name,) if has_arena else ())):
             entry = manifest['locales'][locale]['files'][name]
             relative = entry['path']
             if (not isinstance(relative, str) or not relative.startswith(locale + '/')
@@ -91,6 +96,19 @@ def check(store, region, *, require_recognition=False):
         if rules.get('verificationStatus') not in ('code_audited', 'reference_compatible', 'unavailable'):
             raise ValueError('unknown scoring verification status')
         recognition = {'status': 'unavailable', 'reason': 'index_not_published'}
+        arena = {'status': 'unavailable'}
+        if has_arena:
+            from tools.arena_content import validate_arena_publication
+            data = documents[arena_name]
+            validate_arena_publication(data, source_id, region)
+            available = (all(data.get('capabilities', {}).get(k) is True for k in ('conditions', 'ranks', 'basePoints'))
+                         and all(data.get(k) for k in ('seasons', 'leagues', 'regulations', 'ranks', 'basePoints', 'serverScopes')))
+            if require_arena and (not available or not record or not record.get('masterVersion')
+                                  or data.get('sourceMasterVersion') != record['masterVersion']):
+                raise ValueError('required Arena capabilities or Master binding absent')
+            arena = {'status': 'available' if available else 'unavailable',
+                     'seasons': len(data['seasons']), 'leagues': len(data['leagues']),
+                     'regulations': len(data['regulations']), 'ranks': len(data['ranks'])}
         if has_recognition:
             from tools.card_recognition import validate_index, catalog_coverage, MAX_BYTES
             features = release/'recognition/features.bin.gz'
@@ -105,6 +123,7 @@ def check(store, region, *, require_recognition=False):
                            'scoring': scoring['status'], 'scoringIssues': len(scoring['issues']),
                            'verificationStatus': rules['verificationStatus'], 'gameplayVerified': False,
                            'screenshotImport': recognition,
+                           'arena': arena,
                            'clientVersion': catalog.get('release', {}).get('versionName'),
                            'clientVersionCode': catalog.get('release', {}).get('versionCode'),
                            'generatedAt': catalog.get('generatedAt')}
@@ -118,8 +137,10 @@ def main():
     parser.add_argument('--store', type=Path, required=True)
     parser.add_argument('--region', choices=('global', 'jp'), required=True)
     parser.add_argument('--require-recognition', action='store_true')
+    parser.add_argument('--require-arena', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(check(args.store, args.region, require_recognition=args.require_recognition), separators=(',', ':')))
+    print(json.dumps(check(args.store, args.region, require_recognition=args.require_recognition,
+                           require_arena=args.require_arena), separators=(',', ':')))
 
 
 if __name__ == '__main__':

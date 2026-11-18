@@ -41,6 +41,38 @@ test('challenge search keeps actual growth and compares full event-aware scores 
   assert.ok(result.results[0].value>createFormalSongCalculator(input.rules,input.chart).calculate(ordinaryDraft).maximumScore);
   assert.throws(()=>calc.upperBound(100000,2),/independently audited/);
 });
+test('owned challenge search discards stale reference growth and evidence from the current team',async()=>{
+  const input=fixture();
+  input.inventory.growth['member-card-1'].awake=3;
+  input.draft.modifiers.growth=structuredClone(input.inventory.growth);
+  input.draft.modifiers.growth['member-card-1'].awake=5;
+  input.draft.modifiers.planningScenario={scope:'reference'};
+  input.draft.modifiers.planningResult={referenceCardIds:['member-card-1'],rewardGrowthCardIds:['member-card-1']};
+  const before=structuredClone({draft:input.draft,inventory:input.inventory});
+  const result=await optimizeChallenge({...input,scope:'owned',searchMethod:'practical'});
+  assert.ok(result.results.length);
+  for(const row of result.results){
+    assert.equal(row.draft.modifiers.growth['member-card-1'].awake,3);
+    assert.equal(row.draft.modifiers.planningScenario.scope,'owned');
+    assert.equal(row.draft.modifiers.planningResult,undefined);
+  }
+  assert.deepEqual({draft:input.draft,inventory:input.inventory},before);
+});
+test('temporary maximum reward cards keep owned challenge cards at their actual awakening',async()=>{
+  const input=fixture();
+  input.inventory.growth['member-card-1'].awake=3;
+  input.draft.modifiers.growth={'member-card-1':{awake:5}};
+  const result=await optimizeChallenge({...input,scope:'owned',searchMethod:'practical',rewardGrowth:'maximum',
+    rewardCards:[{resourceType:2,resourceId:1},{resourceType:2,resourceId:6}]});
+  assert.ok(result.results.length);
+  for(const row of result.results){
+    assert.equal(row.draft.modifiers.growth['member-card-1'].awake,3);
+    assert.equal(row.draft.modifiers.growth['member-card-6'].awake,5);
+    assert.deepEqual(row.draft.modifiers.planningResult.referenceCardIds,['member-card-6']);
+  }
+  assert.equal(input.inventory.growth['member-card-1'].awake,3);
+  assert.equal(input.inventory.memberCardIds.includes('member-card-6'),false);
+});
 test('reward bonuses cannot change the challenge high-score recommendation',async()=>{
   const input=fixture(),first=await optimizeChallenge(input);
   input.rules.tables.EventEffect.push(...[0,1].map((bonus,i)=>({_id:3+i,_eventId:1,_resourceTypeConstraint:2,_eventBonusType:bonus,

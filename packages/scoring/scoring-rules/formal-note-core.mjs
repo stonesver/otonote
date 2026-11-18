@@ -27,29 +27,30 @@ export function calculateFormalNoteCore({
   assistModeNoteScoreFactor,
   currentLife
 }) {
-  // Avoid allocating a field table and entry pairs for every replayed note.
-  finiteNumber(totalPower, "totalPower");
-  finiteNumber(scoreAdjustmentFactor, "scoreAdjustmentFactor");
-  finiteNumber(musicScoreLevelFactor, "musicScoreLevelFactor");
-  finiteNumber(noteFactorPercent, "noteFactorPercent");
-  finiteNumber(judgementFactorPercent, "judgementFactorPercent");
-  finiteNumber(comboBonusFactor, "comboBonusFactor");
-  finiteNumber(scoreUpFactor, "scoreUpFactor");
-  finiteNumber(luckScoreFactorPercent, "luckScoreFactorPercent");
-  finiteNumber(convertedNoteCount, "convertedNoteCount");
-  finiteNumber(eventBonusFactor, "eventBonusFactor");
-  finiteNumber(lifeOnusFactor, "lifeOnusFactor");
-  finiteNumber(assistModeNoteScoreFactor, "assistModeNoteScoreFactor");
-  finiteNumber(currentLife, "currentLife");
+  // This runs for every note, including rollback. Validate directly without
+  // allocating an object and thirteen Object.entries pairs on each call.
+  finiteNumber(totalPower, 'totalPower');
+  finiteNumber(scoreAdjustmentFactor, 'scoreAdjustmentFactor');
+  finiteNumber(musicScoreLevelFactor, 'musicScoreLevelFactor');
+  finiteNumber(noteFactorPercent, 'noteFactorPercent');
+  finiteNumber(judgementFactorPercent, 'judgementFactorPercent');
+  finiteNumber(comboBonusFactor, 'comboBonusFactor');
+  finiteNumber(scoreUpFactor, 'scoreUpFactor');
+  finiteNumber(luckScoreFactorPercent, 'luckScoreFactorPercent');
+  finiteNumber(convertedNoteCount, 'convertedNoteCount');
+  finiteNumber(eventBonusFactor, 'eventBonusFactor');
+  finiteNumber(lifeOnusFactor, 'lifeOnusFactor');
+  finiteNumber(assistModeNoteScoreFactor, 'assistModeNoteScoreFactor');
+  finiteNumber(currentLife, 'currentLife');
   if (!Number.isInteger(totalPower) || totalPower < 0 || totalPower > 0x7fffffff) {
     throw new RangeError("totalPower must be a non-negative int32");
   }
   if (!Number.isInteger(convertedNoteCount) || convertedNoteCount < 1) {
     throw new RangeError("convertedNoteCount must be a positive integer");
   }
-  if (!Number.isInteger(noteFactorPercent)) throw new RangeError("noteFactorPercent must be an integer");
-  if (!Number.isInteger(judgementFactorPercent)) throw new RangeError("judgementFactorPercent must be an integer");
-  if (!Number.isInteger(luckScoreFactorPercent)) throw new RangeError("luckScoreFactorPercent must be an integer");
+  if (!Number.isInteger(noteFactorPercent)) throw new RangeError('noteFactorPercent must be an integer');
+  if (!Number.isInteger(judgementFactorPercent)) throw new RangeError('judgementFactorPercent must be an integer');
+  if (!Number.isInteger(luckScoreFactorPercent)) throw new RangeError('luckScoreFactorPercent must be an integer');
 
   // Match the native fmul/fdiv instruction sequence; each result rounds to f32.
   const noteFactor = div(noteFactorPercent, 100);

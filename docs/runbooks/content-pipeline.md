@@ -67,7 +67,7 @@ Global 升级先遵循官方推荐客户端、包签名和解码绑定，见[Glo
 
 `content/reviews/<region>/current.json` 保存最新决定，`content/access/<releaseId>.json` 保存获准公开的快照身份。它们由 Actions 写入，只通过私有健康采样进入工作台；公网 Worker 不提供这些控制对象。未到确认时间、待审或暂缓候选返回 `awaiting_review`，不切换指针，也不生成公开许可。解包配置时间、资源上传时间和其他地区已公开均不会自动授权。
 
-生产、恢复审核和榜单重算共用分服串行组，使用 GitHub 的 [`queue: max`](https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/) 保留排队操作，避免新任务替换掉等待中的人工决定。已获 GitHub 受理的同版本定时请求不会在管理进程中重复提交；受理未知才延后重试。人工决定需等工作流实际更新审核状态才生效。
+生产、恢复审核和榜单重算共用分服串行组，使用 GitHub 的 [`queue: max`](https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/) 保留排队操作，避免新任务替换掉等待中的人工决定。已获 GitHub 受理的同版本定时请求不会在管理进程中重复提交；到期执行时保留已确认的时间和审核版本，验证中的批次不会被下一轮采样误认为新决定。受理未知才延后重试。人工决定需等工作流实际更新审核状态才生效。
 
 启用步骤：
 

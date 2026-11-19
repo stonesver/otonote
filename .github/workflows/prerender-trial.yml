@@ -1,0 +1,84 @@
+name: Trial dual-region HTML delivery
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful source-check run for the serving code artifact
+        required: true
+      receipt_sha256:
+        description: SHA-256 of the serving code verification.json
+        required: true
+      deliveries:
+        description: JSON object containing the two serving complete.json records keyed by global and jp
+        required: true
+      content_origin:
+        description: Public HTTPS site for browser media outside the render input subset
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  trial:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    environment: content-r2-production
+    timeout-minutes: 75
+    env:
+      DELIVERIES: ${{ inputs.deliveries }}
+      RECEIPT_SHA256: ${{ inputs.receipt_sha256 }}
+      R2_PUBLIC_BUCKET: otonote-public-content
+    steps:
+      - name: Sample runner filesystem every second
+        run: |
+          export TRIAL_ROOT="$RUNNER_TEMP/prerender-trial"
+          echo "TRIAL_ROOT=$TRIAL_ROOT" >> "$GITHUB_ENV"
+          mkdir -p "$TRIAL_ROOT"
+          nohup bash -c 'while :; do df -B1 --output=used,avail "$TRIAL_ROOT" | tail -1; sleep 1; done' > "$TRIAL_ROOT/disk" 2>/dev/null </dev/null &
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install trial dependencies
+        run: |
+          python -m pip install --require-hashes -r tools/python-security-requirements.txt
+          python -m pip install -r tools/r2-requirements.txt playwright==1.56.0
+      - name: Retrieve the reviewed code artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN: ${{ inputs.candidate_run }}
+        run: |
+          [[ "$CI_RUN" =~ ^[0-9]+$ && "$RECEIPT_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          revision=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN" --jq 'select(.path == ".github/workflows/check.yml" and .conclusion == "success" and .event == "push") | .head_sha')
+          [[ "$revision" =~ ^[a-f0-9]{40}$ ]]
+          git merge-base --is-ancestor "$revision" HEAD
+          gh run download "$CI_RUN" --name "verified-candidates-$revision" --dir "$TRIAL_ROOT/candidate"
+          python -m tools.prerender_trial prepare
+      - name: Materialize the two pinned content snapshots
+        env: &r2
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python -m tools.prerender_trial materialize
+      - name: Render Global and JP
+        run: python -m tools.prerender_trial render
+      - name: Upload static objects to the trial prefix
+        env: *r2
+        run: python -m tools.prerender_trial upload
+      - name: Read every trial object back and verify bytes
+        env: *r2
+        run: python -m tools.prerender_trial verify
+      - name: Open verified Global and JP pages in Chrome
+        env:
+          CONTENT_ORIGIN: ${{ inputs.content_origin }}
+        run: python -m tools.prerender_trial browser
+      - name: Report timings and sampled disk peak
+        if: always()
+        run: python -m tools.prerender_trial report

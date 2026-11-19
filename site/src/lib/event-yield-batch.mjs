@@ -57,7 +57,7 @@ export async function runEventYieldBatch({rules,eventId,candidates,challengeCand
    const groupComplete=goals.every(g=>globalProofs[g]?.bestProven);
    const coverageComplete=!failures.length&&challengeProven()&&(groupComplete||full&&globallyCovered===candidates.length);
    const fullyOptimizedCharts=challengeOptimized+individual,prunedCharts=Math.max(0,globallyCovered-individual);
-   return {type,rows:selectEventYieldRows(allRows(),input.goal,full?Infinity:10),failures,done:challengeDone+accounted,total,available,
+   return {type,rows:selectEventYieldRows(allRows(),input.goal,full?Infinity:10),challengeRows:[...challengeRows],failures,done:challengeDone+accounted,total,available,
      complete:coverageComplete,coverageComplete,evaluatedCharts:fullyOptimizedCharts,fullyOptimizedCharts,prunedCharts,
      witnessCharts:witnessCharts.size,optimizerInvocations,allProven:!failures.length&&fullyOptimizedCharts===available,
      globalProofs:{...globalProofs},cacheHits,calculations};

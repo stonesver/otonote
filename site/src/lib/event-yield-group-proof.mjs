@@ -70,8 +70,9 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  };
  const pairBonuses=new WeakMap();
  const pairBonus=e=>{
-  if(!pairBonuses.has(e)){const a=cardBonus('member',e.member),b=cardBonus('support',e.support);pairBonuses.set(e,{rewardBP:a.rewardBP+b.rewardBP,eventPointBP:a.eventPointBP+b.eventPointBP});}
-  return pairBonuses.get(e);
+  let bonus=pairBonuses.get(e);
+  if(!bonus){const a=cardBonus('member',e.member),b=cardBonus('support',e.support);bonus={rewardBP:a.rewardBP+b.rewardBP,eventPointBP:a.eventPointBP+b.eventPointBP};pairBonuses.set(e,bonus);}
+  return bonus;
  };
  const planners=new Map(),plans=new Map();
  const continuationFor=(cp,objective)=>{
@@ -89,8 +90,9 @@ export async function proveEventYieldGroups({rules,eventId,input,candidates,chal
  const groups=new Map(),entries=[];let sharedPairSkills;
  const skillSignatures=new Map(),pairProfileIds=new Map(),edgeProfileIds=new WeakMap();
  const profileIdFor=edge=>{
-  if(!edgeProfileIds.has(edge))edgeProfileIds.set(edge,pairProfileIds.get(edge.key));
-  return edgeProfileIds.get(edge);
+  let id=edgeProfileIds.get(edge);
+  if(id===undefined){id=pairProfileIds.get(edge.key);edgeProfileIds.set(edge,id);}
+  return id;
  };
  for(const candidate of [...candidates].sort((a,b)=>(a.seconds??Infinity)-(b.seconds??Infinity)||a.id.localeCompare(b.id))){
   if(signal?.aborted)return finish(false,'cancelled');

@@ -2,6 +2,8 @@ import {eventScopeControls} from './helpers/calculation-scopes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setupEventYieldOptimizer} from '../src/lib/event-yield-ui.mjs';
+import {createChallengeContinuationPlanner} from '../src/lib/event-yield-continuation.mjs';
+import {createEventEfficiency} from '../src/lib/scoring-rules/event-efficiency.mjs';
 
 function harness(t){
  class Node {
@@ -17,6 +19,7 @@ function harness(t){
    const all=this.children.flatMap(n=>[n,...n.descendants()]);
    if(selector==='[data-yield-phase][aria-selected="true"]')return all.find(n=>n.dataset.yieldPhase&&n.attrs['aria-selected']==='true');
    if(selector==='[data-yield-stage-cost][aria-pressed="true"]')return all.find(n=>n.dataset.yieldStageCost&&n.attrs['aria-pressed']==='true');
+   if(selector==='[data-yield-challenge-song][aria-pressed="true"]')return all.find(n=>n.dataset.yieldChallengeSong&&n.attrs['aria-pressed']==='true');
    return null;
   }
   descendants(){return this.children.flatMap(n=>[n,...n.descendants()]);}
@@ -204,4 +207,53 @@ test('combined objectives stay inside comparison controls and phase tabs preserv
  updatedTabs.children[1].listeners.keydown({key:'ArrowLeft',preventDefault(){}});
  assert.equal(updatedTabs.children[0].attrs['aria-selected'],'true');
  assert.equal(globalThis.document.activeElement,updatedTabs.children[0]);
+});
+
+test('challenge song switching compares complete budgets, preserves selection and applies the selected team without a search',t=>{
+ const {q,send,partial,tool,workers}=harness(t);q('goal').value='both';
+ Object.assign(tool.data.rules,{sourceReleaseId:'jp-test'});
+ Object.assign(tool.data.rules.tables,{
+  Event:[{_id:3,_eventType:1,_challengeLiveEventPointGroup:1,_challengeLiveEventRewardGroup:1,_eventItemId:1}],EventEffect:[],Character:[],
+  ChallengeMusicBoostBonus:[{_consumedChallengePointCount:200,_eventPointRate:1,_liveMusicRewardRate:1},{_consumedChallengePointCount:400,_eventPointRate:2,_liveMusicRewardRate:3}],
+  ChallengeLiveEventPoint:[{_group:1,_scoreRank:5,_value:100}],
+  ChallengeLiveEventReward:[{_eventGroup:1,_scoreRank:5,_resourceType:1,_resourceId:1,_probability:10000,_resourceCount:100}]
+ });
+ const data=partial(1000,'result'),normal=data.rows[0],model=createEventEfficiency({...tool.data.rules,eventId:3});model.challengeCosts=[200,400];
+ const team=(id,title,rewardBP,eventPointBP)=>({...normal,id,draft:{slots:[],modifiers:{},selectedSongId:id},song:{...normal.song,id,trackId:'music-2',title},reward:{...normal.reward,mode:'challenge',challengeCost:200},bonuses:{rewardBP,eventPointBP}});
+ data.challengeRows=[team('items','道具曲',10000,0),team('points','pt 曲',0,10000)];
+ normal.startingCP=49;normal.earnedCP=600;normal.continuation=createChallengeContinuationPlanner(model,data.challengeRows)(649);
+ normal.total={badges:normal.reward.badges*normal.normalPlays+normal.continuation.badges,eventPoints:normal.reward.eventPoints*normal.normalPlays+normal.continuation.eventPoints};
+ normal.recommendationGoals=['badges'];
+ const pointNormal={...normal,id:'normal-pt',recommendationGoals:['eventPoints'],continuation:createChallengeContinuationPlanner(model,data.challengeRows,'eventPoints')(649)};
+ pointNormal.total={badges:pointNormal.reward.badges*pointNormal.normalPlays+pointNormal.continuation.badges,eventPoints:pointNormal.reward.eventPoints*pointNormal.normalPlays+pointNormal.continuation.eventPoints};
+ data.rows=[normal,pointNormal];
+ const original=structuredClone(data);send(data);
+ const article=()=>q('results').querySelectorAll('.task-event-plan-result')[0];
+ const songTabs=()=>article().querySelectorAll('.task-event-challenge-song-tabs')[0];
+ const nodes=n=>[n,...n.children.flatMap(nodes)],text=n=>nodes(n).map(n=>n.textContent).join(' ');
+ const challenge=()=>article().children.find(n=>n.className?.includes('event-recommendations'));
+ const pick=id=>songTabs().children.find(n=>n.dataset.yieldChallengeSong===id).listeners.click();
+ article().querySelectorAll('.event-phase-tabs')[0].children[1].listeners.click();
+ assert.deepEqual(songTabs().children.map(n=>n.textContent),['默认推荐','道具曲 · HARD','pt 曲 · HARD']);
+ pick('points');
+ assert.match(text(challenge()),/649 挑战 pt · 2 次挑战 · 剩余 49 pt/);
+ assert.match(text(challenge()),/比默认推荐少 400/);assert.match(text(challenge()),/比默认推荐多 300/);
+ assert.match(text(challenge()),/400 pt × 1 次/);assert.match(text(challenge()),/200 pt × 1 次/);
+ assert.ok(article().querySelectorAll('.event-mistake-reference').filter(n=>n.active).every(n=>n.closest('[hidden]')===null));
+ // A live update changes the ordinary row but retains the chosen song and tier.
+ const costs=()=>challenge().querySelectorAll('.task-event-result-tabs').find(n=>n.attrs['aria-label']==='后续挑战消耗方案');
+ costs().children.find(n=>n.dataset.yieldStageCost==='200').listeners.click();
+ send({...data,rows:data.rows.map((r,i)=>i?r:{...r,total:{...r.total,badges:r.total.badges+1}})});
+ assert.equal(article().querySelector('[data-yield-challenge-song][aria-pressed="true"]').dataset.yieldChallengeSong,'points');
+ assert.equal(article().querySelector('[data-yield-stage-cost][aria-pressed="true"]').dataset.yieldStageCost,'200');
+ pick('default');assert.match(text(challenge()),/比默认推荐相同/);
+ q('results').querySelectorAll('.task-event-goal-tabs')[0].children[1].listeners.click();
+ pick('points');assert.match(text(challenge()),/比默认推荐相同/);assert.doesNotMatch(text(challenge()),/比默认推荐(?:少|多)/,'pt comparison uses its own default continuation');
+ // Applying an alternative uses that chart's actual draft and selected cost.
+ pick('points');costs().children.find(n=>n.dataset.yieldStageCost==='200').listeners.click();
+ let rendered=0;tool.render=()=>rendered++;
+ const visibleStage=costs().parentElement.children.find(n=>n.children.some(c=>c.className==='event-result-actions')&&!n.hidden);
+ nodes(visibleStage).find(n=>n.textContent==='使用挑战方案').listeners.click();
+ assert.equal(tool.draft.selectedSongId,'points');assert.equal(tool.q('song').value,'music-2');assert.equal(tool.q('cost').value,'200');assert.equal(rendered,1);
+ assert.equal(workers.length,1);assert.deepEqual(data,original,'viewing alternatives does not mutate recommendations or their proofs');
 });

@@ -43,10 +43,12 @@ export function createBonusConstrainedScoreEnvelopeBound({baseCoefficient,gainFo
     if(!Number.isSafeInteger(minBonus)||minBonus<0||!Number.isFinite(error)||error<0||solution.weight<=0)return Infinity;
     let data=matchingCache?.data;
     if(!data){
-      const powers=Float64Array.from(available,e=>e.weight),bonusValues=Float64Array.from(available,bonusFor);
+      const powers=new Float64Array(available.length),bonusValues=new Float64Array(available.length);
       let largestPower=0,largestBonus=0;
       for(let i=0;i<available.length;i++){
-        const bonus=bonusValues[i];if(!Number.isSafeInteger(bonus)||bonus<0)return Infinity;
+        powers[i]=available[i].weight;
+        const bonus=bonusFor(available[i]);if(!Number.isSafeInteger(bonus)||bonus<0)return Infinity;
+        bonusValues[i]=bonus;
         largestPower=Math.max(largestPower,Math.abs(powers[i]));largestBonus=Math.max(largestBonus,bonus);
       }
       data={powers,bonusValues,largestPower,largestBonus,gains:new Float64Array(available.length),probeWeights:new Float64Array(available.length)};

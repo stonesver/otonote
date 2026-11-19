@@ -40,7 +40,7 @@ jobs:
           python3 -m unittest tests.test_global_account_reads tests.test_growth_client_version tests.test_game_service_status tests.test_gacha_history tests.test_growth_web tests.test_arena_personal tests.test_preview_growth tests.test_growth_login tests.test_system_details -q
           node --test site/tests/calculator-layout-render.test.mjs
           node --test site/tests/story-share.test.mjs site/tests/startup.test.mjs site/tests/independent-content.test.mjs site/tests/loading-shell.test.mjs site/tests/costumes.test.mjs site/tests/site-notifications.test.mjs site/tests/notice-admin-controls.test.mjs
-          node --test site/tests/event-song-ranking.test.mjs site/tests/event-result-presentation.test.mjs site/tests/event-mistake-reference.test.mjs site/tests/event-mistake-reference-view.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-search-cache.test.mjs site/tests/calculator-multiselect.test.mjs
+          node --test site/tests/event-song-ranking.test.mjs site/tests/event-result-presentation.test.mjs site/tests/event-mistake-reference.test.mjs site/tests/event-mistake-reference-view.test.mjs site/tests/event-yield-ui.test.mjs site/tests/event-yield-continuation.test.mjs site/tests/event-search-cache.test.mjs site/tests/calculator-multiselect.test.mjs
           python3 -m unittest tests.test_event_catalog -q
           python3 -m unittest tests.test_arena_master_compatibility -q
           node --test site/tests/event-content.test.mjs site/tests/event-card-model.test.mjs

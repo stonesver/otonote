@@ -170,7 +170,8 @@ def browser():
             elif path == "/content/global/current.json":
                 route.fulfill(path=CONTENT / "current.json", content_type="application/json")
             else:
-                route.continue_(url=f"https://{origin.netloc}{path}")
+                # Browser request overrides cannot change the loopback HTTP scheme.
+                route.fulfill(response=route.fetch(url=f"https://{origin.netloc}{path}"))
         page.route("**/content/**", content_request)
         for region in REGIONS:
             for locale in ("zh-CN", "en"):

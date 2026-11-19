@@ -36,7 +36,7 @@ function enumerate(input,mode){
   for(const supports of permutations(input.inventory.supportCardIds,5)){
    draft.slots=members.map((memberCardId,i)=>({memberCardId,supportCardId:supports[i]}));
    const score=calculator.calculate(draft),bonuses=model.teamBonus(draft.slots.map(s=>({memberId:Number(s.memberCardId.split('-').at(-1)),supportId:Number(s.supportCardId.split('-').at(-1)),memberRank:1,supportRank:1})));
-   all.push({score,bonuses});
+   all.push({score,bonuses,slots:structuredClone(draft.slots)});
   }
  }
  assert.equal(all.length,3600);return {model,all};
@@ -45,12 +45,17 @@ test('first event yield team matches independent all-pairings oracle across ordi
  const input=fixture(),original=structuredClone(input.inventory);
  for(const mode of ['ordinary','challenge']){
   const {model,all}=enumerate(input,mode);
-  for(const [goal,basis,includeChallenge,refineScoreTies] of [
+  for(const [goal,basis,includeChallenge,refineScoreTies,constraints={}] of [
    ['badges','expectedScore',false,false],['eventPoints','minimumScore',true,false],
    ['grade','maximumScore',true,false],['badges','minimumScore',true,true],
+   ['eventPoints','minimumScore',false,false,{leaderId:'member-card-1',requiredSupportIds:['support-card-6'],
+    lockedPairs:[{memberCardId:'member-card-2',supportCardId:'support-card-3'}]}],
   ]){
-   const options={goal,basis,includeChallenge,refineScoreTies};
-   const plans=all.map(({score,bonuses})=>{
+   const options={goal,basis,includeChallenge,refineScoreTies,constraints};
+   const plans=all.filter(({slots})=>(!constraints.leaderId||slots[2].memberCardId===constraints.leaderId)
+    &&(constraints.requiredSupportIds??[]).every(id=>slots.some(s=>s.supportCardId===id))
+    &&(constraints.lockedPairs??[]).every(pair=>slots.some(s=>s.memberCardId===pair.memberCardId&&s.supportCardId===pair.supportCardId)))
+    .map(({score,bonuses})=>{
     const rank=model.scoreRank(100038,score[basis]);
     const reward=model.rewards({mode,scoreRank:rank,...bonuses,liveBoost:mode==='ordinary'?1:0,challengeCost:200});
     const plays=mode==='ordinary'?11:1,extra=mode==='ordinary'&&includeChallenge?continuation(model,input.challengeRows,399+plays*reward.challengePoints,goal):{badges:0,eventPoints:0};

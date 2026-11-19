@@ -46,6 +46,18 @@ test('minimum-score proof finishes without enumerating thousands of average-scor
  assert.equal(result.results[0].reward.scoreRank,6);
  assert.deepEqual(result.results[0].total,{badges:33000,eventPoints:33000});
  assert.ok(result.stats.visited<100,JSON.stringify(result.stats));
+ // Single-chart and continuation challenges must use the same minimum-score
+ // information as grouped ordinary searches. The oracle above applies here
+ // too: this fixture has no event power effects or challenge song override.
+ for(const mode of ['ordinary','challenge']){
+  const controller=new AbortController();
+  const single=await optimizeEventYield({...f,mode,goal:'badges',refineStability:false,signal:controller.signal,
+   onProgress:p=>{if(p.phase==='event-reward-exact'&&p.completed>2000)controller.abort();}});
+  assert.equal(single.optimality,'proven_within_model',`${mode}: ${JSON.stringify(single.practical.rewardRootCertificate)}`);
+  assert.equal(single.results[0].reward.scoreRank,6);
+  assert.deepEqual(single.results[0].total,mode==='ordinary'?{badges:33000,eventPoints:33000}:{badges:600,eventPoints:600});
+  assert.ok(single.certifiedSearch.expanded<100,`${mode}: ${JSON.stringify(single.practical.rewardRootCertificate)}`);
+ }
 });
 
 test('conditional minimum-score envelopes bound native scores for every pairing and forced-member subset',()=>{
@@ -59,6 +71,9 @@ test('conditional minimum-score envelopes bound native scores for every pairing 
  const witness=f.draft.slots.map(s=>({key:s.memberCardId+'|'+s.supportCardId,member:s.memberCardId,support:s.supportCardId}));
  const alternative=witness.map((e,i)=>({...e,support:witness[(i+1)%5].support,key:e.member+'|'+witness[(i+1)%5].support}));
  const conditions=[
+  {members:[f.inventory.memberCardIds[0]],supports:[]},
+  {members:f.inventory.memberCardIds.slice(0,2),supports:[]},
+  {members:[],supports:witness.slice(0,2).map(e=>e.support)},
   {members:f.inventory.memberCardIds,supports:[]},
   {members:[],supports:witness.map(e=>e.support)},
   {members:[f.inventory.memberCardIds[0]],supports:witness.slice(0,3).map(e=>e.support)},

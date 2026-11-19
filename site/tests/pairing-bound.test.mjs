@@ -54,6 +54,8 @@ test('both matching graphs equal independent exhaustive subsets with forced and 
  for(let seed=0;seed<20;seed++){
   const edges=Array.from({length:8},(_,m)=>Array.from({length:4},(_,s)=>({key:`${m}|${s}`,member:m,support:s,
    character:m>>1,weight:seed===0?0:(m*31+s*19+seed*m*s*11)%71-40}))).flat();
+  // Matching also accepts interleaved members after filtering or reordering.
+  if(seed%2)edges.sort((a,b)=>a.support-b.support||b.member-a.member);
   for(const constraints of cases){
    const options={edges,count:3,...constraints},expected=enumerate(edges,options);
    for(const compact of [false,true]){

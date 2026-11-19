@@ -10,8 +10,11 @@ export function createMaximumPairing({edges,count=5,required=[],forbidden=[],req
   for(const field of ['member','support','character'])if(new Set(forced.map(e=>e[field])).size!==forced.length)return impossible;
   const usedValues=Object.fromEntries(['member','support','character'].map(field=>[field,new Set(forced.map(e=>e[field]))]));
   const used=(field,value)=>usedValues[field].has(value);
-  let candidates=[],indices=[];
-  edges.forEach((e,i)=>{if(!banned.has(e.key)&&!used('member',e.member)&&!used('support',e.support)&&!used('character',e.character)){candidates.push(e);indices.push(i);}});
+  let candidates=edges,indices=Array.from({length:edges.length},(_,i)=>i);
+  if(forced.length||banned.size){
+    candidates=[];indices=[];
+    edges.forEach((e,i)=>{if(!banned.has(e.key)&&!used('member',e.member)&&!used('support',e.support)&&!used('character',e.character)){candidates.push(e);indices.push(i);}});
+  }
   const needM=new Set(requiredMembers.filter(id=>!used('member',id))),needS=new Set(requiredSupports.filter(id=>!used('support',id)));
   const remaining=count-forced.length;
   if(needM.size>remaining||needS.size>remaining)return impossible;
@@ -35,17 +38,22 @@ export function createMaximumPairing({edges,count=5,required=[],forbidden=[],req
   const characterNodes=new Map(),memberNodes=new Map(),supportNodes=new Map(),pairArcs=new Map();
   // The default graph retains tie order. Bound-only compact graphs select
   // the best member per character/support; mandatory members filter variants.
+  let lastMember,c,m,bySupport;
   for(const e of candidates){
-    let c=characterNodes.get(e.character),m=memberNodes.get(e.member),s=supportNodes.get(e.support);
-    const newC=c===undefined,newM=m===undefined,newS=s===undefined;
-    if(newC){c=node();characterNodes.set(e.character,c);}
-    if(newM){m=compact?c:node();memberNodes.set(e.member,m);}
+    let newC=false,newM=false;
+    if(e.member!==lastMember){
+      lastMember=e.member;c=characterNodes.get(e.character);m=memberNodes.get(e.member);
+      newC=c===undefined;newM=m===undefined;
+      if(newC){c=node();characterNodes.set(e.character,c);}
+      if(newM){m=compact?c:node();memberNodes.set(e.member,m);}
+      if(compact){bySupport=pairArcs.get(e.character);if(!bySupport)pairArcs.set(e.character,bySupport=new Map());}
+    }
+    let s=supportNodes.get(e.support);const newS=s===undefined;
     if(newS){s=node();supportNodes.set(e.support,s);}
     if(newC){const arc=add(source,c);if(compact&&requiredCharacters.has(e.character))rewardArcs.push(arc);}
     if(newM&&!compact){const arc=add(c,m);if(needM.has(e.member))rewardArcs.push(arc);}
     if(newS){const arc=add(s,sink);if(needS.has(e.support))rewardArcs.push(arc);}
     if(compact){
-      let bySupport=pairArcs.get(e.character);if(!bySupport)pairArcs.set(e.character,bySupport=new Map());
       let arc=bySupport.get(e.support);if(arc===undefined){arc=add(m,s);bySupport.set(e.support,arc);}
       arcs.push(arc);
     }else arcs.push(add(m,s));

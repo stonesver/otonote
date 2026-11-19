@@ -2,7 +2,7 @@ import {withAPTimingBasis} from './ap-grade.mjs';
 import {refineEventYieldTeams} from './event-yield-refinement.mjs';
 import {bindEventScoreCache,bindEventCandidateCache} from './event-search-cache.mjs';
 import {optimizePractical,PRACTICAL_SEARCH_WARNINGS} from './practical-optimizer.mjs';
-import {createEventEfficiency,createChallengeSpendingPlanner} from './scoring-rules/event-efficiency.mjs';
+import {createEventEfficiency} from './scoring-rules/event-efficiency.mjs';
 import {searchEventFormations} from './event-formation-search.mjs';
 import {resolveSearchInput} from './scoring-rules/formation-input.mjs';
 import {maximumPairing,partitionPairing} from './scoring-rules/maximum-pairing.mjs';
@@ -12,12 +12,15 @@ import {skillMechanismIssue} from '../../../packages/scoring/scoring-rules/skill
 import {createFormalSongCalculator} from './scoring-rules/formal-song-score.mjs';
 import {createFormalSkillResolver} from './scoring-rules/formal-skills.mjs';
 import {createOrdinaryScoreBound} from '../../../packages/scoring/scoring-rules/ordinary-score-bound.mjs';
+import {createBonusConstrainedScoreEnvelopeBound} from '../../../packages/scoring/scoring-rules/bonus-constrained-score-bound.mjs';
 import {prepareEventSearchInput} from './event-search-input.mjs';
 
 import {eventGradeEstimate} from './event-song-ranking.mjs';
 import {createEventPipeline} from './scoring-rules/event-rules.mjs';
 import {compareEventPlans,compareEventRewards} from './event-yield-goals.mjs';
 export {compareEventPlans} from './event-yield-goals.mjs';
+import {createChallengeContinuationPlanner} from './event-yield-continuation.mjs';
+export {challengeContinuation,createChallengeContinuationPlanner} from './event-yield-continuation.mjs';
 
 // This cache belongs to one calculation job. Music identity/difficulty affects
 // scoring, but candidate preparation only reads effective type and favorite tags.
@@ -29,26 +32,6 @@ export function eventCandidateKey(rules,draft,inventory,scope,eventAdapters,incl
  return JSON.stringify({source:rules.sourceReleaseId,version:rules.ruleSetVersion,native:rules.nativeSha256,
    scope,inventory,constraints,slots:draft.slots,modifiers:draft.modifiers,...(includeMusic?{type:music._musicType,tags:music._bestMusicTagIDs}:{})});
 }
-
-/** Choose the best evaluated challenge team/song for each consumption tier,
- * then spend only whole plays. The same chosen objective applies to both stages. */
-export function challengeContinuation(model,rows,availableCP,metric='badges'){
- return createChallengeContinuationPlanner(model,rows,metric)(availableCP);
-}
-export function createChallengeContinuationPlanner(model,rows,metric='badges'){
- if(!rows.length)throw Error('缺少可计算的后续挑战方案');
- const secondary=metric==='badges'?'eventPoints':'badges';
- const picks=modelChallengeCosts(model,rows).map(cost=>{
-   const options=rows.map(row=>({row,reward:model.rewards({mode:'challenge',scoreRank:row.reward.scoreRank,...row.bonuses,challengeCost:cost})}));
-   options.sort((a,b)=>b.reward[metric]-a.reward[metric]||b.reward[secondary]-a.reward[secondary]
-     ||compareEventPlans({...a.row,total:a.reward},{...b.row,total:b.reward},metric));
-   return options[0];
- });
- const query=createChallengeSpendingPlanner(picks.map(p=>p.reward),metric);
- return availableCP=>{const plan=query(availableCP);return {...plan,stages:plan.consumption.map(c=>({...c,...picks.find(p=>p.reward.challengeCost===c.cost)}))};};
-}
-// Costs are supplied by the caller's rules, not invented from reward ratios.
-function modelChallengeCosts(model,rows){return model.challengeCosts??[...new Set(rows.map(r=>r.reward.challengeCost))];}
 
 export function createEventYieldRewardTransform({model,candidate,basis='minimumScore',mode,liveBoost,challengeCost,budget,startingCP,includeChallenge,metric,continuationFor}){
  const plans=new Map();
@@ -311,6 +294,17 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints
    pairSkills.set(`${memberCardId}|${supportCardId}`,resolver({slots:[{memberCardId,supportCardId}],modifiers:input.draft.modifiers})[0]);
  const song=createFormalSongCalculator(rules,chart,{eventAdapters});
  const bound=createOrdinaryScoreBound({song,pairSkills,legacyFactor:Infinity,input,metric:basis,bonusConstraintBound:true});
+ const conditionalBounds=new Map();let conditionalMatchingCalls=0;
+ const conditionalFor=(state,power)=>{
+   if(basis!=='minimumScore')return null;
+   const envelope=bound.normalizedPowerEnvelope(1,state.memberRequired,power.edges,state.supportRequired);
+   if(!envelope)return null;
+   if(!conditionalBounds.has(envelope.assignmentKey)){
+     if(conditionalBounds.size>=64)conditionalBounds.delete(conditionalBounds.keys().next().value);
+     conditionalBounds.set(envelope.assignmentKey,createBonusConstrainedScoreEnvelopeBound(envelope));
+   }
+   return conditionalBounds.get(envelope.assignmentKey);
+ };
  const evaluator=createCandidateEvaluator({rules,chart,objective:'expected_song_score',eventAdapters},{song});
  const music=rules.tables.LiveMusic.find(r=>`music-${r._id}`===draft.selectedSongId);
  const grades=rules.tables.LiveScoreRank.filter(r=>r._group===music._liveScoreRankGroup).sort((a,b)=>b._liveScoreRank-a._liveScoreRank);
@@ -351,7 +345,7 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints
    }
    await yieldControl();
  };
- const done=()=>{report.matchingCalls=bound.bonusConstraintStats.matchingCalls;report.boundScoreCalculations=bound.stats.fullScoreCalculations;return report;};
+ const done=()=>{report.matchingCalls=bound.bonusConstraintStats.matchingCalls+conditionalMatchingCalls;report.boundScoreCalculations=bound.stats.fullScoreCalculations;return report;};
  const characterFor=new Map(rules.tables.MemberCard.map(r=>[`member-card-${r._id}`,r._characterID]));
  const incumbentLeader=result.results[0].draft.slots[2].memberCardId;
  // A strong incumbent can close later roots without enumerating pairings.
@@ -372,6 +366,11 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints
    const power=maximumPairing({edges:nodeModel.edges,required:state.required,forbidden:state.forbidden,
      requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});if(!power)continue;
    const attainable=Object.fromEntries([primary,secondary].map(kind=>[kind,attainableBonusSums(nodeModel.edges,state,kind,cardBonus)]));
+   // Minimum score is bounded by any fixed-order conditional average. Reuse
+   // the same conservative envelope as grouped searches, rather than asking
+   // the all-orders average to rule out a minimum-score grade.
+   const conditional=conditionalFor(state,power);
+   const bonusDomains=new Map(),fixed=new Set(state.required),banned=new Set(state.forbidden);
    let unresolved=false;
    for(let gradeIndex=0;gradeIndex<grades.length;gradeIndex++){
      const grade=grades[gradeIndex];
@@ -391,14 +390,34 @@ async function certifyRewardRoots({rules,draft,chart,scope,inventory,constraints
          if(!a&&!required[1]||!b&&!required[0])continue;
          const min=a*required[0]+b*required[1];if(!Number.isSafeInteger(min))continue;
          const forCard=(kind,id)=>{const bonus=cardBonus(kind,id);return a*bonus[primary]+b*bonus[secondary];};
-         const constrained={...nodeModel,edges:constrainBonusCards(nodeModel.edges,state,forCard,min)};
-         const constrainedPower=maximumPairing({edges:constrained.edges,required:state.required,forbidden:state.forbidden,
-           requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+         const domainKey=`${a}:${b}:${min}`;
+         let domain=bonusDomains.get(domainKey);
+         if(!domain){
+           const edges=constrainBonusCards(nodeModel.edges,state,forCard,min);
+           // Filtering preserves edge order. With no removals, both the
+           // maximum and its tie order are the already solved power matching.
+           const constrainedPower=edges.length===nodeModel.edges.length?power:maximumPairing({edges,required:state.required,forbidden:state.forbidden,
+             requiredMembers:state.memberRequired,requiredSupports:state.supportRequired});
+           domain={constrained:{...nodeModel,edges},constrainedPower,available:edges.filter(e=>!banned.has(e.key)),matchingCache:{}};
+           if(bonusDomains.size>=8)bonusDomains.delete(bonusDomains.keys().next().value);
+           bonusDomains.set(domainKey,domain);
+         }
+         const {constrained,constrainedPower}=domain;
          if(!constrainedPower){excluded=true;break;}
-         const upper=bound.withMinimumBonus(state,constrained,constrainedPower,()=>draftFromPairing(input,leader,constrainedPower.edges),edge=>{
+         const bonusFor=edge=>{
            const bonus=pairBonus(edge);return a*bonus[primary]+b*bonus[secondary];
-         },min,grade._requiredScore);
-         const witnesses=bound.bonusConstraintWitnesses.filter(w=>w.bonus>=min).sort((x,y)=>y.weight-x.weight);
+         };
+         let upper,witnesses;
+         if(conditional){
+           const before=conditional.stats.matchingCalls;
+           upper=conditional(domain.available,constrainedPower.edges.filter(e=>fixed.has(e.key)),leader,
+             constrainedPower,0,bonusFor,min,state,grade._requiredScore,domain.matchingCache);
+           conditionalMatchingCalls+=conditional.stats.matchingCalls-before;witnesses=conditional.witnesses;
+         }else{
+           upper=bound.withMinimumBonus(state,constrained,constrainedPower,()=>draftFromPairing(input,leader,constrainedPower.edges),bonusFor,min,grade._requiredScore);
+           witnesses=bound.bonusConstraintWitnesses;
+         }
+         witnesses=witnesses.filter(w=>w.bonus>=min).sort((x,y)=>y.weight-x.weight);
          if(witnesses[0])await updateWitness(leader,witnesses[0],required);
          if(upper<grade._requiredScore){excluded=true;break;}
          if(signal?.aborted)return done();

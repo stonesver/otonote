@@ -80,6 +80,8 @@ test('challenge cycle stages keep their independent constraints and shared score
  assert.equal(calls[0].includeChallenge,false);assert.ok(challengeCalls.every(o=>o.scoreCache===challengeCalls[0].scoreCache));
  assert.equal(calls.find(o=>o.mode==='ordinary'&&o.searchMethod!=='practical').challengeRows.length,2);assert.equal(output.coverageComplete,true);
  assert.equal(output.globalProofs.badges.scope,'all_selected_charts_given_challenge_rows');
+ assert.deepEqual(output.challengeRows,calls.find(o=>o.mode==='ordinary'&&o.searchMethod!=='practical').challengeRows);
+ assert.notEqual(output.challengeRows,calls.find(o=>o.mode==='ordinary'&&o.searchMethod!=='practical').challengeRows,'snapshots retain the evaluated challenge teams independently of the mutable batch array');
 });
 
 test('serial and parallel cycle jobs use the selected challenge band policy',async()=>{

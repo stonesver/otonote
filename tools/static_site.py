@@ -24,14 +24,22 @@ STATE = "web-delivery/v1"
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 
 
+def open_delivery_receipt(url, *, timeout):
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "OurNotes-Static-Delivery/1.0",
+            "Cache-Control": "no-cache",
+        },
+    )
+    return urlopen(request, timeout=timeout)
+
+
 def read_code(origin):
     if urlsplit(origin).scheme != "https" or urlsplit(origin).path:
         raise ValueError("Expected HTTPS site origin without a path")
-    with urlopen(
-        Request(
-            origin + "/_site-delivery/code.json", headers={"Cache-Control": "no-cache"}
-        ),
-        timeout=25,
+    with open_delivery_receipt(
+        origin + "/_site-delivery/code.json", timeout=25
     ) as response:
         code = json.load(response)
     for field, length in (("codeId", 24), ("revision", 40), ("receiptSha256", 64)):

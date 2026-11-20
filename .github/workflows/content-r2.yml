@@ -439,7 +439,7 @@ jobs:
         if: matrix.region == 'global' && steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true' && env.OURNOTES_ARENA_REVIEW_BUNDLE_SHA256 != ''
         run: |
           python -m tools.arena_review_inputs --root "$STABLE_ROOT" \
-            --bundle-sha256 "$OURNOTES_ARENA_REVIEW_BUNDLE_SHA256" --github-env "$GITHUB_ENV"
+            --bundle-sha256 "$OURNOTES_ARENA_REVIEW_BUNDLE_SHA256" --github-env "$GITHUB_ENV" --renew-unchanged
       - name: Produce and seal local content
         id: produce
         if: steps.light_gate.outputs.skip != 'true' && steps.production_gate.outputs.skip != 'true'

@@ -35,6 +35,17 @@ test('counts require matching full rank data; missing values stay unknown, maxRa
  assert.match(render({status:'stale',data:payload()}),/已过期/);
  const republished=render({status:'stale',data:payload()},{...rankData,sourceReleaseId:'new-content-same-master'});
  assert.match(republished,/≈ 100/);assert.match(republished,/已过期/);assert.doesNotMatch(republished,/未匹配/);
+
+ const snapshot=rangedPayload();
+ snapshot.observation.observedMasterVersion='b'.repeat(32);
+ const state={status:'stale',data:validatePopulation(snapshot,scope)};
+ const promoted={...rankData,sourceMasterVersions:{[scope.serverId]:snapshot.observation.observedMasterVersion}};
+ const promotedView=render(state,promoted);
+ assert.match(promotedView,/≈ 100/);
+ assert.match(promotedView,/已过期/);
+ assert.match(render(state,{...promoted,ranks:[rankData.ranks[0],{...rankData.ranks[1],threshold:191}]}),/未匹配/);
+ assert.match(render(state,{...promoted,sourceMasterVersions:{[scope.serverId]:'c'.repeat(32)}}),/未匹配/);
+ assert.match(render({status:'available',data:payload()},{...rankData,sourceMasterVersion:null}),/未匹配/);
 });
 
 test('shares preserve small nonzero tiers and avoid undefined percentages for empty populations',()=>{

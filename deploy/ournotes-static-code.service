@@ -1,0 +1,8 @@
+[Unit]
+Description=Export approved frontend code identity for Actions
+
+[Service]
+Type=oneshot
+StateDirectory=ournotes-static
+ExecStart=/usr/bin/python3 /usr/local/libexec/ournotes/export-static-code.py /srv/ournotes-code/current /var/lib/ournotes-static/code.json
+NoNewPrivileges=true

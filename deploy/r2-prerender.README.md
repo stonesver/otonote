@@ -25,3 +25,15 @@
 停止对应新触发器并等待运行结束，恢复匹配的上一版 wrapper、镜像与必要配置。验证保留的旧代码／内容组合及其 R2 对象可用，然后通过受审发布入口恢复或重新生成旧 HTML。检查两服链接、complete.json、公开媒体和旧页面载荷后恢复该流程的 timer。
 
 不要重新启用已退役的旧本机更新器，不因回滚撤销仍被页面依赖的 Worker Route。回滚不删除已发布内容、私有输入或历史 payload；缓存和 HTML 回收另按[运维手册](../docs/runbooks/operations.md)执行。
+
+## 双服静态交付到 Workers
+
+`Deliver approved static site` 读取源站正式代码身份和两个已晋级的 R2 内容指针，以同一份已验收代码在 Actions 上生成两服页面。代码包及各区域按版本保存的渲染产物位于私有桶的 `web-delivery/v1/`。界面代码和页面数据随 Worker 版本交付，同时带上上次成功发布版本的不可变资源。实时榜单入口使用客户端入口页，查询继续访问原有 API。
+
+1. 在源站安装 `export-static-code.py` 和同目录的 `ournotes-static-code.service`、`ournotes-static-code.path`。启用 path 单元并首次运行 service。在站点 HTTPS 配置内引入 `static-code-input.location.conf`，检查 nginx 配置后平滑加载。访问 `/_site-delivery/code.json` 应返回代码 ID、Git 提交和验收回执摘要。
+2. 在仓库配置 `STATIC_SITE_ORIGIN`（正式 HTTPS 源，不带末尾斜线）、`STATIC_WORKER_NAME`、`STATIC_WORKER_URL`（该专用 Worker 的 HTTPS 地址）。在已有内容交付环境中添加 Workers Scripts 编辑令牌 `CLOUDFLARE_API_TOKEN`。区域路由由站点管理人在面板维护。
+3. 首次在默认分支手动运行工作流，勾选 `bootstrap`，目标必须是未使用过的 Worker 名称。如果已有成功的双服预渲染试跑，可分别填写 `current_trial`、`previous_trial`，分别复用当前视图和保留上一版不可变资源。工作流会比对当前试跑与两服已批准指针。若内容已更新，留空 `current_trial` 重新渲染。首次运行只创建独立的 workers.dev 站点。
+4. 工作流成功后设置仓库变量 `STATIC_SITE_ENABLED=true`，在该 Worker 绑定正式主机的五种路径 `/global/*`、`/jp/*`、`/app/releases/*`、`/rendered/releases/*`、`/site-status/*`。域名须为代理状态。在正式主机检查两服中英文首页、工具页、榜单页、状态 JSON、旧脚本和一个榜单 API。静态响应带有 `X-OurNotes-Delivery: static-assets`。根路径与旧链接继续由 nginx 跳转，内容网关及后台路径保持原路由。
+5. 此后审核后的内容生产、重新发布或重算工作流完成时会检查输入，定时检查也会跟进源站的代码发布。常规更新先将新版本上传到独立版本地址，验收后再激活并记录。部署失败查看工作流中出错的阶段；修复后可手动重跑，已有 Worker 不勾选 `bootstrap`。
+
+紧急整站回源时，在面板移除上述五条静态路由，并将 `STATIC_SITE_ENABLED` 设为 `false`。回源依赖现有 ECS 发布器与预渲染服务持续运行。只回退 Worker 版本时，在“部署”中选已验证版本回滚；同时暂停自动交付，确认源站和已批准输入后再恢复。

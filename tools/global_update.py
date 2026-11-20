@@ -28,7 +28,8 @@ CHART_PROJECTION_SOURCES = (
     'tools/project_formal_charts.mjs', 'packages/scoring/scoring-rules/formal-chart.mjs',
     'packages/scoring/scoring-rules/formal-time.mjs', 'packages/scoring/scoring-rules/model-version.mjs',
     'tools/arena_rank.py', 'tools/build_site_catalog.py', 'catalog/evidence/arena-client.json',
-    'tools/arena_content.py', 'tools/arena_assets.py', 'tools/arena_trends.py',
+    'tools/arena_content.py', 'tools/arena_review_inputs.py', 'tools/ranking_regions.py',
+    'tools/arena_assets.py', 'tools/arena_trends.py',
     'tools/conversion_cache.py', 'tools/media_parallel.py', 'tools/media_derivatives.py',
 )
 

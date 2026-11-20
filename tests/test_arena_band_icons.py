@@ -74,7 +74,9 @@ class ArenaBandIconTests(unittest.TestCase):
 
     def test_public_verification_reads_every_png_and_rejects_wrong_bytes(self):
         payload, inventory = self.fixture()
-        def serve(url, timeout):
+        def serve(request, timeout):
+            self.assertEqual(request.get_header('User-agent'), 'OurNotes-Release-Verification/1.0')
+            url = request.full_url
             name = url.split(inventory['releaseId'] + '/')[1]
             response = BytesIO(base64.b64decode(payload[name]))
             response.status = 200

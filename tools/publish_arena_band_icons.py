@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from tools.publication_review import grant
 from tools.r2_content import S3Bucket
@@ -46,7 +46,8 @@ def publish(bucket, payload, inventory):
 def verify_public(origin, inventory):
     for name, sha in inventory['files'].items():
         url = f"{origin}/content/releases/{inventory['releaseId']}/{name}"
-        with urlopen(url, timeout=30) as response:
+        request = Request(url, headers={'User-Agent': 'OurNotes-Release-Verification/1.0'})
+        with urlopen(request, timeout=30) as response:
             if (response.status != 200 or response.geturl() != url or response.headers.get_content_type() != 'image/png'
                     or hashlib.sha256(response.read()).hexdigest() != sha):
                 raise ValueError(f'public badge verification failed: {name}')

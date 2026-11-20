@@ -57,7 +57,7 @@ export function eventResultFilterControls({rows,tracks,filters,open,onOpen,onCha
    });
    if(key==='bands'){
     item.className+=' event-result-band';item.title=option.label;
-    const icon=el('img');icon.src=`/content/releases/${bandIcons.releaseId}/public/images/filter-bands/${option.value}.png`;icon.alt='';icon.width=icon.height=28;item.append(icon);
+    item.dataset.bandIcon=option.value;
    }
    choices.append(item);
   }
@@ -77,4 +77,18 @@ export function eventResultFilterControls({rows,tracks,filters,open,onOpen,onCha
  const help=el('details',null,'event-result-filter-help');help.append(el('summary','筛选说明'),el('p','等级、乐队筛选比较歌曲；风险要求普通及实际后续挑战均满足上限，不含操作失误。'));
  footer.append(help,clear);panel.append(footer);
  return {trigger,panel};
+}
+
+// Attach only to the visible, reconciled panel. A calculation owns one image per band.
+export function mountEventBandIcons(container,icons){
+ for(const item of container.querySelectorAll('.event-result-band')){
+  const band=item.dataset.bandIcon;
+  let icon=icons.get(band);
+  if(!icon){
+   icon=el('img');icon.alt='';icon.width=icon.height=28;
+   icon.src=`/content/releases/${bandIcons.releaseId}/public/images/filter-bands/${band}.png`;
+   icons.set(band,icon);
+  }
+  if(icon.parentElement!==item)item.append(icon);
+ }
 }

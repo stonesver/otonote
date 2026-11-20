@@ -3,8 +3,11 @@ import hashlib
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from io import BytesIO
+from email.message import Message
 
-from tools.publish_arena_band_icons import publish, canonical
+from tools.publish_arena_band_icons import publish, canonical, verify_public
 
 
 class Bucket:
@@ -15,7 +18,10 @@ class Bucket:
         self.objects.setdefault(key, raw)
 
     def get(self, key):
-        return self.objects[key], 'etag'
+        return (self.objects[key], 'etag') if key in self.objects else None
+
+    def list_identities(self, prefix):
+        return {key for key in self.objects if key.startswith(prefix)}
 
 
 class ArenaBandIconTests(unittest.TestCase):
@@ -43,13 +49,45 @@ class ArenaBandIconTests(unittest.TestCase):
         payload, inventory = self.fixture()
         bucket = Bucket()
         self.assertEqual(publish(bucket, payload, inventory)['verifiedObjects'], 6)
-        self.assertTrue(all(key.startswith('content/releases/' + inventory['releaseId'] + '/') for key in bucket.objects))
+        access = 'content/access/' + inventory['releaseId'] + '.json'
+        self.assertEqual(json.loads(bucket.objects[access])['manifestSha256'],
+                         hashlib.sha256(bucket.get('content/releases/' + inventory['releaseId'] + '/manifest.json')[0]).hexdigest())
+        self.assertEqual(len(bucket.objects), 7)
         before = dict(bucket.objects)
-        publish(bucket, payload, inventory)
+        publish(bucket, None, inventory)
         self.assertEqual(bucket.objects, before)
         bucket.objects[next(iter(bucket.objects))] = b'conflicting remote bytes'
         with self.assertRaises(ValueError):
             publish(bucket, payload, inventory)
+
+    def test_backfill_rejects_extra_objects_before_grant(self):
+        payload, inventory = self.fixture()
+        bucket = Bucket()
+        publish(bucket, payload, inventory)
+        identifier = inventory['releaseId']
+        access = f'content/access/{identifier}.json'
+        del bucket.objects[access]
+        bucket.objects[f'content/releases/{identifier}/public/other.png'] = b'other'
+        with self.assertRaises(ValueError):
+            publish(bucket, None, inventory)
+        self.assertNotIn(access, bucket.objects)
+
+    def test_public_verification_reads_every_png_and_rejects_wrong_bytes(self):
+        payload, inventory = self.fixture()
+        def serve(url, timeout):
+            name = url.split(inventory['releaseId'] + '/')[1]
+            response = BytesIO(base64.b64decode(payload[name]))
+            response.status = 200
+            response.geturl = lambda: url
+            response.headers = Message()
+            response.headers['Content-Type'] = 'image/png'
+            return response
+        with patch('tools.publish_arena_band_icons.urlopen', side_effect=serve) as request:
+            self.assertEqual(verify_public('https://example.invalid', inventory), 5)
+            self.assertEqual(request.call_count, 5)
+            payload[next(iter(payload))] = base64.b64encode(b'wrong')
+            with self.assertRaises(ValueError):
+                verify_public('https://example.invalid', inventory)
 
     def test_unreviewed_path_is_rejected(self):
         payload, inventory = self.fixture()

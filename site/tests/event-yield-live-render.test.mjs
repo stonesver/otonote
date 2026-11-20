@@ -64,14 +64,16 @@ test('result filters reset pagination, preserve focus and recover empty results 
  data.rows=Array.from({length:12},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,trackId:`music-${i%2+1}`,title:`Song ${i}`,level:25+i%2},
   total:{badges:1000-i,eventPoints:100},gradeProbabilities:i?[{rank:4,probability:i%2?.1:0},{rank:5,probability:i%2?.9:1}]:[]}));
  send(data);
- const icons=q('results').querySelectorAll('.event-result-band').map(n=>n.children.find(c=>c.src).src);
- assert.ok(icons[0].endsWith('/images/filter-bands/band-1.png'));
- assert.ok(icons[1].endsWith('/images/filter-bands/band-2.png'));
+ const badgeNodes=()=>q('results').querySelectorAll('.event-result-band').flatMap(n=>n.children.filter(c=>c.src));
+ assert.deepEqual(badgeNodes(),[]);
  const nodes=n=>[n,...n.children.flatMap(nodes)],control=id=>q('results').querySelectorAll('.event-result-filter-control').find(n=>n.dataset.yieldResultFilter===id);
  nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
  control('toggle').listeners.click();
+ const icons=badgeNodes();
+ assert.deepEqual(icons.map(icon=>icon.src.split('/').pop()),['band-1.png','band-2.png']);
  const level=control('levels-26');level.focus();level.checked=true;let stopped=false;level.listeners.change({stopPropagation(){stopped=true;}});
  assert.equal(stopped,true);
+ assert.ok(badgeNodes().every((icon,index)=>icon===icons[index]));
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,6);
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice')[0].dataset.yieldPlanKey,'team-1|song-1');
  assert.equal(globalThis.document.activeElement.dataset.yieldResultFilter,'levels-26');
@@ -89,6 +91,18 @@ test('result filters reset pagination, preserve focus and recover empty results 
  control('toggle').listeners.click();assert.equal(q('results').querySelectorAll('.event-result-filter-panel')[0].hidden,true);
  control('toggle').listeners.click();assert.equal(control('risk-0').checked,true,'collapsing preserves the selected filter');
  assert.equal(workers.length,1,'filtering never starts another search');
+});
+
+test('partial results reuse the mounted badge after the filter opens',async t=>{
+ const {q,send,partial,tool}=harness(t);
+ tool.data.tracks[0].bandIds=['band-1'];
+ const badge=()=>q('results').querySelectorAll('.event-result-band')[0].children.find(node=>node.src);
+ send(partial(1000));assert.equal(badge(),undefined);
+ q('results').querySelectorAll('.event-result-filters')[0].listeners.click();
+ const first=badge();assert.ok(first.src.endsWith('/band-1.png'));
+ send(partial(1100));await new Promise(resolve=>setTimeout(resolve,780));
+ assert.equal(badge(),first);
+ send(partial(1200,'result'));assert.equal(badge(),first);
 });
 
 test('cycle results explain whether challenge bands are unrestricted or inherited',t=>{

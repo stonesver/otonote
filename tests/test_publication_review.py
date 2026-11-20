@@ -111,6 +111,20 @@ class PublicationReviewTests(unittest.TestCase):
         self.assertEqual(immediate['revision'], scheduled['revision'] + 1)
         self.assertEqual(immediate['publishAt'], 200)
 
+    def test_immediate_publication_is_not_dispatched_by_the_workbench_timer(self):
+        from backend.admin.publications import publish_due
+        self.prepare()
+        with patch.object(review.time, 'time', return_value=100):
+            row = self.decide('publish')
+        config = {'nodes': [{'id': 'content', 'publishUsers': ['owner']}],
+                  'publicationReview': {}}
+        state = {'profiles': [{'productionOwner': 'github-actions-r2', 'health': {
+            'publicationReviews': {'status': 'ready', 'regions': {'global': row}}}}]}
+        with patch('backend.admin.publications.dispatch') as send:
+            publish_due(config, lambda *_: state, {}, send=send, now=170)
+            send.assert_not_called()
+        self.assertEqual(review.process(self.bucket, 'global', source_run='manual')['status'], 'published')
+
     def test_missing_media_prevents_access_even_after_approval(self):
         _, pointer = self.prepare()
         self.decide('publish')

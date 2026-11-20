@@ -1,13 +1,46 @@
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from tools import static_site
 
 
 class SitePackageTests(unittest.TestCase):
+    def test_origin_handshake_retry_reads_fresh_code(self):
+        origin = "https://example.invalid"
+        receipt = {"codeId": "a" * 24, "revision": "b" * 40, "receiptSha256": "c" * 64}
+        error = HTTPError(origin, 525, "SSL handshake failed", {}, None)
+        with (
+            patch.object(
+                static_site,
+                "urlopen",
+                side_effect=[error, io.BytesIO(json.dumps(receipt).encode())],
+            ),
+            patch("time.sleep"),
+        ):
+            self.assertEqual(static_site.read_code(origin), receipt)
+
+    def test_origin_retries_are_bounded_and_specific_to_handshake_failures(self):
+        origin = "https://example.invalid"
+        for status, attempts in ((525, 3), (403, 1)):
+            with (
+                self.subTest(status=status),
+                patch.object(
+                    static_site,
+                    "urlopen",
+                    side_effect=HTTPError(origin, status, "", {}, None),
+                ) as send,
+                patch("time.sleep"),
+            ):
+                with self.assertRaises(HTTPError) as raised:
+                    static_site.read_code(origin)
+                self.assertEqual(raised.exception.code, status)
+                self.assertEqual(send.call_count, attempts)
+
     def test_delivery_receipt_identifies_the_release_client(self):
         with patch.object(static_site, "urlopen") as send:
             static_site.open_delivery_receipt(

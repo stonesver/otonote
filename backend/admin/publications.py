@@ -59,6 +59,10 @@ def publish_due(config, transport, attempts, *, send=dispatch, now=None):
                 for region, row in reviews['regions'].items():
                     if not row or row['status'] != 'scheduled' or row['publishAt'] > epoch:
                         continue
+                    # An immediate decision records its own timestamp as publishAt.
+                    # Only a deadline chosen in the future belongs to this timer.
+                    if row['publishAt'] == row.get('updatedAt'):
+                        continue
                     key, identity = (node['id'], region), (row['publication'], row['revision'])
                     previous = attempts.get(key)
                     if previous and previous[0] == identity and epoch < previous[1]:

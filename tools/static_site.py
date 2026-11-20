@@ -9,8 +9,10 @@ import re
 import shutil
 import subprocess
 import tarfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
@@ -38,10 +40,23 @@ def open_delivery_receipt(url, *, timeout):
 def read_code(origin):
     if urlsplit(origin).scheme != "https" or urlsplit(origin).path:
         raise ValueError("Expected HTTPS site origin without a path")
-    with open_delivery_receipt(
-        origin + "/_site-delivery/code.json", timeout=25
-    ) as response:
-        code = json.load(response)
+    for attempt in range(3):
+        try:
+            with open_delivery_receipt(
+                origin + "/_site-delivery/code.json", timeout=25
+            ) as response:
+                code = json.load(response)
+            break
+        except HTTPError as error:
+            if error.code != 525 or attempt == 2:
+                raise
+            error.close()
+            delay = (3, 10)[attempt]
+            print(
+                f"Origin TLS handshake failed (525); retrying code receipt in {delay}s",
+                flush=True,
+            )
+            time.sleep(delay)
     for field, length in (("codeId", 24), ("revision", 40), ("receiptSha256", 64)):
         if not re.fullmatch(rf"[0-9a-f]{{{length}}}", code[field]):
             raise ValueError("Invalid active code: " + field)

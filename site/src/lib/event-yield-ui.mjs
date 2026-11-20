@@ -11,7 +11,7 @@ import {setupEventScopeControls} from './tool-calculation-scopes.mjs';
 import {scopeSummary,selectedChartScope} from './calculation-scope.mjs';
 import {currentEventDraft,applyEventPlan,eventTeamDetails,eventTeamSaveButton,eventElement as el} from './event-team-view.mjs';
 import {EVENT_YIELD_GOAL_LABELS,orderEventYieldRows,eventYieldGaps} from './event-yield-goals.mjs';
-import {emptyEventResultFilters,activeEventResultFilters,filterEventYieldRows,eventResultFilterControls} from './event-yield-result-filters.mjs';
+import {emptyEventResultFilters,activeEventResultFilters,filterEventYieldRows,eventResultFilterControls,mountEventBandIcons} from './event-yield-result-filters.mjs';
 import {createCalculationProgress} from './calculation-progress.mjs';
 import {createCalculationLiveUpdates,reconcileCalculationView} from './calculation-live-updates.mjs';
 import {selectedControlValues} from './filter-controls.mjs';
@@ -55,6 +55,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
  q('continue').textContent='重新开始完整比较';
  let worker=null,key='',result=null,renderKey='',displayGoal='badges',page=0,selectedPlan=null;
  let displayFilters=emptyEventResultFilters(),filtersOpen=false;
+ const bandIcons=new Map();
  let mainScope,challengeScope,runScopes=null;
  let articleCache=new Map(),viewCache=new Map(),challengePlannerKey='',challengePlanners=[];
  const referenceCache=new Map(),syncReferences=()=>syncEventMistakeReferences(q('results'),!worker||Boolean(selectedPlan));
@@ -119,7 +120,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    view.push(alternatives);
    const toolbar=el('div',null,'task-event-plan-sort');
    if(q('goal').value==='both'){const goals=el('div',null,'task-event-result-tabs task-event-goal-tabs');goals.setAttribute('role','group');goals.setAttribute('aria-label','收益优先候选');for(const [goal,name] of [['badges','道具优先'],['eventPoints','pt 优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(target===goal));button.addEventListener('click',()=>{displayGoal=goal;page=0;selectedPlan=null;render();});goals.append(button);}toolbar.append(goals);}
-   const controls=eventResultFilterControls({rows:eligible,tracks:tool.data.tracks,filters:displayFilters,open:filtersOpen,onOpen:open=>{filtersOpen=open;},onChange:changeFilters});
+   const controls=eventResultFilterControls({rows:eligible,tracks:tool.data.tracks,filters:displayFilters,open:filtersOpen,onOpen:open=>{filtersOpen=open;if(open)mountEventBandIcons(q('results'),bandIcons);},onChange:changeFilters});
    const count=el('small');toolbar.append(controls.trigger,count);alternatives.append(toolbar,controls.panel);
    const baseline=el('div',null,'task-event-plan-baseline'),identity=el('div',null,'task-event-baseline-name');identity.append(el('small','比较基准'),el('strong',reference?.song.title??'—'),el('span',reference?.song.difficulty.toUpperCase()??'—','task-event-chart-label'));baseline.append(identity);
    const totals=el('div',null,'task-event-baseline-totals');for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){const metric=el('span');metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));totals.append(metric);}baseline.append(totals);const comparisonNotes=el('details',null,'event-comparison-notes');comparisonNotes.append(el('summary','比较基准'),baseline);toolbar.append(comparisonNotes);
@@ -203,6 +204,7 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      nextView.set(index,{signature,node:view[index]});
    }
    const container=q('results');reconcileCalculationView(container,view);
+   if(filtersOpen)mountEventBandIcons(container,bandIcons);
    if(focusedPlan)for(const button of container.querySelectorAll('.task-event-plan-choice'))if(button.dataset.yieldPlanKey===focusedPlan&&document.activeElement!==button)button.focus({preventScroll:true});
    if(focusedFilter)for(const control of container.querySelectorAll('.event-result-filter-control'))if(control.dataset.yieldResultFilter===focusedFilter&&document.activeElement!==control)control.focus({preventScroll:true});
    articleCache=nextArticles;viewCache=nextView;syncReferences();

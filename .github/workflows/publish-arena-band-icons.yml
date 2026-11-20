@@ -3,8 +3,8 @@ on:
   workflow_dispatch:
     inputs:
       images:
-        description: JSON map of reviewed image paths to base64 PNG bytes
-        required: true
+        description: Reviewed image paths to base64 PNG bytes (omit to verify existing R2 objects)
+        required: false
         type: string
 permissions:
   contents: read
@@ -34,5 +34,6 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_PUBLIC_BUCKET: otonote-public-content
+          CONTENT_ORIGIN: ${{ vars.CONTENT_ORIGIN }}
           BAND_ICON_BYTES: ${{ inputs.images }}
         run: python -m tools.publish_arena_band_icons >> "$GITHUB_STEP_SUMMARY"

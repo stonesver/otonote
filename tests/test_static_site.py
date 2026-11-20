@@ -8,6 +8,16 @@ from tools import static_site
 
 
 class SitePackageTests(unittest.TestCase):
+    def test_delivery_receipt_identifies_the_release_client(self):
+        with patch.object(static_site, "urlopen") as send:
+            static_site.open_delivery_receipt(
+                "https://example.invalid/receipt", timeout=15
+            )
+        request = send.call_args.args[0]
+        self.assertEqual(
+            request.get_header("User-agent"), "OurNotes-Static-Delivery/1.0"
+        )
+
     def test_rankings_shell_and_retained_versions(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

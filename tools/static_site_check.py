@@ -6,7 +6,8 @@ import shutil
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+
+from tools.static_site import open_delivery_receipt
 
 
 def check(base, assets):
@@ -17,7 +18,7 @@ def check(base, assets):
         expected = json.loads((assets / path).read_bytes())
         for attempt in range(24):
             try:
-                with urlopen(base + "/" + path, timeout=15) as response:
+                with open_delivery_receipt(base + "/" + path, timeout=15) as response:
                     if (
                         json.load(response) == expected
                         and response.headers.get("X-OurNotes-Delivery")

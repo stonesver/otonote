@@ -111,7 +111,11 @@ export function setupTaskWorkbench(host,kind) {
     else if(!current.querySelector('.task-pairing[data-uniform-source],.task-pairing .tw-card-view[data-source=reference]'))currentTitle.querySelector('.task-team-source')?.remove();
     if(kind==='team'||kind==='event') {
       const mods=draft.modifiers??{};
-      accountButton.replaceChildren(el('span','账号加成'),el('small',`乐器 ${Object.keys(mods.bandItems??{}).length} 件 · 评级 ${Object.keys(mods.characterRanks??{}).length} 位 · TGW ${mods.tgwCardRank??1}`));
+      const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      icon.setAttribute('viewBox','0 0 16 16');icon.setAttribute('width','14');icon.setAttribute('height','14');icon.setAttribute('fill','none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','1.6');icon.setAttribute('stroke-linecap','round');icon.setAttribute('aria-hidden','true');
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d','M2.5 5h11M2.5 11h11');icon.append(p);
+      for(const [cx,cy] of [[6,5],[10.5,11]]){const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',String(cx));c.setAttribute('cy',String(cy));c.setAttribute('r','1.5');icon.append(c);}
+      accountButton.replaceChildren(icon,el('span','账号加成'),el('small',`乐器 ${Object.keys(mods.bandItems??{}).length} · 评级 ${Object.keys(mods.characterRanks??{}).length} · TGW ${mods.tgwCardRank??1}`));
       return;
     }
     tags.replaceChildren();

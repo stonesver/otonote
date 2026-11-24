@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createHistoryModel, selectHistory, summarizeHistory, shareSummary, historyDay} from '../src/lib/gacha-history.mjs';
+import {createHistoryModel, selectHistory, summarizeHistory, shareSummary, historyDay, evaluateLuckBadge, createDemoGachaSnapshot} from '../src/lib/gacha-history.mjs';
 
 const catalog = {
   pools:[{id:1,name:'灯的卡池',prizeGroupIds:[8],products:[{id:10,ensuredCount:1}]}, {id:2,name:'生日卡池',prizeGroupIds:[9]}],
@@ -140,4 +140,47 @@ test('share limits artwork per kind without dropping counts and allowlists neste
   assert.equal(shared.highlights[0].artwork,'/art.webp');
   assert.equal(JSON.stringify(shared).includes('SECRET'),false);
   assert.equal(JSON.stringify(shared).includes('href'),false);
+});
+
+test('evaluateLuckBadge respects sample size, unknown guard and tier thresholds',()=>{
+  assert.equal(evaluateLuckBadge(null),null);
+  assert.equal(evaluateLuckBadge({total:19,unknown:0,rate:15}),null);
+  assert.equal(evaluateLuckBadge({total:30,unknown:1,rate:15}),null);
+  assert.equal(evaluateLuckBadge({total:30,unknown:0,rate:10})?.tier,'emperor');
+  assert.equal(evaluateLuckBadge({total:30,unknown:0,rate:5})?.tier,'lucky');
+  assert.equal(evaluateLuckBadge({total:30,unknown:0,rate:2})?.tier,'steady');
+  assert.equal(evaluateLuckBadge({total:30,unknown:0,rate:1.5})?.tier,'unlucky');
+});
+
+test('createDemoGachaSnapshot synthesizes a deterministic valid 120-draw report',()=>{
+  const demoCatalog={
+    pools:[
+      {id:1,name:'星光招募',prizeGroupIds:[10],products:[{id:101,ensuredCount:1}]},
+      {id:2,name:'旋律招募',prizeGroupIds:[20],products:[{id:201,ensuredCount:1}]},
+    ],
+    prizes:[
+      {id:1,resourceType:2,resourceId:11,groupId:10,isPickup:true},
+      {id:2,resourceType:2,resourceId:12,groupId:10,isPickup:false},
+      {id:3,resourceType:3,resourceId:21,groupId:20,isPickup:true},
+      {id:4,resourceType:3,resourceId:22,groupId:20,isPickup:false},
+    ],
+    cards:[
+      {masterId:11,resourceType:2,name:'限定 SSR',rarity:4,image:'/m11.webp',artwork:'/m11-art.webp'},
+      {masterId:12,resourceType:2,name:'常驻 R',rarity:2,image:'/m12.webp'},
+      {masterId:21,resourceType:3,name:'留影 SR',rarity:3,image:'/s21.webp'},
+      {masterId:22,resourceType:3,name:'留影 R',rarity:2,image:'/s22.webp'},
+    ],
+  };
+  const snapA=createDemoGachaSnapshot(demoCatalog,'global-en');
+  const snapB=createDemoGachaSnapshot(demoCatalog,'global-en');
+  assert.deepEqual(snapA,snapB);
+  assert.equal(snapA.source.serverId,'global-en');
+  assert.equal(snapA.batches.length,12);
+  const model=createHistoryModel(snapA,demoCatalog,'global-en');
+  const summary=summarizeHistory(model.records);
+  assert.equal(summary.total,120);
+  assert.ok(summary.high>0);
+  assert.ok(evaluateLuckBadge(summary));
+  const shared=shareSummary(summary,'全部卡池',model.queriedAt,'global-en');
+  assert.equal(shared.total,120);
 });

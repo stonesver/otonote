@@ -12,6 +12,7 @@ import { skillPeek, closeSkillPopover, destroySkillPopover } from './calculator-
 import { arenaStageTracks, createArenaSongPicker, addArenaSongs } from './arena-song-picker.mjs';
 import { arenaSkillRoles, normalizeArenaSkillPreferences } from './arena-skill-policy.mjs';
 import { setupQuickOptions } from './tool-quick-options.mjs';
+import { enhanceNumericInputs } from './workbench-dialog.mjs';
 import { artifact } from '../runtime/content.mjs';
 import { currentServerContext } from './game-servers.mjs';
 import { resolveArenaStage, arenaStageTime } from './arena-stage-config.mjs';
@@ -93,9 +94,16 @@ class ArenaTeamWorkbench extends HTMLElement {
     } });
     this.append(this.songPicker.element);
     const iconRoot = `/content/releases/${bandIcons.releaseId}/public/`;
-    for (const option of this.q('form').elements.bandId.options) option.dataset.icon = `${iconRoot}images/filter-bands/band-${option.value}.png`;
+    for (const option of this.q('form').elements.bandId.options) {
+      if (option.dataset.icon && !option.dataset.fallbackIcon) option.dataset.fallbackIcon = option.dataset.icon;
+      option.dataset.icon = `${iconRoot}images/filter-bands/band-${option.value}.png`;
+      option.dataset.round = 'true';
+    }
     this.stageOptions = setupQuickOptions(this.q('stage'));
     this.skillOptions = setupQuickOptions(this.q('skills'));
+    const perfFields = this.querySelector('.arena-performance-fields');
+    this.perfOptions = perfFields ? setupQuickOptions(perfFields) : null;
+    if (perfFields) enhanceNumericInputs(perfFields);
     this.stageMode = 'schedule'; this.stageReady = false; this.q('run').disabled = true;
     const params = new URLSearchParams(location.search);
     this.stageSeason = params.get('season'); this.stagePeriod = params.get('regulation') ?? '';
@@ -127,7 +135,7 @@ class ArenaTeamWorkbench extends HTMLElement {
     this.refreshProfile();
     this.updateSetupSummary();
   }
-  disconnectedCallback() { this.generation++; this.distribution?.destroy(); this.worker?.terminate(); this.resumeWorker?.terminate(); this.loading?.abort(); this.events?.abort(); this.stageOptions?.destroy(); this.skillOptions?.destroy(); this.songPicker?.element.remove(); this.songOptions?.destroy(); clearInterval(this.stageTimer); destroySkillPopover(this); }
+  disconnectedCallback() { this.generation++; this.distribution?.destroy(); this.worker?.terminate(); this.resumeWorker?.terminate(); this.loading?.abort(); this.events?.abort(); this.stageOptions?.destroy(); this.skillOptions?.destroy(); this.perfOptions?.destroy(); this.songPicker?.element.remove(); this.songOptions?.destroy(); clearInterval(this.stageTimer); destroySkillPopover(this); }
   get missionType() { return this.report ? (['expected_rank_envelope', 'reference_opponent_regret'].includes(this.report.method) ? 2 : 3)
     : this.stageMode === 'manual' ? Number(this.q('form').elements.missionType.value) : this.resolvedStage?.stage.missions.find(Boolean) ?? 3; }
   stageRequest() {
@@ -219,15 +227,42 @@ class ArenaTeamWorkbench extends HTMLElement {
       button.addEventListener('click', () => this.selectPeriod(period.id)); return button;
     }));
   }
+  renderConditionSummary(segments) {
+    const summary = this.q('condition-summary');
+    if (!summary) return;
+    summary.replaceChildren(...segments.filter(Boolean).map(({ icon, text }) => {
+      const seg = el('span', '', 'arena-sum-seg');
+      if (icon) {
+        const img = el('img'); img.src = icon; img.alt = ''; img.loading = 'lazy';
+        seg.append(img);
+      }
+      seg.append(document.createTextNode(text));
+      return seg;
+    }));
+  }
   updateSetupSummary() {
     const form = this.q('form').elements;
     this.q('skills').hidden = this.missionType !== 3;
     this.q('comparison').hidden = this.missionType !== 2;
-    if (!this.report && !this.worker && !this.loading) this.q('condition-summary').textContent =
-      `${form.cardScope.value === 'reference' ? '全卡库满养成' : '我的养成'} · ${this.songs.length} 首歌`;
+    if (!this.report && !this.worker && !this.loading) {
+      const bandOpt = form.bandId.selectedOptions[0];
+      const bandIcon = bandOpt?.dataset.icon || this.data.filterVisualOptions?.band?.find(b => String(b.value) === String(form.bandId.value))?.icon;
+      const stageCode = this.stageMode === 'manual' ? form.musicType.value : this.resolvedStage?.stage.musicType;
+      const attrVisual = stageCode !== '' && stageCode != null ? this.data.filterVisualOptions?.attribute?.find(a => Number(a.value) === Number(stageCode)) : null;
+      const attrName = stageCode === '' || stageCode == null ? '未选属性' : Number(stageCode) === 0 ? '原曲属性' : (this.data.attributes.find(a => Number(a.code) === Number(stageCode))?.name ?? 'ALL');
+      const missionLabel = this.missionType === 2 ? 'LUCK ×3' : 'JUST ×3';
+      this.renderConditionSummary([
+        { icon: bandIcon, text: bandOpt?.text ?? '参赛乐队' },
+        { icon: attrVisual?.icon, text: `${attrName} · ${missionLabel}` },
+        { text: `${form.cardScope.value === 'reference' ? '全卡库满养成' : '我的养成'} · ${form.participantCount.value} 人` },
+        { text: `${this.songs.length} 首歌 · ±${form.timingSpreadMs.value || '—'}ms` },
+      ]);
+    }
     this.q('performance-summary').textContent = `稳定 FC · ±${form.timingSpreadMs.value || '—'}ms${form.samples.value === '1' ? '' : ` · ${form.samples.value}组`}`;
     this.q('dock-summary').textContent = `${form.bandId.selectedOptions[0]?.text ?? '选择乐队'} · ${this.songs.length ? `${this.songs.length} 首歌` : '未选歌曲'} · ${form.participantCount.value} 人`;
     this.q('pool-hint').textContent = `已选 ${this.songs.length} 首 · ${form.customWeights.checked ? '自定义重要程度' : '同等重要'} · 人数只影响名次奖励`;
+    const weightSummary = this.q('weight-summary');
+    if (weightSummary) weightSummary.textContent = form.customWeights.checked ? '自定义重要程度' : '同等重要';
     if (!this.q('limits-dialog').open) {
       const limits = [...this.q('limits-dialog').querySelectorAll('select')].filter(field => Number(field.value) !== (field.name.endsWith('-min') ? 0 : 5)).length;
       this.q('limits-open').textContent = `数量限制 · ${limits ? `已设 ${limits} 项` : '未设置'}`;
@@ -292,7 +327,7 @@ class ArenaTeamWorkbench extends HTMLElement {
     const customWeights = this.q('custom-weights').checked;
     this.querySelector('.arena-pool-controls').toggleAttribute('data-custom-weights', customWeights);
     this.querySelector('[data-song-list]').replaceChildren(...this.songs.map((song, index) => {
-      const row = el('li'), weight = el('input'), remove = el('button', '×'), difficulty = el('select');
+      const row = el('li'), weight = el('input'), remove = el('button', '', 'ui-icon-btn arena-song-remove'), difficulty = el('select');
       const controls = el('div', '', 'arena-song-options'), difficultyLabel = el('div', '', 'arena-song-difficulties'), weightLabel = el('label', '重要程度');
       weightLabel.className = 'arena-song-weight';
       this.fillDifficulties(difficulty, song.trackId, song.difficulty);
@@ -302,7 +337,10 @@ class ArenaTeamWorkbench extends HTMLElement {
       weight.disabled = !customWeights;
       weight.setAttribute('aria-label', `${song.title} 重要程度`);
       weight.addEventListener('input', () => { song.weight = Number(weight.value); });
-      remove.type = 'button'; remove.setAttribute('aria-label', `移除 ${song.title}`);
+      remove.type = 'button'; remove.setAttribute('aria-label', `移除 ${song.title}`); remove.title = '移除';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.7'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('aria-hidden', 'true');
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', 'M4.5 4.5l7 7M11.5 4.5l-7 7'); svg.append(p); remove.append(svg);
       remove.addEventListener('click', () => { this.songs.splice(index, 1); this.invalidate(); this.renderSongs(); });
       difficultyLabel.append(difficulty); weightLabel.append(weight);
       controls.append(difficultyLabel, weightLabel);
@@ -394,7 +432,15 @@ class ArenaTeamWorkbench extends HTMLElement {
       };
       this.worker.onerror = event => { if (requestId === this.generation) { this.finish(); this.status(event.message || '计算未完成，请重新尝试。', true); } };
       const sourceLabel = this.stageMode === 'manual' ? '手动试配' : this.resolvedStage.status === 'current' ? '当前舞台' : this.resolvedStage.status === 'past' ? '历史试配' : '预告试配';
-      this.q('condition-summary').textContent = `${sourceLabel} · ${cardScope === 'reference' ? '全卡库满养成' : '我的养成'} · ${this.q('form').elements.bandId.selectedOptions[0].text} · ${this.data.attributes.find(a => Number(a.code) === stage.musicType)?.name ?? '原曲'} · ${songs.length} 首歌`;
+      const bandOpt = this.q('form').elements.bandId.selectedOptions[0];
+      const bandIcon = bandOpt?.dataset.icon || this.data.filterVisualOptions?.band?.find(b => String(b.value) === String(stage.bandId))?.icon;
+      const attrVisual = this.data.filterVisualOptions?.attribute?.find(a => Number(a.value) === Number(stage.musicType));
+      this.renderConditionSummary([
+        { icon: bandIcon, text: bandOpt.text },
+        { icon: attrVisual?.icon, text: `${sourceLabel} · ${this.data.attributes.find(a => Number(a.code) === stage.musicType)?.name ?? '原曲'} · ${this.missionType === 2 ? 'LUCK ×3' : 'JUST ×3'}` },
+        { text: `${cardScope === 'reference' ? '全卡库满养成' : '我的养成'} · ${stage.participantCount} 人` },
+        { text: `${songs.length} 首歌` },
+      ]);
       this.worker.postMessage({ requestId, workers: calculationParallelism(), payload: { rules: this.rules, profile, stage, songs, performanceScenario, cardScope, skillPreferences, comparisonTeam } });
     } catch (error) { if (requestId === this.generation) { this.loading?.abort(); this.finish(); this.status(error.message, true); } }
   }

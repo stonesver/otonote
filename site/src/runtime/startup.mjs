@@ -32,11 +32,12 @@ export function startPageInputs(manifest, root, {importPage = url => import(url)
     return content;
   }, async () => {
     const app = {...manifest, root};
-    const [page, stylesheet] = await Promise.all([
+    const [page, sharedStylesheet, stylesheet] = await Promise.all([
       importPage(new URL(selected.module, root).href),
+      manifest.sharedCss ? loadStylesheet(new URL(manifest.sharedCss, root).href, document) : null,
       selected.css ? loadStylesheet(new URL(selected.css, root).href, document) : null
     ]);
-    return {app, page, params, stylesheet};
+    return {app, page, params, sharedStylesheet, stylesheet};
   });
   globalThis[startupKey] = task;
   // The inline starter runs before boot can attach its error UI. Mark the

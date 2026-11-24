@@ -15,7 +15,8 @@ export function validateEventCardPool({rules,constraints={},...options}) {
 export function withEventRewardCandidates({rules,draft,scope,inventory,rewardCards=[],rewardGrowth='level',rewardGrowthOverride=false}) {
  if(!rewardCards.length||scope==='reference')return {draft,scope,inventory,temporaryCardIds:[]};
  if(typeof rewardGrowthOverride!=='boolean')throw Error('无效的活动奖励卡养成覆盖选项');
- if(!['level','maximum'].includes(rewardGrowth))throw Error('无效的活动奖励卡养成基准');
+ const customMatch=typeof rewardGrowth==='string'?/^custom:r([1-5]):a([1-5]):s([1-5])$/.exec(rewardGrowth):null;
+ if(!['level','maximum'].includes(rewardGrowth)&&!customMatch)throw Error('无效的活动奖励卡养成基准');
  const next=structuredClone(draft),manager=createInventoryManager(rules),calculator=createFormationCalculator(rules);
  if(scope==='owned'&&!inventory)throw Error('请先导入实际卡库');
  const pool=scope==='owned'?manager.validate(inventory):{schemaVersion:1,sourceReleaseId:rules.sourceReleaseId,
@@ -44,7 +45,17 @@ export function withEventRewardCandidates({rules,draft,scope,inventory,rewardCar
   assumedCardIds.push(id);
   actualGrowth[id]=owned?structuredClone(inventory.growth[id]):null;
   if(rewardGrowthOverride)rewardGrowthCardIds.push(id);
-  pool.growth[id]=manager.preset(id,kind,rewardGrowth);
+  if(customMatch){
+   const [,rStr,aStr,sStr]=customMatch;
+   const maxPreset=manager.preset(id,kind,'maximum');
+   const rank=Math.min(Number(rStr),maxPreset.rank??5);
+   const awake=kind==='member'?Math.min(Number(aStr),maxPreset.awake??5):undefined;
+   const skill=kind==='member'?Math.min(Number(sStr),maxPreset.skillLevel??5):undefined;
+   const resolved=calculator.resolveGrowth(calculator.card(id,kind),kind==='member'?'Member':'Support',{rank,...(kind==='member'?{awake}:{})});
+   pool.growth[id]={level:resolved.maxLevel??resolved.level,rank,...(kind==='member'?{awake:resolved.awake,skillLevel:skill,gekisouSkillLevel:skill}:{})};
+  }else{
+   pool.growth[id]=manager.preset(id,kind,rewardGrowth);
+  }
   // The explicit reward assumption wins over both saved and current-team growth.
   next.modifiers.growth[id]=structuredClone(pool.growth[id]);
  }

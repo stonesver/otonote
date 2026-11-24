@@ -1,7 +1,7 @@
 /* facet capability styles; loaded explicitly by owning Astro modules. */
 
 .cards-entry {
-  padding: clamp(24px, 5vw, 52px) 0;
+  padding: clamp(20px, 4vw, 36px) 0 48px;
 }
 
 .cards-entry-shell {
@@ -21,57 +21,78 @@
 .cards-entry-heading p,
 .card-directory-intro p {
   margin: 0;
-  color: var(--silver-dark);
+  color: var(--theme-muted);
 }
 
 .card-kind-switchboard {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 14px;
 }
 
 .card-kind-entry {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 3px 12px;
+  gap: 6px 14px;
   align-items: end;
-  padding: 15px 17px;
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--lacquer);
-  background: var(--paper-light);
-  color: inherit;
+  padding: 20px 22px;
+  border: 1px solid var(--theme-border);
+  border-left: 4px solid var(--theme-accent);
+  border-radius: 14px;
+  background: var(--theme-surface);
+  color: var(--theme-text);
   text-decoration: none;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent);
+  transition: border-color .16s ease, box-shadow .16s ease, translate .16s ease;
+}
+
+.card-kind-entry:hover {
+  translate: 0 -2px;
+  border-color: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--theme-shadow-color) 8%, transparent);
 }
 
 .card-kind-entry--support {
-  border-left-color: var(--gel-blue-dark);
+  border-left-color: var(--theme-secondary-ink);
+}
+
+.card-kind-entry--support:hover {
+  border-color: color-mix(in srgb, var(--theme-secondary-ink) 45%, var(--theme-border));
 }
 
 .card-kind-entry small,
 .card-kind-entry p {
   grid-column: 1;
   margin: 0;
-  color: var(--silver-dark);
-  font-family: var(--font-mono);
-  font-size: var(--text-metadata-size);
-  letter-spacing: 0.05em;
+  color: var(--theme-muted);
+  font: 600 12px/1.4 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
 }
 
 .card-kind-entry h2 {
   grid-column: 1;
   margin: 0;
-  font-size: clamp(17px, 2vw, 21px);
+  font: 700 clamp(18px, 2vw, 22px)/1.35 var(--font-body);
+  color: var(--theme-text);
 }
 
 .card-kind-entry > span {
   grid-column: 2;
   grid-row: 1 / span 3;
   align-self: center;
-  color: var(--lacquer);
-  font-size: 12px;
-  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+  font: 700 12px/1.2 var(--font-body);
   white-space: nowrap;
+}
+
+.card-kind-entry--support > span {
+  background: color-mix(in srgb, var(--theme-secondary) 16%, var(--theme-surface));
+  color: var(--theme-secondary-ink);
 }
 
 .card-directory-intro {
@@ -340,12 +361,12 @@
 .facet-clear-group {
   width: 100%;
   min-height: 36px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--theme-border);
   background: transparent;
-  color: var(--lacquer);
+  color: var(--theme-accent);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   text-align: left;
 }
 
@@ -363,13 +384,13 @@
 .active-filter-chips button {
   min-height: 30px;
   padding: 5px 9px;
-  border: 1px solid color-mix(in srgb, var(--lacquer) 34%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 34%, var(--theme-border));
   border-radius: 999px;
   background: color-mix(in srgb, var(--theme-accent) 7%, var(--theme-surface));
-  color: var(--lacquer);
+  color: var(--theme-accent);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .catalog-grid.card-catalog-grid,

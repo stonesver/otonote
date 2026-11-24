@@ -45,7 +45,7 @@ export function setupTeamWorkbenchView(host, {main, shell, aside, conditionBody,
   const song=node('div',null,'team-song-field');
   song.append(node('span','歌曲与难度','team-field-label'),songRow);
   const cards=node('div',null,'team-card-field'), cardActions=node('div',null,'team-card-actions');
-  const manage=button('管理卡库');manage.dataset.openTeamWorkspace='inventory';
+  const manage=button('管理养成');manage.dataset.openTeamWorkspace='inventory';
   const edit=button('编辑手选队伍');edit.dataset.openTeamWorkspace='editor';
   const planning=button('培养设置');
   cardActions.append(manage,edit,planning);

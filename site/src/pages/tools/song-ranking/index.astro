@@ -1,6 +1,6 @@
 ---
-import "../../../styles/tool-studio.css";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import "../../../styles/tool-studio.css";
 import ScoringModelNotice from '../../../components/ScoringModelNotice.astro';
 import { catalog } from '../../../lib/shared-catalog';
 import {sharedSongRankings as rankings} from '../../../lib/shared-song-ranking-data';
@@ -11,7 +11,7 @@ import RankingIcon from '../../../components/RankingIcon.astro';
 import { RANKING_SORT_OPTIONS } from '../../../lib/song-ranking-options.mjs';
 import '../../../styles/song-ranking.css';
 import '../../../styles/song-ranking-detail.css';
-import { filterVisual } from '../../../lib/filter-visuals';
+import { bandCircleIcon } from '../../../lib/filter-visuals';
 const charts = catalog.musicCharts;
 const isEnglish = catalog.release.locale === 'en';
 const skillDurations = Array.from({length:41}, (_,i) => i / 2);
@@ -35,7 +35,7 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
         <div class="ranking-controls">
           <div class="ranking-commandbar">
             <label class="ranking-search"><RankingIcon name="search" /><span class="ranking-sr-only">搜索歌曲</span><input data-filter="query" type="search" aria-label="搜索歌曲" placeholder="搜索歌曲、乐队…" /></label>
-            <div class="ranking-mode" role="group" aria-label="演出模式"><button type="button" data-mode="ordinary" aria-label="普通演出" aria-pressed="true">普通</button><button type="button" data-mode="gekisou" aria-label="激奏演出" aria-pressed="false">激奏</button></div>
+            <div class="ranking-mode" role="group" aria-label="演出模式"><button type="button" data-mode="ordinary" aria-label="普通演出" aria-pressed="true"><RankingIcon name="ordinary" /><span>普通</span></button><button type="button" data-mode="gekisou" aria-label="激奏演出" aria-pressed="false"><RankingIcon name="gekisou" /><span>激奏</span></button></div>
             <label class="ranking-metric-control"><span class="ranking-sr-only">排序指标</span><RankingIcon name="sort" /><select data-metric data-quick-native aria-label="排序指标">{Object.entries(RANKING_SORT_OPTIONS).map(([key,labels]) => <option value={key}>{labels[isEnglish ? 1 : 0]}</option>)}</select></label>
             <label class="ranking-direction-control"><span class="ranking-sr-only">排序方向</span><select data-direction data-quick-native aria-label="排序方向"><option value="desc">↓ 降序</option><option value="asc">↑ 升序</option></select></label>
             <details class="ranking-panel ranking-filter-panel" data-toolbar-panel>
@@ -44,9 +44,10 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
                 <header class="ranking-panel-heading"><div><strong>组合筛选</strong><span>条件可叠加，关闭后保留</span></div><div><button type="button" data-reset class="ranking-text-button"><RankingIcon name="reset" />重置筛选</button><button type="button" data-close-panel aria-label="关闭筛选"><RankingIcon name="close" /></button></div></header>
                 <p class="ranking-inline-error" data-panel-error hidden></p>
                 <div class="ranking-filter-fields">
-            <label class="ranking-setting-row ranking-band-options"><span>乐队</span><select data-filter="band" multiple data-quick data-quick-all="all" aria-label="乐队"><option value="all" selected>全部</option>{bands.map(([id,label]) => { const band = catalog.bands.find(b => b.id === id); const visual = band && filterVisual('band', String(band.masterId)); return <option value={id} data-icon={visual?.icon} title={label} aria-label={label}>{label}</option>; })}</select></label>
+            <label class="ranking-setting-row ranking-band-options"><span>乐队</span><select data-filter="band" multiple data-quick data-quick-all="all" aria-label="乐队"><option value="all" selected>全部</option>{bands.map(([id,label]) => { const band = catalog.bands.find(b => b.id === id); const visual = band && bandCircleIcon(band.masterId); return <option value={id} data-icon={visual?.icon} data-fallback-icon={visual?.fallbackIcon} data-icon-only={visual?.iconOnly ? '' : undefined} data-round={visual?.round ? 'true' : undefined} title={label} aria-label={label}>{label}</option>; })}</select></label>
             <label class="ranking-setting-row"><span>歌曲属性</span><select data-filter="attribute" data-quick-native aria-label="歌曲属性"><option value="all">全部属性</option>{attributes.map(value => <option value={value}>{value}</option>)}</select></label>
             <label class="ranking-setting-row"><span>计算状态</span><select data-filter="status" data-quick-native aria-label="计算状态"><option value="all">全部状态</option><option value="calculated">当前条件有分数</option><option value="pending">基准待计算</option><option value="unavailable">当前技能条件不可计算</option></select></label>
+            <div class="ranking-setting-row"><span>榜单版本</span><div class="ranking-edition-switch" role="group" aria-label="结果适用版本">{[["global","国际版 Global"],["jp","日服 JP"]].map(([edition,label])=><button type="button" data-edition-choice={edition} aria-label={label} title={label} aria-pressed={edition === catalog.release.region ? "true" : "false"}><span class="ranking-edition-symbol" data-edition={edition} aria-hidden="true"></span><span>{edition === "jp" ? "日服" : "国际"}</span></button>)}<select data-filter="edition" data-quick-native aria-label="结果适用版本" hidden><option value="global" selected={catalog.release.region !== "jp"}>Global</option><option value="jp" selected={catalog.release.region === "jp"}>JP</option></select></div></div>
             <fieldset class="ranking-range"><legend>等级区间</legend><input data-filter="minLevel" aria-label="最低等级" type="number" min="1" max="40" step="any" placeholder="最低，不限" /><span>–</span><input data-filter="maxLevel" aria-label="最高等级" type="number" min="1" max="40" step="any" placeholder="最高，不限" /></fieldset>
             <fieldset class="ranking-range"><legend>时长区间（秒）</legend><input data-filter="minSeconds" aria-label="最短时长（秒）" type="number" min="0" max="3600" step="any" placeholder="最短，不限" /><span>–</span><input data-filter="maxSeconds" aria-label="最长时长（秒）" type="number" min="0" max="3600" step="any" placeholder="最长，不限" /></fieldset>
 
@@ -109,15 +110,30 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
           <div class="ranking-quickstrip">
             <label class="ranking-grade-control" data-grade-controls hidden><span>目标档位</span><select data-grade-target aria-label="目标档位">{["D","C","B","A","S","SS"].map((grade,i)=><option value={i+2} selected={grade==="S"}>{grade}</option>)}</select></label>
             <label class="ranking-difficulty-options"><span>难度</span><select data-filter="difficulty" multiple data-quick data-quick-all="all" aria-label="难度"><option value="all" selected>全部</option>{['easy','normal','hard','expert'].map(d => <option value={d} data-difficulty={d}>{d.toUpperCase()}</option>)}</select></label>
-            <div class="ranking-edition-switch" role="group" aria-label="结果适用版本">{[["global","国际版 Global"],["jp","日服 JP"]].map(([edition,label])=><button type="button" data-edition-choice={edition} aria-label={label} title={label} aria-pressed={edition === catalog.release.region ? "true" : "false"}><span class="ranking-edition-symbol" data-edition={edition} aria-hidden="true"></span></button>)}<select data-filter="edition" data-quick-native aria-label="结果适用版本" hidden><option value="global" selected={catalog.release.region !== "jp"}>Global</option><option value="jp" selected={catalog.release.region === "jp"}>JP</option></select></div>
             <label class="ranking-grouping-control"><span class="ranking-sr-only">展示范围</span><select data-grouping data-quick-native aria-label="展示范围"><option value="charts">显示所有难度</option><option value="songs">每首歌仅显示一张</option></select></label>
             <button type="button" data-reset class="ranking-clear" aria-label="清空筛选" title="清空筛选"><RankingIcon name="reset" /></button>
           </div>
           <div class="ranking-filter-tags" data-ranking-filter-tags aria-label="已选筛选"></div>
         </div>
         <div class="ranking-error" data-error role="alert" hidden><strong>暂时无法显示结果</strong><p data-error-message></p><button type="button" data-reset-all>恢复默认条件</button><button type="button" data-reload hidden>重新加载页面</button></div>
-        <header class="ranking-board-heading"><div><RankingIcon name="table" /><h2 id="ranking-title">谱面榜单 <span data-count>{initial.length} 张谱面</span></h2></div><details class="ranking-provenance"><summary>数据与口径 <RankingIcon name="chevron" /></summary><div><p data-identity></p><p>固定综合力 100,000 · 不读取账号编成。手填技能仅供参考，真实账号条件请进入队伍计算器。</p><p data-metric-help></p></div></details></header>
-        <div class="ranking-result-summary"><p data-context role="status" aria-live="polite">普通演出 · 基准五技能</p><p data-result-status role="status"></p><p class="ranking-explanation" data-metric-explanation hidden></p><p class="ranking-explanation" data-grouping-explanation hidden>每首歌只保留当前排序中排名最靠前的难度；切换排序后会重新选择。</p></div>
+        <header class="ranking-board-bar">
+          <div class="ranking-board-bar__main">
+            <h2 id="ranking-title"><RankingIcon name="table" /><span>谱面榜单</span><span data-count>{initial.length} 张谱面</span></h2>
+            <p data-context role="status" aria-live="polite">普通演出 · 基准五技能</p>
+            <p data-result-status role="status"></p>
+          </div>
+          <div class="ranking-board-bar__tips">
+            <details class="ui-tip-disclosure ranking-provenance">
+              <summary aria-label="数据与口径" title="数据与口径"><RankingIcon name="info" /><span>口径</span></summary>
+              <div class="ui-tip-body"><p data-identity></p><p>固定综合力 100,000 · 不读取账号编成。手填技能仅供参考，真实账号条件请进入队伍计算器。</p><p data-metric-help></p></div>
+            </details>
+            <details class="ui-tip-disclosure ranking-help-tip">
+              <summary aria-label="估算范围与限制" title="估算范围与限制"><RankingIcon name="shield" /><span>估算说明</span></summary>
+              <div class="ui-tip-body"><ScoringModelNotice /></div>
+            </details>
+          </div>
+        </header>
+        <div class="ranking-explanations"><p class="ranking-explanation" data-metric-explanation hidden></p><p class="ranking-explanation" data-grouping-explanation hidden>每首歌只保留当前排序中排名最靠前的难度；切换排序后会重新选择。</p></div>
         <div class="ranking-table-wrap" data-results role="region" aria-label="完整歌曲排行榜，可横向和纵向滚动" tabindex="0">
           <table class="ranking-table" data-ranking-table style={`--ranking-data-width:${tableWidth}px`}>
             <caption class="ranking-sr-only">完整谱面数据；点击列标题排序，固定排名与歌曲列，横向滚动查看所有指标。</caption>
@@ -151,9 +167,24 @@ const tableWidth = columns.filter(column => column.key !== 'title').reduce((sum,
           </table>
         </div>
         <div class="ranking-empty" data-empty hidden><strong>没有符合这些条件的谱面</strong><p>清空或放宽筛选后继续比较。</p><button type="button" data-empty-reset>清空歌曲筛选</button><button type="button" data-show-all>查看全部筛选结果</button></div>
-        <footer class="ranking-pagination"><span data-range role="status">已显示 {Math.min(50,initial.length)} / {initial.length} 项</span><span class="ranking-scroll-hint">向下滚动继续加载 · 横向查看更多列</span><button type="button" data-load-more>加载更多</button></footer>
+        <footer class="ranking-pagination"><span data-range role="status">已显示 {Math.min(50,initial.length)} / {initial.length} 项</span><span class="ranking-scroll-hint">点击歌曲行打开明细弹窗 · 横向查看更多列</span><button type="button" data-load-more>加载更多</button></footer>
       </section>
-      <details class="tool-help"><summary>估算范围与限制</summary><ScoringModelNotice /></details>
+      <dialog class="ui-dialog ranking-detail-dialog" data-ranking-detail-dialog aria-labelledby="ranking-detail-dialog-title">
+        <header class="ranking-detail-dialog__head">
+          <div class="ranking-detail-dialog__title-group">
+            <span class="ranking-detail-rank" data-ranking-detail-rank>#01</span>
+            <h2 id="ranking-detail-dialog-title">谱面详情</h2>
+          </div>
+          <div class="ranking-detail-dialog__nav">
+            <button type="button" data-ranking-detail-prev aria-label="上一首歌曲"><RankingIcon name="prev" /><span>上一首</span></button>
+            <button type="button" data-ranking-detail-next aria-label="下一首歌曲"><span>下一首</span><RankingIcon name="next" /></button>
+            <button type="button" class="ui-icon-btn" data-ranking-detail-close aria-label="关闭谱面详情" title="关闭"><RankingIcon name="close" /></button>
+          </div>
+        </header>
+        <div class="ranking-detail-scroll">
+          <div class="ranking-detail-content" data-ranking-detail-body></div>
+        </div>
+      </dialog>
       <noscript>当前展示普通演出基准排行前 50 项；切换和排序需要 JavaScript。</noscript>
     </song-ranking>
   </div>

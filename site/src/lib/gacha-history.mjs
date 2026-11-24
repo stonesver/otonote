@@ -165,3 +165,81 @@ export function shareSummary(summary, poolName, queriedAt, serverId='global-hmt'
       ({kind,name,rarity,artwork,image,count,pickup,nonPickup,pickupUnknown})),
     pools:summary.pools.map(({name,total,high,member,support,other,pickup}) => ({name,total,high,member,support,other,pickup}))};
 }
+
+export function evaluateLuckBadge(summary) {
+  if (!summary || summary.total < 20 || summary.unknown > 0 || summary.rate === null) return null;
+  const rate = summary.rate;
+  if (rate >= 10) return { tier: 'emperor', label: '欧皇附体', tagline: '高稀有度占比达到 10% 以上，本期手气亮眼。', rate };
+  if (rate >= 5) return { tier: 'lucky', label: '小欧怡情', tagline: '高稀有出货高于平均预期，收获颇丰。', rate };
+  if (rate >= 2) return { tier: 'steady', label: '平稳发挥', tagline: '高稀有度占比处于平稳区间，节奏稳定。', rate };
+  return { tier: 'unlucky', label: '非酋渡劫', tagline: '当前累计高稀有度偏低，后续有望反转。', rate };
+}
+
+/** Deterministic synthetic demo snapshot conforming cleanly to schemaVersion 1. */
+export function createDemoGachaSnapshot(catalog = {}, serverId = 'global-hmt') {
+  const safeServer = snapshotServer({ serverId: accountServerOrDefault(serverId) });
+  const pools = Array.isArray(catalog.pools) ? catalog.pools : [];
+  const prizes = Array.isArray(catalog.prizes) ? catalog.prizes : [];
+  const cards = new Map((catalog.cards ?? []).map(c => [`${c.resourceType}:${c.masterId}`, c]));
+  const cardOf = prize => cards.get(`${prize.resourceType}:${prize.resourceId}`);
+  const rarityOf = prize => cardOf(prize)?.rarity ?? 0;
+
+  const usablePools = pools.filter(pool =>
+    Array.isArray(pool.prizeGroupIds) && pool.prizeGroupIds.length > 0 &&
+    prizes.some(p => pool.prizeGroupIds.includes(p.groupId) && [2, 3].includes(p.resourceType) && rarityOf(p) > 0)
+  );
+  const chosenPools = (usablePools.length ? usablePools : pools).slice(0, 3);
+  if (!chosenPools.length || !prizes.length) {
+    throw Error('当前内容资料暂无足够卡池用于生成示例。');
+  }
+
+  const nowSec = Math.floor(Date.UTC(2026, 10, 20, 12, 0, 0) / 1000);
+  const batches = [];
+  for (let b = 0; b < 12; b++) {
+    const pool = chosenPools[b % chosenPools.length];
+    const poolPrizes = prizes.filter(p => pool.prizeGroupIds?.includes(p.groupId) && [2, 3].includes(p.resourceType) && rarityOf(p) > 0);
+    const fallbackPool = poolPrizes.length ? poolPrizes : prizes.filter(p => [2, 3].includes(p.resourceType) && rarityOf(p) > 0);
+    const poolHighUp = fallbackPool.filter(p => HIGH_RARITIES.has(rarityOf(p)) && p.isPickup);
+    const poolHigh = fallbackPool.filter(p => HIGH_RARITIES.has(rarityOf(p)));
+    const poolSr = fallbackPool.filter(p => rarityOf(p) === 3);
+    const poolR = fallbackPool.filter(p => rarityOf(p) === 2);
+    const anyCard = poolR[0] ?? poolSr[0] ?? fallbackPool[0];
+    if (!anyCard) continue;
+
+    const batchPrizes = [];
+    for (let s = 0; s < 10; s++) {
+      let picked = null;
+      if (s === 0 && b % 2 === 0 && poolHighUp.length) {
+        picked = poolHighUp[b % poolHighUp.length];
+      } else if (s === 3 && (b === 1 || b === 5 || b === 9) && poolHigh.length) {
+        picked = poolHigh[(b + s) % poolHigh.length];
+      } else if (s >= 8 && poolSr.length) {
+        picked = poolSr[(b + s) % poolSr.length];
+      } else if (poolR.length) {
+        picked = poolR[(b * 7 + s * 3) % poolR.length];
+      } else {
+        picked = anyCard;
+      }
+      batchPrizes.push({ prizeId: picked.id, converted: (b > 3 && rarityOf(picked) <= 3) || (b >= 10 && s === 0) });
+    }
+    batches.push({
+      poolId: pool.id,
+      productId: pool.products?.[0]?.id ?? null,
+      executedAt: nowSec - Math.floor(b / 2) * 86400 - (b % 2) * 1800,
+      prizes: batchPrizes,
+    });
+  }
+
+  return {
+    format: 'otonote-gacha-history',
+    schemaVersion: 1,
+    queriedAt: new Date(nowSec * 1000 + 60000).toISOString(),
+    source: { serverId: safeServer, edition: 'global', clientVersion: 'demo-preview' },
+    coverage: { scope: 'server_returned', historyKind: 'execution' },
+    batches,
+  };
+}
+
+function accountServerOrDefault(id) {
+  return ['global-hmt', 'global-en', 'global-kr'].includes(id) ? id : 'global-hmt';
+}

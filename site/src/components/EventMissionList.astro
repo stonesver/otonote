@@ -10,7 +10,7 @@ const reward = (row:SystemReward) => ({...row,resolved:true,rarity:null});
 ---
 <div data-event-missions>
   {groups.length ? <>
-    <label class="ef-mission-select">{t('任务组','Mission group')}<select data-event-mission-select>{groups.map((group,index)=><option value={index}>{group.title} · {group.stages.length}</option>)}</select></label>
+    <label class="ef-mission-select">{t('任务组','Mission group')}<select class="ui-select" data-event-mission-select>{groups.map((group,index)=><option value={index}>{group.title} · {group.stages.length}</option>)}</select></label>
     {groups.map((group,index)=><div data-event-mission-group={index} hidden={index!==0}>
       <ol class="ef-mission-objectives">{group.stages.map(stage=><li><div><EventIcon name="checklist" size={16} /><p>{stage.description}</p></div><div class="ea-reward-list">{stage.rewards.map(item => item.resourceType === 0 ? <span class="ef-pass-points">+{item.count} {t('通行证积分','pass points')}</span> : <Reward reward={reward(item)} media={media} locale={locale} compact />)}</div></li>)}</ol>
     </div>)}

@@ -47,6 +47,103 @@ export function rankingStatus(data, now = Date.now()) {
   return data.status !== 'unavailable' && data.expiresAt && Date.parse(data.expiresAt) <= now ? 'stale' : data.status;
 }
 
+export function matchRankingEntry(entry, rawQuery, mode = 'auto') {
+  const raw = String(rawQuery ?? '').trim();
+  if (!raw || !entry) return null;
+  const lower = raw.toLowerCase();
+  const idStr = String(entry.playerId ?? '');
+  const nameStr = String(entry.name ?? '');
+
+  if (mode === 'rank') {
+    const rankMatch = raw.match(/^(?:#|第\s*)?(\d+)\s*名?$/i);
+    if (!rankMatch) return null;
+    const target = Number(rankMatch[1]);
+    return entry.rank === target ? { kind: 'rank', score: 100 } : null;
+  }
+
+  if (mode === 'id') {
+    const cleanId = (raw.match(/^(?:id|uid)[:\s]*(.+)$/i)?.[1] ?? raw).trim().toLowerCase();
+    if (!cleanId) return null;
+    if (idStr.toLowerCase() === cleanId) return { kind: 'id', score: 100 };
+    if (cleanId.length >= 4 && idStr.toLowerCase().includes(cleanId)) return { kind: 'id-partial', score: 80 };
+    return null;
+  }
+
+  if (mode === 'name') {
+    const cleanName = (raw.match(/^(?:name|昵称)[:\s]*(.+)$/i)?.[1] ?? raw).trim().toLowerCase();
+    if (!cleanName) return null;
+    if (nameStr.toLowerCase() === cleanName) return { kind: 'name', score: 100 };
+    if (nameStr.toLowerCase().includes(cleanName)) return { kind: 'name-partial', score: 84 };
+    return null;
+  }
+
+  const rankExplicit = raw.match(/^(?:#|第\s*)(\d+)\s*名?$/i);
+  if (rankExplicit) {
+    const target = Number(rankExplicit[1]);
+    return entry.rank === target ? { kind: 'rank', score: 100 } : null;
+  }
+
+  const idExplicit = raw.match(/^(?:id|uid)[:\s]+(.+)$/i);
+  if (idExplicit) {
+    const targetId = idExplicit[1].trim().toLowerCase();
+    if (!targetId) return null;
+    if (idStr.toLowerCase() === targetId) return { kind: 'id', score: 100 };
+    if (targetId.length >= 3 && idStr.toLowerCase().includes(targetId)) return { kind: 'id-partial', score: 80 };
+    return null;
+  }
+
+  const nameExplicit = raw.match(/^(?:name|昵称)[:\s]+(.+)$/i);
+  if (nameExplicit) {
+    const targetName = nameExplicit[1].trim().toLowerCase();
+    if (!targetName) return null;
+    if (nameStr.toLowerCase() === targetName) return { kind: 'name', score: 100 };
+    if (nameStr.toLowerCase().includes(targetName)) return { kind: 'name-partial', score: 84 };
+    return null;
+  }
+
+  if (/^\d+$/.test(raw)) {
+    const num = Number(raw);
+    if (entry.rank === num) return { kind: 'rank', score: 100 };
+    if (idStr.toLowerCase() === lower) return { kind: 'id', score: 96 };
+    if (nameStr.toLowerCase() === lower) return { kind: 'name', score: 92 };
+    if (raw.length >= 5 && idStr.toLowerCase().includes(lower)) return { kind: 'id-partial', score: 78 };
+    if (nameStr.toLowerCase().includes(lower)) return { kind: 'name-partial', score: 72 };
+    return null;
+  }
+
+  const tokens = raw.split(/[\s,，/]+/).filter(Boolean);
+  if (tokens.length > 1) {
+    let totalScore = 0;
+    const kinds = [];
+    for (const token of tokens) {
+      const m = matchRankingEntry(entry, token, 'auto');
+      if (!m) return null;
+      totalScore += m.score;
+      kinds.push(m.kind);
+    }
+    return { kind: kinds.join('+'), score: Math.round(totalScore / tokens.length) };
+  }
+
+  if (nameStr.toLowerCase() === lower) return { kind: 'name', score: 96 };
+  if (idStr.toLowerCase() === lower) return { kind: 'id', score: 92 };
+  if (nameStr.toLowerCase().includes(lower)) return { kind: 'name-partial', score: 82 };
+  if (raw.length >= 4 && idStr.toLowerCase().includes(lower)) return { kind: 'id-partial', score: 72 };
+  return null;
+}
+
+export function findBestRankingMatch(entries, rawQuery, mode = 'auto') {
+  if (!Array.isArray(entries)) return [];
+  const matches = [];
+  for (const entry of entries) {
+    const m = matchRankingEntry(entry, rawQuery, mode);
+    if (m) matches.push({ entry, ...m });
+  }
+  if (!matches.length) return [];
+  const topScore = Math.max(...matches.map(item => item.score));
+  const filtered = topScore >= 95 ? matches.filter(item => item.score === topScore) : matches;
+  return filtered.sort((a, b) => b.score - a.score || a.entry.rank - b.entry.rank);
+}
+
 export function installPlayerRankings(root) {
   if (root.dataset.rankInstalled) return;
   root.dataset.rankInstalled = 'true';
@@ -63,6 +160,33 @@ export function installPlayerRankings(root) {
   let server;
   try { server = currentServerContext().serverId; }
   catch { status.textContent = en ? 'Invalid server link. Choose a server.' : '区服链接不匹配，请重新选择区服。'; return; }
+  const serverShortLabels = {
+    jp: en ? 'JP' : '日服',
+    'global-hmt': en ? 'HMT' : '港澳台',
+    'global-kr': en ? 'KR' : '韩服',
+    'global-en': 'EN'
+  };
+  const serverChip = q('[data-rank-server-label]');
+  if (serverChip) serverChip.textContent = serverShortLabels[server] || (en ? 'Server' : '选服');
+  const commandBar = q('[data-rank-command]');
+  const filterToggle = q('[data-rank-filters-toggle]');
+  const setFiltersOpen = open => {
+    if (!commandBar) return;
+    commandBar.dataset.filtersOpen = open ? 'true' : 'false';
+    const state = open ? 'true' : 'false';
+    filterToggle?.setAttribute('aria-expanded', state);
+    if (serverChip?.tagName === 'BUTTON') serverChip.setAttribute('aria-expanded', state);
+  };
+  const toggleFilters = () => setFiltersOpen(commandBar?.dataset.filtersOpen !== 'true');
+  filterToggle?.addEventListener('click', toggleFilters);
+  if (serverChip?.tagName === 'BUTTON') serverChip.addEventListener('click', toggleFilters);
+  commandBar?.addEventListener('keydown', event => {
+    if (event.defaultPrevented) return;
+    if (event.key === 'Escape' && commandBar.dataset.filtersOpen === 'true') {
+      setFiltersOpen(false);
+      filterToggle?.focus();
+    }
+  });
   for (const link of root.querySelectorAll('[data-ranking-server]')) {
     if (link.dataset.rankingServer === server) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -80,6 +204,21 @@ export function installPlayerRankings(root) {
   const event = q('[data-rank-event]'), board = q('[data-rank-board]'), song = q('[data-rank-song]'), band=q('[data-rank-band]');
   const next = q('[data-rank-next]'), retry = q('[data-rank-retry]'), refresh = q('[data-rank-refresh]');
   const sentinel=q('[data-rank-sentinel]'), loadNote=q('[data-rank-load-note]');
+  const locateForm = q('[data-rank-locate-form]'), locateInput = q('[data-rank-locate-input]'), locateClear = q('[data-rank-locate-clear]');
+  const locateMode = q('[data-rank-locate-mode]'), locateCount = q('[data-rank-locate-count]');
+  let locateCycleIndex = 0, lastLocateKey = '';
+  const modePlaceholders = {
+    auto: en ? '#Rank / Name / ID…' : '排名 / 昵称 / 玩家ID…',
+    rank: en ? 'Enter rank (e.g. 20)…' : '输入排名数字（如 20）…',
+    name: en ? 'Enter player name…' : '输入玩家昵称…',
+    id: en ? 'Enter player ID…' : '输入玩家 ID…'
+  };
+  const syncLocatePlaceholder = () => {
+    if (!locateInput) return;
+    const m = locateMode?.value || 'auto';
+    locateInput.placeholder = modePlaceholders[m] || modePlaceholders.auto;
+  };
+  syncLocatePlaceholder();
   const params = new URLSearchParams(location.search);
   board.value = rankingBoards.includes(params.get('board')) ? params.get('board') : 'auto';
   let requestedEvent = params.get('event') || '', requestedMusic = params.get('music') || '';
@@ -119,7 +258,7 @@ export function installPlayerRankings(root) {
     const type=lastData?.board || board.value, selectedSong=lastData?.songs.find(item=>item.id===requestedMusic);
     q('[data-rank-song-name]').textContent=(type==='music' ? selectedSong?.name : labels[type]?.[Number(en)]) || (en?'No board data yet':'榜单暂未收录');
     const cover=q('[data-rank-cover]');cover.hidden=type!=='music';cover.replaceChildren();
-    if(type==='music') cover.append(rankingSongCover(document,context.songs.find(item=>item.id===requestedMusic)?.image,64));
+    if(type==='music') cover.append(rankingSongCover(document,context.songs.find(item=>item.id===requestedMusic)?.image,34));
   };
   const showStatus = () => {
     if (!lastData) return;
@@ -182,8 +321,10 @@ export function installPlayerRankings(root) {
       if (data.observedAt) q('[data-rank-time]').setAttribute('datetime', data.observedAt);
       else q('[data-rank-time]').removeAttribute('datetime');
       const scoreLabel = data.board === 'event-points' ? (en ? 'Points' : '活动积分') : data.board === 'total-music' ? (en ? 'Total score' : '总分') : (en ? 'Score' : '成绩');
-      q('[data-rank-score-label]').textContent = scoreLabel;
-      q('[data-rank-team-label]').textContent=data.board==='total-music' ? (en?'Ranking team':'榜单队伍') : (en?'High-score team':'最高分队伍');
+      const scoreHead = q('[data-rank-score-label]');
+      if (scoreHead) scoreHead.textContent = scoreLabel;
+      const teamHead = q('[data-rank-team-label]');
+      if (teamHead) teamHead.textContent = data.board === 'total-music' ? (en ? 'Ranking team' : '榜单队伍') : (en ? 'High-score team' : '最高分队伍');
       q('[data-rank-footnote]').textContent=data.board==='total-music'
         ? (en?'Total scores and ordering come from the official total-score board. The attached public team is not a separate team for every song. Captures may cover only part of the ranking.':'总分与排序来自官方总分榜；附带队伍不代表每首歌曲各自的队伍。当前采集结果可能仅覆盖部分排名。')
         : (en?'Teams and power are saved with the highest score. Captured results may cover only part of the ranking.':'队伍与综合力为最高分成绩对应的游戏记录。当前采集结果可能仅覆盖部分排名。');
@@ -205,6 +346,7 @@ export function installPlayerRankings(root) {
       }
       empty.hidden = seen.size > 0;
       q('[data-rank-count]').textContent = seen.size ? (en ? `${seen.size} / ${data.totalEntries ?? seen.size} players` : `${seen.size} / ${data.totalEntries ?? seen.size} 名玩家`) : '';
+      if (locateInput?.value.trim()) applyLocateHighlight({ scroll: false, cycle: false });
       cursor = data.nextCursor; next.hidden = supportsScroll || !cursor;
       const url = new URL(location.href); url.searchParams.set('server', server);
       if (data.board !== 'auto') url.searchParams.set('board', data.board);else url.searchParams.delete('board');
@@ -226,6 +368,100 @@ export function installPlayerRankings(root) {
       }
     }
   }
+  const applyLocateHighlight = ({ scroll = false, cycle = false } = {}) => {
+    const query = locateInput?.value.trim() || '';
+    const mode = locateMode?.value || 'auto';
+    const locateKey = `${mode}:${query}`;
+    if (locateClear) locateClear.hidden = !query;
+    const rowNodes = [...rows.querySelectorAll('.pr-row')];
+    const entries = [];
+    for (const rowNode of rowNodes) {
+      delete rowNode.dataset.rankMatch;
+      delete rowNode.dataset.rankFocus;
+      if (!query) continue;
+      entries.push({
+        row: rowNode,
+        rank: Number(rowNode.dataset.playerRank),
+        playerId: rowNode.dataset.playerId || '',
+        name: rowNode.dataset.playerName || ''
+      });
+    }
+    if (!query) {
+      lastLocateKey = '';
+      locateCycleIndex = 0;
+      if (locateCount) {
+        locateCount.hidden = true;
+        locateCount.textContent = '';
+      }
+      showStatus();
+      return { matches: [], query: '', mode };
+    }
+    const matched = findBestRankingMatch(entries, query, mode);
+    for (const item of matched) {
+      item.entry.row.dataset.rankMatch = 'true';
+    }
+    if (matched.length) {
+      if (cycle && locateKey === lastLocateKey) {
+        locateCycleIndex = (locateCycleIndex + 1) % matched.length;
+      } else if (locateKey !== lastLocateKey) {
+        locateCycleIndex = 0;
+        lastLocateKey = locateKey;
+      }
+      const target = matched[locateCycleIndex] || matched[0];
+      target.entry.row.dataset.rankFocus = 'true';
+      if (locateCount) {
+        locateCount.hidden = false;
+        locateCount.textContent = `${locateCycleIndex + 1}/${matched.length}`;
+        delete locateCount.dataset.empty;
+      }
+      if (scroll) {
+        if (typeof window !== 'undefined' && window.innerWidth <= 860 && commandBar?.dataset.filtersOpen === 'true') {
+          setFiltersOpen(false);
+        }
+        target.entry.row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const suffix = matched.length > 1 ? (en ? ` (${locateCycleIndex + 1}/${matched.length})` : `（${locateCycleIndex + 1}/${matched.length}）`) : '';
+      status.textContent = en
+        ? `Located #${target.entry.rank} · ${target.entry.name || target.entry.playerId}${suffix}`
+        : `已定位：第 ${target.entry.rank} 名 · ${target.entry.name || target.entry.playerId}${suffix}`;
+      status.dataset.state = 'available';
+    } else if (locateCount) {
+      locateCount.hidden = false;
+      locateCount.textContent = '0';
+      locateCount.dataset.empty = 'true';
+    }
+    return { matches: matched, query, mode };
+  };
+  locateMode?.addEventListener('change', () => {
+    syncLocatePlaceholder();
+    applyLocateHighlight({ scroll: Boolean(locateInput?.value.trim()), cycle: false });
+    locateInput?.focus();
+  });
+  locateInput?.addEventListener('input', () => {
+    applyLocateHighlight({ scroll: false, cycle: false });
+  });
+  locateClear?.addEventListener('click', () => {
+    if (!locateInput) return;
+    locateInput.value = '';
+    applyLocateHighlight({ scroll: false, cycle: false });
+    locateInput.focus();
+  });
+  locateForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    let { matches, query } = applyLocateHighlight({ scroll: true, cycle: true });
+    if (!query) return;
+    if (!matches.length && cursor) {
+      let guard = 0;
+      while (!matches.length && cursor && !autoPaused && guard++ < 25) {
+        await load(true);
+        ({ matches } = applyLocateHighlight({ scroll: true, cycle: false }));
+      }
+    }
+    if (!matches.length) {
+      status.textContent = en ? `No match in captured rankings for "${query}".` : `当前已采集榜单中未找到“${query}”。`;
+      status.dataset.state = 'stale';
+    }
+  });
   const resetBoard=()=>{requestedMusic='';if(![...board.options].some(option=>option.value==='auto')) board.append(new Option(en?'Available board':'已接入榜单','auto'));board.value='auto';pickers.get(board)?.update();};
   band.addEventListener('change',()=>{syncEvents();requestedEvent=rankingEventForBand(events,band.value,requestedEvent);syncEvents();resetBoard();load();});
   event.addEventListener('change', () => { requestedEvent = event.value;resetBoard();load(); });

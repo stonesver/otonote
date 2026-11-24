@@ -26,17 +26,24 @@ function enhance(select) {
     const searchLabel = document.createElement('label'); searchLabel.className = 'facet-option-search';
     const search = document.createElement('input'); search.type = 'search'; search.placeholder = `查找${title}…`; search.setAttribute('aria-label', `查找${title}`);
     search.addEventListener('input', event => { event.stopPropagation(); for (const button of list.children) button.hidden = !button.title.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase()); });
+    search.addEventListener('change', event => event.stopPropagation());
     searchLabel.append(search); body.append(searchLabel);
   }
   const entries = [...select.options].map(option => {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'facet-check';
     const name = option.textContent.trim(); button.title = name; button.setAttribute('aria-label', name);
     const visual = getVisual(select, option);
-    if (visual?.icon) {
-      const image = document.createElement('img'); image.src = visual.icon; image.alt = ''; image.loading = 'lazy'; image.className = `filter-option-icon${visual.round ? ' filter-option-icon--round' : ''}`;
+    const iconSrc = visual?.circleIcon || visual?.icon;
+    const isRound = Boolean(visual?.circleIcon || visual?.round);
+    if (iconSrc) {
+      const image = document.createElement('img'); image.src = iconSrc; image.alt = ''; image.loading = 'lazy'; image.className = `filter-option-icon${isRound ? ' filter-option-icon--round' : ''}`;
+      const fallback = visual?.fallbackIcon || (visual?.circleIcon ? visual?.icon : '');
+      if (fallback) {
+        image.addEventListener('error', () => { image.src = fallback; image.classList.remove('filter-option-icon--round'); }, { once: true });
+      }
       button.append(image);
     }
-    if (visual?.icon) button.classList.add('filter-icon-only');
+    if (iconSrc) button.classList.add('filter-icon-only');
     else button.append(document.createTextNode(name));
     button.addEventListener('click', () => {
       if (select.multiple) {

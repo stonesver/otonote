@@ -59,22 +59,22 @@ const cardInfo = (id: string) => {
     {usages.size ? [...usages].map(([kind, rows]) => <details class="db-acquisition-group"><summary><span>{usageKindLabel(kind)}</span><small>{rows.size} {say("项", "entries")}</small></summary><div class="db-item-uses">{[...rows.values()].sort((a, b) => a.stage - b.stage).map(row => <div class="db-item-use"><div><strong>{say("阶段", "Stage")} {row.stage}</strong><b>× {row.amount.toLocaleString()}</b></div><div class="db-use-links">{[...row.names].map(cardInfo).filter(Boolean).map(card => card && <a href={card.href}>{card.name}</a>)}</div></div>)}</div></details>) : <p class="db-detail-empty">{say("用途请参阅上方道具说明。", "See the item description above for its use.")}</p>}
   </section>
 <style is:inline>
-  .db-live-drops { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-  .db-live-drop-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .db-live-drops { border: 1px solid var(--theme-border); border-radius: 12px; overflow: hidden; }
+  .db-live-drop-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--theme-border); }
   .db-live-drop-heading strong { font-size: 13px; }
-  .db-live-drop-heading span, .db-live-drop-note { color: var(--silver-dark); font-size: 11px; }
+  .db-live-drop-heading span, .db-live-drop-note { color: var(--theme-muted); font-size: 12px; }
   .db-live-drop-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .db-live-drop-mode { min-width: 0; padding: 14px 16px 8px; }
-  .db-live-drop-mode + .db-live-drop-mode { border-left: 1px solid var(--line); }
+  .db-live-drop-mode + .db-live-drop-mode { border-left: 1px solid var(--theme-border); }
   .db-live-drop-mode h4 { margin: 0 0 10px; font-size: 12px; font-weight: 600; }
   .db-live-drop-mode table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
   .db-live-drop-mode th, .db-live-drop-mode td { padding: 7px 0; text-align: right; }
   .db-live-drop-mode th:first-child { text-align: left; }
-  .db-live-drop-mode thead th { color: var(--silver-dark); font-size: 10px; font-weight: 500; padding-top: 0; }
-  .db-live-drop-mode tbody tr + tr { border-top: 1px solid var(--line); }
-  .db-live-rank { display: inline-grid; place-items: center; min-width: 26px; min-height: 23px; border-radius: 5px; background: var(--paper-deep); font-size: 11px; }
-  .db-live-drop-rate { font-weight: 600; color: var(--rose); }
+  .db-live-drop-mode thead th { color: var(--theme-muted); font-size: 12px; font-weight: 500; padding-top: 0; }
+  .db-live-drop-mode tbody tr + tr { border-top: 1px solid var(--theme-border); }
+  .db-live-rank { display: inline-grid; place-items: center; min-width: 26px; min-height: 23px; border-radius: 5px; background: var(--theme-surface-deep); font-size: 12px; }
+  .db-live-drop-rate { font-weight: 600; color: var(--theme-accent); }
   .db-live-drop-note { margin: 0; padding: 10px 16px 14px; line-height: 1.6; }
-  @media (max-width: 560px) { .db-live-drop-modes { grid-template-columns: 1fr; } .db-live-drop-mode + .db-live-drop-mode { border-left: 0; border-top: 1px solid var(--line); } }
+  @media (max-width: 560px) { .db-live-drop-modes { grid-template-columns: 1fr; } .db-live-drop-mode + .db-live-drop-mode { border-left: 0; border-top: 1px solid var(--theme-border); } }
 </style>
 </article>

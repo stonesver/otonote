@@ -5,6 +5,7 @@ import { renderToString, renderContext } from './astro.mjs';
 import { localizeHtmlWithStats } from '../lib/html-localizer.ts';
 import { routeParams } from './routes.mjs';
 import { startPageInputs } from './startup.mjs';
+import { loadStylesheet } from './page-readiness.mjs';
 import { stageClientTools } from './tool-startup.mjs';
 
 export { routeParams, renderToString, renderContext };
@@ -36,7 +37,7 @@ async function start() {
   globalThis.__OURNOTES_BASE__ = context.base;
   const root = new URL('./', import.meta.url);
   globalThis[Symbol.for('ournotes.code-root.v1')] = root.href;
-  const {content, route: {app, page, params, stylesheet}} = await startPageInputs(
+  const {content, route: {app, page, params, sharedStylesheet, stylesheet}} = await startPageInputs(
     globalThis[Symbol.for('ournotes.code-manifest.v1')], root.href);
   globalThis[Symbol.for('ournotes.content-root.v1')] = content.root;
   globalThis[Symbol.for('ournotes.page-resource.v1')] = (url, options) => renderPageResource(url, app, context, options);
@@ -88,20 +89,40 @@ async function start() {
   }
   for (const attr of [...document.documentElement.attributes]) document.documentElement.removeAttribute(attr.name);
   for (const attr of documentNext.documentElement.attributes) document.documentElement.setAttribute(attr.name, attr.value);
-  // Keep the loaded link attached while replacing the other head nodes.
-  for (const node of [...document.head.childNodes]) if (node !== stylesheet && !preloads.includes(node)) node.remove();
+  // Keep the loaded shared & route stylesheets attached while replacing other head nodes.
+  for (const node of [...document.head.childNodes]) if (node !== sharedStylesheet && node !== stylesheet && !preloads.includes(node)) node.remove();
   document.head.prepend(...documentNext.head.childNodes);
   document.body.replaceChildren(...documentNext.body.childNodes);
-  // Scripts produced by template rendering are inert until explicitly attached.
+  // Lazy-load workspace modal CSS on first user intent or idle (keeps initial route CSS tiny).
+  if (app.workspaceCss) {
+    let wsCssPromise = null;
+    const ensureWorkspaceCss = () => {
+      if (!wsCssPromise) wsCssPromise = loadStylesheet(new URL(app.workspaceCss, root).href, document).catch(() => { wsCssPromise = null; });
+      return wsCssPromise;
+    };
+    for (const ev of ['account-hub:open', 'team-workspace:open', 'team-workspace:save', 'playlist-workspace:open']) {
+      document.addEventListener(ev, ensureWorkspaceCss, { capture: true, once: true });
+    }
+    const intentSelector = '[data-account-hub-open],[data-team-workspace-open],[data-workspace-quick-open],[data-open-team-workspace],[data-playlist-workspace-open]';
+    const onIntent = (e) => { if (e.target instanceof Element && e.target.closest(intentSelector)) ensureWorkspaceCss(); };
+    document.addEventListener('pointerenter', onIntent, { capture: true, passive: true });
+    document.addEventListener('focusin', onIntent, { capture: true, passive: true });
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => ensureWorkspaceCss(), { timeout: 3500 });
+    else setTimeout(() => ensureWorkspaceCss(), 2500);
+  }
+  // Scripts produced by template rendering are inert until explicitly attached; run modules in parallel.
+  const pendingLoads = [];
   for (const previous of [...document.querySelectorAll('script')]) {
     if (previous.type && !['module','text/javascript','application/javascript'].includes(previous.type)) continue;
     const script = document.createElement('script');
     for (const attr of previous.attributes) script.setAttribute(attr.name, attr.value);
     script.textContent = previous.textContent;
-    const loaded = script.src || script.type === 'module' ? new Promise((resolve, reject) => { script.onload = resolve; script.onerror = reject; }) : Promise.resolve();
+    if (script.src || script.type === 'module') {
+      pendingLoads.push(new Promise((resolve, reject) => { script.onload = resolve; script.onerror = reject; }));
+    }
     previous.replaceWith(script);
-    await loaded;
   }
+  await Promise.all(pendingLoads);
   document.dispatchEvent(new Event('astro:page-load'));
   revealTools();
   document.documentElement.dataset.contentReady = 'true';

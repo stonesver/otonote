@@ -12,6 +12,7 @@ const runtime=moduleUrl(`export * from ${JSON.stringify(import.meta.resolve('ast
 const fixture=moduleUrl(`
   export const catalog={release:{id:'fixture',region:'global',locale:'zh-CN'},musicCharts:[],bands:[]};
   export const filterVisual=()=>({});
+  export const bandCircleIcon=()=>({});
   export const activeReleaseContext={locale:'zh-CN'};
   export const getRuntimeUiLabels=()=>({scoreWorkbench:{}});
   export const LOGICAL_LANE_COUNT=12;

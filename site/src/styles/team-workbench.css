@@ -1,6 +1,6 @@
-/* Deck-builder pilot. Match the legacy palette root specificity; other tools retain their layout. */
+/* Deck-builder unified workbench styles. */
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] {
-  --team-radius: 10px;
+  --team-radius: var(--ds-radius-md, 12px);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view {
   display: block;
@@ -8,21 +8,23 @@
   margin-inline: auto;
   color: var(--tool-ink);
   font: 14px/1.6 var(--font-body);
+  font-variant-numeric: tabular-nums;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [hidden] { display: none !important; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(button, select, input, textarea) {
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(button, select, input:not([type="checkbox"])) {
-  min-height: 42px;
+  min-height: 34px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(button, select, input, textarea, summary):focus-visible {
-  outline: 2px solid var(--tool-focus);
-  outline-offset: 3px;
+  outline: 2px solid var(--theme-focus, var(--tool-focus));
+  outline-offset: 2px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-workbench-shell {
   display: block;
-  margin-top: 20px;
+  margin-top: 16px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-workbench-main {
   display: flex;
@@ -33,57 +35,138 @@
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-setup {
   display: block;
   margin: 0;
-  padding: 22px;
-  border: 1px solid var(--tool-border);
+  padding: 20px;
+  border: 1px solid var(--theme-border-soft);
   border-radius: var(--team-radius);
-  background: var(--tool-surface);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-card-shadow);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .ds-panel-title {
+  margin: -20px -20px 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--theme-border-soft);
+  border-radius: var(--team-radius) var(--team-radius) 0 0;
+  background: var(--theme-surface-tint);
+  color: var(--tool-ink);
+  font-size: 14px;
+  font-weight: 600;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields {
   display: grid;
   grid-template-columns: repeat(2,minmax(0,1fr));
   align-items: start;
-  gap: 22px 28px;
+  gap: 18px 24px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields :is(label, .team-song-field) {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   min-width: 0;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields :is(label > span, .team-field-label) {
-  font: 600 14px/1.5 var(--font-body);
+  font: 600 13px/1.4 var(--font-body);
   color: var(--tool-ink);
 }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields select {
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.team-default-fields, .calculation-scope) select {
+  appearance: none;
+  -webkit-appearance: none;
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--tool-border);
-  border-radius: 6px;
-  background: var(--tool-surface);
+  min-height: 32px;
+  padding: 4px 28px 4px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ds-radius-sm, 8px);
+  background-color: var(--theme-surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-muted) 50%),
+    linear-gradient(135deg, var(--theme-muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
   color: var(--tool-ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.team-default-fields, .calculation-scope) select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--theme-accent) 65%, var(--theme-border));
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-accent) 50%),
+    linear-gradient(135deg, var(--theme-accent) 50%, transparent 50%);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--theme-border-soft);
+  background: transparent;
+  display: grid;
+  gap: 6px;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope > label {
+  display: grid;
+  grid-template-columns: 76px minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tool-muted);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope-summary { margin: 0; font-size: 12px; font-weight: 600; color: var(--tool-ink); font-variant-numeric: tabular-nums; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope .playlist-help { margin: 0; font-size: 12px; color: var(--tool-muted); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope-actions button {
+  min-height: 28px; padding: 3px 10px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--theme-border); border-radius: var(--ds-radius-sm, 8px);
+  background: var(--theme-surface); color: var(--tool-ink);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculation-scope-actions button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+  background: var(--theme-action-soft); color: var(--theme-accent);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options button:not([data-round="true"]) {
+  padding: 0 8px;
+  min-height: 26px;
+  font-size: 12px;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options button[data-round="true"] {
+  width: 26px; min-width: 26px; height: 26px; min-height: 26px; padding: 0;
+  border: 1px solid transparent; border-radius: 999px; background-color: transparent; box-shadow: none;
+  transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options button[data-round="true"] img {
+  width: 22px; height: 22px; display: block; object-fit: contain;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options button[data-round="true"]:hover:not(:disabled) {
+  border-color: transparent; background-color: color-mix(in srgb, var(--theme-accent) 10%, transparent); transform: scale(1.06);
+}
+html[data-tool-theme][data-tool-theme] body .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options button[data-round="true"][aria-pressed="true"],
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .tool-options button[data-round="true"][aria-pressed="true"] {
+  border-color: transparent; background-color: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+  box-shadow: 0 0 0 1.5px var(--theme-accent), 0 0 0 4px color-mix(in srgb, var(--theme-accent) 18%, transparent);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-card-field { min-width: 0; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] {
   display: grid;
   gap: 10px;
-  margin: 12px 0 6px;
+  margin: 10px 0 4px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-search-card-bands] .calculator-scope-note {
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--tool-muted);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-scope-note {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 12px;
   color: var(--tool-muted);
 }
@@ -91,14 +174,65 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-card-actions button {
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  color: var(--tool-accent);
-  font-size: 13px;
+  padding: 3px 10px;
+  min-height: 28px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ds-radius-sm, 8px);
+  background: var(--theme-surface);
+  color: var(--tool-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-card-actions button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-account-entry,
+.task-studio.task-studio.tool-design-system[data-tool-kind="deck-builder"][data-tool-kind] .task-workbench .team-primary-growth .task-account-entry {
+  display: grid !important;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: 2px 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px !important;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ds-radius-sm, 8px) !important;
+  background: var(--theme-surface);
+  color: var(--tool-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-account-entry:hover:not(:disabled),
+.task-studio.task-studio.tool-design-system[data-tool-kind="deck-builder"][data-tool-kind] .task-workbench .team-primary-growth .task-account-entry:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+  background: var(--theme-action-soft);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-account-entry svg,
+.task-studio.task-studio.tool-design-system[data-tool-kind="deck-builder"][data-tool-kind] .task-workbench .team-primary-growth .task-account-entry svg {
+  grid-row: 1 / span 2;
+  width: 15px;
+  height: 15px;
+  color: var(--theme-accent);
+  flex: none;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-account-entry > span,
+.task-studio.task-studio.tool-design-system[data-tool-kind="deck-builder"][data-tool-kind] .task-workbench .team-primary-growth .task-account-entry > span {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--tool-ink);
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-account-entry > small,
+.task-studio.task-studio.tool-design-system[data-tool-kind="deck-builder"][data-tool-kind] .task-workbench .team-primary-growth .task-account-entry > small {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--tool-muted);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-song-row {
   display: grid;
@@ -109,7 +243,7 @@
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-song-cover {
   width: 48px;
   height: 48px;
-  border-radius: 6px;
+  border-radius: 8px;
   object-fit: cover;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-song-row > strong {
@@ -122,23 +256,33 @@
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-song-entry {
   grid-column: 1 / -1;
   justify-self: start;
-  padding: 8px 12px;
-  font-size: 14px;
+  padding: 6px 12px;
+  min-height: 32px;
+  font-size: 13px;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-setup-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 14px;
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--tool-line);
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--theme-border-soft);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-advanced-entry {
-  background: transparent;
-  border: 0;
-  padding: 8px 0;
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ds-radius-sm, 8px);
+  min-height: 32px;
+  padding: 4px 12px;
   color: var(--tool-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-advanced-entry:hover {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-advanced-summary {
   flex: 1;
@@ -147,18 +291,54 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .event-action-dock.team-action-dock {
+  position: fixed;
+  inset: auto 24px 14px;
+  z-index: 45;
+  max-width: 780px;
+  width: auto;
+  margin: auto;
+  isolation: isolate;
+  transform: translate3d(0, 0, 0);
+  background: transparent;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 10px 16px;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 26%, var(--theme-border));
+  border-radius: var(--ds-radius-md, 12px);
+  box-shadow: var(--theme-dock-shadow);
+  overflow: visible;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .event-action-dock.team-action-dock::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--theme-dock-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .event-action-dock.team-action-dock > * { position: relative; z-index: 1; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-optimize-pairing] {
   margin-left: auto;
-  min-width: 140px;
-  padding: 10px 18px;
-  border-radius: 7px;
-  border: 1px solid var(--tool-accent);
-  background: var(--tool-accent);
-  color: var(--theme-on-accent);
+  min-width: 132px;
+  min-height: 34px;
+  padding: 6px 16px;
+  border-radius: var(--ds-radius-sm, 8px);
+  border: 1px solid var(--theme-action);
+  background: var(--theme-action);
+  color: var(--theme-on-action);
+  font-size: 13px;
+  font-weight: 600;
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is([data-calculator-guidance], .team-edit-warning) {
-  font-size: 13px;
-  margin: 12px 0 0;
+  font-size: 12px;
+  margin: 10px 0 0;
   color: var(--tool-muted);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-edit-warning { margin: 0 0 12px; }
@@ -167,94 +347,101 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
-  padding: 14px 18px;
-  border: 1px solid var(--tool-border);
-  border-radius: 8px;
-  background: var(--tool-surface);
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: var(--ds-radius-md, 12px);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-card-shadow);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary > div { min-width: 0; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary strong { display: block; font-size: 15px; overflow-wrap: anywhere; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary span { display: block; color: var(--tool-muted); font-size: 12px; margin-top: 4px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary button { flex-shrink: 0; font-size: 13px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary span { display: block; color: var(--tool-muted); font-size: 12px; margin-top: 3px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary button { flex-shrink: 0; font-size: 12px; min-height: 30px; padding: 4px 12px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-calculation {
   display: grid;
   grid-template-columns: minmax(0,1fr) auto;
   align-items: start;
   gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--tool-border);
+  padding: 16px;
+  border: 1px solid var(--theme-border-soft);
   border-radius: var(--team-radius);
-  background: var(--tool-surface);
+  background: var(--theme-surface);
 }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-calculation .calculation-progress {
   padding: 0;
   margin: 0;
   border: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
 }
 /* Shared progress distinguishes stage counts from elapsed time. */
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-progress { grid-column: 1 / -1; margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-progress { grid-column: 1 / -1; margin: 0; font-size: 12px; overflow-wrap: anywhere; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .optimizer-results-panel {
   border: 0;
   padding: 0;
   background: transparent;
 }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .tool-panel-header { padding: 0 0 14px; margin: 0; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .tool-panel-header > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view #optimizer-results-title { font-size: 18px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .tool-panel-header { padding: 0 0 12px; margin: 0; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .tool-panel-header > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view #optimizer-results-title { font-size: 16px; font-weight: 600; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.team-result-count,.calculator-search-state) { font-size: 12px; color: var(--tool-muted); }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-pairing-results] { display: block; padding: 0; margin: 0; list-style: none; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-candidate-tabs { flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-candidate-tabs button { white-space: normal; font-size: 13px; padding: 9px 12px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-candidate-tabs button { white-space: normal; font-size: 12px; padding: 7px 12px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation {
   padding: 20px;
-  border: 1px solid var(--tool-border);
+  border: 1px solid var(--theme-border-soft);
   border-radius: var(--team-radius);
-  background: var(--tool-surface);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-card-shadow);
 }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-result-heading { align-items: start; gap: 16px; margin-bottom: 18px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-label { font-size: 17px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-result-heading { align-items: start; gap: 16px; margin-bottom: 16px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-label { font-size: 16px; font-weight: 600; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-mode { display: none; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-scenario { display: inline-block; font-size: 12px; padding: 4px 8px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-scenario { display: inline-block; font-size: 12px; padding: 3px 8px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-score strong { font: 700 clamp(24px,3vw,34px)/1.2 var(--font-body); font-variant-numeric: tabular-nums; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-score :is(span,em) { font-size: 12px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-reason { font-size: 13px; }
 .recommendation-score-summary { margin-block: 12px 18px; }
 .recommendation-score-summary .recommendation-power { grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); }
-.recommendation-score-summary .recommendation-power > div { flex-wrap: wrap; font-size: 13px; }
+.recommendation-score-summary .recommendation-power > div { flex-wrap: wrap; font-size: 12px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing { gap: 10px; grid-template-columns: repeat(5,minmax(0,1fr)); }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing .score-position { font-size: 12px; padding: 4px 8px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing .tw-card-art { height: auto; aspect-ratio: 4 / 5; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing .score-face--support .tw-card-art { height: auto; aspect-ratio: 4 / 3; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing .tw-card-name { font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing :is(.tw-card-growth,.tw-card-source,.task-leader-skill) { font-size: 11px !important; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions { gap: 10px; padding-top: 14px; border-top: 1px solid var(--tool-line); }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions :is(button,a) { font-size: 14px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions button:first-child { background: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-pairing :is(.tw-card-growth,.tw-card-source,.task-leader-skill) { font-size: 12px !important; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions { gap: 10px; padding-top: 14px; border-top: 1px solid var(--theme-border-soft); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions :is(button,a) { font-size: 13px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions button:first-child { background: var(--theme-surface); color: var(--tool-ink); border-color: var(--theme-border); }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result { background: var(--theme-action); color: var(--theme-on-action); border-color: var(--theme-action); }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.recommendation-caption,.recommendation-tradeoff,.recommendation-training,.recommendation-details summary,.team-result-boundary) { font-size: 13px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.recommendation-caption,.recommendation-tradeoff,.recommendation-training,.recommendation-details summary,.team-result-boundary) { font-size: 12px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-result-boundary { color: var(--tool-muted); margin: 12px 0; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-empty { padding: 32px 16px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-empty h3 { font: 400 14px/1.5 var(--font-body); color: var(--tool-muted); }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog { max-width: min(920px,calc(100vw - 32px)); }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog :is(label, label > span, p, summary, .task-condition-group > h3) { font-size: 14px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-dialog-body { font-size: 14px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-empty { padding: 28px 16px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .calculator-empty h3 { font: 500 14px/1.5 var(--font-body); color: var(--tool-muted); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog { max-width: min(920px,calc(100vw - 32px)); border-radius: var(--ds-radius-md, 12px); box-shadow: var(--theme-elevated-shadow); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog :is(label, label > span, p, summary, .task-condition-group > h3) { font-size: 13px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-dialog-body { font-size: 13px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog :is(select,textarea) { max-width: 100%; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-number-stepper input { min-height: 42px; font-size: 16px; }
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-number-stepper button { min-width: 36px; min-height: 42px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-number-stepper input { min-height: 36px; font-size: 14px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-number-stepper button { min-width: 34px; min-height: 36px; }
 
 @media(max-width:700px) {
-  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .content-shell { padding-inline: 14px; }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .content-shell { padding-inline: 12px; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .tool-page-header-inner { gap: 12px; }
-  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-setup { padding: 16px; }
-  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields { gap: 18px 14px; }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-setup { padding: 14px; }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .ds-panel-title { margin: -14px -14px 12px; padding: 10px 14px; }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields { grid-template-columns: minmax(0,1fr); gap: 14px; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(.team-song-field,.team-card-field) { grid-column: 1 / -1; }
-  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(button,select,input:not([type="checkbox"]),summary) { min-height: 44px; }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(button,select,input:not([type="checkbox"]),summary) { min-height: 40px; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view :is(input,select,textarea) { font-size: 16px; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-setup-actions { gap: 8px 12px; }
-  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-optimize-pairing] { width: 100%; margin: 2px 0 0; }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .event-action-dock.team-action-dock {
+    inset: auto 10px 10px; left: 10px; right: 10px; width: auto; max-width: none;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-optimize-pairing] { width: auto; flex: 0 0 auto; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary { padding: 12px; gap: 10px; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-condition-summary button { padding: 7px 9px; }
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-calculation { padding: 14px; }
@@ -301,7 +488,7 @@
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog :is(select, input, textarea) { font-size: 16px; }
 }
 /* These native controls also match the older tool-wide input rule. */
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields label select { font-size: 14px; }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields label select { font-size: 13px; }
 @media(max-width:700px) {
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .team-default-fields label select,
   .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .task-dialog .task-dialog-body :is(select,input,textarea) { font-size: 16px; }
@@ -310,4 +497,4 @@
 .task-studio[data-tool-kind="deck-builder"] .team-builder-view #optimizer-results > .tool-panel-header { flex-direction: row; justify-content: space-between; align-items: center; margin: 0; padding: 0 0 12px; }
 .task-studio[data-tool-kind="deck-builder"] .team-builder-view #optimizer-results > .tool-panel-header > div { display: flex; align-items: center; gap: 10px; }
 .task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view [data-optimize-pairing]:hover:not(:disabled),
-.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result:hover:not(:disabled) { background: var(--theme-action); border-color: var(--theme-action); color: var(--theme-on-action); }
+.task-studio.task-studio[data-tool-kind="deck-builder"][data-tool-kind] .team-builder-view .recommendation-actions .team-save-result:hover:not(:disabled) { background: var(--theme-accent-bright); border-color: var(--theme-accent-bright); color: var(--theme-on-action); }

@@ -20,12 +20,10 @@
   --line: color-mix(in srgb, var(--stage-ink) 15%, transparent);
   --line-light: color-mix(in srgb, var(--theme-inverse-text) 16%, transparent);
   --shadow: var(--theme-elevated-shadow);
-  --font-display: "Iowan Old Style", "Yu Mincho", "Hiragino Mincho ProN",
-    "Songti SC", serif;
-  --font-body: "Avenir Next", "Hiragino Sans GB", "Noto Sans CJK SC",
-    "Microsoft YaHei", sans-serif;
-  --font-mono: "SFMono-Regular", "Roboto Mono", "Noto Sans Mono CJK SC",
-    monospace;
+  --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --text-metadata-size: 12px;
   --text-secondary-size: 14px;
   --text-body-size: 16px;
@@ -179,95 +177,124 @@ h3 {
 .context-switcher {
   position: relative;
   justify-self: end;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
 }
 
 .context-switcher summary {
   min-width: 96px;
   display: grid;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
+  padding: 6px 13px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: 999px;
+  background: var(--theme-surface);
   cursor: pointer;
   list-style: none;
-  line-height: 1.15;
+  line-height: 1.2;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
 .context-switcher summary::-webkit-details-marker {
   display: none;
 }
 
+.context-switcher summary:hover {
+  border-color: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border));
+  background: var(--theme-action-soft);
+}
+
 .context-switcher summary span {
-  color: var(--lacquer);
-  font-size: var(--text-metadata-size);
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  color: var(--theme-accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .context-switcher summary strong {
-  margin-top: 3px;
-  font-size: var(--text-metadata-size);
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .context-switcher[open] summary {
-  border-color: var(--stage-ink);
-  background: var(--theme-inverse-surface);
-  color: var(--theme-inverse-text);
+  border-color: var(--theme-accent);
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-accent) 12%, transparent);
 }
 
-.context-switcher[open] summary span {
-  color: var(--theme-inverse-text);
+.context-switcher[open] summary span,
+.context-switcher[open] summary strong {
+  color: var(--theme-accent);
 }
 
 .context-switcher__panel {
   position: absolute;
-  z-index: 5;
-  top: calc(100% + 12px);
+  z-index: 40;
+  top: calc(100% + 10px);
   right: 0;
-  width: min(310px, calc(100vw - var(--gutter) * 2));
-  padding: 18px;
-  border: 1px solid var(--stage-ink);
-  background: var(--paper-light);
-  box-shadow: var(--shadow);
+  width: min(312px, calc(100vw - var(--gutter) * 2));
+  padding: 14px 16px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: 16px;
+  background: var(--theme-surface);
+  box-shadow: var(--theme-elevated-shadow);
 }
 
 .context-switcher__panel section + section {
-  padding-top: 16px;
-  margin-top: 16px;
-  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--theme-border-soft);
 }
 
 .context-switcher__panel small {
   display: block;
   margin-bottom: 8px;
-  color: var(--silver-dark);
-  font-size: var(--text-metadata-size);
-  letter-spacing: 0.1em;
+  color: var(--theme-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .context-switcher__options {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
 }
 
 .context-switcher__options a,
 .context-switcher__options > span {
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  font-size: var(--text-metadata-size);
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: 999px;
+  background: var(--theme-surface-tint);
+  color: var(--theme-text-soft);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
 .context-switcher__options > span[aria-disabled="true"] {
-  color: var(--silver-dark);
-  background: var(--paper-deep);
+  color: var(--theme-muted);
+  background: var(--theme-surface-deep);
   opacity: 0.58;
 }
 
-.context-switcher__options a:hover,
+.context-switcher__options a:hover {
+  border-color: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border));
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+}
+
 .context-switcher__options a[aria-current="true"] {
-  border-color: var(--lacquer);
-  background: color-mix(in srgb, var(--lacquer) 9%, transparent);
-  color: var(--lacquer);
+  border-color: var(--theme-accent);
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-accent) 14%, transparent);
 }
 
 .availability-notice {

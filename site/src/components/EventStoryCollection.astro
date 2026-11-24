@@ -2,36 +2,100 @@
 import type { EventDefinition } from "../lib/event-archive";
 import { eventCopy } from "../lib/event-copy";
 import { eventStoryEntryId } from "../lib/event-content.mjs";
-import EventHero from "./EventHero.astro";
-import "../styles/event-archive.css";
-import "../styles/event-editorial.css";
-interface Props { event: EventDefinition; locale?: string; href?: (path: string) => string; artwork?: { cover?: string; logo?: string }; readableIds?: string[] }
+import { formatEventTime } from "../lib/event-time.mjs";
+import "../styles/story-text.css";
+
+interface Props {
+  event: EventDefinition;
+  locale?: string;
+  href?: (path: string) => string;
+  artwork?: { cover?: string; logo?: string };
+  readableIds?: string[];
+}
 const { event, locale = "zh-CN", href = (path: string) => path, artwork = {}, readableIds = [] } = Astro.props;
 const copy = eventCopy(locale);
 const readable = new Set(readableIds);
 const sections = [
   { key: "main", name: copy.main, episodes: event.story.episodes.filter(episode => !episode.isAnotherEpisode && !episode.isExtraEpisode) },
   { key: "another", name: copy.another, episodes: event.story.episodes.filter(episode => episode.isAnotherEpisode) },
-  { key: "extra", name: copy.extra, episodes: event.story.episodes.filter(episode => !episode.isAnotherEpisode && episode.isExtraEpisode) }
+  { key: "extra", name: copy.extra, episodes: event.story.episodes.filter(episode => !episode.isAnotherEpisode && episode.isExtraEpisode) },
 ].filter(section => section.episodes.length);
 const count = event.story.episodes.filter(episode => readable.has(eventStoryEntryId(episode))).length;
+const dateStart = formatEventTime(event.schedule.startAt, event.edition, event.schedule.timeZone).slice(0, 10);
+const dateEnd = formatEventTime(event.schedule.endAt, event.edition, event.schedule.timeZone).slice(0, 10);
 ---
-<article class="event-archive content-shell">
-  <a class="ea-back" href={href("/stories/events/")}>← {copy.storyBack}</a>
-  <EventHero event={event} artwork={artwork} locale={locale} story />
-  <div class="ea-story-overview"><p><b>{event.story.episodes.length}</b> {copy.episodes}<span>·</span><b>{count}</b> {copy.available}</p><a class="ea-text-link" href={href(`/events/${event.id}/`)}>{copy.about} ↗</a></div>
-  <nav class="ea-jumps" aria-label={copy.chapters}>{sections.map(section => <a href={`#story-${section.key}`}>{section.name}<span>{section.episodes.length}</span></a>)}</nav>
-  {sections.map(section => <section class="ea-story-section" id={`story-${section.key}`}>
-    <header class="ea-section-head"><h2>{section.name}</h2><span>{section.episodes.length} {copy.episodes}</span></header>
-    <ol class="ea-episodes">{[...section.episodes].sort((a,b) => a.number - b.number).map(episode => {
-      const id = eventStoryEntryId(episode); const available = readable.has(id);
-      const Tag = available ? 'a' : 'div';
-      return <li><Tag class:list={["ea-episode", { "ea-episode--pending": !available }]} {...(available ? {href: href(`/stories/episodes/${id}/`)} : {})}>
-        <span class="ea-episode-number" aria-hidden="true">{String(episode.number).padStart(2, "0")}</span>
-        <div class="ea-episode-title"><span>{copy.episode}{episode.number}{copy.episodeEnd}</span><h3 lang={event.nameLocale ?? undefined}>{episode.name}</h3>{episode.description && <p lang={event.nameLocale ?? undefined}>{episode.description}</p>}</div>
-        <span class="ea-episode-points"><small>{copy.points}</small>{episode.requiredPoints?.toLocaleString(locale) ?? "—"} <small>pt</small></span>
-        <span class="ea-episode-action">{available ? copy.read : copy.unread}{available && <span aria-hidden="true"> →</span>}</span>
-      </Tag></li>;
-    })}</ol>
-  </section>)}
+<article class="st-library st-event-detail content-shell">
+  <div class="st-event-detail-card">
+    <div class="st-event-detail-head">
+      <div class="st-event-detail-top">
+        <a class="st-back" href={href("/stories/events/")}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+          <span>{copy.storyBack}</span>
+        </a>
+        <a class="st-inline-link-btn" href={href(`/events/${event.id}/`)}>{copy.about} ↗</a>
+      </div>
+
+      <div class="st-event-detail-hero">
+        {artwork?.cover && (
+          <div class="st-event-detail-thumb">
+            <img src={artwork.cover} alt="" width="360" height="202" />
+            {artwork.logo && <img class="st-event-thumb-logo" src={artwork.logo} alt="" width="140" height="70" />}
+          </div>
+        )}
+        <div class="st-event-detail-meta">
+          <p class="st-event-meta">
+            <span>#{String(event.id).padStart(2, "0")}</span>
+            <span>·</span>
+            <span>{dateStart} — {dateEnd}</span>
+          </p>
+          <h1 lang={event.nameLocale ?? undefined}>{event.name}</h1>
+          <div class="st-event-detail-stats">
+            <span><b>{event.story.episodes.length}</b> {copy.episodes}</span>
+            <span>·</span>
+            <span><b>{count}</b> {copy.available}</span>
+          </div>
+          {sections.length > 1 && (
+            <nav class="st-event-jumps" aria-label={copy.chapters}>
+              {sections.map(section => (
+                <a href={`#story-${section.key}`}>{section.name} <span>{section.episodes.length}</span></a>
+              ))}
+            </nav>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <div class="st-event-detail-body">
+      {sections.map(section => (
+        <section class="st-event-section" id={`story-${section.key}`}>
+          <header class="st-event-section-head">
+            <h2>{section.name}</h2>
+            <span>{section.episodes.length} {copy.episodes}</span>
+          </header>
+          <ol class="st-event-ep-list">
+            {[...section.episodes].sort((a, b) => a.number - b.number).map(episode => {
+              const id = eventStoryEntryId(episode);
+              const available = readable.has(id);
+              const Tag = available ? "a" : "div";
+              return (
+                <li>
+                  <Tag class:list={["st-event-ep", { "st-event-ep--pending": !available }]} {...(available ? { href: href(`/stories/episodes/${id}/`) } : {})}>
+                    <span class="st-card-index" aria-hidden="true">{String(episode.number).padStart(2, "0")}</span>
+                    <div class="st-event-ep-main">
+                      <h3 lang={event.nameLocale ?? undefined}>{episode.name}</h3>
+                      {episode.description && <p lang={event.nameLocale ?? undefined}>{episode.description}</p>}
+                    </div>
+                    <span class="st-event-ep-action">
+                      {available ? copy.read : copy.unread}
+                      {available && <span aria-hidden="true"> →</span>}
+                    </span>
+                  </Tag>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
+    </div>
+  </div>
 </article>

@@ -1,14 +1,208 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import EventArchive from '../../../components/EventArchive.astro';
+import StoryCategoryNav from '../../../components/StoryCategoryNav.astro';
 import {eventRecords, eventHref, eventArtworks, eventIdentities} from '../../../lib/event-pages';
-import {readableEventStoryCounts} from '../../../lib/event-stories';
+import {readableEventStoryIds} from '../../../lib/event-stories';
+import {eventStoryEntryId} from '../../../lib/event-content.mjs';
+import {storyEntries, storyCopy} from '../../../lib/story-library';
 import {eventCopy} from '../../../lib/event-copy';
+import {formatEventTime} from '../../../lib/event-time.mjs';
 import {activeReleaseContext} from '../../../lib/release-context';
-const copy = eventCopy(activeReleaseContext.locale);
+import '../../../styles/story-text.css';
+
+const locale = activeReleaseContext.locale;
+const copy = eventCopy(locale);
+const readable = new Set(readableEventStoryIds);
+const records = [...eventRecords]
+  .filter(event => event.story.episodes.length > 0)
+  .sort((a, b) => (b.schedule.startAt ?? '').localeCompare(a.schedule.startAt ?? '') || b.id - a.id);
+
+const totalEpisodes = records.reduce((sum, event) => sum + event.story.episodes.length, 0);
 ---
 <BaseLayout title={copy.stories} description={copy.storyIntro}>
-  <EventArchive story archive={{records:eventRecords, definitionCount:eventRecords.length}}
-    locale={activeReleaseContext.locale} href={eventHref} artworks={eventArtworks}
-    identities={eventIdentities} readableCounts={readableEventStoryCounts} />
+  <div class="st-library content-shell" data-event-story-directory>
+    <div class="st-command-panel">
+      <StoryCategoryNav active="event" />
+      {records.length > 0 && (
+        <div class="st-event-filter-row">
+          <label class="st-search">
+            <span class="visually-hidden">{copy.search}</span>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input type="search" class="ui-input" data-event-search placeholder={locale === 'en' ? 'Search event or episode title…' : '搜索活动名、话数标题、乐队…'} autocomplete="off" />
+          </label>
+          <div class="st-results" aria-live="polite">
+            <span><b data-event-count>{records.length}</b> {copy.events} · <b data-episode-count>{totalEpisodes}</b> {copy.episodes}</span>
+            <button type="button" class="ui-btn-ghost" data-event-clear hidden>{copy.clear}</button>
+          </div>
+        </div>
+      )}
+    </div>
+
+    {records.length > 0 ? (
+      <div class="st-event-groups">
+        {records.map((event, idx) => {
+          const art = eventArtworks[event.id];
+          const idInfo = eventIdentities[event.id];
+          const dateStart = formatEventTime(event.schedule.startAt, event.edition, event.schedule.timeZone).slice(0, 10);
+          const groupMetaSearch = [
+            event.name,
+            ...(idInfo?.bands ?? []).map(b => b.name),
+            ...(idInfo?.characters ?? []).map(c => c.name),
+          ].join(' ');
+          const sortedEpisodes = [...event.story.episodes].sort((a, b) => {
+            const rank = (ep: typeof a) => (ep.isAnotherEpisode ? 1 : ep.isExtraEpisode ? 2 : 0);
+            return rank(a) - rank(b) || a.number - b.number;
+          });
+          return (
+            <details class="st-event-group" id={`event-${event.id}`} data-event-group data-search={groupMetaSearch} open={idx === 0}>
+              <summary class="st-event-group-head">
+                <div class="st-event-group-lead">
+                  <div class:list={["st-event-mini-thumb", { "st-event-thumb--empty": !art?.cover }]}>
+                    {art?.cover ? (
+                      <img src={art.cover} alt="" loading="lazy" width="192" height="108" />
+                    ) : (
+                      <span>#{String(event.id).padStart(2, '0')}</span>
+                    )}
+                  </div>
+                  <div class="st-event-group-title">
+                    <p class="st-event-meta">
+                      <span>#{String(event.id).padStart(2, '0')}</span>
+                      <span>·</span>
+                      <span>{dateStart}</span>
+                      <span>·</span>
+                      <span>{sortedEpisodes.length} {copy.episodes}</span>
+                    </p>
+                    <h2 lang={event.nameLocale ?? undefined}>{event.name}</h2>
+                  </div>
+                </div>
+                <div class="st-event-group-right">
+                  <a class="st-inline-link-btn" href={eventHref(`/events/${event.id}/`)} data-stop-toggle>{copy.about} ↗</a>
+                  <span class="st-event-chevron" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+                  </span>
+                </div>
+              </summary>
+
+              <ol class="st-event-direct-grid">
+                {sortedEpisodes.map(episode => {
+                  const id = eventStoryEntryId(episode);
+                  const available = readable.has(id);
+                  const entry = storyEntries.get(id);
+                  const Tag = available ? 'a' : 'div';
+                  const sectionBadge = episode.isAnotherEpisode ? 'Another' : episode.isExtraEpisode ? storyCopy.extra : null;
+                  return (
+                    <li
+                      class="st-event-direct-item"
+                      data-event-ep
+                      data-search={`${groupMetaSearch} ${episode.name} ${episode.description || ''}`}
+                    >
+                      <Tag
+                        class:list={["st-event-direct-link", { "st-event-ep--pending": !available }]}
+                        {...(available ? { href: eventHref(`/stories/episodes/${id}/`) } : {})}
+                      >
+                        <span class="st-card-index" aria-hidden="true">{String(episode.number).padStart(2, '0')}</span>
+                        <div class="st-event-direct-main">
+                          <div class="st-event-direct-title">
+                            {sectionBadge && <span class="st-ep-section-tag">{sectionBadge}</span>}
+                            <h3 lang={event.nameLocale ?? undefined}>{episode.name}</h3>
+                          </div>
+                          {episode.description && <p lang={event.nameLocale ?? undefined}>{episode.description}</p>}
+                        </div>
+                        <span class="st-event-direct-meta">
+                          {available && entry?.lineCount ? (
+                            <>{entry.lineCount} {storyCopy.lines} <span class="st-read-link" aria-hidden="true">→</span></>
+                          ) : available ? (
+                            <span class="st-read-link" aria-hidden="true">→</span>
+                          ) : (
+                            copy.unread
+                          )}
+                        </span>
+                      </Tag>
+                    </li>
+                  );
+                })}
+              </ol>
+            </details>
+          );
+        })}
+        <div class="st-index-sheet" data-event-empty hidden>
+          <div class="st-empty">
+            <h2>{copy.noResults}</h2>
+            <button type="button" class="ui-btn-soft" data-event-clear>{copy.clear}</button>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div class="st-index-sheet">
+        <section class="st-empty">
+          <h2>{copy.noStories}</h2>
+          <p>{copy.emptyStories}</p>
+          <a class="ui-btn-soft" href={eventHref('/stories/main/')}>{copy.allStories} →</a>
+        </section>
+      </div>
+    )}
+  </div>
 </BaseLayout>
+<script>
+  const root = document.querySelector<HTMLElement>('[data-event-story-directory]');
+  if (root) {
+    const input = root.querySelector<HTMLInputElement>('[data-event-search]');
+    const groups = [...root.querySelectorAll<HTMLDetailsElement>('[data-event-group]')];
+    const countEl = root.querySelector<HTMLElement>('[data-event-count]');
+    const epCountEl = root.querySelector<HTMLElement>('[data-episode-count]');
+    const emptyEl = root.querySelector<HTMLElement>('[data-event-empty]');
+    const clearBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-event-clear]')];
+
+    // Prevent clicking the "event details" link inside summary from toggling details
+    root.querySelectorAll<HTMLElement>('[data-stop-toggle]').forEach(el => {
+      el.addEventListener('click', event => event.stopPropagation());
+    });
+
+    // If arriving via #event-N hash, open that event group automatically
+    const openHashTarget = () => {
+      const targetId = location.hash.replace(/^#/, '');
+      if (!targetId) return;
+      const target = groups.find(g => g.id === targetId);
+      if (target) target.open = true;
+    };
+    openHashTarget();
+    window.addEventListener('hashchange', openHashTarget);
+
+    const update = () => {
+      const q = (input?.value || '').trim().toLocaleLowerCase();
+      let shownGroups = 0;
+      let shownEpisodes = 0;
+      groups.forEach((group, idx) => {
+        const eps = [...group.querySelectorAll<HTMLElement>('[data-event-ep]')];
+        let matchedInGroup = 0;
+        eps.forEach(ep => {
+          const match = !q || (ep.dataset.search || '').toLocaleLowerCase().includes(q);
+          ep.hidden = !match;
+          if (match) matchedInGroup++;
+        });
+        group.hidden = matchedInGroup === 0;
+        if (q && matchedInGroup > 0) {
+          group.open = true;
+        } else if (!q) {
+          group.open = idx === 0;
+        }
+        if (matchedInGroup > 0) {
+          shownGroups++;
+          shownEpisodes += matchedInGroup;
+        }
+      });
+      if (countEl) countEl.textContent = String(shownGroups);
+      if (epCountEl) epCountEl.textContent = String(shownEpisodes);
+      if (emptyEl) emptyEl.hidden = shownGroups > 0;
+      clearBtns.forEach(btn => {
+        if (btn.closest('.st-results')) btn.hidden = !q;
+      });
+    };
+    input?.addEventListener('input', update);
+    clearBtns.forEach(btn => btn.addEventListener('click', () => {
+      if (input) input.value = '';
+      update();
+      input?.focus();
+    }));
+  }
+</script>

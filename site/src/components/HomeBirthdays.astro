@@ -4,6 +4,7 @@ import { globalSystems, type GachaPool } from '../lib/global-systems';
 import { activeReleaseContext } from '../lib/release-context';
 import { siteHref } from '../lib/site-context';
 import ArchiveImage from './ArchiveImage.astro';
+import BandMark from './BandMark.astro';
 import { upcomingBirthdays, calendarDate, birthdayCountdown, birthdayProximity, birthdayContent, preferredBirthdayPool, preferredBirthdayCard, birthdayPoolLabel } from '../lib/birthday-calendar.mjs';
 import '../styles/home-birthdays.css';
 
@@ -14,28 +15,36 @@ const birthdays = upcomingBirthdays(catalog.characters, now);
 const today = calendarDate(now);
 ---
 {birthdays.length > 0 && <home-birthdays data-language={en ? 'en' : 'zh'}>
-  <section class="home-birthdays" aria-labelledby="home-birthday-heading">
+  <section class="home-birthdays ui-sheet" aria-labelledby="home-birthday-heading">
     <header class="birthday-heading">
-      <div><span class="birthday-heading-mark" aria-hidden="true">✳</span><h2 id="home-birthday-heading">{en ? 'Birthdays ahead' : '近期生日'}</h2></div>
+      <div><span class="birthday-heading-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l1.9 4.6 4.6 1.9-4.6 1.9L10 15.5l-1.9-4.6L3.5 9l4.6-1.9L10 2.5z"/><path d="M15.5 14l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8.8-1.7z"/></svg></span><h2 id="home-birthday-heading">{en ? 'Birthdays ahead' : '近期生日'}</h2></div>
       <span class="birthday-today">{en ? 'Today' : '今天'} <time data-calendar-today datetime={today}>{today.slice(5).replace('-', '.')}</time><small>UTC+8</small></span>
     </header>
     <div class="birthday-grid" data-birthday-list>
       {birthdays.map(({character, date, days}, index) => {
-        const portrait = character.portraitAssetIds.map(getAsset).find(asset => asset?.containerPath.endsWith('/character_thumbnail.png')) ?? getAsset(character.profileAssetId);
+        const portrait = character.portraitAssetIds.map(getAsset).find(asset => asset?.containerPath.endsWith('/character_face_icon.png'))
+          ?? character.portraitAssetIds.map(getAsset).find(asset => asset?.containerPath.endsWith('/character_thumbnail.png'))
+          ?? getAsset(character.profileAssetId);
         const band = getBand(character.bandId);
         const related = birthdayContent(character.id, catalog.memberCards, globalSystems.gachaPools);
         const pool = preferredBirthdayPool(related.pools, now);
         const card = preferredBirthdayCard(related.cards, pool);
-        return <article class="birthday-card" data-birthday-card data-month={character.birthday.month} data-day={character.birthday.day} data-birthday-state={birthdayProximity(days)} style={`--birthday-color:${/^#[\da-f]{6}$/i.test(character.mainColor) ? character.mainColor : 'var(--theme-secondary)'}`} hidden={index >= 4}>
+        return <article class="birthday-card ui-subsheet" data-birthday-card data-month={character.birthday.month} data-day={character.birthday.day} data-birthday-state={birthdayProximity(days)} style={`--birthday-color:${/^#[\da-f]{6}$/i.test(character.mainColor) ? character.mainColor : 'var(--theme-secondary)'}`} hidden={index >= 4}>
           <a class="birthday-person" href={href(`/characters/${character.id}/`)}>
-            <div class="birthday-date"><time data-birthday-date datetime={date}>
-              <span class="birthday-date-short">{String(character.birthday.month).padStart(2, '0')}/{String(character.birthday.day).padStart(2, '0')}</span>
-              <span class="birthday-date-month">{en ? new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, character.birthday.month - 1, 1))) : `${character.birthday.month}月`}</span>
-              <b class="birthday-date-day">{String(character.birthday.day).padStart(2, '0')}</b>
-            </time></div>
-            <div class="birthday-portrait">{portrait && <ArchiveImage asset={portrait} alt="" />}</div>
-            <div class="birthday-person-copy"><span class="birthday-occasion birthday-occasion--today">{en ? 'TODAY’S BIRTHDAY' : '今日寿星'}</span><span class="birthday-countdown" data-birthday-countdown>{birthdayCountdown(days, en)}</span><h3>{character.displayName}</h3><p>{band?.displayName}</p></div>
-
+            <div class="birthday-portrait">{portrait ? <ArchiveImage asset={portrait} alt="" /> : <span class="birthday-portrait-fallback" aria-hidden="true">{character.displayName.slice(0, 1)}</span>}</div>
+            <div class="birthday-person-copy">
+              <div class="birthday-person-top">
+                <span class="birthday-occasion birthday-occasion--today">{en ? 'TODAY’S BIRTHDAY' : '今日寿星'}</span>
+                <span class="birthday-countdown" data-birthday-countdown>{birthdayCountdown(days, en)}</span>
+                <span class="birthday-date"><time data-birthday-date datetime={date}>
+                  <span class="birthday-date-short">{String(character.birthday.month).padStart(2, '0')}/{String(character.birthday.day).padStart(2, '0')}</span>
+                  <span class="birthday-date-month">{en ? new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, character.birthday.month - 1, 1))) : `${character.birthday.month}月`}</span>
+                  <b class="birthday-date-day">{String(character.birthday.day).padStart(2, '0')}</b>
+                </time></span>
+              </div>
+              <h3>{character.displayName}</h3>
+              {band && <p class="birthday-band"><BandMark band={band} compact iconOnly round /></p>}
+            </div>
           </a>
           {(related.cards.length > 0 || related.pools.length > 0) && <div class="birthday-related" aria-label={en ? `${character.displayName} birthday collection` : `${character.displayName}的生日内容`}>
             <span class="birthday-related-mark" aria-hidden="true">✧</span>

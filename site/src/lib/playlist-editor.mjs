@@ -10,7 +10,7 @@ const field=(text,input)=>{const l=el('label',text);l.append(input);return l;};
 export function createPlaylistEditor({host,data,store,getFilters,onSave,onApply,onClose,onBack}) {
  const panel=createWorkbenchDialog(document.body,'编辑歌单',{className:'playlist-dialog playlist-editor',onClose});
  panel.dialog.classList.remove('task-dialog');
- const closeButton=panel.dialog.querySelector('header button');closeButton.textContent='×';closeButton.setAttribute('aria-label','关闭 ×');
+ const closeButton=panel.dialog.querySelector('header button');closeButton.setAttribute('aria-label','关闭');
  const tracks=new Map(data.tracks.map(t=>[t.id,t])),charts=new Map();
  for(const c of data.charts){if(!charts.has(c.trackId))charts.set(c.trackId,[]);charts.get(c.trackId).push(c);}
  let dirty=false,busy=false,discard;
@@ -48,6 +48,7 @@ export function createPlaylistEditor({host,data,store,getFilters,onSave,onApply,
    const focused=document.activeElement?.dataset?.playlistChoice,scroll=list.scrollTop;
    const preview=resolveCalculationScope({...data,...getFilters(),selection:{kind:'temporary',entries:chosen}});
    count.textContent=`已选 ${chosen.length} 首 / ${resolveCalculationScope({...data,selection:{kind:'temporary',entries:chosen}}).requestedChartCount} 张谱面 · 本次可计算 ${preview.songCount} 首 / ${preview.chartCount} 张`;
+   selected.textContent=`只看已选（${chosen.length}）`;
    const selectedMap=new Map(chosen.map(e=>[e.trackId,e]));
    const f=Object.fromEntries(Object.entries(controls).map(([k,n])=>[k,n.value]));filterTitle.textContent=`筛选歌曲${Object.values(f).filter(Boolean).length?' · 已设置 '+Object.values(f).filter(Boolean).length+' 项':''}`;
    const words=query.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean),rows=[...data.tracks,...chosen.filter(e=>!tracks.has(e.trackId)).map(e=>({id:e.trackId,title:e.trackId}))].filter(t=>(!onlySelected||selectedMap.has(t.id))&&words.every(w=>`${t.title} ${t.id} ${(t.bandLabels??[]).join(' ')}`.toLocaleLowerCase().includes(w))&&(!f.band||t.bandIds?.includes(f.band))&&(!f.attribute||String(t.musicType)===f.attribute)&&(!f.mission||(t.missions?.length&&matchesSongMission(t.missions,f.mission)))&&(!(f.difficulty||f.min||f.max)||(charts.get(t.id)??[]).some(c=>matchesSongChart({...c,disabled:false},f))));
@@ -82,7 +83,7 @@ export function createPlaylistEditor({host,data,store,getFilters,onSave,onApply,
   if(temporary){actions.append(button('应用本次调整',()=>{dirty=false;panel.close();onApply(chosen);},'playlist-primary'));const copies=el('div',null,'playlist-copy-actions');copies.append(button('保存为新歌单',save(undefined)));if(playlist)copies.append(button('更新原歌单',save(playlist.id)));saveDetails.append(copies);}
   else {actions.append(button(playlist?'保存修改':'创建歌单',save(playlist?.id),'playlist-primary'));if(playlist)actions.append(button('另存为新歌单',save(undefined)));}
   actions.append(button(temporary?'取消':'返回歌单',e=>{if(dirty){discard.hidden=false;discard.querySelector('button').focus();}else {panel.close();if(!temporary)onBack?.(playlist);}}));
-  const clear=button('清空已选',()=>{chosen=[];markDirty();render();});const help=el('details',null,'playlist-selection-help');help.append(el('summary','难度选择说明'),el('p','“全部难度”也包含以后新增的难度；单独勾选只保存这些难度。'));const selectionTools=el('div',null,'playlist-selection-tools');selectionTools.append(help,clear);
+  const clear=button('清空已选',()=>{chosen=[];markDirty();render();});const help=el('details',null,'playlist-selection-help ui-tip-disclosure');const helpSummary=el('summary');const helpIcon=document.createElementNS('http://www.w3.org/2000/svg','svg');helpIcon.setAttribute('viewBox','0 0 16 16');helpIcon.setAttribute('width','14');helpIcon.setAttribute('height','14');helpIcon.setAttribute('fill','none');helpIcon.setAttribute('stroke','currentColor');helpIcon.setAttribute('stroke-width','1.5');helpIcon.setAttribute('aria-hidden','true');const helpCircle=document.createElementNS('http://www.w3.org/2000/svg','circle');helpCircle.setAttribute('cx','8');helpCircle.setAttribute('cy','8');helpCircle.setAttribute('r','6.2');const helpLine=document.createElementNS('http://www.w3.org/2000/svg','path');helpLine.setAttribute('d','M8 7.2v4M8 4.8v.6');helpLine.setAttribute('stroke-linecap','round');helpIcon.append(helpCircle,helpLine);helpSummary.append(helpIcon,el('span','难度选择说明'));const helpBody=el('div',null,'ui-tip-body');helpBody.append(el('p','“全部难度”也包含以后新增的难度；单独勾选只保存这些难度。'));help.append(helpSummary,helpBody);const selectionTools=el('div',null,'playlist-selection-tools');selectionTools.append(help,clear);
   footer.append(count,status,actions);panel.body.replaceChildren(discard,el('p',temporary?'仅调整本次计算，已保存歌单保持不变。':'选择常打歌曲和难度，在各计算工具中共用。','playlist-help'),...(temporary?[]:[metadata]),filters,filterDetails,selectionTools,list,pager,...(temporary?[saveDetails]:[]));
   panel.dialog.querySelector(':scope > footer')?.remove();panel.dialog.append(footer);
   query.addEventListener('input',()=>{page=0;render();});render();panel.open();(temporary?query:name).focus();

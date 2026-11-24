@@ -5,6 +5,9 @@ For structural codebase exploration, use the installed `codebase-memory` skill.
 Before changing documentation, read [the documentation policy](docs/governance/documentation.md)
 and use [the document index](docs/README.md) to find the authoritative page.
 
+For frontend UI layout, tokens, typography, and icon/game-asset usage rules,
+follow [the frontend design system](docs/reference/frontend-design-system.md).
+
 - Update current explanations and runbooks with the code they describe. Ordinary
   changes do not need a new design, completion report, handoff, or release note.
 - Keep unfinished work in `docs/BACKLOG.md`; remove resolved entries. Git and PRs

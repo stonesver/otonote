@@ -1,0 +1,272 @@
+---
+interface Props {
+  locale?: string;
+}
+
+const en = Astro.props.locale === "en";
+---
+
+<nav
+  class="global-hub-bar"
+  data-global-workspace-dock
+  aria-label={en ? "Account sync, cards and playlists" : "账号同步、卡库与歌单"}
+>
+  <div class="global-hub-bar__desktop">
+    <button
+      type="button"
+      class="global-hub-bar__btn"
+      data-workspace-quick-open="team"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-label={en ? "Open growth & teams" : "打开养成与队伍"}
+      title={en ? "Growth & teams" : "养成与队伍"}
+    >
+      <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+        <rect x="2.2" y="3.2" width="10" height="12.2" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M5.8 2h7.8a1.8 1.8 0 0 1 1.8 1.8v10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>{en ? "Cards" : "卡库"}</span>
+      <span class="global-hub-bar__count" data-workspace-dock-cards hidden>0</span>
+    </button>
+    <button
+      type="button"
+      class="global-hub-bar__btn"
+      data-workspace-quick-open="playlist"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-label={en ? "Open my playlists" : "打开我的歌单"}
+      title={en ? "My playlists" : "我的歌单"}
+    >
+      <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+        <path d="M3.2 4.5h6.5M3.2 8.5h6.5M3.2 12.5h4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        <circle cx="13.2" cy="12.2" r="2" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M15.2 12.2V4.8l-2.8.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span>{en ? "Playlists" : "歌单"}</span>
+      <span class="global-hub-bar__count" data-workspace-dock-playlists hidden>0</span>
+    </button>
+    <button
+      type="button"
+      class="global-hub-bar__btn global-hub-bar__btn--account"
+      data-workspace-quick-open="account"
+      data-account-hub-open
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-label={en ? "Open account sync hub" : "打开账号同步中心"}
+      title={en ? "Account sync hub" : "账号同步中心"}
+    >
+      <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+        <circle cx="9" cy="6.1" r="2.7" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M4.2 14.8a4.8 4.8 0 0 1 9.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>{en ? "Account sync" : "账号同步"}</span>
+    </button>
+  </div>
+
+  <button
+    type="button"
+    class="global-hub-mobile-btn"
+    data-workspace-quick-open="mobile-hub"
+    aria-haspopup="menu"
+    aria-expanded="false"
+    aria-label={en ? "Account sync, cards and playlists" : "账号同步、卡库与歌单"}
+    title={en ? "Account, cards & playlists" : "账号 / 卡库 / 歌单"}
+  >
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <circle cx="10" cy="6.6" r="3" fill="none" stroke="currentColor" stroke-width="1.6" />
+      <path d="M4.6 16.2a5.4 5.4 0 0 1 10.8 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+    </svg>
+    <span class="global-hub-mobile-dot" data-workspace-dock-dot hidden aria-hidden="true"></span>
+  </button>
+
+  <div class="global-hub-popover" data-workspace-mobile-menu role="menu" hidden>
+    <button type="button" class="global-hub-popover__item" role="menuitem" data-workspace-quick-open="account">
+      <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+        <circle cx="9" cy="6.1" r="2.7" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M4.2 14.8a4.8 4.8 0 0 1 9.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>{en ? "Account sync hub" : "账号同步中心"}</span>
+    </button>
+    <button type="button" class="global-hub-popover__item" role="menuitem" data-workspace-quick-open="team">
+      <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+        <rect x="2.2" y="3.2" width="10" height="12.2" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M5.8 2h7.8a1.8 1.8 0 0 1 1.8 1.8v10.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <span>{en ? "Growth & teams" : "养成与队伍"}</span>
+      <span class="global-hub-bar__count" data-workspace-dock-cards hidden>0</span>
+    </button>
+    <button type="button" class="global-hub-popover__item" role="menuitem" data-workspace-quick-open="playlist">
+      <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+        <path d="M3.2 4.5h6.5M3.2 8.5h6.5M3.2 12.5h4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        <circle cx="13.2" cy="12.2" r="2" fill="none" stroke="currentColor" stroke-width="1.5" />
+        <path d="M15.2 12.2V4.8l-2.8.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span>{en ? "My playlists" : "我的歌单"}</span>
+      <span class="global-hub-bar__count" data-workspace-dock-playlists hidden>0</span>
+    </button>
+  </div>
+</nav>
+
+<script>
+  import { currentServerContext } from "../lib/game-servers.mjs";
+
+  const dock = document.querySelector<HTMLElement>("[data-global-workspace-dock]");
+  if (dock) {
+    const accountBtns = [...dock.querySelectorAll<HTMLButtonElement>('[data-workspace-quick-open="account"]')];
+    const teamBtns = [...dock.querySelectorAll<HTMLButtonElement>('[data-workspace-quick-open="team"]')];
+    const playlistBtns = [...dock.querySelectorAll<HTMLButtonElement>('[data-workspace-quick-open="playlist"]')];
+    const mobileBtn = dock.querySelector<HTMLButtonElement>('[data-workspace-quick-open="mobile-hub"]');
+    const mobileMenu = dock.querySelector<HTMLElement>("[data-workspace-mobile-menu]");
+    const mobileDot = dock.querySelector<HTMLElement>("[data-workspace-dock-dot]");
+    const cardsBadges = [...dock.querySelectorAll<HTMLElement>("[data-workspace-dock-cards]")];
+    const playlistsBadges = [...dock.querySelectorAll<HTMLElement>("[data-workspace-dock-playlists]")];
+
+    const readJson = (key: string) => {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const refreshCounts = () => {
+      try {
+        const { region, serverId } = currentServerContext();
+        const scope = `${region}:${serverId ?? "unselected"}`;
+        const growth = readJson(`ournotes:personal-growth:${scope}`);
+        const cardTotal =
+          (Array.isArray(growth?.inventory?.memberCardIds) ? growth.inventory.memberCardIds.length : 0) +
+          (Array.isArray(growth?.inventory?.supportCardIds) ? growth.inventory.supportCardIds.length : 0);
+        const playlistState = readJson(`ournotes:playlists:${scope}`);
+        const playlistTotal = Array.isArray(playlistState?.playlists) ? playlistState.playlists.length : 0;
+        for (const el of cardsBadges) {
+          el.textContent = String(cardTotal);
+          el.hidden = cardTotal === 0;
+        }
+        for (const el of playlistsBadges) {
+          el.textContent = String(playlistTotal);
+          el.hidden = playlistTotal === 0;
+        }
+        if (mobileDot) mobileDot.hidden = cardTotal + playlistTotal === 0;
+      } catch {}
+    };
+
+    const closeMobileMenu = () => {
+      if (mobileMenu) mobileMenu.hidden = true;
+      syncExpanded();
+    };
+
+    const syncExpanded = () => {
+      const accountOpen = Boolean(document.querySelector(".account-hub-dialog[open]"));
+      const teamOpen = Boolean(document.querySelector(".tw-panel[open]"));
+      const playlistOpen = Boolean(document.querySelector(".playlist-dialog[open]"));
+      const menuOpen = Boolean(mobileMenu && !mobileMenu.hidden);
+      accountBtns.forEach((b) => b.setAttribute("aria-expanded", String(accountOpen)));
+      teamBtns.forEach((b) => b.setAttribute("aria-expanded", String(teamOpen)));
+      playlistBtns.forEach((b) => b.setAttribute("aria-expanded", String(playlistOpen)));
+      mobileBtn?.setAttribute("aria-expanded", String(menuOpen || accountOpen || teamOpen || playlistOpen));
+    };
+
+    const closeOtherWorkspaces = (except?: "account" | "team" | "playlist") => {
+      if (except !== "account") {
+        document.querySelectorAll<HTMLDialogElement>(".account-hub-dialog[open]").forEach((dialog) => dialog.close());
+      }
+      if (except !== "team") {
+        document.querySelectorAll<HTMLDialogElement>(".tw-panel[open]").forEach((dialog) => dialog.close());
+      }
+      if (except !== "playlist") {
+        document.querySelectorAll<HTMLDialogElement>(".playlist-dialog[open]").forEach((dialog) => dialog.close());
+      }
+    };
+
+    accountBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeMobileMenu();
+        if (!btn.hasAttribute("data-account-hub-open")) {
+          document.dispatchEvent(new CustomEvent("account-hub:open", { detail: { opener: mobileBtn } }));
+        }
+        queueMicrotask(syncExpanded);
+      });
+    });
+
+    teamBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeMobileMenu();
+        const teamDialog = document.querySelector<HTMLDialogElement>(".tw-panel[open]");
+        if (teamDialog && btn.closest(".global-hub-bar__desktop")) {
+          teamDialog.close();
+          syncExpanded();
+          return;
+        }
+        closeOtherWorkspaces("team");
+        document.dispatchEvent(new CustomEvent("team-workspace:open", { detail: { tab: "inventory" } }));
+        queueMicrotask(syncExpanded);
+      });
+    });
+
+    playlistBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeMobileMenu();
+        const playlistDialog = document.querySelector<HTMLDialogElement>(".playlist-dialog[open]");
+        if (playlistDialog && btn.closest(".global-hub-bar__desktop")) {
+          playlistDialog.close();
+          syncExpanded();
+          return;
+        }
+        closeOtherWorkspaces("playlist");
+        document.dispatchEvent(new CustomEvent("playlist-workspace:open"));
+        queueMicrotask(syncExpanded);
+      });
+    });
+
+    mobileBtn?.addEventListener("click", () => {
+      if (!mobileMenu) return;
+      mobileMenu.hidden = !mobileMenu.hidden;
+      syncExpanded();
+      if (!mobileMenu.hidden) {
+        mobileMenu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      }
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!mobileMenu || mobileMenu.hidden) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || !dock.contains(target)) closeMobileMenu();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && mobileMenu && !mobileMenu.hidden) {
+        closeMobileMenu();
+        mobileBtn?.focus({ preventScroll: true });
+      }
+    });
+
+    refreshCounts();
+    syncExpanded();
+
+    for (const target of [window, document] as const) {
+      target.addEventListener("personal-growth:changed", refreshCounts);
+      target.addEventListener("team-workspace:changed", refreshCounts);
+      target.addEventListener("playlists:changed", refreshCounts);
+    }
+    window.addEventListener("storage", refreshCounts);
+    window.addEventListener("pageshow", () => {
+      refreshCounts();
+      syncExpanded();
+    });
+    document.addEventListener("account-hub:open", () => {
+      closeMobileMenu();
+      queueMicrotask(syncExpanded);
+    });
+    document.addEventListener("team-workspace:open", () => {
+      closeMobileMenu();
+      queueMicrotask(syncExpanded);
+    });
+    document.addEventListener("playlist-workspace:open", () => {
+      closeMobileMenu();
+      queueMicrotask(syncExpanded);
+    });
+    document.addEventListener("close", syncExpanded, true);
+  }
+</script>

@@ -1,0 +1,451 @@
+/* Single-song & team-comparison workbench unified styles. */
+html[data-shell] .task-studio.task-studio.tool-design-system[data-tool-kind="song-calculator"][data-tool-kind] .task-workbench.score-builder-view {
+  color: var(--tool-ink);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+
+  & .ds-score-setup,
+  & .score-condition-summary,
+  & .task-single-summary,
+  & .task-song-comparison,
+  & .tool-help,
+  & .scoring-snapshot-details {
+    background: var(--theme-surface);
+    border: 1px solid var(--theme-border-soft);
+    border-radius: var(--ds-radius-md, 12px);
+    box-shadow: var(--theme-card-shadow);
+  }
+
+  & .ds-score-setup {
+    overflow: hidden;
+  }
+
+  & .ds-score-setup > summary {
+    padding: 12px 16px;
+    background: var(--theme-surface-tint);
+    border-bottom: 1px solid var(--theme-border-soft);
+    color: var(--tool-ink);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  & .ds-score-setup > summary::-webkit-details-marker { display: none; }
+
+  & .ds-score-fields {
+    display: grid;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  & .ds-score-fields > label {
+    display: grid;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--tool-muted);
+  }
+
+  & .ds-score-fields .task-song-row {
+    padding: 4px 0;
+  }
+
+  & :is(.ds-score-fields, .task-song-table-controls, .calculation-scope) select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 28px 4px 10px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ds-radius-sm, 8px);
+    background-color: var(--theme-surface);
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--theme-muted) 50%),
+      linear-gradient(135deg, var(--theme-muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    color: var(--tool-ink);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease;
+  }
+
+  & :is(.ds-score-fields, .task-song-table-controls, .calculation-scope) select:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--theme-accent) 65%, var(--theme-border));
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--theme-accent) 50%),
+      linear-gradient(135deg, var(--theme-accent) 50%, transparent 50%);
+  }
+
+  & .ds-score-setup-actions {
+    padding: 12px 16px;
+    border-top: 1px solid var(--theme-border-soft);
+    background: var(--theme-surface-tint);
+  }
+
+  & .ds-score-setup-actions button {
+    min-height: 32px;
+    padding: 4px 12px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ds-radius-sm, 8px);
+    background: var(--theme-surface);
+    color: var(--tool-ink);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  & .ds-score-setup-actions button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+    background: var(--theme-action-soft);
+    color: var(--theme-accent);
+  }
+
+  & .calculation-scope {
+    margin: 4px 0 0;
+    padding: 10px 0 0;
+    border: 0;
+    border-top: 1px solid var(--theme-border-soft);
+    background: transparent;
+    display: grid;
+    gap: 6px;
+  }
+
+  & .calculation-scope > label {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--tool-muted);
+  }
+
+  & .calculation-scope-summary {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tool-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .playlist-help,
+  & .calculation-scope > details,
+  & .calculation-scope > details > summary {
+    margin: 0;
+    font-size: 12px;
+    color: var(--tool-muted);
+  }
+
+  & .calculation-scope-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  & .calculation-scope-actions button {
+    min-height: 28px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ds-radius-sm, 8px);
+    background: var(--theme-surface);
+    color: var(--tool-ink);
+  }
+
+  & .calculation-scope button:disabled {
+    display: none;
+  }
+
+  & .tool-options button[data-difficulty] {
+    --difficulty: var(--theme-muted);
+    color: var(--difficulty);
+    border: 1px solid color-mix(in srgb, var(--difficulty) 30%, transparent);
+    background: color-mix(in srgb, var(--difficulty) 6%, var(--theme-surface));
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 28px;
+    padding: 3px 9px;
+    border-radius: var(--ds-radius-sm, 8px);
+  }
+
+  & .tool-options button[data-difficulty="easy"] { /* Game semantics: difficulty identity. */ --difficulty: #207959; }
+  & .tool-options button[data-difficulty="normal"] { /* Game semantics: difficulty identity. */ --difficulty: #2968a5; }
+  & .tool-options button[data-difficulty="hard"] { /* Game semantics: difficulty identity. */ --difficulty: #98600c; }
+  & .tool-options button[data-difficulty="expert"] { /* Game semantics: difficulty identity. */ --difficulty: #97416b; }
+  & .tool-options button[data-difficulty][aria-pressed="true"],
+  & .tool-options button[data-difficulty][aria-pressed="true"]:hover:not(:disabled) {
+    color: var(--theme-media-text);
+    background: var(--difficulty);
+    border-color: var(--difficulty);
+  }
+
+  & .score-condition-summary {
+    padding: 10px 16px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+
+  & .task-single-summary {
+    padding: 18px 20px;
+    border-top: 3px solid var(--theme-action);
+  }
+
+  & .task-single-summary h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--tool-ink);
+  }
+
+  & .task-single-score [data-song-score] {
+    font-family: var(--font-body);
+    font-size: clamp(26px, 3vw, 34px);
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-accent);
+  }
+
+  & .task-score-limits {
+    font-size: 12px;
+    color: var(--tool-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .task-score-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  & .task-score-actions :is(button, a) {
+    min-height: 32px;
+    padding: 5px 14px;
+    border-radius: var(--ds-radius-sm, 8px);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  & .task-song-comparison {
+    padding: 18px 20px;
+  }
+
+  & .task-song-comparison > header {
+    margin-bottom: 12px;
+  }
+
+  & .task-song-comparison .task-result-eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--theme-accent);
+    margin-bottom: 4px;
+  }
+
+  & .task-song-comparison h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  & .task-song-table-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  & .task-song-table-controls > label {
+    display: grid;
+    gap: 4px;
+    flex: 0 1 160px;
+    font-size: 12px;
+    color: var(--tool-muted);
+  }
+
+  & .task-song-table-controls > input[type="search"] {
+    flex: 1 1 200px;
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ds-radius-sm, 8px);
+    background: var(--theme-surface);
+    color: var(--tool-ink);
+    font-size: 13px;
+  }
+
+  & .task-song-table-controls > button {
+    min-height: 32px;
+    padding: 4px 12px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ds-radius-sm, 8px);
+    background: var(--theme-surface);
+    color: var(--tool-ink);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  & .task-song-table-controls > button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+    background: var(--theme-action-soft);
+    color: var(--theme-accent);
+  }
+
+  & .task-song-table-wrap :is(th, td) {
+    padding: 10px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--theme-border-soft);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .task-song-table-wrap th {
+    font-size: 12px;
+    color: var(--tool-muted);
+    background: var(--theme-surface-tint);
+  }
+
+  & .task-song-table-wrap td button {
+    min-height: 28px;
+    padding: 3px 10px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ds-radius-sm, 8px);
+    background: var(--theme-surface);
+    color: var(--theme-accent);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  & .event-action-dock.score-action-dock {
+    position: fixed;
+    inset: auto 24px 14px;
+    z-index: 45;
+    max-width: 780px;
+    width: auto;
+    margin: auto;
+    isolation: isolate;
+    transform: translate3d(0, 0, 0);
+    background: transparent;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 14px;
+    padding: 10px 16px;
+    border: 1px solid color-mix(in srgb, var(--theme-accent) 26%, var(--theme-border));
+    border-radius: var(--ds-radius-md, 12px);
+    box-shadow: var(--theme-dock-shadow);
+    overflow: visible;
+  }
+
+  & .event-action-dock.score-action-dock::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--theme-dock-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: none;
+  }
+
+  & .event-action-dock.score-action-dock > * { position: relative; z-index: 1; }
+
+  & .event-action-dock.score-action-dock .event-action-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  & .event-action-dock.score-action-dock .event-action-copy strong {
+    font-size: 13px;
+    color: var(--tool-ink);
+  }
+
+  & .event-action-dock.score-action-dock .event-action-copy small {
+    font-size: 12px;
+    color: var(--tool-muted);
+  }
+
+  & .event-action-dock.score-action-dock .event-dock-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  & .event-action-dock.score-action-dock .event-dock-actions button {
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: var(--ds-radius-sm, 8px);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  & .event-action-dock.score-action-dock .event-primary {
+    background: var(--theme-action);
+    border: 1px solid var(--theme-action);
+    color: var(--theme-on-action);
+  }
+
+  & .event-action-dock.score-action-dock .event-primary:hover:not(:disabled) {
+    background: var(--theme-accent-bright);
+    border-color: var(--theme-accent-bright);
+    color: var(--theme-on-action);
+  }
+
+  & .tool-help,
+  & .scoring-snapshot-details {
+    padding: 0 16px;
+    font-size: 12px;
+  }
+}
+
+.tool-studio[data-tool-kind="song-calculator"] .scoring-research-workbench .tool-input,
+.tool-studio[data-tool-kind="song-calculator"] .scoring-research-workbench :is(input:not([type="checkbox"]):not([type="radio"]), textarea) {
+  border-radius: var(--ds-radius-sm, 8px);
+  border-color: var(--theme-border);
+  font-size: 13px;
+}
+
+.tool-studio[data-tool-kind="song-calculator"] .scoring-research-workbench .scoring-research-panel {
+  border: 1px solid var(--theme-border-soft);
+  border-radius: var(--ds-radius-md, 12px);
+  box-shadow: var(--theme-card-shadow);
+}
+
+.tool-studio[data-tool-kind="song-calculator"] .scoring-research-workbench :is(.scoring-research-actions button, .scoring-research-actions label) {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  html[data-shell] .task-studio.task-studio.tool-design-system[data-tool-kind="song-calculator"][data-tool-kind] .task-workbench.score-builder-view {
+    & :is(.ds-score-fields, .task-song-table-controls, .calculation-scope) :is(select, input[type="search"]) {
+      min-height: 38px;
+      font-size: 16px;
+    }
+
+    & .event-action-dock.score-action-dock {
+      inset: auto 10px 10px;
+      left: 10px;
+      right: 10px;
+      width: auto;
+      max-width: none;
+      padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+
+    & .event-action-dock.score-action-dock .event-action-copy {
+      flex: 1 1 160px;
+    }
+
+    & .event-action-dock.score-action-dock .event-dock-actions {
+      margin-left: auto;
+    }
+  }
+}

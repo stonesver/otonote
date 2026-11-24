@@ -14,7 +14,7 @@ export const THEME_PICKER_COPY = {
     saveUnavailable: '本次已切换，但此浏览器无法保存配色。',
     filterLabel: '筛选配色',
     all: '全部',
-    groups: { everyday: '日常配色', attribute: '活动属性', occasion: '节日纪念', dark: '深色备选' }
+    groups: { everyday: '日常配色', band: '乐队代表色', attribute: '活动属性', occasion: '节日纪念', dark: '深色模式' }
   },
   en: {
     open: 'Appearance',
@@ -29,7 +29,7 @@ export const THEME_PICKER_COPY = {
     saveUnavailable: 'Applied for now. This browser could not save your palette.',
     filterLabel: 'Filter palettes',
     all: 'All',
-    groups: { everyday: 'Everyday', attribute: 'Event attributes', occasion: 'Celebrations', dark: 'Dark' }
+    groups: { everyday: 'Everyday', band: 'Band colors', attribute: 'Event attributes', occasion: 'Celebrations', dark: 'Dark' }
   }
 };
 
@@ -50,7 +50,7 @@ export function renderThemePicker(locale = 'zh-CN', { loading = false } = {}) {
   const text = (value, englishValue, attributes = '') => `<span${attributes}${loading ? ` data-loading-en="${escape(englishValue)}"` : ''}>${escape(value)}</span>`;
   const defaultPreset = THEME_PRESETS.find(preset => preset.id === DEFAULT_THEME);
   const currentName = defaultPreset.name[language];
-  const groups = ['everyday', 'attribute', 'occasion', 'dark'];
+  const groups = ['everyday', 'band', 'attribute', 'occasion', 'dark'];
   const card = preset => {
     const preview = ['canvas', 'surface', 'accent', 'secondary', 'text'].map(key => `--preview-${key}:${preset.tokens[key]}`).join(';');
     return `<button class="theme-picker-card" type="button" data-theme-choice="${escape(preset.id)}" aria-pressed="${preset.id === DEFAULT_THEME}">

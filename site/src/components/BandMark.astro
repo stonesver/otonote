@@ -3,12 +3,14 @@ import {
   getAsset,
   type Band
 } from "../lib/catalog";
+import { bandCircleIcon } from "../lib/filter-visuals";
 
 interface Props {
   band: Band;
   href?: string;
   compact?: boolean;
   iconOnly?: boolean;
+  round?: boolean;
   white?: boolean;
 }
 
@@ -17,14 +19,18 @@ const {
   href,
   compact = false,
   iconOnly = false,
+  round = false,
   white = false
 } = Astro.props;
 const logo = getAsset(white ? band.whiteLogoAssetId : band.logoAssetId);
+const circle = round && !white ? bandCircleIcon(band.masterId) : undefined;
+const iconSrc = circle?.round ? circle.icon : logo?.previewUrl;
 const classNames = [
   "band-mark",
   {
     "band-mark--compact": compact,
     "band-mark--icon-only": iconOnly,
+    "band-mark--round": Boolean(circle?.round),
     "band-mark--white": white
   }
 ];
@@ -38,7 +44,7 @@ const classNames = [
     aria-label={iconOnly ? band.displayName : undefined}
     title={iconOnly ? band.displayName : undefined}
   >
-    {logo && <img src={logo.previewUrl} alt="" />}
+    {iconSrc && <img src={iconSrc} alt="" />}
     <span class:list={{ "visually-hidden": iconOnly }}>{band.displayName}</span>
   </a>
 ) : (
@@ -47,7 +53,7 @@ const classNames = [
     style={`--band-color:${band.mainColor}`}
     title={iconOnly ? band.displayName : undefined}
   >
-    {logo && <img src={logo.previewUrl} alt="" />}
+    {iconSrc && <img src={iconSrc} alt="" />}
     <span class:list={{ "visually-hidden": iconOnly }}>{band.displayName}</span>
   </span>
 )}

@@ -30,7 +30,7 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
  // Quick view mirrors the prototype: four numbers, then comparison and next step.
  summary.classList.add('task-quick-result');summary.querySelector('.event-summary-label').textContent='即时收益';summary.querySelector('[data-next-step]').hidden=true;
  const grid=el('div',null,'task-reward-grid');for(const s of ['badges','points','cp'])grid.append(q(`[data-summary-${s}]`).closest('div'));const unit=q('.event-summary-main');unit.classList.add('task-reward-unit');grid.append(unit);summary.querySelector('dl').before(grid);
- summary.append(q('[data-save]'),q('[data-comparison]'));const toPlan=el('button','收益配队');toPlan.type='button';toPlan.addEventListener('click',()=>q('[data-event-task="team"]').click());const footer=el('footer');footer.append(el('span','寻找队伍与歌曲'),toPlan);summary.append(footer);
+ summary.append(q('[data-save]'),q('[data-comparison]'));const toPlan=el('button','收益配队','ui-btn-primary');toPlan.type='button';toPlan.addEventListener('click',()=>q('[data-event-task="team"]').click());const footer=el('footer');footer.append(el('span','寻找队伍与歌曲'),toPlan);summary.append(footer);
  const rewardDetails=el('details',null,'task-event-advanced');rewardDetails.append(el('summary','各评分档位与后续挑战速算'),reward);summary.append(rewardDetails);modalizeDetails(host,rewardDetails);modalizeDetails(host,q('[data-budget-details]'));
  q('.event-quick-bonus > h2')?.remove();q('.event-quick-bonus > label')?.setAttribute('hidden','');q('.event-quick-bonus > summary').textContent='填写游戏加成';q('.event-quick-bonus').open=true;
  const empty=el('section',null,'task-event-plan-empty');empty.append(el('small','完整刷取方案'),el('h2','比较队伍、歌曲和整份预算收益'),el('p','普通与后续挑战分别配队。计算后展示两阶段编成、次数与道具 / 活动 pt 总收益。'));main.insertBefore(empty,q('[data-yield-results]'));
@@ -64,7 +64,7 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
   for(const id of ids){const source=q(`[data-song-row="${id}"]`),track=host.data.tracks.find(row=>row.id===id);if(!track||!source)continue;
    const rule=host.data.rules.tables.ChallengeMusic.find(row=>row._eventId===eventId&&`music-${row._liveMusicId}`===id),attribute=host.data.filterVisualOptions?.attribute?.find(row=>Number(row.value)===rule?._musicType);
    const card=el('div',null,'task-event-rush-song');if(attribute?.color)card.style.setProperty('--song-attribute',attribute.color);card.dataset.selected=String(id===selected);const title=el('button'),cover=source.querySelector('.song-picker-jacket')?.cloneNode();title.type='button';title.append(el('span',track.title));if(cover){cover.alt='';title.prepend(cover);}card.append(title);
-   if(attribute){const badge=el('div',null,'event-rush-attribute');if(attribute.icon){const icon=el('img');icon.src=attribute.icon;icon.alt='';badge.append(icon);}badge.append(el('span',`活动属性 · ${attribute.label}`));card.append(badge);}
+   if(attribute){const badge=el('div',null,'event-rush-attribute');badge.title=`活动属性：${attribute.label}`;badge.setAttribute('aria-label',`活动属性：${attribute.label}`);if(attribute.icon){const icon=el('img');icon.src=attribute.icon;icon.alt='';badge.append(icon);}badge.append(el('span',attribute.label));card.append(badge);}
    const charts=[...source.querySelectorAll('[data-song-choice]')],levels=el('div',null,'task-event-rush-levels');
    const eligible=charts.filter(c=>!c.disabled&&(!scopeKeys||scopeKeys.has(`${id}:${c.dataset.difficulty}`)));
    const selectedChart=eligible.find(c=>c.dataset.difficulty===selectedDifficulty);
@@ -97,7 +97,7 @@ export function setupEventWorkbenchView(host,{main,aside,conditionBody,current,c
   if(!songRow.querySelector('.task-song-cover'))songRow.prepend(placeholder);else placeholder.remove();
   songHint.textContent=selectedOnly?'仅计算所选谱面':'按筛选范围自动比较';songHint.title='后续挑战的选曲范围与判档依据在左侧单独设置。';
   primary.hidden=quick||rush;planning.hidden=quick||rush;manual.hidden=!quick;challengeConditions.hidden=!rush;summary.hidden=!quick;instant.hidden=!quick;const toolbar=q('.task-event-toolbar');if(toolbar)toolbar.hidden=quick||rush;challengeAction.hidden=!rush;
-  if(rush&&accountButton.parentElement!==challengeConditions)challengeConditions.append(accountButton);else if(!rush&&accountButton.parentElement!==primary)primary.append(accountButton);
+  if(!host.classList.contains('event-simple-view')){if(rush&&accountButton.parentElement!==challengeConditions)challengeConditions.append(accountButton);else if(!rush&&accountButton.parentElement!==primary)primary.append(accountButton);}
   q('[data-yield-status]').hidden=quick||rush;q('[data-yield-results]').hidden=quick||rush;empty.hidden=quick||rush||!!q('[data-yield-results]').children.length;challenge.hidden=!rush;
   // These inputs retain their values across tasks; the rush task fixes the phase.
   q('[data-mode]').closest('label').hidden=rush;for(const s of ['[data-boost-wrap]','[data-cost-wrap]'])q(s).classList.toggle('task-rush-hidden',rush);

@@ -86,7 +86,9 @@ const next = items[(currentIndex + 1) % items.length];
             <h2>切换{label}</h2>
             {variant === "card" && listHref && <a class="card-switcher-directory" href={listHref}>前往{label}目录</a>}
           </div>
-          <button type="button" data-switcher-close aria-label="关闭">×</button>
+          <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-switcher-close aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
         </header>
 
         <div class="detail-switcher-search-row">

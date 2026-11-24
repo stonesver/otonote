@@ -49,7 +49,9 @@ const groups = catalog.bands.map((band) => ({
   <dialog class="character-nav__dialog" aria-labelledby="character-directory-title">
     <header class="character-nav__dialog-header">
       <div><h2 id="character-directory-title">{ui.all}</h2><a href="/characters/">{ui.directory} ↗</a></div>
-      <button type="button" data-character-close aria-label={ui.close}>×</button>
+      <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-character-close aria-label={ui.close}>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
     </header>
     <label class="character-nav__search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>

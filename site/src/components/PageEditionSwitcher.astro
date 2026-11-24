@@ -2,14 +2,14 @@
 import {activeReleaseContext} from '../lib/release-context';
 import {pageEditionHref} from '../lib/page-edition.mjs';
 import '../styles/edition-context.css';
-interface Props {counterparts?: {edition:string;href:string}[]}
-const {counterparts=[]}=Astro.props;
+interface Props {counterparts?: {edition:string;href:string}[]; inline?: boolean}
+const {counterparts=[], inline=false}=Astro.props;
 const {region,locale} = activeReleaseContext;
 const en = locale === 'en';
 ---
-<nav class="page-editions content-shell" aria-label={en ? 'Content edition' : '内容版本'} data-page-editions>
+<nav class:list={['page-editions', inline ? 'page-editions--inline' : 'content-shell']} aria-label={en ? 'Content edition' : '内容版本'} data-page-editions>
   <div>{(['global','jp'] as const).map(edition => <a href={counterparts.find(c=>c.edition===edition)?.href ?? pageEditionHref(Astro.url.pathname,Astro.url.search,edition,locale)} data-page-edition={edition} data-counterpart={counterparts.find(c=>c.edition===edition)?.href} aria-current={region === edition ? 'page' : undefined} aria-label={edition === 'jp' ? (en ? 'Japan' : '日服') : (en ? 'Global' : '国际服')} title={edition === 'jp' ? (en ? 'Japan' : '日服') : (en ? 'Global' : '国际服')}><span class="edition-symbol" data-edition={edition} aria-hidden="true">{edition === 'global' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/></svg>}</span></a>)}</div>
-  <small data-edition-message role="status"></small>
+  {!inline && <small data-edition-message role="status"></small>}
 </nav>
 <script>
   import {pageEditionHref} from '../lib/page-edition.mjs';
@@ -17,7 +17,7 @@ const en = locale === 'en';
   if (context) for (const container of document.querySelectorAll<HTMLElement>('[data-page-editions]')) {
     for (const link of container.querySelectorAll<HTMLAnchorElement>('[data-page-edition]')) link.href = link.dataset.counterpart ? `${link.dataset.counterpart}?view=page` : pageEditionHref(location.pathname,location.search,link.dataset.pageEdition,context[2]);
     const missing = new URLSearchParams(location.search).has('unavailable');
-    const message = container.querySelector('[data-edition-message]');
+    const message = container.querySelector('[data-edition-message]') ?? document.querySelector('[data-edition-message]');
     if (missing && message) message.textContent = context[2] === 'en' ? 'This entry is not listed in this edition yet.' : '此版本暂未收录对应内容';
   }
 </script>

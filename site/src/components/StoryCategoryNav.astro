@@ -1,0 +1,51 @@
+---
+import { storyLibrary, storyKind, storyKindLabel, storyCopy as copy } from "../lib/shared-stories";
+import { eventRecords } from "../lib/event-pages";
+import { activeReleaseContext } from "../lib/release-context";
+import { siteHref } from "../lib/site-context";
+import "../styles/story-text.css";
+
+interface Props {
+  active: "main" | "extra" | "viewpoint" | "friendship" | "event";
+}
+
+const { active } = Astro.props;
+const href = (path: string) =>
+  import.meta.env.BASE_URL === "/" ? path : siteHref(path, activeReleaseContext);
+
+const counts = {
+  main: 0,
+  extra: 0,
+  viewpoint: 0,
+  friendship: 0,
+  event: eventRecords.filter((event) => event.story.episodes.length > 0).length,
+};
+for (const entry of storyLibrary.entries) {
+  const kind = storyKind(entry);
+  if (kind in counts && kind !== "event") {
+    counts[kind as "main" | "extra" | "viewpoint" | "friendship"]++;
+  }
+}
+
+const categories = [
+  { kind: "main" as const, path: "/stories/main/", count: counts.main },
+  { kind: "extra" as const, path: "/stories/extra/", count: counts.extra },
+  { kind: "viewpoint" as const, path: "/stories/viewpoint/", count: counts.viewpoint },
+  { kind: "friendship" as const, path: "/stories/friendship/", count: counts.friendship },
+  { kind: "event" as const, path: "/stories/events/", count: counts.event },
+];
+---
+
+<nav class="st-cat-nav" aria-label={copy.category}>
+  {categories.map((item) => (
+    <a
+      href={href(item.path)}
+      class="st-cat-tab"
+      data-kind={item.kind}
+      aria-current={active === item.kind ? "page" : undefined}
+    >
+      <span>{storyKindLabel(item.kind)}</span>
+      <span class="st-cat-count">{item.count}</span>
+    </a>
+  ))}
+</nav>

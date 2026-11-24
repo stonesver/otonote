@@ -3,57 +3,259 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import {GAME_SERVERS, currentServerContext} from '../../lib/game-servers.mjs';
 import {activeReleaseContext} from '../../lib/release-context';
 import {catalog, getAsset} from '../../lib/catalog';
+import type {GrowthProfile} from '../../lib/game-database';
+import {growthProfiles} from '../../lib/growth-profiles-data';
 import {gameModeDatabase} from '../../lib/game-modes';
 import {validatedEvents} from '../../lib/event-content.mjs';
+import {bandCircleIcon} from '../../lib/filter-visuals';
 import {siteHref} from '../../lib/site-context';
-import '../../styles/edition-context.css';
 import '../../styles/player-rankings.css';
-const en=activeReleaseContext.locale==='en';
-const context=currentServerContext();
+
+const en = activeReleaseContext.locale === 'en';
+const context = currentServerContext();
+const image = (id: string | null | undefined) => {
+  const asset = getAsset(id);
+  return asset?.thumbnailUrl || asset?.previewUrl || null;
+};
+
+const rarityLabels = Object.fromEntries(catalog.cardTaxonomy.rarities.map(r => [r.code, r.label]));
+const growthCurves = Object.fromEntries(
+  growthProfiles
+    .filter((profile): profile is GrowthProfile & { rarity: number } => profile.rarity != null && !String(`${profile.cardKind}:${profile.rarity}`).includes('undefined'))
+    .map(profile => {
+      const curve = [...profile.levelCurve]
+        .sort((a, b) => a.level - b.level)
+        .map(point => [point.level, point.rawExp]);
+      const limits = profile.cardKind === 'member'
+        ? Object.fromEntries((profile.levelLimits || []).map(limit => [limit.awakeCount, limit.limitLevel]))
+        : (profile.ranks || []).map(rank => (typeof rank.limitLevel === 'number' ? rank.limitLevel : null));
+      return [`${profile.cardKind}:${profile.rarity}`, { curve, limits }];
+    })
+);
+
+const cardAttributes = Object.fromEntries(catalog.cardTaxonomy.attributes.map(attribute => [
+  String(attribute.code),
+  { name: attribute.names[en ? 'en' : 'zh-CN'], image: image(attribute.iconAssetId) }
+]));
+
+const cardRarities = Object.fromEntries(catalog.cardTaxonomy.rarities.map(rarity => [
+  String(rarity.code),
+  { label: rarity.label, image: getAsset(rarity.iconAssetId)?.previewUrl || image(rarity.iconAssetId) }
+]));
+
 const cards = (kind: 'member' | 'support') => Object.fromEntries((kind === 'member' ? catalog.memberCards : catalog.supportCards).map(card => {
-  const asset=getAsset(card.thumbnailAssetId);
-  return [String(card.masterId), {name:card.displayName, image:asset?.thumbnailUrl || asset?.previewUrl || null,
-    href:siteHref(`/cards/${kind === 'member' ? 'members' : 'supports'}/${card.id}/`,activeReleaseContext)}];
+  const asset = getAsset(card.thumbnailAssetId);
+  return [String(card.masterId), {
+    name: card.displayName,
+    image: asset?.thumbnailUrl || asset?.previewUrl || null,
+    href: siteHref(`/cards/${kind === 'member' ? 'members' : 'supports'}/${card.id}/`, activeReleaseContext),
+    rarity: card.rarity,
+    rarityLabel: rarityLabels[card.rarity] || '',
+    attr: card.attributeCode
+  }];
 }));
-const image = (id: string | null | undefined) => {const asset=getAsset(id);return asset?.thumbnailUrl || asset?.previewUrl || null;};
-const eventData = JSON.stringify({region:activeReleaseContext.region,
-  events:validatedEvents(gameModeDatabase.events,activeReleaseContext).map(event=>({id:String(event.id),name:event.name,
-    edition:event.edition,...event.schedule,rankingConfigured:event.ranking?.configured,
-    bandIds:[...new Set([event.story.bandId,...event.effects.map(effect=>effect.constraints.bandId)].filter(Boolean))].map(String),
-    attributes:[...new Set(event.effects.map(effect=>effect.constraints.cardType).filter(Boolean))]})),
-  bands:catalog.bands.map(band=>({id:String(band.masterId),name:band.displayName,image:image(band.logoAssetId)})),
-  attributes:catalog.cardTaxonomy.attributes.map(attribute=>({id:String(attribute.code),name:attribute.names[en?'en':'zh-CN'],image:image(attribute.iconAssetId)})),
-  songs:catalog.musicTracks.map(track=>({id:String(track.masterId),name:track.title,image:image(track.jacketAssetId)}))
-}).replaceAll('<','\\u003c');
-const cardData=JSON.stringify({region:activeReleaseContext.region,member:cards('member'),support:cards('support')}).replaceAll('<','\\u003c');
+
+const eventData = JSON.stringify({
+  region: activeReleaseContext.region,
+  events: validatedEvents(gameModeDatabase.events, activeReleaseContext).map(event => ({
+    id: String(event.id),
+    name: event.name,
+    edition: event.edition,
+    ...event.schedule,
+    rankingConfigured: event.ranking?.configured,
+    bandIds: [...new Set([event.story.bandId, ...event.effects.map(effect => effect.constraints.bandId)].filter(Boolean))].map(String),
+    attributes: [...new Set(event.effects.map(effect => effect.constraints.cardType).filter(Boolean))]
+  })),
+  bands: catalog.bands.map(band => {
+    const circle = bandCircleIcon(band.masterId);
+    return {
+      id: String(band.masterId),
+      name: band.displayName,
+      image: circle?.icon || image(band.logoAssetId),
+      round: Boolean(circle?.round)
+    };
+  }),
+  attributes: catalog.cardTaxonomy.attributes.map(attribute => ({
+    id: String(attribute.code),
+    name: attribute.names[en ? 'en' : 'zh-CN'],
+    image: image(attribute.iconAssetId)
+  })),
+  songs: catalog.musicTracks.map(track => ({
+    id: String(track.masterId),
+    name: track.title,
+    image: image(track.jacketAssetId)
+  }))
+}).replaceAll('<', '\\u003c');
+
+const cardData = JSON.stringify({
+  region: activeReleaseContext.region,
+  member: cards('member'),
+  support: cards('support'),
+  growthCurves,
+  attributes: cardAttributes,
+  rarities: cardRarities
+}).replaceAll('<', '\\u003c');
+
+const serverShortLabel = (id: string | null | undefined) => {
+  if (id === 'jp') return en ? 'JP' : '日服';
+  if (id === 'global-hmt') return en ? 'HMT' : '港澳台';
+  if (id === 'global-kr') return en ? 'KR' : '韩服';
+  if (id === 'global-en') return 'EN';
+  return en ? 'Server' : '选服';
+};
 ---
-<BaseLayout title={en?'Player rankings':'玩家排行榜'}>
+<BaseLayout title={en ? 'Player rankings' : '玩家排行榜'}>
   <div class="content-shell player-rankings" data-player-rankings data-locale={activeReleaseContext.locale}>
     <script is:inline type="application/json" data-rank-cards set:html={cardData}></script>
     <script is:inline type="application/json" data-rank-context set:html={eventData}></script>
-    <div class="pr-toolbar">
-      <nav class="page-editions ranking-servers" aria-label={en?'Game server':'游戏区服'}>
-        <div>{GAME_SERVERS.map(server=><a data-ranking-server={server.id} href={`/${server.region}/${activeReleaseContext.locale}/rankings/?server=${server.id}&view=page`} aria-current={context.serverId===server.id?'page':undefined} aria-label={en?server.englishLabel:server.label} title={en?server.englishLabel:server.label}>
-          {server.id === 'jp' ? <span class="edition-symbol" data-edition="jp" aria-hidden="true"></span> : <span aria-hidden="true">{server.id === 'global-hmt' ? (en ? 'HMT' : '港澳台') : server.id === 'global-kr' ? (en ? 'KR' : '韩服') : 'EN'}</span>}
-        </a>)}</div>
-      </nav>
-      <span class="pr-update-note">{en?'Updated about every 10 minutes':'约每 10 分钟更新'}</span>
-    </div>
-    <section class="pr-board" aria-label={en?'Ranking board':'榜单'}>
-      <div class="pr-filters">
-        <div><label for="rank-band">{en?'Band':'乐队'}</label><select id="rank-band" data-rank-band><option value="">{en?'All bands':'全部乐队'}</option></select></div>
-        <div class="pr-event-filter"><label for="rank-event">{en?'Event':'活动'}</label><select id="rank-event" data-rank-event><option value="">{en?'No events yet':'暂无活动数据'}</option></select></div>
-        <div><label for="rank-board">{en?'Board':'榜单'}</label><select id="rank-board" data-rank-board><option value="auto">{en?'Available board':'已接入榜单'}</option><option value="event-points">{en?'Event points':'活动积分榜'}</option><option value="music">{en?'Song':'单曲榜'}</option><option value="total-music">{en?'Total score':'总分榜'}</option></select></div>
-        <div hidden data-rank-song-label><label for="rank-song">{en?'Song':'歌曲'}</label><select id="rank-song" data-rank-song></select></div>
+
+    <section class="pr-command-bar" data-rank-command aria-label={en ? 'Ranking controls' : '榜单筛选与状态'}>
+      <div class="pr-active-context">
+        <span data-rank-cover hidden></span>
+        <div class="pr-active-summary">
+          <h2 class="pr-board-name" data-rank-song-name>{en ? 'Choose a server to begin' : '选择区服查看榜单'}</h2>
+          <span class="pr-event-line">
+            <button
+              type="button"
+              class="pr-mobile-server-chip"
+              data-rank-server-label
+              aria-expanded="false"
+              aria-controls="pr-command-controls pr-command-servers"
+            >{serverShortLabel(context.serverId)}</button>
+            <span class="pr-event-name" data-rank-event-name></span>
+            <span class="pr-event-state" data-rank-event-state hidden></span>
+            <span class="pr-bonuses" data-rank-bonuses></span>
+          </span>
+        </div>
       </div>
-      <div class="pr-current-board"><span data-rank-cover hidden></span><div class="pr-board-title"><div class="pr-event-line"><span data-rank-event-name></span><span class="pr-event-state" data-rank-event-state hidden></span><span class="pr-bonuses" data-rank-bonuses></span></div><h2 data-rank-song-name>{en?'Choose a server to begin':'选择区服查看榜单'}</h2></div><button class="pr-refresh" type="button" data-rank-refresh><span aria-hidden="true">↻</span>{en?'Refresh':'刷新'}</button></div>
-      <div class="pr-meta"><p data-rank-status role="status">{en?'Choose a server to view its rankings.':'选择区服，查看对应榜单。'}</p><time data-rank-time></time><span data-rank-count></span></div>
-      <div class="pr-column-labels" aria-hidden="true"><span>{en?'Rank':'名次'}</span><span>{en?'Player':'玩家'}</span><span data-rank-team-label>{en?'High-score team':'最高分队伍'}</span><span>{en?'Team power':'综合力'}</span><span data-rank-score-label>{en?'Score':'成绩'}</span><span></span></div>
-      <ol class="pr-rows" data-rank-rows aria-label={en?'Player rankings':'玩家排名'}></ol>
-      <div class="pr-empty" data-rank-empty hidden><span aria-hidden="true">—</span><p>{en?'There are no results for this board yet. Try another song or server.':'这个榜单暂时没有排名记录，可以切换歌曲或区服查看。'}</p></div>
+
+      <nav class="pr-server-bar" id="pr-command-servers" aria-label={en ? 'Game server' : '游戏区服'}>
+        {GAME_SERVERS.filter(server => server.region === 'jp').map(server => (
+          <a
+            class="pr-srv-item"
+            data-ranking-server={server.id}
+            href={`/${server.region}/${activeReleaseContext.locale}/rankings/?server=${server.id}&view=page`}
+            aria-current={context.serverId === server.id ? 'page' : undefined}
+            aria-label={en ? server.englishLabel : server.label}
+            title={en ? server.englishLabel : server.label}
+          >{en ? 'JP' : '日服'}</a>
+        ))}
+        <span class="pr-srv-sep" aria-hidden="true"></span>
+        <span class="pr-srv-group" role="group" aria-label={en ? 'Global servers' : '国际服'}>
+          <span class="pr-srv-tag" aria-hidden="true">{en ? 'GL' : '国际'}</span>
+          {GAME_SERVERS.filter(server => server.region === 'global').map(server => {
+            const shortLabel = server.id === 'global-hmt' ? (en ? 'HMT' : '港澳台') : server.id === 'global-kr' ? (en ? 'KR' : '韩服') : 'EN';
+            return (
+              <a
+                class="pr-srv-item"
+                data-ranking-server={server.id}
+                href={`/${server.region}/${activeReleaseContext.locale}/rankings/?server=${server.id}&view=page`}
+                aria-current={context.serverId === server.id ? 'page' : undefined}
+                aria-label={en ? `${server.englishLabel} (Global)` : `国际服 · ${server.label}`}
+                title={en ? server.englishLabel : `国际服 · ${server.label}`}
+              >{shortLabel}</a>
+            );
+          })}
+        </span>
+      </nav>
+
+      <div class="pr-filters" id="pr-command-controls">
+        <div class="pr-filter-field pr-band-field">
+          <label for="rank-band">{en ? 'Band' : '乐队'}</label>
+          <select class="ui-select" id="rank-band" data-rank-band><option value="">{en ? 'All bands' : '全部乐队'}</option></select>
+        </div>
+        <div class="pr-filter-field pr-event-field">
+          <label for="rank-event">{en ? 'Event' : '活动'}</label>
+          <select class="ui-select" id="rank-event" data-rank-event><option value="">{en ? 'No events yet' : '暂无活动数据'}</option></select>
+        </div>
+        <div class="pr-filter-field pr-board-field">
+          <label for="rank-board">{en ? 'Board' : '榜单'}</label>
+          <select class="ui-select" id="rank-board" data-rank-board>
+            <option value="auto">{en ? 'Available board' : '已接入榜单'}</option>
+            <option value="event-points">{en ? 'Event points' : '活动积分榜'}</option>
+            <option value="music">{en ? 'Song' : '单曲榜'}</option>
+            <option value="total-music">{en ? 'Total score' : '总分榜'}</option>
+          </select>
+        </div>
+        <div class="pr-filter-field pr-song-field" hidden data-rank-song-label>
+          <label for="rank-song">{en ? 'Song' : '歌曲'}</label>
+          <select class="ui-select" id="rank-song" data-rank-song></select>
+        </div>
+      </div>
+
+      <form class="pr-locate-form" id="pr-command-locate" data-rank-locate-form role="search" aria-label={en ? 'Locate rank or player' : '快速定位排名或玩家'}>
+        <select class="pr-locate-mode" data-rank-locate-mode aria-label={en ? 'Search mode' : '搜索维度'}>
+          <option value="auto">{en ? 'Auto' : '智能'}</option>
+          <option value="rank">{en ? 'Rank' : '排名'}</option>
+          <option value="name">{en ? 'Name' : '昵称'}</option>
+          <option value="id">{en ? 'ID' : '玩家ID'}</option>
+        </select>
+        <span class="pr-locate-sep" aria-hidden="true"></span>
+        <input
+          type="search"
+          class="pr-locate-input"
+          data-rank-locate-input
+          placeholder={en ? '#Rank / Name / ID…' : '排名 / 昵称 / 玩家ID…'}
+          aria-label={en ? 'Search by rank, player name, or player ID' : '输入排名、玩家名称或玩家 ID 快速定位'}
+          autocomplete="off"
+        />
+        <span class="pr-locate-count" data-rank-locate-count hidden aria-live="polite"></span>
+        <button type="button" class="pr-locate-clear" data-rank-locate-clear hidden aria-label={en ? 'Clear search' : '清除定位'} title={en ? 'Clear' : '清除'}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+        <button type="submit" class="pr-locate-btn" data-rank-locate-submit>{en ? 'Locate' : '定位'}</button>
+      </form>
+
+      <div class="pr-command-actions">
+        <button
+          type="button"
+          class="ui-btn-outline pr-filter-toggle"
+          data-rank-filters-toggle
+          aria-expanded="false"
+          aria-controls="pr-command-controls pr-command-servers"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span>{en ? 'Filters' : '筛选'}</span>
+        </button>
+        <button
+          class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline pr-refresh"
+          type="button"
+          data-rank-refresh
+          aria-label={en ? 'Refresh rankings' : '刷新榜单'}
+          title={en ? 'Refresh rankings' : '刷新榜单'}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+        </button>
+        <details class="ui-tip-disclosure ui-tip-disclosure--icon-only pr-note-tip">
+          <summary aria-label={en ? 'Notes' : '口径说明'} title={en ? 'Notes' : '口径说明'}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </summary>
+          <div class="ui-tip-body">
+            <p class="pr-tip-update">{en ? 'Updated about every 10 minutes.' : '约每 10 分钟更新一次。'}</p>
+            <p class="pr-footnote" data-rank-footnote>{en ? 'Teams and power are saved with the highest score. Captured results may cover only part of the ranking.' : '队伍与综合力为最高分成绩对应的游戏记录。当前采集结果可能仅覆盖部分排名。'}</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="pr-board" aria-label={en ? 'Ranking board' : '榜单'}>
+      <div class="pr-meta">
+        <p data-rank-status role="status">{en ? 'Choose a server to view its rankings.' : '选择区服，查看对应榜单。'}</p>
+        <span class="pr-meta-right">
+          <time data-rank-time></time>
+          <span data-rank-count></span>
+        </span>
+      </div>
+      <ol class="pr-rows" data-rank-rows aria-label={en ? 'Player rankings' : '玩家排名'}></ol>
+      <div class="pr-empty" data-rank-empty hidden>
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
+        <p>{en ? 'There are no results for this board yet. Try another song or server.' : '这个榜单暂时没有排名记录，可以切换歌曲或区服查看。'}</p>
+      </div>
       <div class="pr-load-sentinel" data-rank-sentinel><span data-rank-load-note></span></div>
-      <div class="pr-pagination"><button type="button" data-rank-next hidden>{en?'Load 50 more':'再看 50 名'}</button><button type="button" data-rank-retry hidden>{en?'Try again':'重新加载'}</button></div>
-      <p class="pr-footnote" data-rank-footnote>{en?'Teams and power are saved with the highest score. Captured results may cover only part of the ranking.':'队伍与综合力为最高分成绩对应的游戏记录。当前采集结果可能仅覆盖部分排名。'}</p>
+      <div class="pr-pagination">
+        <button type="button" class="ui-btn-soft" data-rank-next hidden>{en ? 'Load 50 more' : '再看 50 名'}</button>
+        <button type="button" class="ui-btn-outline" data-rank-retry hidden>{en ? 'Try again' : '重新加载'}</button>
+      </div>
     </section>
   </div>
 </BaseLayout>

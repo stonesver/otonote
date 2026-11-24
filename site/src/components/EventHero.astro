@@ -10,10 +10,9 @@ const copy = eventCopy(locale);
 <header class:list={["ea-hero", { "ea-hero--art": Boolean(artwork.cover) }]} style={artwork.cover ? {'--event-hero-art': `url("${artwork.cover}")`} : undefined}>
   {artwork.cover && <img class="ea-hero-art" src={artwork.cover} alt="" width="1920" height="1440" fetchpriority="high" />}
   <div class="ea-hero-copy">
-    <p class="ea-kicker">{story ? "EVENT STORY" : "EVENT ARCHIVE"} / {String(event.id).padStart(2, "0")}</p>
     {artwork.logo && <img class="ea-hero-logo" src={artwork.logo} alt="" width="460" height="240" />}
     <h1 lang={event.nameLocale ?? undefined}>{event.name}</h1>
-    <p class="ea-hero-type">{event.mode === "challenge_live" ? <EventTypeBadge mode={event.mode} locale={locale} /> : (story ? copy.stories : copy.event)}<span>{event.edition === "jp" ? copy.jp : copy.global}</span></p>
+    <p class="ea-hero-type">{event.mode === "challenge_live" ? <EventTypeBadge mode={event.mode} locale={locale} /> : (story ? copy.stories : copy.event)}<span class="ea-hero-pill">{event.edition === "jp" ? copy.jp : copy.global}</span><span class="ea-hero-id">#{String(event.id).padStart(2, "0")}</span></p>
     <p class="ea-hero-date">{formatEventTime(event.schedule.startAt, event.edition, event.schedule.timeZone)}<span aria-hidden="true"> — </span>{formatEventTime(event.schedule.endAt, event.edition, event.schedule.timeZone)} <small>{eventTimeLabel(event.edition, locale === "en")}</small></p>
   </div>
 </header>

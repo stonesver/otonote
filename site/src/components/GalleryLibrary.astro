@@ -63,7 +63,12 @@ const categoryIds = [...new Set(entries.map(e => e.category))];
     </> : <p class="gallery-empty">{say('当前版本尚无可用图片。', 'No images are available for this version.')}</p>}
     <SourceDisclosure><p>{say('图片来自游戏，按角色和内容分类整理。图片保留原有比例、透明背景及其中的文字，不另作翻译。', 'Images come from the game and are organized by character and content. Original proportions, transparent backgrounds and text are preserved; text within images is not translated.')}</p><p>{say('部分图片尚未收录，页面会作出提示。收录内容可能与游戏最新内容有所差异。', 'Images that are not yet available are marked on the page. This collection may differ from the latest game content.')}</p></SourceDisclosure>
     <dialog class="gallery-viewer" aria-labelledby="gallery-viewer-title" data-gallery-viewer>
-      <header><div><h2 id="gallery-viewer-title" data-viewer-title></h2><p data-viewer-meta></p></div><button type="button" data-viewer-close aria-label={say('关闭大图', 'Close image')}>×</button></header>
+      <header>
+        <div><h2 id="gallery-viewer-title" data-viewer-title></h2><p data-viewer-meta></p></div>
+        <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-viewer-close aria-label={say('关闭大图', 'Close image')}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </header>
       <div class="gallery-viewer-stage"><img data-viewer-image alt="" /></div>
       <footer><button type="button" data-viewer-prev>{say('上一张', 'Previous')}</button><button type="button" data-viewer-zoom aria-pressed="false">{say('原始尺寸', 'Original size')}</button><a data-viewer-download download>{say('下载 PNG', 'Download PNG')} ↓</a><button type="button" data-viewer-next>{say('下一张', 'Next')}</button></footer>
     </dialog>

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateRankingResponse, rankingStatus} from '../src/lib/player-rankings-ui.mjs';
+import {validateRankingResponse, rankingStatus, matchRankingEntry, findBestRankingMatch} from '../src/lib/player-rankings-ui.mjs';
 import {eventRankingPath} from '../src/lib/event-ranking-links.mjs';
-import {validateHighScoreDeck, orderedDeckSlots, rankingCard, rankingScoreAnomaly} from '../src/lib/player-ranking-decks.mjs';
+import {validateHighScoreDeck, orderedDeckSlots, rankingCard, rankingCardLevel, rankingScoreAnomaly} from '../src/lib/player-ranking-decks.mjs';
 
 test('score anomaly rule flags only the integer limit and clears on a corrected score',()=>{
   assert.equal(rankingScoreAnomaly(2147483647),'score-int32-max');
@@ -114,4 +114,65 @@ test('configured total score boards remain selectable before capture without inv
  assert.deepEqual(availableRankingBoards({},[],'total-music'),['total-music']);
  const value=response();value.board='total-music';value.musicId='';value.boards=['total-music'];value.songs=[];
  assert.equal(validateRankingResponse(value,'global-hmt','total-music','1',''),value);
+});
+
+test('rankingCardLevel computes level from exp curves, clamps to awake/rank caps, and falls back gracefully', () => {
+  const catalog = {
+    member: {
+      101: { rarity: 3 },
+      102: { rarity: 4 },
+    },
+    support: {
+      201: { rarity: 3 },
+    },
+    growthCurves: {
+      'member:3': {
+        curve: [[1, 0], [20, 12000], [40, 85000], [50, 150000], [60, 260000]],
+        limits: { 1: 40, 2: 45, 3: 50, 4: 55, 5: 60 },
+      },
+      'support:3': {
+        curve: [[1, 0], [30, 35000], [40, 75000], [50, 140000], [60, 240000]],
+        limits: [40, 45, 50, 55, 60],
+      },
+    },
+  };
+  assert.equal(rankingCardLevel({ masterId: 101, exp: 160000, awake: 5 }, 'member', catalog), 50);
+  assert.equal(rankingCardLevel({ masterId: 101, exp: 300000, awake: 2 }, 'member', catalog), 45);
+  assert.equal(rankingCardLevel({ masterId: 201, exp: 260000, rank: 3 }, 'support', catalog), 50);
+  assert.equal(rankingCardLevel({ masterId: 201, exp: 260000, rank: 5 }, 'support', catalog), 60);
+  assert.equal(rankingCardLevel({ masterId: 102, exp: 50000, awake: 5 }, 'member', catalog), null);
+  assert.equal(rankingCardLevel({ masterId: 101, rank: 5 }, 'member', catalog), null);
+  assert.equal(rankingCardLevel(null, 'member', catalog), null);
+});
+
+test('matchRankingEntry and findBestRankingMatch locate entries by rank, playerId, player name, and combined queries without false ID prefix matches', () => {
+  const entries = [
+    { rank: 1, playerId: '20482001', name: '星野千夏' },
+    { rank: 12, playerId: '20482012', name: '白石千夏' },
+    { rank: 20, playerId: '20482020', name: '千夏' },
+  ];
+  assert.deepEqual(matchRankingEntry(entries[1], '#12'), { kind: 'rank', score: 100 });
+  assert.deepEqual(matchRankingEntry(entries[1], '第12名'), { kind: 'rank', score: 100 });
+  assert.deepEqual(matchRankingEntry(entries[1], '12'), { kind: 'rank', score: 100 });
+  // Searching "20" must match ONLY rank 20, never partial playerId "20482001"
+  assert.equal(matchRankingEntry(entries[0], '20'), null);
+  assert.deepEqual(matchRankingEntry(entries[2], '20'), { kind: 'rank', score: 100 });
+  assert.deepEqual(findBestRankingMatch(entries, '20').map(item => item.entry.rank), [20]);
+
+  assert.deepEqual(matchRankingEntry(entries[1], '20482012'), { kind: 'id', score: 96 });
+  assert.deepEqual(matchRankingEntry(entries[1], 'id:20482012'), { kind: 'id', score: 100 });
+  assert.deepEqual(matchRankingEntry(entries[2], '千夏'), { kind: 'name', score: 96 });
+  assert.deepEqual(matchRankingEntry(entries[0], '千夏'), { kind: 'name-partial', score: 82 });
+  // When an exact name match exists (score 96), findBestRankingMatch filters out partial matches
+  assert.deepEqual(findBestRankingMatch(entries, '千夏').map(item => item.entry.rank), [20]);
+  // Combined query: rank + id or rank + name
+  assert.deepEqual(findBestRankingMatch(entries, '12 20482012').map(item => item.entry.rank), [12]);
+  assert.deepEqual(findBestRankingMatch(entries, '#12 白石千夏').map(item => item.entry.rank), [12]);
+  assert.deepEqual(findBestRankingMatch(entries, '12 20482001'), []);
+  // Explicit mode filtering
+  assert.deepEqual(findBestRankingMatch(entries, '20', 'rank').map(item => item.entry.rank), [20]);
+  assert.deepEqual(findBestRankingMatch(entries, '20482001', 'id').map(item => item.entry.rank), [1]);
+  assert.deepEqual(findBestRankingMatch(entries, '星野', 'name').map(item => item.entry.rank), [1]);
+  assert.equal(matchRankingEntry(entries[0], '不存在'), null);
+  assert.deepEqual(findBestRankingMatch(entries, ''), []);
 });

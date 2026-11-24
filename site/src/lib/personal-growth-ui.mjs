@@ -67,6 +67,7 @@ class PersonalGrowthWorkbench extends HTMLElement {
   form.addEventListener('input',()=>{q('[data-profile-account-status]').textContent='有尚未保存的修改。';});
   q('[data-profile-account-reset]').addEventListener('click',restore);
   this.addEventListener('personal-growth-changed',()=>{restore();this.summary();});
+  globalThis.window?.addEventListener('personal-growth:changed',()=>{restore();this.summary();});
   this.summary();restore();
  }
  summary() {

@@ -20,8 +20,12 @@ export function arenaRankIcon(rankData,tier){
 
 export function arenaRankingPreview(deck,{visuals={},t}) {
  if(!deck?.cards?.length)return `<span class="arena-team-missing">${t('队伍暂缺','Team unavailable')}</span>`;
- return `<span class="arena-team-preview" aria-hidden="true">${orderedDeckSlots(deck).map(slot=>{
-  const card=visuals.members?.find(c=>c.id===String(slot.member?.masterId));
-  return `<span title="${escape(card?.name??(slot.member?'#'+slot.member.masterId:t('未提供','Not provided')))}">${card?.image?`<img src="${escape(card.image)}" alt="" width="32" height="32" loading="lazy" decoding="async">`:'—'}</span>`;
+ return `<span class="arena-team-preview" aria-hidden="true">${orderedDeckSlots(deck).map((slot,idx)=>{
+  const member=visuals.members?.find(c=>c.id===String(slot.member?.masterId));
+  const support=visuals.supports?.find(c=>c.id===String(slot.support?.masterId));
+  const isLeader=slot.slot===2||idx===2;
+  const mRank=slot.member?.rank!=null?`+${slot.member.rank}`:'';
+  const title=[member?.name??(slot.member?'#'+slot.member.masterId:t('未提供','Not provided')),support?.name?`/ ${support.name}`:''].filter(Boolean).join(' ');
+  return `<span class="arena-preview-slot${isLeader?' is-leader':''}" title="${escape(title)}"><span class="arena-preview-member">${member?.image?`<img src="${escape(member.image)}" alt="" width="40" height="44" loading="lazy" decoding="async">`:'—'}${mRank?`<em>${escape(mRank)}</em>`:''}</span><span class="arena-preview-support">${support?.image?`<img src="${escape(support.image)}" alt="" width="40" height="16" loading="lazy" decoding="async">`:'<i>—</i>'}</span></span>`;
  }).join('')}</span>`;
 }

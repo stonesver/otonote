@@ -164,7 +164,9 @@ const rate = (value: number) => `${Number((value / 100).toFixed(2))}%`;
             <div class="card-dialog-frame">
               <header class="card-dialog-header">
                 <div><span>GROWTH PROFILE</span><h2 id="dialog-title-growth">{en ? "Adjust growth" : "调整养成"}</h2></div>
-                <button type="button" data-card-dialog-close aria-label={ui.closeGrowth}>×</button>
+                <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-card-dialog-close aria-label={ui.closeGrowth}>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
               </header>
               <div class="card-dialog-body">
                 {growth ? (
@@ -223,7 +225,9 @@ const rate = (value: number) => `${Number((value / 100).toFixed(2))}%`;
             <span>{skillKindLabel(skill.kind, locale)} / {skill.id}</span>
             <h2 id={`dialog-title-${summary.skillId}`}>{skill.name}</h2>
           </div>
-          <button type="button" data-card-dialog-close aria-label={ui.closeSkill}>×</button>
+          <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-card-dialog-close aria-label={ui.closeSkill}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
         </header>
         <div class="card-dialog-body">
           <div class="card-dialog-lead">
@@ -258,7 +262,9 @@ const rate = (value: number) => `${Number((value / 100).toFixed(2))}%`;
     <div class="card-dialog-frame">
       <header class="card-dialog-header">
         <div><span>MATERIAL LEDGER</span><h2 id="dialog-title-materials">{ui.materialRequirements}</h2></div>
-        <button type="button" data-card-dialog-close aria-label={ui.closeMaterials}>×</button>
+        <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-card-dialog-close aria-label={ui.closeMaterials}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
       </header>
       <div class="card-dialog-body">
         {growth && <details class="card-progress-costs">

@@ -63,7 +63,9 @@ const number = new Intl.NumberFormat("zh-CN");
         <dialog class="bi-dialog" data-band-item-dialog data-item-id={item.id}
           style={`--band-color: ${band?.mainColor ?? "var(--theme-secondary)"}`} aria-labelledby={`${item.id}-dialog-title`}>
           <div class="bi-dialog-frame">
-            <button class="bi-close" type="button" data-band-item-close aria-label={`关闭${item.name}详情`} autofocus>×</button>
+            <button class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline bi-close" type="button" data-band-item-close aria-label={`关闭${item.name}详情`} autofocus>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
             <header class="bi-dialog-header">
               <div class="bi-dialog-art">
                 {item.previewUrl ? <img src={item.previewUrl} alt={item.name} width="270" height="516" loading="lazy" /> : <span>暂无图片</span>}
@@ -80,7 +82,7 @@ const number = new Intl.NumberFormat("zh-CN");
                 <label for={`${item.id}-level`}>查看等级</label>
                 <div class="bi-stepper">
                   <button type="button" data-band-item-step="-1" aria-label="上一级">−</button>
-                  <select id={`${item.id}-level`} data-band-item-select aria-label="道具等级">
+                  <select class="ui-select" id={`${item.id}-level`} data-band-item-select aria-label="道具等级">
                     {item.levels.map((level) => <option value={level.level} selected={level.level === top?.level}>Lv.{level.level}</option>)}
                   </select>
                   <button type="button" data-band-item-step="1" aria-label="下一级">+</button>

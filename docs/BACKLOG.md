@@ -36,3 +36,4 @@
 | 公告后续能力 | 自动连接健康检查与反馈功能尚未实现；当前使用人工公告，不宣称自动故障通知。 |
 | 既有验证缺口 | 旧材料记录过 Astro 类型错误、字号契约、SQLite 只读备份兼容、私有输入／依赖缺失及统计上报异常；重现当前基线后独立处理，不把旧失败数量或任务报告当成当前验收结果。 |
 | 回忆系统接入 | 客户端来源已定位，但已核对快照的五张回忆表为空。取得非空配置、账号解锁／等级状态并完成游戏显示对照后，按三项能力和目标范围接入；当前入口已撤下，旧 `memoryPoints` 不参与评分。见[支持边界](reference/calculation-search.md#回忆系统的支持边界)。 |
+| 前端统一风格全站推广 | 先导 5 页（Wave 0）已完成并验收；Wave 1 高频交互工具 9 页（`deck-builder`、`song-calculator`、`song-ranking`、`ap-grade`、`gacha-history`、`live2d`、`my-growth`、`account-export`、`tools`）已完成改造并待审核；其余 Wave 2 活动与榜单页、Wave 3 角色/卡片/资料库与 Wave 4 音乐/剧情/图鉴页待按[前端设计规范](reference/frontend-design-system.md)逐批迁入并完成双主题浏览器验收。 |

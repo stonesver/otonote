@@ -8,7 +8,9 @@ const { kind } = Astro.props;
   <dialog class="db-detail-dialog" aria-label={say("资料详情", "Details")}>
     <div class="db-dialog-bar">
       <span>{kind === "skills" ? say("技能资料", "Skill details") : say("道具资料", "Item details")}</span>
-      <button type="button" data-db-close aria-label={say("关闭详情", "Close details")} autofocus>×</button>
+      <button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-db-close aria-label={say("关闭详情", "Close details")} autofocus>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
     </div>
     <div data-db-content aria-live="polite"></div>
     <p data-db-loading hidden>{say("正在加载…", "Loading…")}</p>

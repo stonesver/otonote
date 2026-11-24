@@ -1,21 +1,32 @@
-.ranking-chart-dialog {width:min(1440px,calc(100vw - 48px));}
-.ranking-chart-dialog .song-dialog-heading {padding:12px 18px;}
-.ranking-chart-dialog .song-dialog-heading h2 {font-size:18px;}
-.ranking-chart-dialog .song-dialog-body {padding:16px;}
-.ranking-chart-dialog .score-workbench {margin:0;padding:0;border:0;background:transparent;}
-.ranking-chart-dialog .workbench-heading h2 {font-size:20px;}
-.ranking-chart-dialog .workbench-heading p {font-size:11px;}
-.ranking-chart-dialog .ranking-chart-status {margin:0 0 12px;padding:10px 12px;border-radius:9px;background:var(--tool-tint);color:var(--tool-muted);font-size:12px;}
-.ranking-chart-dialog[data-load-state=error] .ranking-chart-status {background:var(--theme-surface);color:var(--theme-danger-ink);}
-.ranking-chart-dialog [data-ranking-chart-retry] {padding:6px 12px;border:1px solid var(--tool-border);border-radius:7px;background:var(--tool-surface);color:var(--tool-accent);cursor:pointer;}
-.ranking-chart-dialog .density-panel {margin-top:14px;}
-.ranking-chart-dialog :is(button,input,select):focus-visible {outline:3px solid var(--tool-focus);outline-offset:2px;}
-@media(max-width:700px) {
- .ranking-chart-dialog {width:calc(100vw - 12px);max-height:calc(100dvh - 16px);}
- .ranking-chart-dialog .song-dialog-body {padding:9px;}
- .ranking-chart-dialog .song-dialog-heading {padding:10px;gap:9px;}
- .ranking-chart-dialog .song-dialog-heading>div {flex-basis:calc(100% - 44px);}
- .ranking-chart-dialog .song-dialog-close {position:absolute;right:10px;top:12px;}
- .ranking-chart-dialog .song-dialog-difficulty {margin:0;}
- .ranking-chart-dialog .workbench-heading {display:none;}
+.ranking-chart-dialog {
+  width: min(1160px, calc(100vw - 48px));
+  max-height: min(88dvh, 840px);
+  box-sizing: border-box;
+}
+.ranking-chart-dialog .song-dialog-heading { padding: 12px 18px; }
+.ranking-chart-dialog .song-dialog-heading h2 { font-size: 18px; }
+.ranking-chart-dialog .song-dialog-body { padding: 14px 18px 18px; }
+.ranking-chart-dialog .score-workbench { margin: 0; padding: 0; border: 0; background: transparent; min-width: 0; max-width: 100%; }
+.ranking-chart-dialog .workbench-heading { display: none; }
+.ranking-chart-dialog .score-view-switch { margin-bottom: 10px; }
+.ranking-chart-dialog .ranking-chart-status { margin: 0 0 10px; padding: 9px 12px; border-radius: 9px; background: var(--tool-tint); color: var(--tool-muted); font-size: 12px; }
+.ranking-chart-dialog[data-load-state=error] .ranking-chart-status { background: var(--theme-surface); color: var(--theme-danger-ink); }
+.ranking-chart-dialog [data-ranking-chart-retry] { padding: 6px 12px; border: 1px solid var(--tool-border); border-radius: 7px; background: var(--tool-surface); color: var(--tool-accent); cursor: pointer; }
+.ranking-chart-dialog .density-panel { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--theme-border-soft); border-radius: 10px; }
+.ranking-chart-dialog .panel-heading { margin-bottom: 8px; }
+.ranking-chart-dialog .panel-heading h3 { font-size: 16px; }
+.ranking-chart-dialog .density-overview { height: 110px; }
+.ranking-chart-dialog .density-bar { fill: var(--theme-text-soft); }
+.ranking-chart-dialog .workbench-controls { max-width: none; margin-top: 12px; padding: 10px 14px; border: 1px solid var(--theme-border-soft); border-radius: 10px 10px 0 0; }
+.ranking-chart-dialog .track-panel { max-width: none; }
+.ranking-chart-dialog .track-scroll { height: clamp(320px, 46dvh, 520px); }
+.ranking-chart-dialog :is(button, input, select):focus-visible { outline: 3px solid var(--tool-focus); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .ranking-chart-dialog { width: calc(100vw - 12px); max-height: calc(100dvh - 16px); }
+  .ranking-chart-dialog .song-dialog-body { padding: 9px; }
+  .ranking-chart-dialog .song-dialog-heading { padding: 10px; gap: 9px; }
+  .ranking-chart-dialog .song-dialog-heading > div { flex-basis: calc(100% - 44px); }
+  .ranking-chart-dialog .song-dialog-close { position: absolute; right: 10px; top: 12px; }
+  .ranking-chart-dialog .song-dialog-difficulty { margin: 0; }
+  .ranking-chart-dialog .workbench-heading { display: none; }
 }

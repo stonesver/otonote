@@ -5,30 +5,48 @@ html[data-shell="sidebar"] {
 }
 
 @keyframes page-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Stage is the default; explicit preview URLs keep the other variants available. */
 html {
-  --stage-duration: 420ms;
-  --book-duration: 620ms;
-  --beat-duration: 480ms;
-  --page-hinge: var(--sidebar-width, 236px);
+  --stage-duration: 240ms;
+  --book-duration: 520ms;
+  --beat-duration: 360ms;
+  --page-hinge: var(--sidebar-width, 224px);
 }
 html[data-transition-speed="slow"] {
-  --stage-duration: 1400ms;
-  --book-duration: 2067ms;
-  --beat-duration: 1600ms;
+  --stage-duration: 900ms;
+  --book-duration: 1600ms;
+  --beat-duration: 1200ms;
 }
 
 @keyframes stage-reveal {
-  from { clip-path: polygon(0 0, -10% 0, -20% 100%, 0 100%); }
-  to { clip-path: polygon(0 0, 120% 0, 110% 100%, 0 100%); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes stage-depart {
-  from { clip-path: polygon(-7% 0, 100% 0, 100% 100%, -17% 100%); }
-  to { clip-path: polygon(123% 0, 100% 0, 100% 100%, 113% 100%); }
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.92;
+    transform: scale(0.994);
+  }
 }
 @keyframes book-turn {
   0% { transform: perspective(1800px) rotateY(0deg); filter: brightness(1); opacity: 1; }
@@ -56,16 +74,16 @@ html[data-transition-speed="slow"] {
   ::view-transition-old(root),
   ::view-transition-new(root) { mix-blend-mode: normal; }
 
-  /* The narrow space between the two diagonal masks exposes the lacquer curtain. */
+  /* Soft editorial crossfade + micro-lift: smooth, fast, zero heavy curtain flash. */
   [data-page-transition="stage"]::view-transition-group(root) {
-    background: var(--lacquer);
+    background: var(--theme-canvas);
     overflow: clip;
   }
   [data-page-transition="stage"]::view-transition-old(root) {
-    animation: stage-depart var(--stage-duration) cubic-bezier(.65, 0, .25, 1) both;
+    animation: stage-depart var(--stage-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   [data-page-transition="stage"]::view-transition-new(root) {
-    animation: stage-reveal var(--stage-duration) cubic-bezier(.65, 0, .25, 1) both;
+    animation: stage-reveal var(--stage-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   [data-page-transition="book"]::view-transition-group(root) { overflow: clip; }

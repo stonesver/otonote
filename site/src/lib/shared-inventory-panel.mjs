@@ -9,7 +9,7 @@ import {createTeamCardView} from './team-card-view.mjs';
 import {filterTeamCards,teamCardFilterOptions} from './team-card-filters.mjs';
 import {selectedControlValues,restoreFilterControl} from './filter-controls.mjs';
 import {setupQuickOptions} from './tool-quick-options.mjs';
-import {attachCardSkillHover,destroySkillPopover} from './calculator-card-ui.mjs';
+import {attachCardSkillHover,closeSkillPopover,destroySkillPopover} from './calculator-card-ui.mjs';
 import {setupSharedInventoryImports} from './shared-inventory-imports.mjs';
 
 const node=(tag,text='',className='')=>{const value=document.createElement(tag);value.textContent=text;value.className=className;return value;};
@@ -34,7 +34,7 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
   const rules=data.formalRules,cards=[...data.memberCards,...data.supportCards];
   const skillWorkbench={data};
   const manager=createInventoryManager(rules,cards);
-  let profile=null,store,contextKey='',page=0,undo=null,pendingImport=null,fileRequest=0,destroyed=false,editor=null,accountDirty=false,accountBaseline=null,lastCardFeedback=null;
+  let profile=null,store,contextKey='',page=0,undo=null,pendingImport=null,fileRequest=0,destroyed=false,editor=null,accountDirty=false,accountBaseline=null,lastCardFeedback=null,suppressHoverUntil=0;
   const pageSize=24;
   let shortcuts,batch;
   const listeners=[];
@@ -48,20 +48,43 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     status.textContent=message;status.dataset.tone=tone;
     try{onFeedback(message,{tone});}catch { /* Feedback cannot change a completed storage operation. */ }
   }
-  const count=node('p','','tw-inventory-count');
+  const SVG_NS='http://www.w3.org/2000/svg';
+  function emptyArtwork(){
+    const svg=document.createElementNS(SVG_NS,'svg');
+    svg.setAttribute('viewBox','0 0 32 32');svg.setAttribute('width','36');svg.setAttribute('height','36');
+    svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.6');
+    svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');
+    for(const d of ['M7 6.5A2.5 2.5 0 0 1 9.5 4h13A2.5 2.5 0 0 1 25 6.5v19a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 7 25.5v-19Z','M11 10.5h10','M11 15h6','M16 20.5v.2']){
+      const p=document.createElementNS(SVG_NS,'path');p.setAttribute('d',d);svg.append(p);
+    }
+    return svg;
+  }
+  const count=node('div','','tw-inventory-count');
+  const countMember=node('span','','tw-inv-stat'),countSupport=node('span','','tw-inv-stat');
+  const countAccount=node('span','','tw-inv-stat tw-inv-stat--account');
+  const jumpAccountBtn=button(t('账号养成 ↓','Account growth ↓'),()=>{
+    accountDetails.open=true;
+    accountDetails.scrollIntoView({behavior:'smooth',block:'start'});
+  },'soft');
+  jumpAccountBtn.className='tw-inv-jump-account';
+  count.append(countMember,countSupport,countAccount,jumpAccountBtn);
   const kind=select([['member',t('成员卡','Member cards')],['support',t('留影','Support cards')]]);
+  kind.dataset.quickSegmented='pill';
   const owned=select([['owned',t('已持有','Owned')],['',t('全部卡片','All cards')],['unowned',t('未记录','Not recorded')]]);
+  owned.dataset.quickSegmented='pill';
   const search=node('input');search.type='search';search.placeholder=t('卡名、角色或 ID','Card, character or ID');
   const filters=node('div','','tw-inventory-filters');filters.append(field(t('类型','Type'),kind),field(t('范围','Show'),owned),field(t('搜索','Search'),search));
   const attribute=select([]),band=select([]),character=select([]),rarity=select([]);
   const sort=select([['default',t('默认顺序','Default order')],['name',t('卡名','Card name')],['rarity-desc',t('稀有度从高到低','Rarity: high to low')],['level-desc',t('等级从高到低','Level: high to low')]]);
-  const extraFilters=node('details','','tw-inventory-extra-filters');extraFilters.append(node('summary',t('更多筛选与排序','More filters and sorting')));
+  const extraFilters=node('details','','tw-inventory-extra-filters tw-subfold');extraFilters.append(node('summary',t('更多筛选与排序','More filters and sorting')));
   const commonFilters=node('div','','tw-inventory-common-filters');for(const [control,zh,en] of [[attribute,'属性','Attribute'],[band,'乐队','Band'],[rarity,'稀有度','Rarity']]){control.multiple=true;control.dataset.quick='';control.dataset.quickAll='';commonFilters.append(field(t(zh,en),control));}
-  const extraGrid=node('div','','tw-inventory-filters');for(const [control,zh,en] of [[character,'角色','Character'],[sort,'排序','Sort']]){control.dataset.quickNative='true';extraGrid.append(field(t(zh,en),control));}
-  const clearFilters=button(t('清空筛选','Clear filters'),()=>{search.value='';owned.value='';for(const control of [attribute,band,character,rarity])restoreFilterControl(control,'');sort.value='default';page=0;renderCards();});
-  extraFilters.append(extraGrid,clearFilters);
+  const extraGrid=node('div','','tw-inventory-extra-grid');for(const [control,zh,en] of [[character,'角色','Character'],[sort,'排序','Sort']]){control.dataset.quickNative='true';extraGrid.append(field(t(zh,en),control));}
+  function resetAllFilters({showAll=false}={}){search.value='';if(showAll)owned.value='';for(const control of [attribute,band,character,rarity])restoreFilterControl(control,'');sort.value='default';page=0;renderCards();}
+  const clearFilters=button(t('清空筛选','Clear filters'),()=>resetAllFilters({showAll:false}));
+  extraGrid.append(clearFilters);
+  extraFilters.append(extraGrid);
   const list=node('div','','tw-inventory-list'),editRoot=node('div','','tw-inventory-editor');editRoot.hidden=true;
-  const pagination=node('div','','tw-actions'),pageText=node('span');
+  const pagination=node('div','','tw-actions tw-pagination'),pageText=node('span');
   const prev=button(t('上一页','Previous'),()=>{page--;renderCards();}),next=button(t('下一页','Next'),()=>{page++;renderCards();});
   pagination.append(prev,pageText,next);
   const undoButton=button(t('撤销上次修改','Undo last change'),()=>act(()=>{
@@ -70,11 +93,12 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     store.restore(undo.before);undo=null;accountDirty=false;closeEditor();refresh();onChange(profile);feedback(t('已撤销上次修改。','Last change undone.'),'success');
   }));
   const exportButton=button(t('导出卡库与养成','Export inventory'),()=>act(()=>{ensureStore();download(store.read()??store.empty(),'otonote-personal-growth.json');feedback(t('备份下载已发起。','Backup download started.'),'success');}));
-  const actions=node('div','','tw-actions');actions.append(undoButton,exportButton);
+  const actions=node('div','','tw-actions tw-inv-footer-actions');actions.append(undoButton,exportButton);
 
-  const importDetails=node('details','','tw-inventory-import'),importSummary=node('summary',t('导入备份','Import backup'));
+  const importDetails=node('details','','tw-inventory-import tw-subfold'),importSummary=node('summary',t('导入本地 JSON 备份','Import local JSON backup'));
   const file=node('input');file.type='file';file.accept='.json,application/json';file.setAttribute('aria-label',t('选择养成 JSON 文件','Choose growth JSON file'));
-  const paste=node('textarea');paste.rows=4;paste.placeholder=t('也可以粘贴 JSON 备份','Or paste a JSON backup');paste.setAttribute('aria-label',t('养成 JSON','Growth JSON'));
+  const fileLabel=node('label','','tw-file-picker');fileLabel.append(node('span',t('选择本地 JSON 文件','Choose JSON file')),file);
+  const paste=node('textarea');paste.rows=3;paste.placeholder=t('也可以粘贴 JSON 备份文本','Or paste JSON backup text');paste.setAttribute('aria-label',t('养成 JSON','Growth JSON'));
   const importPreview=node('div','','tw-import-preview');
   const confirmImport=button(t('确认替换卡库与养成','Replace inventory and growth'),()=>act(()=>{
     if(!pendingImport)return;ensureStore();
@@ -83,34 +107,47 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     pendingImport=null;confirmImport.disabled=true;paste.value='';importPreview.replaceChildren();accountDirty=false;closeEditor();renderAccount();
   }),'primary');confirmImport.disabled=true;
   const previewButton=button(t('预览导入','Preview import'),()=>act(prepareImport),'primary');
-  const exportInput=button(t('另存当前导入内容','Save input as a file'),()=>download(paste.value,'otonote-pending-import.json'));
+  const exportInput=button(t('另存当前输入内容','Save input as file'),()=>download(paste.value,'otonote-pending-import.json'));
   const importActions=node('div','','tw-actions');importActions.append(previewButton,confirmImport,exportInput);
-  importDetails.append(importSummary,node('p',t('先预览，再确认替换卡库与账号养成。不会修改已存队伍。','Preview before replacing inventory and account growth. Saved teams stay unchanged.')),file,paste,importActions,importPreview,node('small',t('遇到未知卡片时，请保留备份，更新到匹配的内容版本后重试；不会丢弃卡片或补成满养成。','If a card is unknown, keep your backup and retry with matching content. Cards are never dropped or assumed fully trained.')));
+  importDetails.append(importSummary,node('p',t('先预览，再确认替换卡库与账号养成。不会修改已存队伍。','Preview before replacing inventory and account growth. Saved teams stay unchanged.')),fileLabel,paste,importActions,importPreview,node('small',t('遇到未知卡片时，请保留备份，更新到匹配的内容版本后重试；不会丢弃卡片或补成满养成。','If a card is unknown, keep your backup and retry with matching content. Cards are never dropped or assumed fully trained.')));
 
-  const accountDetails=node('details','','tw-account-growth');accountDetails.append(node('summary',t('账号养成：乐器、角色评级、TGW','Account growth: items, character ranks, TGW')));
+  const accountDetails=node('details','','tw-account-growth tw-subfold');accountDetails.append(node('summary',t('账号养成：乐器、角色评级、TGW','Account growth: items, character ranks, TGW')));
   const accountForm=node('form','','tw-account-form'),accountFields=node('div','','tw-account-fields'),accountStatus=node('p','','tw-status');accountStatus.setAttribute('role','status');
   const accountSubmit=node('button',t('保存账号养成','Save account growth'));accountSubmit.type='submit';accountSubmit.dataset.variant='primary';
   const accountReset=button(t('恢复已保存值','Restore saved values'),()=>{accountDirty=false;renderAccount();});
   const accountExport=button(t('导出这次编辑','Export this edit'),()=>act(()=>{
     ensureStore();const draft=structuredClone(profile??store.empty());draft.account=collectAccount();download(store.validate(draft),'otonote-unsaved-account-growth.json');
   }));
-  const accountActions=node('div','','tw-actions');accountActions.append(accountSubmit,accountReset,accountExport);accountForm.append(accountFields,accountActions,accountStatus);accountDetails.append(accountForm);
+  const accountBackTop=button(t('↑ 返回卡片','↑ Back to cards'),()=>{topbar.scrollIntoView({behavior:'smooth',block:'start'});},'quiet');
+  const accountActions=node('div','','tw-actions');accountActions.append(accountSubmit,accountReset,accountExport,accountBackTop);accountForm.append(accountFields,accountActions,accountStatus);accountDetails.append(accountForm);
   const imports=setupSharedInventoryImports({root,data,manager,getStore:()=>{ensureStore();return store;},mergeInventory:(inventory,message)=>{ensureStore();commit({...store.read()??store.empty(),inventory},message);},refresh:()=>{refresh();onChange(profile);},feedback});
-  imports.entry.prepend(count);
-  const filterHeader=node('div','','tw-inventory-filter-header');filterHeader.append(imports.entry,filters,commonFilters,extraFilters);
-  root.replaceChildren(filterHeader,imports.host,editRoot,list,pagination,actions,importDetails,accountDetails,status);
+  const topbar=node('div','','tw-inv-topbar');
+  topbar.append(count,imports.entry);
+  const filterHeader=node('div','','tw-inventory-filter-header');filterHeader.append(filters,commonFilters,extraFilters);
+  const utilities=node('div','','tw-inv-utilities');utilities.append(actions,accountDetails,importDetails);
+  root.replaceChildren(topbar,imports.host,filterHeader,editRoot,list,pagination,utilities,status);
   const mobileFilters=globalThis.matchMedia?.('(max-width:760px)');
   function arrangeFilters(){
     if(mobileFilters?.matches)extraFilters.insertBefore(commonFilters,extraGrid);
     else filterHeader.insertBefore(commonFilters,extraFilters);
-    extraFilters.querySelector('summary').textContent=t('筛选与排序','Filters and sorting');
+    extraFilters.querySelector('summary').textContent=t('角色与排序','Character & sort');
   }
   if(mobileFilters)listen(mobileFilters,'change',arrangeFilters);arrangeFilters();
   function refreshFilterOptions(){
     shortcuts?.destroy();
     const options=teamCardFilterOptions(cards.filter(card=>card.kind===kind.value),data);
     for(const [name,control] of [['attribute',attribute],['band',band],['character',character],['rarity',rarity]]){
-      const previous=selectedControlValues(control);control.replaceChildren();for(const item of [{value:'',label:t('全部','All')},...options[name]]){const option=node('option',item.label);option.value=String(item.value);if(item.icon){option.dataset.icon=item.icon;if(name==='band'){option.dataset.round='true';option.dataset.iconOnly='true';}}control.append(option);}const retained=previous.filter(value=>[...control.options].some(option=>option.value===value));restoreFilterControl(control,control.multiple?retained:retained[0]??'');
+      const previous=selectedControlValues(control);control.replaceChildren();for(const item of [{value:'',label:t('全部','All')},...options[name]]){
+        const option=node('option',item.label);option.value=String(item.value);
+        const visualIcon=name==='band'?(item.circleIcon??item.icon):item.icon;
+        if(visualIcon){
+          option.dataset.icon=visualIcon;
+          if(name==='band'){if(item.circleIcon)option.dataset.fallbackIcon=item.icon;option.dataset.round='true';option.dataset.iconOnly='true';}
+          else if(name==='attribute'||name==='rarity'){option.dataset.iconOnly='true';}
+        }
+        control.append(option);
+      }
+      const retained=previous.filter(value=>[...control.options].some(option=>option.value===value));restoreFilterControl(control,control.multiple?retained:retained[0]??'');
     }
     shortcuts=setupQuickOptions(filterHeader);
   }
@@ -150,11 +187,15 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     return batch?.filter(rows)??rows;
   }
   function renderCards(){
+    closeSkillPopover(skillWorkbench);
+    suppressHoverUntil=Date.now()+350;
     shortcuts?.sync();
+    const canHover=typeof window==='undefined'||typeof window.matchMedia!=='function'?true:window.matchMedia('(hover: hover) and (pointer: fine) and (min-width: 761px)').matches;
     const activeFilters=[attribute,band,character,rarity].filter(control=>selectedControlValues(control).some(Boolean)).length+(sort.value!=='default'?1:0);
-    extraFilters.querySelector('summary').textContent=t('筛选与排序','Filters and sorting')+(activeFilters?t(` · ${activeFilters} 项`,` · ${activeFilters} active`):'');
+    extraFilters.querySelector('summary').textContent=t('角色与排序','Character & sort')+(activeFilters?t(` · 已选 ${activeFilters} 项`,` · ${activeFilters} active`):'');
     const inventory=profile?.inventory??manager.empty();
-    count.textContent=`${t('成员卡','Member cards')} ${inventory.memberCardIds.length} · ${t('留影','Support cards')} ${inventory.supportCardIds.length}`;
+    countMember.replaceChildren(document.createTextNode(t('成员卡 ','Members ')),node('strong',String(inventory.memberCardIds.length)));
+    countSupport.replaceChildren(document.createTextNode(t('留影 ','Snaps ')),node('strong',String(inventory.supportCardIds.length)));
     const filtered=filteredCards();
     const pages=Math.max(1,Math.ceil(filtered.length/pageSize));page=Math.max(0,Math.min(page,pages-1));
     // Move the same editor node before replacing rows, preserving input, listeners and selection.
@@ -169,7 +210,10 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
         const selection=node('label','','tw-card-select'),selectionText=node('span',select.checked?t('已选','Selected'):t('选择','Select'));
         selection.append(select,selectionText);
         select.addEventListener('change',toggle);view.addEventListener('click',toggle);row.append(selection);
-      }else attachCardSkillHover(skillWorkbench,card,view.querySelector('.tw-card-art'),{growth});
+      }else{
+        const art=view.querySelector('.tw-card-art');
+        if(art&&canHover){art.addEventListener('pointerenter',event=>{if(Date.now()<suppressHoverUntil)event.stopImmediatePropagation();});attachCardSkillHover(skillWorkbench,card,art,{growth,focus:false});}
+      }
       const restrictions=getRestrictions()??{},reason=restrictions.cardReason?.(card);
       if(reason)row.append(node('small',`${t('当前工具不可用','Unavailable in this tool')}: ${reason}`,'tw-warning'));
       if(!batch?.active){const editButton=button(growth?t('编辑养成','Edit growth'):t('录入养成','Record growth'),()=>openEditor(card));editButton.dataset.inventoryEdit=card.id;editButton.setAttribute('aria-expanded',String(editor?.card.id===card.id));row.append(editButton);}
@@ -177,7 +221,23 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
       list.append(row);if(editor?.card.id===card.id){list.append(editRoot);visibleEditor=true;}
     }
     editRoot.hidden=!editor;if(editor)editor.location.hidden=visibleEditor;
-    if(!filtered.length)list.append(node('p',t('没有符合条件的卡片。可切换到“全部卡片”，或导入备份。','No matching cards. Choose “All cards” or import a backup.')));
+    if(!filtered.length){
+      const isOwnedEmpty=owned.value==='owned'&&inventory[`${kind.value}CardIds`].length===0&&!search.value.trim()&&!activeFilters;
+      const emptyBox=node('div','','tw-empty-state');
+      emptyBox.append(emptyArtwork());
+      emptyBox.append(node('h4',isOwnedEmpty?t(`还没有录入${kind.value==='member'?'成员卡':'留影'}`,`No ${kind.value==='member'?'member cards':'snaps'} recorded yet`):t('没有找到符合条件的卡片','No matching cards found')));
+      emptyBox.append(node('p',isOwnedEmpty?t('可以先浏览全部卡片手动勾选录入，或通过 BHK 账号同步与截图识别一键导入。','Browse all cards to record them manually, or import via BHK account sync or screenshots.'):t('可以切换到“全部卡片”扩大范围，或清除当前筛选关键词。','Switch to “All cards” or clear active filters to view more.')));
+      const emptyActions=node('div','','tw-actions tw-empty-actions');
+      if(owned.value!==''){emptyActions.append(button(t('查看全部卡片','Show all cards'),()=>resetAllFilters({showAll:true}),'primary'));}
+      else if(search.value.trim()||activeFilters){emptyActions.append(button(t('清空筛选','Clear filters'),()=>resetAllFilters({showAll:false}),'primary'));}
+      if(isOwnedEmpty){
+        emptyActions.append(button(t('账号同步导入','Account sync'),()=>imports.entry.querySelector('[data-workspace-login]')?.click(),'secondary'));
+        emptyActions.append(button(t('截图导入','Import screenshots'),()=>imports.entry.querySelector('[data-workspace-screenshot]')?.click(),'secondary'));
+      }
+      emptyBox.append(emptyActions);
+      list.append(emptyBox);
+    }
+    pagination.hidden=filtered.length<=pageSize;
     pageText.textContent=t(`共 ${filtered.length} 张 · 第 ${page+1} / ${pages} 页`,`${filtered.length} cards · Page ${page+1} of ${pages}`);prev.disabled=page===0;next.disabled=page>=pages-1;undoButton.disabled=!undo;
   }
   function closeEditor({returnFocus=false}={}){
@@ -232,6 +292,14 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
   function renderAccount(){
     if(accountDirty)return;
     const account=profile?.account??{};accountBaseline=structuredClone(account);accountFields.replaceChildren();accountStatus.textContent=store?.migrationNotice??'';
+    const bandCount=Object.keys(account.bandItemTotals??{}).length+Object.keys(account.bandItems??{}).length;
+    const charCount=Object.keys(account.characterRanks??{}).length;
+    const tgwVal=account.tgwCardRank;
+    const accParts=[];
+    if(bandCount)accParts.push(t(`乐器 ${bandCount}`,`Items ${bandCount}`));
+    if(charCount)accParts.push(t(`评级 ${charCount}`,`Ranks ${charCount}`));
+    if(tgwVal!=null)accParts.push(`TGW Lv.${tgwVal}`);
+    countAccount.textContent=accParts.length?accParts.join(' · '):t('账号加成未录','Account: empty');
     const tgw=select([['',t('未记录','Not recorded')],...(data.vipRanks??[]).map(row=>[row.rank,`Lv.${row.rank}`])]);tgw.name='tgwCardRank';tgw.value=String(account.tgwCardRank??'');accountFields.append(field(t('TGW 等级','TGW rank'),tgw));
     const groups=bandItemGroups(rules);
     function numberInput(labelText,value,min,max,dataset){const input=node('input');input.type='number';input.step='1';input.min=String(min);input.max=String(max);input.inputMode='numeric';input.placeholder=t('未记录','Not recorded');input.value=value===undefined?'':String(value);Object.assign(input.dataset,dataset);return field(labelText,input);}
@@ -277,11 +345,15 @@ export function setupSharedInventoryPanel({root,data,onChange=()=>{},getRestrict
     try{profile=context.serverId?store.read():null;renderCards();renderAccount();}
     catch(error){feedback(t('资料未载入，原记录仍保留。可导入有效备份恢复：','Profile not loaded; the original record is preserved. Import a valid backup to recover: ')+error.message,'error');}
   }
-  const batchRoot=node('div','','tw-batch-workspace');root.insertBefore(batchRoot,list);
+  const batchRoot=node('div','','tw-batch-workspace');
   batch=setupSharedInventoryBatch({root:batchRoot,cards,manager,t,getStore:()=>{ensureStore();return store;},getInventory:()=>profile?.inventory??manager.empty(),getPageCards:()=>filteredCards().slice(page*pageSize,(page+1)*pageSize),
     canEdit:()=>{if(!editor)return true;feedback(t('请先保存或取消正在编辑的卡片。','Save or cancel the open card first.'));revealEditor();return false;},
     onStart:()=>{if(owned.value==='owned')owned.value='unowned';page=0;},onRender:reset=>{if(reset)page=0;renderCards();},commit,feedback});
-  root.insertBefore(batchRoot.querySelector('.tw-batch-toolbar'),batchRoot);
+  const batchToolbar=batchRoot.querySelector('.tw-batch-toolbar');
+  const batchBtn=batchToolbar.querySelector('[data-batch-entry]');
+  batchBtn.dataset.variant='soft';
+  imports.entry.querySelector('.tw-inventory-import-actions').append(batchBtn);
+  filterHeader.after(batchToolbar,batchRoot);
   refreshFilterOptions();refresh();
   return {
     refresh,

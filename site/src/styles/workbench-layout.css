@@ -8,7 +8,7 @@
 [data-shell="sidebar"] .team-workbench .tool-panel-header { margin-bottom: 14px; gap: 10px; }
 [data-shell="sidebar"] .team-workbench .tool-panel-header h2 { margin: 3px 0 0; font: 700 18px/1.4 var(--font-body); }
 [data-shell="sidebar"] .team-workbench .tool-panel-header :is(p,a) { font-size: 12px; color: var(--silver-dark); }
-[data-shell="sidebar"] .team-workbench .tool-panel-header span { font-size: 9px; letter-spacing: .1em; }
+[data-shell="sidebar"] .team-workbench .tool-panel-header span { font-size: 12px; letter-spacing: .04em; }
 [data-shell="sidebar"] .team-workbench input,
 [data-shell="sidebar"] .team-workbench select,
 [data-shell="sidebar"] .team-workbench textarea { min-width: 0; max-width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper-light); font: 13px var(--font-body); color: var(--ink); }
@@ -18,12 +18,12 @@
 [data-shell="sidebar"] .team-workbench .team-context-controls { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
 [data-shell="sidebar"] .team-workbench label { min-width: 0; font-size: 12px; }
 [data-shell="sidebar"] .team-workbench .team-context-controls label { display: grid; gap: 5px; }
-[data-shell="sidebar"] .team-workbench [data-tgw-bonus-note] { grid-column: 1/-1; font-size: 11px; margin: 0; color: var(--silver-dark); }
+[data-shell="sidebar"] .team-workbench [data-tgw-bonus-note] { grid-column: 1/-1; font-size: 12px; margin: 0; color: var(--silver-dark); }
 [data-shell="sidebar"] .team-workbench .team-validation { padding: 7px 10px; margin-top: 10px; border-radius: 6px; font-size: 12px; }
 [data-shell="sidebar"] .team-workbench .team-validation p { display: inline; margin-right: 8px; }
 [data-shell="sidebar"] .team-workbench .team-slot { display: flex; flex-direction: column; gap: 6px; padding: 8px; min-width: 0; border: 1px solid var(--line); background: var(--paper); }
 [data-shell="sidebar"] .team-workbench .team-slot.is-active { border-color: var(--lacquer); background: var(--theme-surface); box-shadow: 0 0 0 1px var(--lacquer); }
-[data-shell="sidebar"] .team-workbench .team-slot-number { width: auto; font: 700 10px var(--font-mono); white-space: nowrap; }
+[data-shell="sidebar"] .team-workbench .team-slot-number { width: auto; font: 700 12px var(--font-body); white-space: nowrap; }
 [data-shell="sidebar"] .team-workbench .team-slot-pair { display: grid; grid-template-columns: 1fr; gap: 6px; width: 100%; }
 [data-shell="sidebar"] .team-workbench summary { padding: 8px 0; cursor: pointer; font-size: 12px; font-weight: 600; }
 [data-shell="sidebar"] .team-workbench details > p { font-size: 12px; color: var(--silver-dark); }
@@ -37,8 +37,8 @@
 [data-shell="sidebar"] .team-workbench .team-picker-art { width: 42px; height: 58px; grid-row: 1/3; }
 [data-shell="sidebar"] .team-workbench .team-picker-art img { object-fit: contain; }
 [data-shell="sidebar"] .team-workbench .team-picker-copy strong { font-size: 12px; }
-[data-shell="sidebar"] .team-workbench .team-picker-copy :is(small,span) { font-size: 10px; }
-[data-shell="sidebar"] .team-workbench .team-picker-taxonomy { grid-column: 2; font-size: 10px; }
+[data-shell="sidebar"] .team-workbench .team-picker-copy :is(small,span) { font-size: 12px; }
+[data-shell="sidebar"] .team-workbench .team-picker-taxonomy { grid-column: 2; font-size: 12px; }
 .optimizer-filter-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
 .optimizer-filter-fields label { display: grid; gap: 6px; }
 .optimizer-filter-fields { grid-template-columns: repeat(4,minmax(0,1fr)); margin-top: 8px; }
@@ -49,7 +49,7 @@
 [data-pairing-results] > li { padding: 14px; margin: 0 !important; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
 [data-pairing-results] > li > button { padding: 8px 12px; border: 1px solid var(--lacquer); color: var(--lacquer); background: var(--paper-light); font-size: 12px; }
 .optimizer-result-pairs { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; margin: 12px 0; }
-.optimizer-result-pair { display: grid; gap: 5px; font-size: 11px; }
+.optimizer-result-pair { display: grid; gap: 5px; font-size: 12px; }
 .optimizer-result-pair img { width: 44px; height: 56px; object-fit: contain; border-radius: 5px; }
 [data-inventory-cards] { max-height: 430px; overflow: auto; }
 [data-inventory-cards] table { min-width: 580px; font-size: 12px; }

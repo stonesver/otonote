@@ -14,7 +14,7 @@ const projection = moduleUrl(`
   export const memberCards=[],supportCards=[],projections=[],skillFilters={facets:[]};
   export const globalSystems={sourceReleaseId:'fixture',vipRanks:[]},bandItemDatabase={items:[]};
   export const activeReleaseContext={locale:'zh-CN'},TEAM_RULE_SET={officialSlotCount:5};
-  export const getAsset=()=>null,getCardRarity=()=>null,getCardAttribute=()=>null,filterVisual=()=>({});
+  export const getAsset=()=>null,getCardRarity=()=>null,getCardAttribute=()=>null,filterVisual=()=>({}),bandCircleIcon=()=>({});
   export const getRuntimeUiLabels=()=>({locale:'zh-CN',teamDraft:{}});
   export const scoringRulesAvailable=()=>true;
   export default {sourceReleaseId:'fixture',ruleSetVersion:'fixture'};

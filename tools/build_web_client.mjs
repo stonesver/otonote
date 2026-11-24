@@ -42,7 +42,22 @@ function contentModule(name) {
   if (name === 'supplemental/formal-scoring-rules.json') return `import {artifact} from ${JSON.stringify(join(site,'src/runtime/content.mjs'))}; export default (await artifact(${JSON.stringify(name)},{optional:true})) ?? {verificationStatus:'unavailable'};`;
   return `import {artifact} from ${JSON.stringify(join(site,'src/runtime/content.mjs'))}; export default await artifact(${JSON.stringify(name)});`;
 }
+const SHARED_SHELL_CSS = [
+  'theme-tokens.css', 'theme-picker.css', 'global.css', 'site-shell.css',
+  'page-title.css', 'filter-panel.css', 'interaction-motion.css', 'page-transitions.css',
+  'tool-colors.css', 'tool-ux.css', 'tool-design-system.css', 'skill-activation.css',
+  'theme-surfaces.css', 'design-foundation.css', 'theme-seasonal.css'
+];
+const WORKSPACE_CSS = [
+  'workbench-controls.css', 'account-sync-hub.css', 'shared-team-workspace.css', 'playlist-workspace.css'
+];
+const extractedCssPaths = new Set([...SHARED_SHELL_CSS, ...WORKSPACE_CSS].map(f => join(site, 'src/styles', f)));
+
 const plugin = { name: 'ournotes-independent-content', setup(builder) {
+  // Dedup shared shell & lazy workspace modal CSS out of every per-route cssBundle.
+  builder.onLoad({ filter: /\.css$/ }, args => {
+    if (extractedCssPaths.has(resolve(args.path))) return { contents: '', loader: 'css' };
+  });
   // All page/interaction chunks live one directory below compiled/. Keep the
   // optional player self-contained instead of discovering its runtime in rounds.
   builder.onResolve({ filter: /\/live2d-player\.mjs$/ }, () => ({ path: '../live2d/player.js', external: true }));
@@ -112,6 +127,18 @@ const options = { bundle: true, splitting: true, format: 'esm', platform: 'brows
 await build({ ...options, plugins: [], splitting: false,
   entryPoints: { 'live2d/player': join(site, 'src/lib/live2d-player.mjs') }, entryNames: '[dir]/[name]' });
 const compiled = await build({ ...options, entryPoints: entries });
+// Build 1 shared immutable shell CSS bundle + 1 lazy-loaded workspace modal CSS bundle.
+const buildCssBundle = async (name, files) => {
+  const combined = (await Promise.all(files.map(f => readFile(join(site, 'src/styles', f), 'utf8')))).join('\n');
+  const minified = (await transformTs(combined, { loader: 'css', minify: true })).code;
+  const hash = createHash('sha256').update(minified).digest('hex').slice(0, 8).toUpperCase();
+  const rel = `chunks/${name}-${hash}.css`;
+  await mkdir(join(stage, 'chunks'), { recursive: true });
+  await writeFile(join(stage, rel), minified);
+  return { rel, bytes: Buffer.byteLength(minified) };
+};
+const sharedCssBundle = await buildCssBundle('shared-shell', SHARED_SHELL_CSS);
+const workspaceCssBundle = await buildCssBundle('workspaces', WORKSPACE_CSS);
 const interactions = await build({ ...options, entryPoints: Object.fromEntries([...scripts.keys()].map((id,i) => ['scripts/script-' + i,'interaction:' + id])) });
 // Workers receive their inputs by message. Their URLs must resolve inside the
 // immutable code release, including workers created by another worker.
@@ -141,7 +168,7 @@ const byEntry = new Map(Object.entries(compiled.metafile.outputs).filter(([,v]) 
 const scriptOutputs = Object.fromEntries(Object.entries(interactions.metafile.outputs).filter(([,v])=>v.entryPoint).map(([p,v]) => [v.entryPoint.replace(/^interaction:/,''),relativeOutput(p)]));
 const routes = pages.map(p => ({ pattern: relative(join(site,'src/pages'),p).replace(/\.astro$/,'').replace(/(^|\/)index$/,''), ...byEntry.get(p) }));
 routes.sort((a,b) => Number(a.pattern.includes('['))-Number(b.pattern.includes('[')) || b.pattern.length-a.pattern.length);
-const appManifest = { schemaVersion:1, contentSchemaVersion:1, routes, scripts:scriptOutputs,
+const appManifest = { schemaVersion:1, contentSchemaVersion:1, sharedCss:sharedCssBundle.rel, workspaceCss:workspaceCssBundle.rel, routes, scripts:scriptOutputs,
   ...interactionPreloads(interactions.metafile,stage),
   endpoints: {'search-index.json':byEntry.get(entries['endpoints/search-index'])} };
 const profiledManifest = {...appManifest, buildRoot:stage};
@@ -205,4 +232,17 @@ for (const file of (await walk(stage)).sort()) files[relative(stage,file)] = cre
 const codeId = createHash('sha256').update(JSON.stringify(files)).digest('hex').slice(0,24);
 await writeFile(join(output,'index.html'),shell.replaceAll('__CODE_ID__',codeId));
 await writeFile(join(output,'code-release.json'),JSON.stringify({schemaVersion:1,codeId,contentSchemaVersion:1,files,provenance:{kind:'local-preview'}},null,2));
-console.log(JSON.stringify({codeId,routes:routes.length,scripts:scripts.size,files:Object.keys(files).length,output},null,2));
+const routeCssSizes = Object.entries(compiled.metafile.outputs).filter(([p]) => p.endsWith('.css')).map(([, v]) => v.bytes);
+const totalPagesCssKB = Math.round(routeCssSizes.reduce((s, b) => s + b, 0) / 1024);
+const maxRouteCssKB = Math.round(Math.max(0, ...routeCssSizes) / 1024);
+const bootJsBytes = compiled.metafile.outputs[Object.keys(compiled.metafile.outputs).find(p => relativeOutput(p) === boot)]?.bytes ?? 0;
+console.log(JSON.stringify({
+  codeId, routes:routes.length, scripts:scripts.size, files:Object.keys(files).length, output,
+  perfBudget: {
+    sharedCssKB: Math.round(sharedCssBundle.bytes / 1024),
+    workspaceCssKB: Math.round(workspaceCssBundle.bytes / 1024),
+    maxRouteCssKB,
+    totalPagesCssKB,
+    bootJsKB: Math.round(bootJsBytes / 1024),
+  }
+},null,2));

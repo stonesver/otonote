@@ -1,17 +1,18 @@
 ---
 import { siteDescription } from "../lib/site-brand.mjs";
+import BaseLayout from "../layouts/BaseLayout.astro";
 import GalleryEntrypoints from '../components/GalleryEntrypoints.astro';
-import HomeImmersiveHero from '../components/HomeImmersiveHero.astro';
+import HomeArena from '../components/HomeArena.astro';
 import HomeBirthdays from '../components/HomeBirthdays.astro';
 import HomeEvents from '../components/HomeEvents.astro';
-import SourceDisclosure from "../components/SourceDisclosure.astro";
 import ArchiveImage from "../components/ArchiveImage.astro";
+import BandMark from "../components/BandMark.astro";
 import CardRarityBadge from "../components/CardRarityBadge.astro";
 import CardAttributeBadge from "../components/CardAttributeBadge.astro";
-import BaseLayout from "../layouts/BaseLayout.astro";
-import { catalog, getAsset, getCharacter, getMusicCharts } from "../lib/catalog";
+import ToolGlyph from "../components/ToolGlyph.astro";
+import { catalog, getAsset, getBand, getCharacter, getMusicCharts } from "../lib/catalog";
+import { GEKISOU_ICON_IDS } from "../lib/gekisou-visuals.mjs";
 import { activeReleaseContext } from "../lib/release-context";
-import { getUi } from "../lib/ui-i18n";
 import { siteHref } from "../lib/site-context";
 import "../styles/home.css";
 import { scheduleLabel } from "../lib/home-content.mjs";
@@ -21,10 +22,10 @@ import { homeMusic, challengeSongLabel } from "../lib/home-music.mjs";
 const en = activeReleaseContext.locale === "en";
 const href = (path: string) => import.meta.env.BASE_URL === "/" ? path : siteHref(path, activeReleaseContext);
 const entries = [
-  { href: "/catalog/", title: en ? "Characters & cards" : "角色与卡牌", text: en ? "Members, snaps & growth" : "成员、留影与养成", count: `${catalog.characters.length} / ${catalog.memberCards.length + catalog.supportCards.length}` },
-  { href: "/music/", title: en ? "Music & charts" : "歌曲与谱面", text: en ? "Songs, difficulty & charts" : "曲目、难度与谱面", count: String(catalog.musicTracks.length) },
-  { href: "/tools/deck-builder/", title: en ? "Team builder" : "卡组配队", text: en ? "Build and compare teams" : "编辑队伍、比较属性", count: "" },
-  { href: "/tools/", title: en ? "Scoring tools" : "计分与攻略", text: en ? "Calculators & score analysis" : "分数估算、攻略工具", count: "" }
+  { href: "/catalog/", title: en ? "Characters & cards" : "角色与卡牌", text: en ? "Members, snaps & growth" : "成员、留影与养成", count: `${catalog.characters.length} / ${catalog.memberCards.length + catalog.supportCards.length}`, toolKind: "" },
+  { href: "/music/", title: en ? "Music & charts" : "歌曲与谱面", text: en ? "Songs, difficulty & charts" : "曲目、难度与谱面", count: String(catalog.musicTracks.length), toolKind: "" },
+  { href: "/tools/deck-builder/", title: en ? "Team builder" : "卡组配队", text: en ? "Build and compare teams" : "编辑队伍、比较属性", count: "", toolKind: "deck-builder" },
+  { href: "/tools/", title: en ? "Scoring tools" : "计分与攻略", text: en ? "Calculators & score analysis" : "分数估算、攻略工具", count: "", toolKind: "song-calculator" }
 ];
 const now = Date.now();
 const region = activeReleaseContext.region;
@@ -40,54 +41,108 @@ const recentSnaps = recentReleases(catalog.supportCards, now, 2, releaseOptions)
 const initialSnapDate = Math.min(...catalog.supportCards.map(card => releaseTimestamp(card.startAt, region) ?? Infinity));
 const newSnaps = recentSnaps.filter(card => (releaseTimestamp(card.startAt, region) ?? 0) > initialSnapDate);
 const { recent: tracks, upcoming: upcomingTracks } = homeMusic(catalog.musicTracks, eventRecords, region, now);
-const heroCard = catalog.supportCards.find(card => card.masterId === 61);
-const heroArt = getAsset(heroCard?.thumbnailAssetId);
 const sameMemberBatch = new Set(catalog.memberCards.map(card=>card.startAt)).size === 1;
+const gekisouIcons = {
+  just: getAsset(GEKISOU_ICON_IDS.just),
+  combo: getAsset(GEKISOU_ICON_IDS.combo),
+  luck: getAsset(GEKISOU_ICON_IDS.luck),
+};
 ---
 <BaseLayout description={siteDescription(activeReleaseContext.locale)}>
   <div class="content-shell home-dashboard" data-copy-layer="primary">
-    <script is:inline>
-      document.documentElement.dataset.home = new URLSearchParams(location.search).get('home') === 'immersive' ? 'immersive' : 'original';
-    </script>
-    <nav class="home-scene-switch" aria-label={en ? 'Homepage appearance preview' : '首页效果对比'}><a href={href('/')} data-home-mode="original">{en ? 'Original' : '原版首页'}</a><a href={href('/?home=immersive')} data-home-mode="immersive">{en ? 'Immersive preview' : '沉浸式预览'}</a></nav>
-    <HomeImmersiveHero />
-    <header class="home-intro home-intro--illustrated">
-      {heroArt && <div class="home-hero-art"><ArchiveImage asset={heroArt} alt="BanG Dream! Our Notes 乐队成员主视觉" eager /><a href={href(`/cards/supports/${heroCard!.id}/`)}>{en ? "Explore the artwork" : "查看这张留影"}</a></div>}
-      <div class="home-hero-copy">
-        <img class="home-hero-mark" src={href("/brand/ournotes-mark.svg")} width="42" height="42" alt="" />
-        <p class="home-kicker">OTONOTE / {en ? "PLAYER ARCHIVE" : "玩家资料站"}</p>
-        <h1>{en ? "Your next stage starts here." : "下一场演出，从这里开始。"}</h1>
-        <p class="home-description">{en ? "Find a card, explore a song, and put your next team together." : "收集每一次心动，记录每一段旋律。"}</p><div class="home-hero-actions"><a href={href("/music/")}>{en ? "Explore songs" : "探索歌曲"}</a><a href={href("/cards/members/")}>{en ? "Browse cards" : "浏览卡牌"} →</a></div>
+    <h1 class="sr-only">{en ? "OtoNote — Player Archive Overview" : "OtoNote · 玩家资料站首页概览"}</h1>
+
+    <div class="home-top-grid">
+      <div class="home-top-primary">
+        <HomeEvents />
       </div>
-      <a class="home-version" href={href("/updates/")}>
-        <span class="home-version-dot" aria-hidden="true"></span>
-        <span>{activeReleaseContext.region.toUpperCase()} · {catalog.release.versionName}<small>{catalog.release.channel === "production" ? (en ? "Production data" : "正式服资料") : (en ? "Test data" : "测试版资料")}</small></span>
+      <aside class="home-top-aside" aria-label={en ? "Quick portals & birthdays" : "快捷入口与近期生日"}>
+        <section class="home-portal-sheet ui-sheet" aria-labelledby="home-portal-heading">
+          <header class="home-portal-header">
+            <h2 id="home-portal-heading">{en ? "Quick portals" : "常用入口"}</h2>
+            <a href={href("/tools/")}>{en ? "All tools →" : "全部工具 →"}</a>
+          </header>
+          <nav class="home-shortcuts" aria-label={en ? "Quick access" : "快捷入口"}>
+            {entries.map((entry, index) => (
+              <a class="home-shortcut-card ui-subsheet" href={href(entry.href)}>
+                <span class="home-shortcut-icon" aria-hidden="true">
+                  {entry.toolKind ? (
+                    <ToolGlyph kind={entry.toolKind} />
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d={shortcutIcons[index]} /></svg>
+                  )}
+                </span>
+                <span class="home-shortcut-copy">
+                  <span class="home-shortcut-title">
+                    <strong>{entry.title}</strong>
+                    {entry.count && <span class="ui-tag ui-tag--accent" aria-hidden="true">{entry.count}</span>}
+                  </span>
+                  <small>{entry.text}</small>
+                </span>
+              </a>
+            ))}
+          </nav>
+        </section>
+        <HomeBirthdays />
+        <section class="home-personal-sheet ui-sheet" aria-labelledby="home-personal-heading">
+          <header class="home-personal-header">
+            <h2 id="home-personal-heading">{en ? "Personal data & tools" : "个人数据与工具"}</h2>
+            <button type="button" class="ui-btn-soft home-personal-sync-btn" data-account-hub-open aria-haspopup="dialog">
+              <svg viewBox="0 0 18 18" width="14" height="14" aria-hidden="true">
+                <circle cx="9" cy="6.1" r="2.7" fill="none" stroke="currentColor" stroke-width="1.5" />
+                <path d="M4.2 14.8a4.8 4.8 0 0 1 9.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+              <span>{en ? "Account sync" : "账号同步"}</span>
+            </button>
+          </header>
+          <div class="home-personal-stats">
+            <button type="button" class="home-personal-stat ui-subsheet" data-home-workspace="inventory" aria-haspopup="dialog">
+              <strong data-home-count="cards">0</strong>
+              <span>{en ? "Saved cards" : "已存卡片"}</span>
+            </button>
+            <button type="button" class="home-personal-stat ui-subsheet" data-home-workspace="teams" aria-haspopup="dialog">
+              <strong data-home-count="teams">0</strong>
+              <span>{en ? "Saved teams" : "已存队伍"}</span>
+            </button>
+            <button type="button" class="home-personal-stat ui-subsheet" data-home-workspace="playlist" aria-haspopup="dialog">
+              <strong data-home-count="playlists">0</strong>
+              <span>{en ? "Playlists" : "我的歌单"}</span>
+            </button>
+          </div>
+          <nav class="home-personal-tools" aria-label={en ? "Frequent calculators" : "常用工具直达"}>
+            <a href={href("/arena/")}><ToolGlyph kind="arena" /><span>{en ? "Arena stage" : "激奏舞台"}</span></a>
+            <a href={href("/tools/event-efficiency/")}><ToolGlyph kind="event-efficiency" /><span>{en ? "Event yield" : "活动收益"}</span></a>
+            <a href={href("/tools/song-ranking/")}><ToolGlyph kind="song-ranking" /><span>{en ? "Song ranking" : "歌曲排行榜"}</span></a>
+            <a href={href("/tools/gacha-history/")}><ToolGlyph kind="gacha-history" /><span>{en ? "Gacha log" : "抽卡记录"}</span></a>
+          </nav>
+        </section>
+      </aside>
+    </div>
 
-      </a>
-    </header>
-
-    <HomeEvents />
-    <HomeBirthdays />
-
-    <nav class="home-shortcuts home-shortcuts--illustrated" aria-label={en ? "Quick access" : "快捷入口"}>
-      {entries.map((entry, index) => <a href={href(entry.href)}><span class="home-shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d={shortcutIcons[index]} /></svg></span><span class="home-shortcut-copy"><span class="home-shortcut-title">{entry.title}<span aria-hidden="true">{entry.count}</span></span><small>{entry.text}</small></span></a>)}
-    </nav>
+    <HomeArena />
 
     {cards.length > 0 && <section class="home-section" aria-labelledby="home-cards-title">
       <header class="home-section-heading">
-        <div><p class="home-kicker">CARD COLLECTION</p><h2 id="home-cards-title">{en ? "Recently added cards" : "近期卡牌"}<span>{catalog.memberCards.length}</span></h2></div>
+        <div><h2 id="home-cards-title">{en ? "Recently added cards" : "近期卡牌"}<span>{catalog.memberCards.length}</span></h2></div>
         <a href={href("/cards/members/")}>{en ? "All member cards" : "全部成员卡"}<span aria-hidden="true"> →</span></a>
       </header>
       {newSnaps.length > 0 && <div class="home-new-snaps">{newSnaps.map(card => {
         const asset = getAsset(card.thumbnailAssetId);
-        return <a href={href(`/cards/supports/${card.id}/`)}>
-          {asset && <ArchiveImage asset={asset} alt="" />}
+        const snapBands = [...new Map(card.featuredCharacterIds.map(id => getCharacter(id)?.bandId).filter(Boolean).map(bid => [bid, getBand(bid!)])).values()].filter(Boolean);
+        return <a class="ui-sheet" href={href(`/cards/supports/${card.id}/`)}>
+          {asset && <div class="home-snap-art"><ArchiveImage asset={asset} alt="" /></div>}
           <div class="home-snap-copy">
-            <small>{en ? "NEW SNAP" : "新加入的留影"} · {releaseDateLabel(card.startAt)}</small>
-            <div class="home-snap-taxonomy"><CardRarityBadge rarity={card.rarity} compact /><CardAttributeBadge code={card.attributeCode} compact /></div>
+            <div class="home-snap-meta">
+              <div class="home-snap-taxonomy">
+                <CardRarityBadge rarity={card.rarity} compact />
+                <CardAttributeBadge code={card.attributeCode} compact />
+                {snapBands.map(band => band && <BandMark band={band} compact iconOnly round />)}
+              </div>
+              <time datetime={releaseDateLabel(card.startAt)}>{releaseDateLabel(card.startAt)}</time>
+            </div>
             <h3>{card.description || card.name}</h3>
             <p>{card.featuredCharacterIds.map(id=>getCharacter(id)?.displayName).filter(Boolean).join(" · ")}</p>
-          </div><span aria-hidden="true">→</span>
+          </div>
         </a>;
       })}</div>}
       {sameMemberBatch && <p class="home-section-note">{en ? "Member cards share the same start date in this data version. Showing a selection from that batch." : "当前资料中的成员卡为同批收录，以下优先展示高稀有度成员。"}</p>}
@@ -95,11 +150,24 @@ const sameMemberBatch = new Set(catalog.memberCards.map(card=>card.startAt)).siz
         {cards.map((card) => {
           const asset = getAsset(card.thumbnailAssetId);
           const character = getCharacter(card.characterId);
-          return <a class="home-card" href={href(`/cards/members/${card.id}/`)}>
+          const band = character?.bandId ? getBand(character.bandId) : undefined;
+          return <a class="home-card ui-sheet" href={href(`/cards/members/${card.id}/`)}>
             <div class="home-card-art">
               {asset ? <ArchiveImage asset={asset} alt={card.subtitle} /> : <span class="media-missing">{en ? "Preview unavailable" : "暂无预览"}</span>}
             </div>
-            <div class="home-card-copy"><div class="home-card-taxonomy"><CardRarityBadge rarity={card.rarity} compact /><CardAttributeBadge code={card.attributeCode} compact /></div><h3>{card.subtitle}</h3><p>{character?.displayName ?? card.name}</p><small data-home-start={releaseTimestamp(card.startAt, region) ?? ''} data-home-locale={en ? 'en' : 'zh-CN'}>{scheduleLabel(releaseTimestamp(card.startAt, region), null, now, en, true)}</small><time>{releaseDateLabel(card.startAt)}</time></div>
+            <div class="home-card-copy">
+              <div class="home-card-taxonomy">
+                <CardRarityBadge rarity={card.rarity} compact />
+                <CardAttributeBadge code={card.attributeCode} compact />
+                {band && <BandMark band={band} compact iconOnly round />}
+              </div>
+              <h3>{card.subtitle}</h3>
+              <p>{character?.displayName ?? card.name}</p>
+              <div class="home-card-dates">
+                <small data-home-start={releaseTimestamp(card.startAt, region) ?? ''} data-home-locale={en ? 'en' : 'zh-CN'}>{scheduleLabel(releaseTimestamp(card.startAt, region), null, now, en, true)}</small>
+                <time>{releaseDateLabel(card.startAt)}</time>
+              </div>
+            </div>
           </a>;
         })}
       </div>
@@ -108,7 +176,7 @@ const sameMemberBatch = new Set(catalog.memberCards.map(card=>card.startAt)).siz
 
     <section class="home-section" aria-labelledby="home-music-title">
       <header class="home-section-heading">
-        <div><p class="home-kicker">MUSIC LIBRARY</p><h2 id="home-music-title">{en ? "Recently added songs" : "最近加入的歌曲"}<span>{catalog.musicTracks.length}</span></h2></div>
+        <div><h2 id="home-music-title">{en ? "Recently added songs" : "最近加入的歌曲"}<span>{catalog.musicTracks.length}</span></h2></div>
         <a href={href("/music/")}>{en ? "All songs" : "全部歌曲"}<span aria-hidden="true"> →</span></a>
       </header>
       <div class="home-music-grid">
@@ -117,24 +185,35 @@ const sameMemberBatch = new Set(catalog.memberCards.map(card=>card.startAt)).siz
           const challengeLabel = challengeSongLabel(release, now, en);
           const jacket = getAsset(track.jacketAssetId);
           const expert = getMusicCharts(track.id).find(chart => chart.difficulty === 'expert');
+          const trackBand = track.bandIds?.[0] ? getBand(track.bandIds[0]) : undefined;
           const gekisouCounts = (['just', 'combo', 'luck'] as const).map(type => ({
             type,
             count: (track.gekisouMissions ?? []).filter(mission => mission.type === type).length
           })).filter(mission => mission.count > 0);
-          return <a class="home-track" href={href(`/music/${track.id}/`)}>
+          return <a class="home-track ui-sheet" href={href(`/music/${track.id}/`)}>
             <div class="home-track-art">{jacket ? <ArchiveImage asset={jacket} alt={track.title} /> : <span aria-hidden="true">♪</span>}</div>
             <div class="home-track-copy">
-              <h3 title={track.title}>{track.title}</h3>
+              <div class="home-track-title-row">
+                <h3 title={track.title}>{track.title}</h3>
+                <time class="home-track-date" datetime={releaseDateLabel(addedAt)} title={`${en ? 'Added to game' : '加入游戏'} · ${addedAt}`}>{releaseDateLabel(addedAt).slice(5)}</time>
+              </div>
               {challengeDebut && <div class="home-track-availability" data-home-song-availability hidden={!challengeLabel}>
                 <span class="home-track-status" data-home-song={JSON.stringify({freeLiveStart: release.freeLiveStart, challengePeriods: release.challengePeriods})} data-home-locale={en ? 'en' : 'zh-CN'}>{challengeLabel}</span>
-                {release.freeLiveStart !== null && <small>{en ? 'Free Live' : '自由演出'} <time datetime={new Date(release.freeLiveStart).toISOString()} title={`${track.startAt} ${region === 'jp' ? 'JST' : 'UTC+8'}`}>{releaseDateLabel(track.startAt).slice(5)} {track.startAt.split(/[ T]/)[1]?.slice(0,-3).padStart(5,'0')} {region === 'jp' ? 'JST' : 'UTC+8'}</time></small>}
               </div>}
-              <div class="home-track-metadata"><div class="home-track-ex" aria-label={en ? 'Expert difficulty' : 'EX 难度'}>EX <strong>{expert?.displayLevel ?? '—'}</strong></div><CardAttributeBadge code={track.musicType} compact /></div>
-              {gekisouCounts.length > 0 && <div class="home-track-gekisou" aria-label={en ? 'Gekisou type counts' : '激奏类型数量'}>
-                {gekisouCounts.map(({type, count}) => <span data-type={type} title={`${type.toUpperCase()} ×${count}`} aria-label={`${type.toUpperCase()} ×${count}`}>{type[0].toUpperCase()}×{count}</span>)}
-              </div>}
+              <div class="home-track-metadata">
+                <span class="home-track-ex" aria-label={en ? 'Expert difficulty' : 'EX 难度'}>EX <strong>{expert?.displayLevel ?? '—'}</strong></span>
+                <CardAttributeBadge code={track.musicType} compact />
+                {trackBand && <BandMark band={trackBand} compact iconOnly round />}
+                {gekisouCounts.length > 0 && <div class="home-track-gekisou" aria-label={en ? 'Gekisou type counts' : '激奏类型数量'}>
+                  {gekisouCounts.map(({type, count}) => (
+                    <span data-type={type} title={`${type.toUpperCase()} ×${count}`} aria-label={`${type.toUpperCase()} ×${count}`}>
+                      {gekisouIcons[type] && <img src={gekisouIcons[type].previewUrl} alt="" width="14" height="14" loading="lazy" />}
+                      <b>{type[0].toUpperCase()}×{count}</b>
+                    </span>
+                  ))}
+                </div>}
+              </div>
             </div>
-            <time class="home-track-date" datetime={releaseDateLabel(addedAt)} title={`${en ? 'Added to game' : '加入游戏'} · ${addedAt}`}>{releaseDateLabel(addedAt).slice(5)}</time>
           </a>;
         })}
       </div>
@@ -144,28 +223,60 @@ const sameMemberBatch = new Set(catalog.memberCards.map(card=>card.startAt)).siz
     </section>
 
     <GalleryEntrypoints />
-    <a class="home-scene-banner" href={href('/immersive/')}>
+    <a class="home-scene-banner ui-sheet" href={href('/immersive/')}>
       <img src={href('/immersive/thumbnails/10007.webp')} alt="" width="240" height="135" loading="lazy" />
-      <span class="home-scene-copy"><small>MyGO!!!!! <span aria-hidden="true">/</span> {en ? 'SCENE GALLERY' : '情景画廊'}</small><strong>{en ? 'Immersive scenes' : '沉浸式主页'}</strong><span>{en ? 'Browse and save original scene images' : '浏览情景，保存游戏原图'}</span></span>
-      <span class="home-scene-link">{en ? 'Explore scenes' : '进入场景'}</span>
+      <span class="home-scene-copy"><small>MyGO!!!!! <span aria-hidden="true">/</span> {en ? 'SCENE GALLERY' : '情景画廊'}</small><strong>{en ? 'Immersive scenes' : '沉浸式情景画廊'}</strong><span>{en ? 'Browse and save original scene images' : '浏览情景，保存游戏原图'}</span></span>
+      <span class="home-scene-link">{en ? 'Explore scenes →' : '进入场景 →'}</span>
     </a>
-
-    <section class="home-workbench" aria-labelledby="home-workbench-title">
-      <div class="home-workbench-intro">
-        <span class="home-workbench-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="5" width="14" height="21" rx="2" /><path d="M7 10H5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11 M14 11h6 M14 16h6 M14 21h3" /></svg></span>
-        <div><h2 id="home-workbench-title">{en ? 'Team tools' : '配队工具'}</h2><p>{en ? 'Choose members and snaps, compare stats and estimate scores.' : '选择成员与留影，比较属性和预估分数。'}</p></div>
-      </div>
-      <div class="home-workbench-actions">
-        <a class="home-workbench-primary" href={href('/tools/deck-builder/')}>{en ? 'Build a team' : '卡组配队'}</a>
-        <a href={href('/tools/song-calculator/')}>{en ? 'Score calculator' : '歌曲计算'}</a>
-      </div>
-    </section>
-    <SourceDisclosure><p>{getUi(activeReleaseContext.locale).siteSourceNote}</p></SourceDisclosure>
   </div>
 </BaseLayout>
 <script>
   import { scheduleLabel } from '../lib/home-content.mjs';
   import { challengeSongLabel } from '../lib/home-music.mjs';
+  import { currentServerContext } from '../lib/game-servers.mjs';
+
+  const readJson = (key: string) => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const refreshHomeCounts = () => {
+    try {
+      const { region, serverId } = currentServerContext();
+      const scope = `${region}:${serverId ?? 'unselected'}`;
+      const growth = readJson(`ournotes:personal-growth:${scope}`);
+      const cardTotal =
+        (Array.isArray(growth?.inventory?.memberCardIds) ? growth.inventory.memberCardIds.length : 0) +
+        (Array.isArray(growth?.inventory?.supportCardIds) ? growth.inventory.supportCardIds.length : 0);
+      const teamState = readJson(`ournotes:teams:${scope}`);
+      const teamTotal = Array.isArray(teamState?.teams) ? teamState.teams.length : 0;
+      const playlistState = readJson(`ournotes:playlists:${scope}`);
+      const playlistTotal = Array.isArray(playlistState?.playlists) ? playlistState.playlists.length : 0;
+
+      const cardsEl = document.querySelector('[data-home-count="cards"]');
+      const teamsEl = document.querySelector('[data-home-count="teams"]');
+      const playlistsEl = document.querySelector('[data-home-count="playlists"]');
+      if (cardsEl) cardsEl.textContent = String(cardTotal);
+      if (teamsEl) teamsEl.textContent = String(teamTotal);
+      if (playlistsEl) playlistsEl.textContent = String(playlistTotal);
+    } catch {}
+  };
+
+  document.querySelectorAll<HTMLButtonElement>('[data-home-workspace]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.homeWorkspace;
+      if (target === 'playlist') {
+        document.dispatchEvent(new CustomEvent('playlist-workspace:open'));
+      } else {
+        document.dispatchEvent(new CustomEvent('team-workspace:open', { detail: { tab: target === 'teams' ? 'teams' : 'inventory' } }));
+      }
+    });
+  });
+
   const update = () => {
     document.querySelectorAll<HTMLElement>('[data-home-start]').forEach(node => {
       const parse = (value: string | undefined) => value ? Number(value) : null;
@@ -179,6 +290,13 @@ const sameMemberBatch = new Set(catalog.memberCards.map(card=>card.startAt)).siz
     });
   };
   update();
+  refreshHomeCounts();
+  for (const target of [window, document] as const) {
+    target.addEventListener('personal-growth:changed', refreshHomeCounts);
+    target.addEventListener('team-workspace:changed', refreshHomeCounts);
+    target.addEventListener('playlists:changed', refreshHomeCounts);
+  }
+  window.addEventListener('storage', refreshHomeCounts);
   document.addEventListener('visibilitychange', update);
   const timer = setInterval(update, 60000);
   window.addEventListener('pagehide', () => { clearInterval(timer); document.removeEventListener('visibilitychange', update); }, {once:true});

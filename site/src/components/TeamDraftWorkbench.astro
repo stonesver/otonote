@@ -1,6 +1,6 @@
 ---
 import "../styles/recommendation-team.css";
-import {filterVisual} from '../lib/filter-visuals';
+import {filterVisual, bandCircleIcon} from '../lib/filter-visuals';
 const optionVisual = (kind: string, value: string | number) => {
   const visual = filterVisual(kind, String(value));
   return {'data-icon': visual.icon, 'data-icon-only': visual.iconOnly ? 'true' : undefined, 'data-round': visual.round ? 'true' : undefined};
@@ -74,7 +74,7 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
 {rulesAvailable ? <team-draft-workbench class="team-workbench">
   <script is:inline type="application/json" data-team-draft-data set:html={clientData}></script>
   <div class="team-task-switch" role="group" aria-label="选择配队任务"><button type="button" data-team-task="automatic" aria-pressed="true">自动配队</button><button type="button" data-team-task="saved" aria-pressed="false">队伍比较</button></div>
-  <div data-workbench-part="current"><div class="calculator-links"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div>
+  <div data-workbench-part="current"><div class="calculator-links"><button type="button" data-open-team-workspace="teams">养成与队伍</button><button type="button" data-save-current-team>存为队伍</button></div>
 <p data-team-workspace-status role="status"></p>
 <div class="tool-team-strip" data-team-workspace-summary></div>
 </div>
@@ -87,8 +87,8 @@ const attributes = [...new Set([...memberCards, ...supportCards].map((card) => c
     </select></label>
 <TeamPlanningScenario part="cards" />
     <div class="selection-filter-rows" data-search-card-bands>
-    <label class="selection-filter-row"><span>成员乐队</span><select data-search-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(band => <option value={band.masterId} data-icon={filterVisual('band',band.id).icon} data-icon-only={filterVisual('band',band.id).iconOnly}>{band.displayName}</option>)}</select></label>
-    <label class="selection-filter-row"><span>留影关联乐队</span><select data-search-support-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(band => <option value={band.masterId} data-icon={filterVisual('band',band.id).icon} data-icon-only={filterVisual('band',band.id).iconOnly}>{band.displayName}</option>)}</select></label>
+    <label class="selection-filter-row"><span>成员乐队</span><select data-search-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(band => { const visual = bandCircleIcon(band.masterId); return <option value={band.masterId} data-icon={visual.icon} data-fallback-icon={visual.fallbackIcon} data-icon-only={visual.iconOnly ? '' : undefined} data-round={visual.round ? 'true' : undefined}>{band.displayName}</option>; })}</select></label>
+    <label class="selection-filter-row"><span>留影关联乐队</span><select data-search-support-band multiple data-quick data-quick-all=""><option value="" selected>不限</option>{catalog.bands.map(band => { const visual = bandCircleIcon(band.masterId); return <option value={band.masterId} data-icon={visual.icon} data-fallback-icon={visual.fallbackIcon} data-icon-only={visual.iconOnly ? '' : undefined} data-round={visual.round ? 'true' : undefined}>{band.displayName}</option>; })}</select></label>
     <p class="calculator-scope-note">成员与留影分别筛选；留影包含所选乐队任一角色即可入选。</p>
     </div>
       <p class="calculator-scope-note" data-inventory-scope-note></p>

@@ -5,7 +5,7 @@ import {costumeCatalog} from '../../lib/costumes';
 import {costumeCopy, costumePreviewPath, costumeState} from '../../lib/costume-library.mjs';
 import {activeReleaseContext} from '../../lib/release-context';
 import {siteHref} from '../../lib/site-context';
-import {filterVisual} from '../../lib/filter-visuals';
+import {bandCircleIcon, filterVisual} from '../../lib/filter-visuals';
 import '../../styles/costumes.css';
 
 const en = activeReleaseContext.locale === 'en';
@@ -17,28 +17,37 @@ const bands = catalog.bands.filter(b => costumes.some(item => item.bandId === b.
 ---
 <BaseLayout title={copy.title} description={copy.intro}>
   <costume-library class="costume-library content-shell" data-region={activeReleaseContext.region} data-locale={activeReleaseContext.locale}>
-    <header class="costume-heading">
-
-      <a href={href('/characters/')}>{en ? 'Character profiles' : '角色资料'}</a>
-    </header>
-    <form class="costume-filters" role="search" aria-label={copy.title}>
-      <label class="costume-search"><span>{en ? 'Search' : '搜索'}</span><input name="q" type="search" placeholder={copy.search} aria-label={copy.search} /></label>
-      <button class="costume-reset" type="reset">{copy.clear}</button>
+    <form class="costume-filters ui-sheet" role="search" aria-label={copy.title}>
+      <div class="costume-toolbar-top">
+        <label class="costume-search">
+          <svg class="costume-search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input class="ui-input" name="q" type="search" placeholder={copy.search} aria-label={copy.search} />
+        </label>
+        <div class="costume-toolbar-actions">
+          <p class="costume-results" role="status"><strong data-count>{costumes.length}</strong> {copy.results}</p>
+          <button class="ui-btn-soft costume-reset" type="reset">{copy.clear}</button>
+          <a class="ui-btn-outline costume-char-link" href={href('/characters/')}>{en ? 'Characters →' : '角色资料 →'}</a>
+        </div>
+      </div>
       <input type="hidden" name="band" /><input type="hidden" name="character" />
       <fieldset><legend>{copy.band}</legend><div class="costume-choices">
         <button type="button" class="costume-choice costume-choice-all" data-filter="band" data-value="" aria-pressed="true">{copy.allBands}</button>
-        {bands.map(b => { const logo = getAsset(b.logoAssetId); return <button type="button" class="costume-choice costume-choice-band" data-filter="band" data-value={b.id} aria-label={b.displayName} title={b.displayName} aria-pressed="false">
-          {logo ? <img src={logo.thumbnailUrl || logo.previewUrl} alt="" width="84" height="42" /> : <span>{b.displayName}</span>}
-        </button>; })}
+        {bands.map(b => {
+          const circle = bandCircleIcon(b.masterId);
+          const logo = getAsset(b.logoAssetId);
+          const iconSrc = circle?.icon || logo?.thumbnailUrl || logo?.previewUrl;
+          return <button type="button" class:list={['costume-choice', 'costume-choice-band', {'costume-choice-band--round': Boolean(circle?.round)}]} data-filter="band" data-value={b.id} aria-label={b.displayName} title={b.displayName} aria-pressed="false" style={`--choice-color:${b.mainColor || 'var(--theme-accent)'}`}>
+            {iconSrc ? <img src={iconSrc} alt="" width="30" height="30" /> : <span>{b.displayName}</span>}
+          </button>;
+        })}
       </div></fieldset>
       <fieldset><legend>{copy.character}</legend><div class="costume-choices">
         <button type="button" class="costume-choice costume-choice-all" data-filter="character" data-value="" aria-pressed="true">{copy.allCharacters}</button>
         {characters.map(c => { const icon = filterVisual('character', c.id).icon; return <button type="button" class="costume-choice costume-choice-character" data-filter="character" data-value={c.id} data-band={c.bandId} aria-label={c.displayName} title={c.displayName} aria-pressed="false" style={`--choice-color:${c.mainColor}`}>
-          {icon ? <img src={icon} alt="" width="44" height="44" /> : <span>{c.shortName || c.displayName}</span>}
+          {icon ? <img src={icon} alt="" width="34" height="34" /> : <span>{c.shortName || c.displayName}</span>}
         </button>; })}
       </div></fieldset>
     </form>
-    <p class="costume-results" role="status"><strong data-count>{costumes.length}</strong> {copy.results}</p>
     {costumeCatalog.status === 'unavailable' ? <p class="costume-empty">{copy.pending}</p>
       : costumes.length === 0 && <p class="costume-empty">{copy.empty}</p>}
     <p class="costume-empty" data-no-match hidden>{copy.noMatch}</p>

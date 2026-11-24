@@ -46,7 +46,7 @@ class EventEfficiencyTool extends HTMLElement {
   const songState=()=>({selectedSongId:this.draft.selectedSongId,selectedDifficulty:this.draft.selectedDifficulty,mode:this.q('mode').value,songScope:this.q('yield-songs').value});
   this.yieldPhases=createEventPhaseSelection(initialTask==='team'?songState():{selectedSongId:null,selectedDifficulty:null,mode:'ordinary',songScope:'all'});
   const selections=createEventTaskSelection(initialTask,songState());
-  const setTask=task=>{const {mode,songScope,...selection}=selections.switchTo(task,songState());Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId??'';this.q('mode').value=mode;this.q('yield-songs').value=songScope;this.dataset.task=task;this.q('bonus-source').value=task==='quick'?'manual':'team';bonusPanel.open=task==='quick';for(const b of this.querySelectorAll('[data-event-task]'))b.setAttribute('aria-pressed',String(b.dataset.eventTask===task));this.render();};
+  const setTask=task=>{const {mode,songScope,...selection}=selections.switchTo(task,songState());Object.assign(this.draft,selection);this.q('song').value=selection.selectedSongId??'';this.q('mode').value=mode;this.q('yield-songs').value=songScope;this.dataset.task=task;this.q('bonus-source').value=task==='quick'?'manual':'team';bonusPanel.open=task==='quick';for(const b of this.querySelectorAll('[data-event-task]'))b.setAttribute('aria-pressed',String(b.dataset.eventTask===task));this.render();this.taskWorkbench?.refresh();};
   for(const b of this.querySelectorAll('[data-event-task]'))b.addEventListener('click',()=>setTask(b.dataset.eventTask));
   this.shortcuts=setupQuickOptions(this);
   this.addEventListener('input',event=>{if(event.target.matches('[data-manual-bonus],[data-manual-point-bonus],[data-budget],[data-start-cp]'))this.render();});
@@ -57,7 +57,7 @@ class EventEfficiencyTool extends HTMLElement {
     allowedTrackIds:this.data.rules.tables.ChallengeMusic.filter(row=>row._eventId===Number(this.q('event').value)).map(row=>`music-${row._liveMusicId}`)
    }:{},
    invalidate:()=>{this.challengeOptimizer?.invalidate();this.yieldOptimizer?.invalidate();},
-   applyDraft:draft=>{if(this.dataset.task==='quick'){const state=selections.switchTo('team',songState());this.q('mode').value=state.mode;this.q('yield-songs').value=state.songScope;}this.draft=createTeamDraft(draft);this.q('song').value=this.draft.selectedSongId??'';this.q('bonus-source').value='team';this.dataset.task=this.dataset.task==='challenge'?'challenge':'team';for(const button of this.querySelectorAll('[data-event-task]'))button.setAttribute('aria-pressed',String(button.dataset.eventTask===this.dataset.task));this.render();}
+   applyDraft:draft=>{if(this.dataset.task==='quick'){const state=selections.switchTo('team',songState());this.q('mode').value=state.mode;this.q('yield-songs').value=state.songScope;}this.draft=createTeamDraft(draft);this.q('song').value=this.draft.selectedSongId??'';this.q('bonus-source').value='team';this.dataset.task=this.dataset.task==='challenge'?'challenge':'team';for(const button of this.querySelectorAll('[data-event-task]'))button.setAttribute('aria-pressed',String(button.dataset.eventTask===this.dataset.task));this.render();this.taskWorkbench?.refresh();}
   });
   setupTaskWorkbench(this,'event');
   if(linked.get('apBasis')==='ap_timing'||this.draft.modifiers.performanceScenario?.profile==='ap_timing')this.q('team-status').textContent='已带入队伍和养成；收益按正拍估分。';
@@ -75,7 +75,7 @@ class EventEfficiencyTool extends HTMLElement {
   this.shortcuts?.sync();
   this.q('unit').textContent=mode==='challenge'?'徽章 / 挑战 pt':'徽章 / 火';
   this.q('rewards').replaceChildren();this.q('cycle').textContent='';this.q('comparison').textContent='';
-  this.q('boost-wrap').hidden=mode==='challenge';this.q('cost-wrap').hidden=mode!=='challenge';
+  this.q('boost-wrap').hidden=true;this.q('cost-wrap').hidden=mode!=='challenge';
   this.q('budget-details').hidden=mode==='challenge';
   this.q('pool-hint').textContent=this.q('pool').value==='reference'?'全卡库按卡片满养成比较；账号、乐器和 TGW 使用页面设置，不代表实际持有。':this.q('pool').value==='owned'?'使用已保存卡库的实际等级、突破、觉醒与技能，比较队伍和歌曲。':'保留当前十张卡，比较队长、留影配对和歌曲；缺失养成沿用计算器默认值。';
   this.q('mode-hint').textContent=mode==='challenge'?'挑战演出消耗挑战 pt，不耗火。下方仅展示本活动的挑战歌曲。':'普通演出获得徽章、活动 pt 和挑战 pt；后者还能用于挑战演出。';

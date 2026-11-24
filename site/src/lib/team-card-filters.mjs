@@ -34,6 +34,6 @@ export function teamCardFilterOptions(cards, data={}) {
     const catalog=kind==='band'?data.bands:kind==='character'?data.characters:null;
     const entity=catalog?.find(row=>identity(row.masterId??row.id)===value);
     const card=kind==='rarity'?cards.find(row=>teamCardFacets(row).rarity.includes(value)):null;
-    return {value,label:visual?.label??entity?.displayName??entity?.name??card?.rarityLabel??value,...(visual?.icon?{icon:visual.icon}:{})};
+    return {value,label:visual?.label??entity?.displayName??entity?.name??card?.rarityLabel??value,...(visual?.icon?{icon:visual.icon}:{}),...(visual?.circleIcon?{circleIcon:visual.circleIcon}:{})};
   })]));
 }

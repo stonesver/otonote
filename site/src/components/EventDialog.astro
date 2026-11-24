@@ -4,7 +4,7 @@ interface Props { id: string; title: string; locale?: string }
 const { id, title, locale } = Astro.props;
 ---
 <dialog class="ef-dialog" id={id} aria-labelledby={`${id}-title`}>
-  <header><div><p class="ea-kicker">EVENT GUIDE</p><h2 id={`${id}-title`}>{title}</h2></div><button type="button" data-event-close aria-label={locale === 'en' ? 'Close dialog' : '关闭弹窗'} autofocus><EventIcon name="close" /></button></header>
+  <header><h2 id={`${id}-title`}>{title}</h2><button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-event-close aria-label={locale === 'en' ? 'Close dialog' : '关闭弹窗'} autofocus><EventIcon name="close" size={16} /></button></header>
   <div class="ef-dialog-body"><slot /></div>
 </dialog>
 <script>

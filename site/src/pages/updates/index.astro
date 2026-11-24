@@ -7,68 +7,142 @@ import {
   gameDatabase,
   publicSkills
 } from "../../lib/game-database";
+import "../../styles/updates.css";
 
 const pendingAssets = catalog.assets.filter(
   (asset) => asset.catalogStatus === "pending"
 ).length;
 const isEnglish = activeReleaseContext.locale === "en";
+const rankingsHref = isEnglish
+  ? `/${activeReleaseContext.region}/en/rankings/`
+  : `/${activeReleaseContext.region}/zh-CN/rankings/`;
+const growthHref = `/${activeReleaseContext.region}/${activeReleaseContext.locale}/my-growth/`;
 ---
 
 <BaseLayout title="更新记录">
-
-  <section class="catalog-section">
-    <div class="content-shell">
-      <div class="updates-list">
-        <article class="update-entry">
-          <time datetime={catalog.generatedAt}>{catalog.generatedAt.slice(0, 10)}</time>
-          <div>
-            <small>{catalog.release.channel.toUpperCase()} / {catalog.release.versionCode}</small>
-            <h2>{catalog.release.label} {isEnglish ? "current site snapshot" : "当前站点快照"}</h2>
-            <p>
-              {isEnglish
-                ? `Generated ${catalog.characters.length} character records, ${catalog.memberCards.length} member cards, ${catalog.supportCards.length} snaps, and ${catalog.assets.length} public resources. Music contains ${catalog.musicTracks.length} tracks and ${catalog.musicCharts.length} parsed charts; the game database publishes ${publicSkills.length} card-referenced skills and ${gameDatabase.items.length} items into ${cardDetailProjections.memberCards.length + cardDetailProjections.supportCards.length} detail views. ${pendingAssets} assets remain pending.`
-                : `生成 ${catalog.characters.length} 个角色档案、${catalog.memberCards.length} 张成员卡、${catalog.supportCards.length} 张留影和 ${catalog.assets.length} 个公开资源；音乐资料库已收录 ${catalog.musicTracks.length} 首曲目与 ${catalog.musicCharts.length} 份正式谱面，游戏数据库公开 ${publicSkills.length} 项已有资料引用的技能和 ${gameDatabase.items.length} 种道具，并接入 ${cardDetailProjections.memberCards.length + cardDetailProjections.supportCards.length} 份详情；其中 ${pendingAssets} 个素材等待业务归档。`}
-            </p>
+  <section class="content-shell updates-shell">
+    <article class="ui-sheet updates-card">
+      <div class="updates-release-head">
+        <div>
+          <div class="updates-release-badges">
+            <span class="ui-tag ui-tag--accent ui-tag--pill">{catalog.release.channel.toUpperCase()} · {catalog.release.versionCode}</span>
+            <time class="ui-tag ui-tag--pill updates-date-tag" datetime={catalog.generatedAt}>{catalog.generatedAt.slice(0, 10)}</time>
           </div>
-          <span class="update-count">+{catalog.assets.length}</span>
-        </article>
+          <h1>{catalog.release.label} {isEnglish ? "current site snapshot" : "当前站点快照"}</h1>
+        </div>
+        <span class="updates-count-badge">+{catalog.assets.length} {isEnglish ? "assets" : "资源"}</span>
       </div>
 
-      <dl class="release-context-ledger">
-        <div><dt>Region</dt><dd>{activeReleaseContext.region.toUpperCase()}</dd></div>
-        <div><dt>ContentRelease</dt><dd>{activeReleaseContext.contentReleaseId}</dd></div>
-        <div><dt>Locale</dt><dd>{activeReleaseContext.locale}</dd></div>
-        <div><dt>Updated</dt><dd>{catalog.generatedAt}</dd></div>
+      <p class="updates-summary">
+        {isEnglish
+          ? `Generated ${catalog.characters.length} character records, ${catalog.memberCards.length} member cards, ${catalog.supportCards.length} snaps, and ${catalog.assets.length} public resources. Music contains ${catalog.musicTracks.length} tracks and ${catalog.musicCharts.length} parsed charts; the game database publishes ${publicSkills.length} card-referenced skills and ${gameDatabase.items.length} items into ${cardDetailProjections.memberCards.length + cardDetailProjections.supportCards.length} detail views. ${pendingAssets} assets remain pending.`
+          : `生成 ${catalog.characters.length} 个角色档案、${catalog.memberCards.length} 张成员卡、${catalog.supportCards.length} 张留影和 ${catalog.assets.length} 个公开资源；音乐资料库已收录 ${catalog.musicTracks.length} 首曲目与 ${catalog.musicCharts.length} 份正式谱面，游戏数据库公开 ${publicSkills.length} 项已有资料引用的技能和 ${gameDatabase.items.length} 种道具，并接入 ${cardDetailProjections.memberCards.length + cardDetailProjections.supportCards.length} 份详情；其中 ${pendingAssets} 个素材等待业务归档。`}
+      </p>
+
+      <dl class="updates-metrics">
+        <div>
+          <dt>{isEnglish ? "Characters" : "角色档案"}</dt>
+          <dd>{catalog.characters.length}</dd>
+        </div>
+        <div>
+          <dt>{isEnglish ? "Members / Snaps" : "成员卡 / 留影"}</dt>
+          <dd>{catalog.memberCards.length} / {catalog.supportCards.length}</dd>
+        </div>
+        <div>
+          <dt>{isEnglish ? "Tracks / Charts" : "曲目 / 谱面"}</dt>
+          <dd>{catalog.musicTracks.length} / {catalog.musicCharts.length}</dd>
+        </div>
+        <div>
+          <dt>{isEnglish ? "Skills / Items" : "技能 / 道具"}</dt>
+          <dd>{publicSkills.length} / {gameDatabase.items.length}</dd>
+        </div>
       </dl>
 
-      <section class="archive-note feature-status" data-feature-status data-locale={activeReleaseContext.locale} aria-labelledby="feature-heading">
+      <dl class="updates-meta-ledger">
+        <div>
+          <dt>{isEnglish ? "Region" : "区服 Region"}</dt>
+          <dd>{activeReleaseContext.region.toUpperCase()}</dd>
+        </div>
+        <div>
+          <dt>{isEnglish ? "Content Release" : "内容版本 Content Release"}</dt>
+          <dd class="updates-code-id">{activeReleaseContext.contentReleaseId}</dd>
+        </div>
+        <div>
+          <dt>{isEnglish ? "Locale" : "语言 Locale"}</dt>
+          <dd>{activeReleaseContext.locale}</dd>
+        </div>
+        <div>
+          <dt>{isEnglish ? "Updated" : "生成时间 Updated"}</dt>
+          <dd>{catalog.generatedAt}</dd>
+        </div>
+      </dl>
+    </article>
+
+    <section
+      class="ui-sheet updates-card feature-status"
+      data-feature-status
+      data-locale={activeReleaseContext.locale}
+      aria-labelledby="feature-heading"
+    >
+      <div class="updates-status-head">
         <h2 id="feature-heading">{isEnglish ? "Feature availability" : "功能更新与可用状态"}</h2>
-        <p data-feature-freshness role="status">{isEnglish ? "Checking this release…" : "正在核验本页版本…"}</p>
-        <p data-feature-version></p><p data-feature-content style="overflow-wrap:anywhere"></p>
-        <dl class="release-context-ledger">
-          <div><dt>{isEnglish ? "Member cards / Snaps" : "角色卡／留影"}</dt><dd data-feature-catalog>—</dd></div>
-          <div><dt>{isEnglish ? "Events" : "活动"}</dt><dd data-feature-events>—</dd></div>
-          <div><dt>{isEnglish ? "Calculator" : "计算器"}</dt><dd data-feature-calculator>—</dd></div>
-          <div><dt>{isEnglish ? "Screenshot import" : "截图导入"}</dt><dd data-feature-screenshot>—</dd></div>
-        </dl>
-        <p>{isEnglish ? "Screenshot indexes follow the content release; engine readiness is checked when opening the tool. Layout and new skill mechanics need separate verification. Screenshots stay on your device; review before saving." : "截图索引随内容版本更新，打开工具时检查引擎是否就绪；截图布局、新技能机制仍需单独核验。图片在本机处理，校对确认后才保存。"}</p>
-        <p><a href={activeReleaseContext.locale === 'en' ? `/${activeReleaseContext.region}/en/rankings/` : `/${activeReleaseContext.region}/zh-CN/rankings/`}>{isEnglish ? "Rankings: last successful capture and freshness" : "榜单：查看最近成功采集时间与陈旧状态"}</a> · <a href={`/${activeReleaseContext.region}/${activeReleaseContext.locale}/my-growth/`}>{isEnglish ? "Account query: check service availability" : "账号查询：独立检查服务可用性"}</a></p>
-        <p>{isEnglish ? "Static publication does not verify account login, risk controls, or live collection. Unsupported rules remain unavailable or partial." : "静态发布成功不代表账号登录、风控或实时采集成功。未知规则保留不可用或部分支持状态。"}</p>
-      </section>
-    </div>
+        <p class="updates-freshness-pill" data-feature-freshness role="status">
+          {isEnglish ? "Checking this release…" : "正在核验本页版本…"}
+        </p>
+      </div>
+
+      <div class="updates-version-meta">
+        <p data-feature-version></p>
+        <p class="updates-code-id" data-feature-content></p>
+      </div>
+
+      <dl class="updates-feature-grid">
+        <div class="ui-subsheet updates-feature-tile">
+          <dt>{isEnglish ? "Member cards / Snaps" : "角色卡／留影"}</dt>
+          <dd data-feature-catalog>—</dd>
+        </div>
+        <div class="ui-subsheet updates-feature-tile">
+          <dt>{isEnglish ? "Events" : "活动"}</dt>
+          <dd data-feature-events>—</dd>
+        </div>
+        <div class="ui-subsheet updates-feature-tile">
+          <dt>{isEnglish ? "Calculator" : "计算器"}</dt>
+          <dd data-feature-calculator>—</dd>
+        </div>
+        <div class="ui-subsheet updates-feature-tile">
+          <dt>{isEnglish ? "Screenshot import" : "截图导入"}</dt>
+          <dd data-feature-screenshot>—</dd>
+        </div>
+      </dl>
+
+      <div class="updates-status-footer">
+        <div class="updates-links">
+          <a class="ui-btn-soft" href={rankingsHref}>
+            <span>{isEnglish ? "Rankings: capture freshness" : "排行榜 · 查看最近采集与状态"}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+          <a class="ui-btn-outline" href={growthHref}>
+            <span>{isEnglish ? "Account query: availability" : "我的卡库 · 检查账号同步服务"}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <details class="ui-tip-disclosure updates-notes-tip">
+          <summary>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span>{isEnglish ? "Notes & verification" : "数据与校验说明"}</span>
+          </summary>
+          <div class="ui-tip-body">
+            <p>{isEnglish ? "Screenshot indexes follow the content release; engine readiness is checked when opening the tool. Layout and new skill mechanics need separate verification. Screenshots stay on your device; review before saving." : "截图索引随内容版本更新，打开工具时检查引擎是否就绪；截图布局、新技能机制仍需单独核验。图片在本机处理，校对确认后才保存。"}</p>
+            <p>{isEnglish ? "Static publication does not verify account login, risk controls, or live collection. Unsupported rules remain unavailable or partial." : "静态发布成功不代表账号登录、风控或实时采集成功。未知规则保留不可用或部分支持状态。"}</p>
+          </div>
+        </details>
+      </div>
+    </section>
   </section>
 </BaseLayout>
 
 <script>
-  import {installFeatureStatus} from '../../lib/feature-status-ui.mjs';
-  document.querySelectorAll('[data-feature-status]').forEach(root => installFeatureStatus(root));
+  import { installFeatureStatus } from "../../lib/feature-status-ui.mjs";
+  document.querySelectorAll("[data-feature-status]").forEach((root) => installFeatureStatus(root));
 </script>
-
-<style>
-  .feature-status { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .feature-status h2 { margin: 0; }
-  .feature-status .release-context-ledger { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 4px 0; }
-  @media (max-width: 760px) {
-    .feature-status .release-context-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-</style>

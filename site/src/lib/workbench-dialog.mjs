@@ -1,6 +1,12 @@
+const SVG_NS='http://www.w3.org/2000/svg';
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
+const iconSvg=(doc,d,fallback,size=16)=>{if(typeof doc?.createElementNS!=='function')return fallback;const svg=doc.createElementNS(SVG_NS,'svg'),path=doc.createElementNS(SVG_NS,'path');svg.setAttribute('viewBox','0 0 20 20');svg.setAttribute('width',String(size));svg.setAttribute('height',String(size));svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');svg.setAttribute('stroke-linecap','round');svg.setAttribute('aria-hidden','true');path.setAttribute('d',d);svg.append(path);return svg;};
+
+const setIconOrText=(button,node)=>{if(typeof node==='string')button.textContent=node;else button.append(node);};
+
 export function createWorkbenchDialog(host,title,{className='',onClose}={}) {
-  const dialog=node('dialog',null,`task-dialog ${className}`),heading=node('header'),label=node('h2',title),close=node('button','关闭 ×');close.type='button';
+  const doc=host.ownerDocument??document;
+  const dialog=node('dialog',null,`task-dialog ui-dialog ${className}`),heading=node('header'),label=node('h2',title),close=node('button',null,'ui-icon-btn');close.type='button';close.setAttribute('aria-label','关闭');close.title='关闭';setIconOrText(close,iconSvg(doc,'M5 5l10 10M15 5L5 15','×',16));
   const id=`task-dialog-${Math.random().toString(36).slice(2)}`;label.id=id;dialog.setAttribute('aria-labelledby',id);heading.append(label,close);
   const body=node('div',null,'task-dialog-body');dialog.append(heading,body);host.append(dialog);
   let origin,pressed=false;
@@ -20,11 +26,13 @@ export function showWorkbenchToast(message) {
 }
 
 export function enhanceNumericInputs(root) {
+  const doc=root.ownerDocument??document;
   for(const input of root.querySelectorAll('input[type=number]')) {
     if(input.dataset.taskStepper||input.hidden)continue;input.dataset.taskStepper='true';
     const label=input.closest('label'),name=input.getAttribute('aria-label')||[...(label?.childNodes??[])].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join(' ').trim()||label?.querySelector(':scope > span')?.textContent||'数值';
-    const control=node('span',null,'task-number-stepper');if(!input.hasAttribute('aria-label'))input.setAttribute('aria-label',name);input.before(control);control.append(input);
-    for(const [delta,label] of [[-1,'减少'],[1,'增加']]){const button=node('button',delta<0?'−':'+');button.type='button';button.setAttribute('aria-label',`${label}${name}`);button.addEventListener('click',()=>{if(input.value==='')input.value=input.min||'0';try{delta<0?input.stepDown():input.stepUp();}catch{return;}input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});delta<0?control.prepend(button):control.append(button);}
+    input.classList.add('ui-stepper-input');
+    const control=node('span',null,'task-number-stepper ui-stepper');if(!input.hasAttribute('aria-label'))input.setAttribute('aria-label',name);input.before(control);control.append(input);
+    for(const [delta,verb,d,sym] of [[-1,'减少','M5 10h10','−'],[1,'增加','M5 10h10M10 5v10','+']]){const button=node('button',null,'ui-stepper-btn');button.type='button';button.setAttribute('aria-label',`${verb}${name}`);setIconOrText(button,iconSvg(doc,d,sym,14));button.addEventListener('click',()=>{if(input.value==='')input.value=input.min||'0';try{delta<0?input.stepDown():input.stepUp();}catch{return;}input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});delta<0?control.prepend(button):control.append(button);}
   }
 }
 

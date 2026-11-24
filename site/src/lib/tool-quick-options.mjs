@@ -18,25 +18,33 @@ export function setupQuickOptions(root) {
     const values = (field.dataset.quick ?? '').split(',').filter(Boolean);
     // Small numeric ranges have one complete set, not a dropdown plus presets.
     const complete = isSelect && (!values.length || field.options.length <= 12);
+    const prefix = field.dataset.quickPrefix ?? '';
+    const suffix = field.dataset.quickSuffix ?? '';
     const options = isSelect
-      ? [...field.options].filter(o => complete || values.includes(o.value)).map(option => ({value:option.value, label:option.textContent.trim(), option}))
-      : values.map(value => ({value, label:value}));
+      ? [...field.options].filter(o => complete || values.includes(o.value)).map(option => ({value:option.value, label:option.textContent.trim(), shortLabel:option.dataset?.shortLabel, option}))
+      : values.map(value => ({value, label:`${prefix}${value}${suffix}`}));
     if (!options.length) continue;
     const label = field.closest('label');
     const name = field.getAttribute('aria-label') || [...(label?.childNodes ?? [])].filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join(' ').trim()
       || label?.querySelector('span')?.textContent.trim() || (document.documentElement.lang.startsWith('en') ? 'Choices' : '选项');
     const group = document.createElement('div');
-    group.className = 'tool-options tool-choice-group';
+    if (!isSelect) {
+      group.className = 'tool-options tool-choice-group ui-quick-presets';
+    } else if (field.hasAttribute('data-quick-segmented')) {
+      group.className = `tool-options tool-choice-group ui-segmented${field.dataset.quickSegmented === 'pill' ? '' : ' ui-segmented--block'}`;
+    } else {
+      group.className = 'tool-options tool-choice-group';
+    }
     group.setAttribute('role', 'group');
     group.setAttribute('aria-label', name);
     const hadAriaLabel = field.hasAttribute('aria-label');
-    const buttons = options.map(({value, label, option}) => {
+    const buttons = options.map(({value, label, shortLabel, option}) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.setAttribute('aria-label', label);
       button.title = label;
       const text = document.createElement('span');
-      text.textContent = label;
+      text.textContent = shortLabel || label;
       const icon = option?.dataset.icon;
       if (icon) {
         const image = document.createElement('img');
@@ -45,7 +53,17 @@ export function setupQuickOptions(root) {
         if (option.dataset.round === 'true') button.dataset.round = 'true';
         const iconOnly = option.hasAttribute('data-icon-only') && option.dataset.iconOnly !== 'false';
         if (iconOnly) text.className = 'tool-choice-label';
-        image.addEventListener('error', () => { image.hidden = true; text.className = ''; delete button.dataset.icon; });
+        let fallbackTried = false;
+        image.addEventListener('error', () => {
+          if (!fallbackTried && option.dataset?.fallbackIcon) {
+            fallbackTried = true;
+            image.src = option.dataset.fallbackIcon;
+            delete button.dataset.round;
+            button.dataset.iconShape = 'logo';
+            return;
+          }
+          image.hidden = true; text.className = ''; delete button.dataset.icon; delete button.dataset.round; delete button.dataset.iconShape;
+        });
         button.append(image);
       }
       const difficulty = option?.dataset.difficulty || (/^(easy|normal|hard|expert)$/.test(value) ? value : null);

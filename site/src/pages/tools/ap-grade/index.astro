@@ -1,6 +1,6 @@
 ---
-import "../../../styles/tool-studio.css";
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import "../../../styles/tool-studio.css";
 import {catalog,getAsset} from '../../../lib/catalog';
 import {filterVisualOptions} from '../../../lib/filter-visuals';
 import {gameModeDatabase} from '../../../lib/game-modes';
@@ -27,19 +27,28 @@ const events=available?((formalRules.tables.Event??[]) as Array<{_id:number;_eve
  <p class="event-links"><a href={href('/tools/song-ranking/')+(href('/tools/song-ranking/').includes('?')?'&':'?')+'view=grade'}>无需选卡：查看各首歌的达档综合力与分数线</a></p>
  {available?<ap-grade-tool class="event-workbench ap-workbench">
   <script is:inline type="application/json" data-ap-inputs set:html={data}></script>
-  <section class="event-panel ap-lineup-panel"><h2><span class="studio-step">1</span>确认当前队伍</h2><p>在“卡库与队伍”选择或编辑编成，自动读取本区服已保存养成。</p>
-   <div class="event-controls"><button type="button" data-open-team-workspace="teams">卡库与队伍</button><button type="button" data-save-current-team>存为队伍</button></div><p data-team-workspace-status role="status"></p>
+  <section class="event-panel ap-lineup-panel"><h2><span class="studio-step">1</span>确认当前队伍</h2><p>在“养成与队伍”选择或编辑编成，自动读取本区服已保存养成。</p>
+   <div class="event-controls"><button type="button" data-open-team-workspace="teams">养成与队伍</button><button type="button" data-save-current-team>存为队伍</button></div><p data-team-workspace-status role="status"></p>
    <div class="ap-team" data-ap-team></div><p class="ap-lineup-hint">左右滑动查看五个位置 · 点击卡面打开共用队伍面板</p>
    <p data-ap-growth class="event-hint"></p>
    <div class="event-links"><button type="button" data-open-team-workspace="inventory">导入或管理养成</button></div>
   </section>
-  <section class="event-panel ap-settings-panel"><h2><span class="studio-step">2</span>预测歌曲档位</h2>
+  <section class="event-panel ap-settings-panel">
+   <header class="ap-panel-head">
+    <h2><span class="studio-step">2</span>预测歌曲档位</h2>
+    <details class="ui-tip-disclosure">
+     <summary aria-label="估算范围与限制" title="估算范围与限制">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.8v.6" stroke-linecap="round" /></svg>
+      <span>估算说明</span>
+     </summary>
+     <div class="ui-tip-body"><p>按 AP、满生命、无辅助估分，仅计算当前队伍，不搜索其他卡组。普通与挑战分别计算，激奏需使用团队结算档位。接近分档线时请用实打确认。</p></div>
+    </details>
+   </header>
    <div class="ap-option-groups">
-    <div class="event-controls ap-mode-controls"><label>演出<select data-ap-mode data-quick><option value="ordinary">普通</option><option value="challenge" disabled={!events.length}>挑战</option></select></label><label data-ap-event-wrap>挑战活动<select data-ap-event data-quick-native>{events.map(e=><option value={e._id}>{gameModeDatabase.events.records?.find(r=>r.id===e._id)?.name??`活动 ${e._id}`}</option>)}</select></label></div>
+    <div class="event-controls ap-mode-controls"><label>演出<select data-ap-mode data-quick data-quick-segmented="pill"><option value="ordinary">普通</option><option value="challenge" disabled={!events.length}>挑战</option></select></label><label data-ap-event-wrap>挑战活动<select data-ap-event data-quick-native>{events.map(e=><option value={e._id}>{gameModeDatabase.events.records?.find(r=>r.id===e._id)?.name??`活动 ${e._id}`}</option>)}</select></label></div>
     <label>谱面难度（可多选）<select data-ap-difficulty multiple data-quick data-quick-all="all" data-quick-required><option value="all">全部</option><option data-difficulty="expert" value="expert" selected>EXPERT</option><option data-difficulty="hard" value="hard">HARD</option><option data-difficulty="normal" value="normal">NORMAL</option><option data-difficulty="easy" value="easy">EASY</option></select></label>
     <label class="ap-level-control">等级上限<input data-ap-level data-quick="20,25,28,30,40" type="number" min="1" max="40" value="40" /></label>
    </div>
-   <p class="event-hint">按 AP、满生命、无辅助估分，仅计算当前队伍，不搜索其他卡组。普通与挑战分别计算，激奏需使用团队结算档位。接近分档线时请用实打确认。</p>
    <div class="event-controls"><button class="event-primary" data-ap-run>计算各首歌的 AP 档位</button><button data-ap-cancel hidden>停止判档计算</button></div><p data-ap-status role="status"></p>
   </section>
   <section class="event-panel ap-results-panel"><h2><span class="studio-step">3</span>选歌与联动</h2><p>正拍平均、最低和最高分对应不同技能顺序。微操支持 60 / 120 帧，首次切换需重新计算。</p>

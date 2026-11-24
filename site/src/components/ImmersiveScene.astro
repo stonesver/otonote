@@ -37,7 +37,7 @@ const verified = Reflect.get(scene, 'cameraVerified') === true || !!clientProfil
   {verified && <div class="immersive-controls" data-scene-controls hidden>
     <button type="button" data-scene-play>{say('暂停', 'Pause')}</button>
     <button type="button" data-scene-restart>{say('重播整场', 'Replay scene')}</button>
-    {!compact && <><label class="immersive-layer">{say('画面', 'Layers')}<select data-scene-layer><option value="all">{say('完整场景', 'Full scene')}</option><option value="background">{say('仅背景', 'Background')}</option><option value="characters">{say('人物与前景', 'Cast & foreground')}</option></select></label>
+    {!compact && <><label class="immersive-layer">{say('画面', 'Layers')}<select class="ui-select" data-scene-layer><option value="all">{say('完整场景', 'Full scene')}</option><option value="background">{say('仅背景', 'Background')}</option><option value="characters">{say('人物与前景', 'Cast & foreground')}</option></select></label>
       <div class="immersive-zoom"><button type="button" data-scene-zoom="-0.15" aria-label={say('缩小', 'Zoom out')}>−</button><button type="button" data-scene-reset>{say('重置视角', 'Reset view')}</button><button type="button" data-scene-zoom="0.15" aria-label={say('放大', 'Zoom in')}>＋</button></div>
       <label class="immersive-timeline"><span class="sr-only">{say('动画进度', 'Animation time')}</span><input data-scene-time type="range" min="0" max={duration} step="0.01" value="0" /><output data-scene-clock aria-live="off">0.00 / {duration.toFixed(2)} s</output></label></>}
     {compact && <a href={href(`/immersive/${scene.id}/`)}>{say('完整查看与导出', 'Explore & export')} ↗</a>}

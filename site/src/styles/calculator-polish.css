@@ -24,11 +24,11 @@
 [data-shell] .team-workbench .filter-drawer-dialog .filter-drawer-body { padding-bottom:20px; }
 [data-shell] .team-workbench .selection-results-bar { min-height:30px; gap:12px; }
 .selection-active-filters { display:flex; flex-wrap:wrap; gap:6px; }
-[data-shell] .team-workbench .selection-active-filters button { padding:5px 9px; min-height:30px; border:1px solid var(--calc-line); border-radius:6px; background:var(--calc-tint); color:var(--lacquer); font:11px var(--font-body); }
+[data-shell] .team-workbench .selection-active-filters button { padding:5px 9px; min-height:30px; border:1px solid var(--calc-line); border-radius:6px; background:var(--calc-tint); color:var(--lacquer); font:12px var(--font-body); }
 [data-shell] .team-workbench .song-picker-list { max-height:min(460px,52dvh)!important; background:var(--paper-light); }
 [data-shell] .team-workbench .song-picker-row { padding:12px; }
 [data-shell] .team-workbench .song-selection-pin { background:var(--calc-tint); padding:10px 12px; }
-[data-shell] .team-workbench .song-picker-tip { font-size:11px; }
+[data-shell] .team-workbench .song-picker-tip { font-size:12px; }
 [data-shell] .team-workbench .inventory-body { gap:14px; padding-top:14px; }
 [data-shell] .team-workbench .inventory-body>label { display:grid; gap:6px; max-width:200px; font-size:12px; }
 [data-shell] .team-workbench .inventory-body>label select { min-height:40px; }
@@ -56,7 +56,7 @@
 }
 [data-shell] .team-workbench .inventory-toolbar { gap:8px; }
 [data-shell] .team-workbench .inventory-selection { padding:10px; background:var(--paper); border-radius:8px; }
-[data-shell] .team-workbench .inventory-selection button { font-size:11px; padding:8px; }
+[data-shell] .team-workbench .inventory-selection button { font-size:12px; padding:8px; }
 [data-shell] .team-workbench .inventory-card { background:var(--paper-light); }
 @media(max-width:700px) {
   [data-shell] .team-workbench .song-picker-list { max-height:440px!important; }

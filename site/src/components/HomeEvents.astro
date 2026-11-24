@@ -2,60 +2,231 @@
 import {formatEventTime, eventTimeLabel} from '../lib/event-time.mjs';
 import { activeReleaseContext } from '../lib/release-context';
 import { eventRecords, eventHref as href, eventArtworks, eventIdentities } from '../lib/event-pages';
-import { homeEvents } from '../lib/home-content.mjs';
+import { homeEvents, homeEventTiming } from '../lib/home-content.mjs';
 import { catalog, getAsset } from '../lib/catalog';
 import { eventBonusCharacters } from '../lib/event-bonus-characters.mjs';
 import HomeEventTiming from './HomeEventTiming.astro';
 import CardAttributeBadge from './CardAttributeBadge.astro';
+import ToolGlyph from './ToolGlyph.astro';
 import '../styles/home-events.css';
 
 const en = activeReleaseContext.locale === 'en';
 const region = activeReleaseContext.region;
 const now = Date.now();
-const events = homeEvents(eventRecords, region, now);
+const events = homeEvents(eventRecords, region, now, 3);
 ---
-<section class="home-events" aria-labelledby="home-events-heading">
+<section class="home-events ui-sheet" aria-labelledby="home-events-heading">
   <header class="home-events-heading">
-    <div><p class="home-kicker">EVENT UPDATES</p><h2 id="home-events-heading">{en ? 'Event updates' : '活动情报'}</h2></div>
-    <a href={href('/events/')}>{en ? 'All events' : '全部活动'}</a>
-  </header>
-  {events.length ? <div class="home-events-grid">{events.map(event => {
-    const art = eventArtworks[event.id];
-    const bands = eventIdentities[event.id]?.bands ?? [];
-    const attributes = eventIdentities[event.id]?.attributes ?? [];
-    const characters = eventBonusCharacters(event.effects, catalog);
-    return <article class="home-event-card">
-      <a class="home-event-art" href={href(`/events/${event.id}/`)} aria-label={event.name}>
-        {art?.cover ? <img class="home-event-cover" src={art.cover} alt="" width="640" height="480" loading="lazy" /> : <span class="home-event-placeholder" aria-hidden="true">EVENT <b>{String(event.id).padStart(2, '0')}</b></span>}
-        {art?.logo && <img class="home-event-logo" src={art.logo} alt="" width="460" height="240" loading="lazy" />}
-      </a>
-      <div class="home-event-info">
-        <div class="home-event-eyebrow">
-          <span class="home-event-tag home-event-tag--type">{event.mode === 'challenge_live' ? (en ? 'Challenge Live' : '挑战演出') : (en ? 'Event' : '活动')}</span>
-          <HomeEventTiming start={event.start} end={event.end} en={en} />
-          <span>{region === 'jp' ? (en ? 'JP' : '日服') : (en ? 'GLOBAL' : '国际服')}</span>
+    <div class="home-events-heading__lead">
+      <h2 id="home-events-heading">{en ? 'Event updates' : '活动情报'}</h2>
+      {events.length > 1 && (
+        <div class="home-events-nav" aria-label={en ? 'Switch event' : '快速切换活动'}>
+          <button type="button" class="home-events-arrow" data-home-event-prev aria-label={en ? 'Previous event' : '上一期活动'} title={en ? 'Previous event' : '上一期活动'}>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5" /></svg>
+          </button>
+          <span class="home-events-counter" data-home-event-index>1 / {events.length}</span>
+          <button type="button" class="home-events-arrow" data-home-event-next aria-label={en ? 'Next event' : '下一期活动'} title={en ? 'Next event' : '下一期活动'}>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>
+          </button>
         </div>
-        <h3><a href={href(`/events/${event.id}/`)} lang={event.nameLocale ?? undefined}>{event.name}</a></h3>
-        <p class="home-event-schedule">{formatEventTime(event.schedule.startAt, region, event.schedule.timeZone)} <span aria-hidden="true">—</span> {formatEventTime(event.schedule.endAt, region, event.schedule.timeZone)} <small>{eventTimeLabel(region, en)}</small></p>
-        {(bands.length > 0 || attributes.length > 0) && <div class="home-event-bonuses">
-          {bands.map(band => <div class="home-event-bonus home-event-bonus--band">
-            {band.image && <img src={band.image} alt="" width="58" height="36" loading="lazy" />}
-            <div><small>{band.bonus ? (en ? 'Bonus band' : '加成乐队') : (en ? 'Featured band' : '登场乐队')}</small><strong>{band.name}</strong></div>
-          </div>)}
-          {attributes.length > 0 && <div class="home-event-bonus home-event-bonus--attribute" aria-label={en ? 'Bonus attribute' : '加成属性'}><div>{attributes.map(code => <CardAttributeBadge code={code} compact />)}</div></div>}
-        </div>}
-        {characters.length > 0 && <div class="home-event-characters">
-          <small>{en ? 'Bonus characters' : '加成角色'}</small>
-          <div>{characters.map(character => {
-            const portrait = character.portraitAssetIds.map(getAsset).find(asset => asset?.containerPath.endsWith('/character_face_icon.png')) ?? getAsset(character.profileAssetId);
-            return <a href={href(`/characters/${character.id}/`)} title={character.displayName}>
-              {portrait && <img src={portrait.thumbnailUrl || portrait.previewUrl} alt="" width="30" height="30" loading="lazy" />}
-              <span>{character.displayName}</span>
-            </a>;
-          })}</div>
-        </div>}
-        <div class="home-event-actions"><a href={href(`/events/${event.id}/`)}>{en ? 'Event guide & rewards' : '玩法与奖励'}</a>{event.story.episodes.length > 0 && <a href={href(`/stories/events/${event.id}/`)}>{en ? 'Event stories' : '活动故事'}</a>}</div>
-      </div>
-    </article>;
-  })}</div> : <p class="home-events-empty">{en ? 'No events listed for this server yet. Check back for upcoming schedules and rewards.' : '当前服务器暂未收录活动，后续将在这里展示活动日程、玩法与奖励。'}</p>}
+      )}
+    </div>
+    <a href={href('/events/')}>{en ? 'All events →' : '全部活动 →'}</a>
+  </header>
+
+  {events.length > 1 && (
+    <div class="home-events-switcher" role="tablist" aria-label={en ? 'Switch featured events' : '切换近期活动'}>
+      {events.map((event, index) => {
+        const timing = homeEventTiming(event.start, event.end, now, en);
+        return (
+          <button
+            type="button"
+            class="home-events-tab"
+            role="tab"
+            aria-selected={index === 0 ? 'true' : 'false'}
+            tabindex={index === 0 ? 0 : -1}
+            data-home-event-tab={String(index)}
+            data-state={timing.state}
+          >
+            <span class="home-events-tab__dot" aria-hidden="true"></span>
+            <span class="home-events-tab__title" lang={event.nameLocale ?? undefined}>{event.name}</span>
+            <HomeEventTiming start={event.start} end={event.end} en={en} />
+          </button>
+        );
+      })}
+    </div>
+  )}
+
+  {events.length ? (
+    <div class="home-events-grid">
+      {events.map((event, index) => {
+        const art = eventArtworks[event.id];
+        const bands = eventIdentities[event.id]?.bands ?? [];
+        const attributes = eventIdentities[event.id]?.attributes ?? [];
+        const characters = eventBonusCharacters(event.effects, catalog);
+        return (
+          <article class="home-event-card" data-home-event-panel={String(index)} hidden={index > 0}>
+            <a class="home-event-art" href={href(`/events/${event.id}/`)} aria-label={event.name}>
+              {art?.cover ? <img class="home-event-cover" src={art.cover} alt="" width="640" height="480" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : undefined} decoding="async" /> : <span class="home-event-placeholder" aria-hidden="true">EVENT <b>{String(event.id).padStart(2, '0')}</b></span>}
+              {art?.logo && <img class="home-event-logo" src={art.logo} alt="" width="460" height="240" loading={index === 0 ? "eager" : "lazy"} decoding="async" />}
+            </a>
+            <div class="home-event-info">
+              <div class="home-event-eyebrow">
+                <span class="home-event-tag home-event-tag--type ui-tag ui-tag--secondary">{event.mode === 'challenge_live' ? (en ? 'Challenge Live' : '挑战演出') : (en ? 'Event' : '活动')}</span>
+                <HomeEventTiming start={event.start} end={event.end} en={en} />
+                <span class="ui-tag">{region === 'jp' ? (en ? 'JP' : '日服') : (en ? 'GLOBAL' : '国际服')}</span>
+              </div>
+              <h3><a href={href(`/events/${event.id}/`)} lang={event.nameLocale ?? undefined}>{event.name}</a></h3>
+              <p class="home-event-schedule">{formatEventTime(event.schedule.startAt, region, event.schedule.timeZone)} <span aria-hidden="true">—</span> {formatEventTime(event.schedule.endAt, region, event.schedule.timeZone)} <small>{eventTimeLabel(region, en)}</small></p>
+              {(() => {
+                const startMs = event.start ?? 0;
+                const endMs = event.end ?? 0;
+                const ratio = startMs && endMs > startMs ? Math.max(0, Math.min(1, (now - startMs) / (endMs - startMs))) : 0;
+                const pct = Math.round(ratio * 100);
+                const pState = !startMs || !endMs ? 'unknown' : now < startMs ? 'upcoming' : now > endMs ? 'ended' : 'active';
+                return pState !== 'unknown' && (
+                  <div class="home-event-progress" data-event-progress data-start={String(startMs)} data-end={String(endMs)} data-state={pState} aria-label={en ? `Event progress ${pct}%` : `活动进度 ${pct}%`}>
+                    <div class="home-event-progress__rail">
+                      <div class="home-event-progress__ticks" aria-hidden="true"></div>
+                      <span class="home-event-progress__fill" style={`width:${pct}%`}></span>
+                      <span class="home-event-progress__head" style={`left:${pct}%`} aria-hidden="true">
+                        <span class="home-event-progress__pulse"></span>
+                      </span>
+                    </div>
+                    <span class="home-event-progress__pct" data-event-progress-pct>{pState === 'upcoming' ? (en ? 'Upcoming' : '未开始') : pState === 'ended' ? (en ? 'Ended' : '已结束') : `${pct}%`}</span>
+                  </div>
+                );
+              })()}
+              {(bands.length > 0 || attributes.length > 0) && (
+                <div class="home-event-bonuses ui-subsheet">
+                  {bands.map(band => (
+                    <div class="home-event-bonus home-event-bonus--band">
+                      {band.image && <img src={band.image} alt="" width="58" height="36" loading="lazy" />}
+                      <div><small>{band.bonus ? (en ? 'Bonus band' : '加成乐队') : (en ? 'Featured band' : '登场乐队')}</small><strong>{band.name}</strong></div>
+                    </div>
+                  ))}
+                  {attributes.length > 0 && (
+                    <div class="home-event-bonus home-event-bonus--attribute">
+                      <div class="home-event-attr-icons">{attributes.map(code => <CardAttributeBadge code={code} iconOnly />)}</div>
+                      <div><small>{en ? 'Bonus attribute' : '加成属性'}</small><strong>{attributes.map(code => catalog.cardTaxonomy.attributes.find(a => a.code === code)?.names[activeReleaseContext.locale] ?? String(code)).join(' / ')}</strong></div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {characters.length > 0 && (
+                <div class="home-event-characters">
+                  <small>{en ? 'Bonus characters' : '加成角色'}</small>
+                  <div>{characters.map(character => {
+                    const portrait = character.portraitAssetIds.map(getAsset).find(asset => asset?.containerPath.endsWith('/character_face_icon.png')) ?? getAsset(character.profileAssetId);
+                    return (
+                      <a href={href(`/characters/${character.id}/`)} title={character.displayName}>
+                        {portrait && <img src={portrait.thumbnailUrl || portrait.previewUrl} alt="" width="30" height="30" loading="lazy" />}
+                        <span>{character.displayName}</span>
+                      </a>
+                    );
+                  })}</div>
+                </div>
+              )}
+              <div class="home-event-actions">
+                {event.mode === 'challenge_live' && <a class="ui-btn-primary" href={href(`/tools/event-efficiency/?eventId=${event.id}`)}><ToolGlyph kind="event-efficiency" /><span>{en ? 'Event efficiency' : '活动收益配队'}</span></a>}
+                <a class="ui-btn-outline" href={href(`/events/${event.id}/`)}>{en ? 'Event guide & rewards' : '玩法与奖励'}</a>
+                {event.story.episodes.length > 0 && <a class="ui-btn-outline" href={href(`/stories/events/${event.id}/`)}>{en ? 'Event stories' : '活动故事'}</a>}
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  ) : (
+    <p class="home-events-empty">{en ? 'No events listed for this server yet. Check back for upcoming schedules and rewards.' : '当前服务器暂未收录活动，后续将在这里展示活动日程、玩法与奖励。'}</p>
+  )}
 </section>
+<script>
+  const root = document.querySelector<HTMLElement>('.home-events');
+  if (root) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-home-event-tab]')];
+    const panels = [...root.querySelectorAll<HTMLElement>('[data-home-event-panel]')];
+    const prevBtn = root.querySelector<HTMLButtonElement>('[data-home-event-prev]');
+    const nextBtn = root.querySelector<HTMLButtonElement>('[data-home-event-next]');
+    const indexEl = root.querySelector<HTMLElement>('[data-home-event-index]');
+    let active = 0;
+
+    const selectEvent = (nextIndex: number, focusTab = false) => {
+      if (!panels.length) return;
+      active = (nextIndex + panels.length) % panels.length;
+      const target = String(active);
+      tabs.forEach((btn, idx) => {
+        const selected = idx === active;
+        btn.setAttribute('aria-selected', String(selected));
+        btn.tabIndex = selected ? 0 : -1;
+        if (selected && focusTab) btn.focus({ preventScroll: true });
+      });
+      panels.forEach(panel => {
+        panel.hidden = panel.dataset.homeEventPanel !== target;
+      });
+      if (indexEl) indexEl.textContent = `${active + 1} / ${panels.length}`;
+    };
+
+    tabs.forEach((tab, idx) => {
+      tab.addEventListener('click', () => selectEvent(idx));
+      tab.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          selectEvent(idx + 1, true);
+        } else if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          selectEvent(idx - 1, true);
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          selectEvent(0, true);
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          selectEvent(panels.length - 1, true);
+        }
+      });
+    });
+
+    prevBtn?.addEventListener('click', () => selectEvent(active - 1));
+    nextBtn?.addEventListener('click', () => selectEvent(active + 1));
+
+    const grid = root.querySelector<HTMLElement>('.home-events-grid');
+    if (grid && panels.length > 1) {
+      let startX = 0;
+      let startY = 0;
+      grid.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+      grid.addEventListener('touchend', (e) => {
+        if (!e.changedTouches.length) return;
+        const dx = e.changedTouches[0].clientX - startX;
+        const dy = e.changedTouches[0].clientY - startY;
+        if (Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          selectEvent(active + (dx < 0 ? 1 : -1));
+        }
+      }, { passive: true });
+    }
+
+    const isEn = document.documentElement.lang?.startsWith('en');
+    const refreshProgress = () => {
+      const nowMs = Date.now();
+      root.querySelectorAll<HTMLElement>('[data-event-progress]').forEach(bar => {
+        const s = Number(bar.dataset.start || 0);
+        const e = Number(bar.dataset.end || 0);
+        if (!s || e <= s) return;
+        const ratio = Math.max(0, Math.min(1, (nowMs - s) / (e - s)));
+        const pct = Math.round(ratio * 100);
+        const st = nowMs < s ? 'upcoming' : nowMs > e ? 'ended' : 'active';
+        bar.dataset.state = st;
+        const fill = bar.querySelector<HTMLElement>('.home-event-progress__fill');
+        const head = bar.querySelector<HTMLElement>('.home-event-progress__head');
+        const label = bar.querySelector<HTMLElement>('[data-event-progress-pct]');
+        if (fill) fill.style.width = `${pct}%`;
+        if (head) head.style.left = `${pct}%`;
+        if (label) label.textContent = st === 'upcoming' ? (isEn ? 'Upcoming' : '未开始') : st === 'ended' ? (isEn ? 'Ended' : '已结束') : `${pct}%`;
+      });
+    };
+    refreshProgress();
+  }
+</script>

@@ -67,8 +67,8 @@
     border-color: var(--tool-border);
   }
 
-  :is(.task-workbench, .task-dialog) :is(button, input, select, textarea) {
-    background: var(--tool-surface);
+  :is(.task-workbench, .task-dialog) :is(button, input, select, textarea):where(:not(.ui-btn-primary, .ui-btn-soft, .ui-btn-outline, .ui-btn-ghost, .ui-icon-btn, .ui-switch, .ui-stepper-input, .ui-stepper-btn, [type="checkbox"][role="switch"])) {
+    background-color: var(--tool-surface);
     border-color: var(--tool-border);
   }
 
@@ -77,9 +77,12 @@
     outline-offset: 3px;
   }
 
-  .task-workbench button:hover:not(:disabled) {
-    background: var(--tool-tint);
+  .task-workbench button:where(:not(.ui-btn-primary, .ui-btn-soft, .ui-btn-outline, .ui-btn-ghost, .ui-icon-btn, .ui-switch, .ui-stepper-btn, [aria-pressed="true"], [data-difficulty])):hover:not(:disabled) {
+    background-color: var(--tool-tint);
     border-color: var(--lacquer);
+  }
+  .task-workbench :is(.ui-segmented,.ui-choice-pills,.ui-quick-presets) > button:not([aria-pressed="true"]):hover:not(:disabled) {
+    background-color: var(--tool-tint);
   }
 
   :is(.tool-options, .workbench-mode-choices, .task-tgw-options) button[aria-pressed="true"],
@@ -112,8 +115,8 @@
   .task-pairing [data-leader="true"] .score-position { background: var(--lacquer); color: var(--theme-on-accent); font-weight: 700; }
   .task-pairing :is(.score-face, .tw-card-art, .score-face--support .tw-card-art) { background: var(--paper); }
   .task-pairing .task-empty-card { color: var(--tool-muted); background: var(--paper) !important; }
-  .task-pairing .tw-card-name { color: var(--stage-ink); font-size: 11px; }
-  .task-pairing .tw-card-source { font-size: 10px; }
+  .task-pairing .tw-card-name { color: var(--stage-ink); font-size: 12px; }
+  .task-pairing .tw-card-source { font-size: 12px; }
   .task-pairing .task-pair-links { background: var(--paper); border-color: var(--line); gap: 5px; }
   .task-pair-links .task-link--attribute { color: var(--gel-blue-dark); }
   .task-pair-links .task-link--band { color: var(--lacquer); }
@@ -122,7 +125,9 @@
 
   .calculator-start [data-optimize-pairing],
   .recommendation-actions button:first-child,
-  .task-dialog footer button:last-child {
+  .task-dialog footer button:last-child,
+  .task-score-toolbar > button,
+  .task-score-actions > button {
     background: var(--theme-action);
     border-color: var(--theme-action);
     color: var(--theme-on-action);
@@ -130,18 +135,21 @@
 
   .calculator-start [data-optimize-pairing]:hover:not(:disabled),
   .recommendation-actions button:first-child:hover:not(:disabled),
-  .task-dialog footer button:last-child:hover:not(:disabled) {
-    background: var(--theme-action);
-    border-color: var(--theme-action);
+  .task-dialog footer button:last-child:hover:not(:disabled),
+  .task-score-toolbar > button:hover:not(:disabled),
+  .task-score-actions > button:hover:not(:disabled) {
+    background: var(--theme-accent-bright);
+    border-color: var(--theme-accent-bright);
     color: var(--theme-on-action);
   }
 
   :is(.task-subtabs, .task-candidate-tabs) button { background: transparent; }
+  .task-score-detail-actions > button { background: transparent; border-color: transparent; }
 
   .task-workbench button:disabled { cursor: not-allowed; }
   .task-workbench-main .optimizer-results-panel { border-top: 3px solid var(--lacquer); }
   .recommendation-score strong { color: var(--lacquer); font-variant-numeric: tabular-nums; }
-  .recommendation-mode, .recommendation-tradeoff, .recommendation-caption { font-size: 11px; }
+  .recommendation-mode, .recommendation-tradeoff, .recommendation-caption { font-size: 12px; }
   .calculator-progress { color: var(--stage-ink); }
   .calculator-empty h3 { color: var(--stage-ink); }
   .task-song-dialog [data-song-choice][aria-pressed="true"] {
@@ -152,93 +160,68 @@
   }
 }
 
-/* The card workspace can also be opened from library pages. */
+/* The card workspace can also be opened from library pages; keep base surface tokens zero-specificity so shared-team-workspace.css owns layout and component states. */
 html[data-shell="sidebar"][data-shell] body {
   .tw-panel {
     --accent: var(--lacquer);
     --border: var(--tool-border);
     color: var(--stage-ink);
     border-color: var(--tool-border);
-    background: var(--tool-surface);
+    background-color: var(--tool-surface);
   }
 
   :is(.tw-panel, .task-dialog)::backdrop { background: var(--theme-backdrop); }
-  .tw-launcher { background: var(--theme-inverse-surface); border-color: var(--theme-inverse-surface); color: var(--theme-inverse-text); }
-  .tw-panel :is(button, input, select, .tw-current, .tw-saved-team, .tw-editor,
+  .tw-launcher { background-color: var(--theme-inverse-surface); border-color: var(--theme-inverse-surface); color: var(--theme-inverse-text); }
+  .tw-panel :where(button, input, select, .tw-current, .tw-saved-team, .tw-editor,
       .tw-edit-pair, .tw-inventory-card, .tw-inventory-extra-filters,
       .tw-inventory-editor, .ux-card-picker, .tw-card-view--compact) {
-    background: var(--tool-surface);
+    background-color: var(--tool-surface);
     color: var(--stage-ink);
     border-color: var(--tool-border);
   }
 
-  .tw-panel :is(.tw-heading, .tw-navigation, .tw-editor-actions) { background: var(--tool-surface); border-color: var(--line); }
-  .tw-panel :is(.tw-tabs, .tw-edit-pair > header, .tw-edit-card > details, .tw-card-art, .tw-card-empty) { background: var(--paper); border-color: var(--tool-border); }
-  .tw-panel :is(.tw-card-choice-action, .tw-pair > small, .tw-card-source, .tw-card-relation) { color: var(--tool-muted); }
-  .tw-panel .tw-current { border-top-color: var(--lacquer); }
-  .tw-panel .tw-card-select input[type="checkbox"]:checked {
-    background: var(--tool-accent);
-    border-color: var(--tool-accent);
-  }
+  .tw-panel :where(.tw-heading, .tw-navigation, .tw-editor-actions) { background-color: var(--theme-surface-tint); border-color: var(--theme-border-soft); }
+  .tw-panel :where(.tw-tabs, .ws-sheet-switch) { background-color: var(--theme-control-track); border-color: var(--theme-border-soft); }
+  .tw-panel :where(.tw-edit-pair > header, .tw-edit-card > details, .tw-card-art, .tw-card-empty) { background-color: var(--paper); border-color: var(--tool-border); }
+  .tw-panel :where(.tw-card-choice-action, .tw-pair > small, .tw-card-source, .tw-card-relation) { color: var(--tool-muted); }
+  .tw-panel :where(.tw-current) { border-top-color: var(--lacquer); }
   .tw-panel .tw-tabs button[aria-selected="true"],
-  .tw-panel button[aria-pressed="true"] {
-    background: var(--tool-selected-bg);
-    border-color: var(--tool-selected-border);
-    color: var(--tool-selected-ink);
-    box-shadow: none;
-    font-weight: 700;
+  .tw-panel .ws-sheet-switch > button[aria-selected="true"] {
+    background-color: var(--theme-control-active-bg);
+    border-color: transparent;
+    color: var(--theme-control-active-ink);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-shadow-color) 10%, transparent), 0 0 0 1px var(--theme-control-active-edge);
+    font-weight: 600;
   }
 
-  .tw-panel :is(.ux-card-positions, .ux-card-preview, .ux-card-pinned, .ux-card-browser, .ux-card-picker > header, .ux-card-picker > footer) {
-    background: var(--tool-surface);
+  .tw-panel :where(.ux-card-positions, .ux-card-preview, .ux-card-pinned, .ux-card-browser, .ux-card-picker > header, .ux-card-picker > footer) {
+    background-color: var(--tool-surface);
     border-color: var(--line);
   }
-  .tw-panel .ux-card-picker .ux-card-grid > button { border-color: var(--tool-border); background: var(--tool-surface); }
-  .tw-panel .ux-card-picker .ux-card-grid > button[aria-pressed="true"] { border-color: var(--tool-selected-border); box-shadow: none; }
-  .tw-panel .ux-card-picker .ux-card-grid .tw-card-source { color: var(--tool-muted); font-size: 10px; }
-  .tw-panel .ux-card-picker .ux-card-in-use { color: var(--lacquer); background: var(--tool-surface); }
-  .tw-panel button:disabled:not([data-card-id]) {
+  .tw-panel :where(button:disabled:not([data-card-id])) {
     color: var(--tool-muted);
-    background: var(--paper);
+    background-color: var(--paper);
     border-color: var(--tool-border);
     opacity: .65;
     cursor: not-allowed;
   }
-  .tw-panel .ux-card-grid > button { position: relative; }
-  .tw-panel .ux-card-grid > button[aria-pressed="true"]::after {
-    content: "✓";
-    position: absolute;
-    right: 6px;
-    bottom: 6px;
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--tool-selected-ink);
-    color: var(--theme-on-accent);
-    font-size: 14px;
-    box-shadow: 0 0 0 2px var(--tool-surface);
-  }
 
-  .tw-panel :is(button, a, summary, input, select):focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
-  .tw-panel button:hover:not(:disabled) { border-color: var(--lacquer); }
+  .tw-panel :where(button, a, summary, input, select):focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 2px; }
   .tw-panel .tw-editor-actions button[data-variant="primary"], .tw-panel button[data-variant="primary"],
   .tw-panel .ux-card-replace, .tw-panel .ux-card-done {
-    background: var(--theme-action); color: var(--theme-on-action); border-color: var(--theme-action);
+    background-color: var(--theme-action); color: var(--theme-on-action); border-color: var(--theme-action);
   }
 
-  /* Keep logos on an opaque plate; do not recolor the game's attribute/band art. */
-  :is(.task-pairing, .tw-panel) .tw-card-meta {
+  /* Keep logos on an opaque plate inside live tool pairings; .tw-panel manages its own overlay badges. */
+  .task-pairing .tw-card-meta {
     background: var(--tool-surface);
     border: 1px solid var(--tool-border);
     border-radius: 4px;
     padding: 2px;
     max-width: calc(100% - 46px);
   }
-  :is(.task-pairing, .tw-panel) .tw-card-meta > span { color: var(--stage-ink); font-size: 10px; overflow-wrap: anywhere; }
-  .tw-panel .ux-card-picker .tool-options button[data-round="true"]:not([data-icon]) { width: auto; height: auto; border-radius: 5px; padding: 3px 6px; }
-  :is(.task-pairing, .tw-panel) .tw-card-meta .tw-card-band img { width: 22px !important; height: 20px !important; }
+  .task-pairing .tw-card-meta > span { color: var(--stage-ink); font-size: 12px; overflow-wrap: anywhere; }
+  .task-pairing .tw-card-meta .tw-card-band img { width: 22px !important; height: 20px !important; }
   :is(.task-pairing, .tw-panel) .tw-card-view[data-source="reference"] .tw-card-source { color: var(--gel-blue-dark); }
   :is(.task-pairing, .tw-panel) .tw-card-view[data-source="training"] .tw-card-source { color: var(--warning); }
   :is(.task-pairing, .tw-panel) .tw-card-view[data-source="unknown"] .tw-card-source { color: var(--warning); }
@@ -286,7 +269,7 @@ html[data-tool-theme="site"][data-tool-theme] body {
 
   .tw-confirm :is(h3, p), .screenshot-import :is(h2, h3, label) { color: var(--tool-ink); }
   :is(.tw-confirm, .screenshot-import) :is(button, input, select) {
-    background: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border);
+    background-color: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border);
   }
   :is(.tw-confirm button[data-variant="primary"], .screenshot-import .screenshot-primary,
       .growth-primary, .tw-inventory-import-actions > [data-workspace-screenshot]) {
@@ -307,17 +290,16 @@ html[data-tool-theme="site"][data-tool-theme] body {
   }
   :is(.event-panel, .score-output, .ranking-board) { color: var(--tool-ink); }
   :is(.ap-workbench, .song-ranking) :is(input, select, textarea) {
-    background: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border);
+    background-color: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border);
   }
-  :is(.tool-options, .ranking-mode, .ranking-board-tabs) button[aria-pressed="true"] {
+  :is(.tool-options) button[aria-pressed="true"] {
     color: var(--tool-selected-ink); background: var(--tool-selected-bg);
     border-color: var(--tool-selected-border); box-shadow: none;
   }
-  :is(.ranking-mode, .ranking-board-tabs, .ranking-mode-setup) { background: var(--paper); }
+  .ranking-mode-setup { background: var(--paper); }
   .ranking-skill-actions button { background: var(--paper); border-color: var(--tool-border); }
   .ranking-pick { background: var(--tool-surface); border-color: var(--tool-border); }
-  .ranking-table th { background: var(--paper); }
-  .ranking-table tbody > tr:not(.ranking-detail):hover { background: var(--tool-tint); }
+  .ranking-table tbody > tr:hover { background: var(--tool-tint); }
   :is(.score-output, .event-summary) { border-top: 3px solid var(--tool-accent); }
   .score-output [data-song-score], .task-quick-main > strong { color: var(--tool-accent); }
   :is(button[data-ap-run], button[data-yield-run], .event-primary,
@@ -371,69 +353,50 @@ html[data-tool-theme="site"][data-tool-theme] body {
 
   .gacha-tool {
     --g-ink: var(--tool-ink); --g-muted: var(--tool-muted);
-    --g-paper: var(--paper); --g-line: var(--tool-border);
+    --g-paper: var(--theme-surface-tint); --g-line: var(--theme-border-soft);
   }
   .gacha-page .tool-title-glyph { color: var(--tool-accent); background: var(--tool-tint); }
   .gacha-tool :is(.gacha-panel, .gacha-kind-chart, .gacha-share-dialog > header,
       .gacha-share-dialog > footer, input, select, button) { background-color: var(--tool-surface); }
-  .gacha-tool :is(.gacha-segmented, .gacha-bar-track, .gacha-card-art) { background: var(--paper); border-color: var(--tool-border); }
-  .gacha-tool.gacha-tool .gacha-primary { background: var(--theme-action); border-color: var(--theme-action); color: var(--theme-on-action); }
-  .gacha-tool.gacha-tool .gacha-primary:hover:not(:disabled) { background: var(--theme-action); }
-  .gacha-tool .gacha-segmented button[aria-pressed="true"] { border-color: var(--tool-selected-border); color: var(--tool-selected-ink); background: var(--tool-selected-bg); box-shadow: none; }
+  .gacha-tool :is(.gacha-bar-track, .gacha-card-art) { background-color: var(--theme-surface-tint); border-color: var(--tool-border); }
+  .gacha-tool.gacha-tool .gacha-primary { background-color: var(--theme-action); border-color: var(--theme-action); color: var(--theme-on-action); }
+  .gacha-tool.gacha-tool .gacha-primary:hover:not(:disabled) { background-color: var(--theme-accent-bright); border-color: var(--theme-accent-bright); color: var(--theme-on-action); }
   .gacha-tool input::placeholder { color: var(--tool-muted); }
 
-  .tools-desk { --desk-blue: var(--tool-accent); --desk-berry: var(--tool-accent); --desk-ink: var(--tool-ink); --desk-muted: var(--tool-muted); }
-  .tools-desk .tools-task {
-    --tile-accent: var(--tool-accent);
-    --tile-tint: color-mix(in srgb, var(--tile-accent) 14%, var(--tool-surface));
-    color: var(--tool-ink);
-    border-color: var(--tool-border);
-    background: color-mix(in srgb, var(--tile-accent) 6%, var(--tool-surface));
-  }
-  .tools-desk :is(.tools-task--deck-builder, .tools-task--song-ranking) { --tile-accent: var(--success); }
-  .tools-desk :is(.tools-task--event-efficiency, .tools-task--gacha-history) { --tile-accent: var(--warning); }
-  .tools-desk .tools-task--song-calculator { --tile-accent: var(--gel-blue-dark); }
-  .tools-desk .tools-task--deck-builder :is(p, small, .tools-lineup-caption) { color: var(--tool-muted); }
-  .tools-desk .tools-task--deck-builder .tools-task-open { color: var(--tile-accent); background: var(--tool-surface); border-color: var(--tool-border); }
-  .tools-desk .tools-lineup-cards > span { background: var(--tool-surface); color: var(--tool-muted); border-color: var(--tool-border); box-shadow: var(--theme-shadow); }
-  .tools-desk .tools-lineup-cards > span:nth-child(3) { background: var(--tile-tint); color: var(--tile-accent); }
-  .tools-desk .tools-lineup-cards i { background: var(--tile-tint); }
-  .tools-desk .tools-lineup-cards > span:nth-child(3) i { background: var(--tool-surface); }
-  .tools-desk .tools-lineup-cards small { background: var(--tile-tint); color: var(--tool-muted); }
-  .tools-desk :is(.tools-browse-link, .tools-workflow) { background: var(--tool-surface); border-color: var(--tool-border); }
-  .tools-desk :is(.tools-library-link, .tools-task-open, .tools-library-symbol) { border-color: var(--tool-border); }
-
-  .l2d { --l2d-accent: var(--tool-accent); background: var(--tool-surface); }
-  .l2d :is(button, select, .l2d-search, .l2d-picker, .l2d-load-card) { background: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border); }
-  .l2d :is(.l2d-controls, .l2d-panel-switch, .l2d-roster, .l2d-viewbar) { background: var(--paper); border-color: var(--tool-border); }
-  .l2d :is(button[data-open], .l2d-play-actions [data-play]) { background: var(--theme-action); border-color: var(--theme-action); color: var(--theme-on-action); }
-  .l2d :is(button[data-open], .l2d-play-actions [data-play]):hover:not(:disabled) { background: var(--theme-action); }
-  .l2d button[aria-pressed="true"] { background: var(--tool-selected-bg); border-color: var(--tool-selected-border); color: var(--tool-selected-ink); }
+  .l2d { --l2d-accent: var(--tool-accent); background-color: var(--tool-surface); }
+  .l2d :is(button, select, .l2d-search, .l2d-picker, .l2d-load-card) { background-color: var(--tool-surface); color: var(--tool-ink); border-color: var(--tool-border); }
+  .l2d :is(.l2d-controls, .l2d-panel-switch, .l2d-roster, .l2d-viewbar) { background-color: var(--theme-surface-tint); border-color: var(--tool-border); }
+  .l2d :is(button[data-open], .l2d-play-actions [data-play]) { background-color: var(--theme-action); border-color: var(--theme-action); color: var(--theme-on-action); }
+  .l2d :is(button[data-open], .l2d-play-actions [data-play]):hover:not(:disabled) { background-color: var(--theme-accent-bright); border-color: var(--theme-accent-bright); }
+  .l2d button[aria-pressed="true"] { background-color: var(--tool-selected-bg); border-color: var(--tool-selected-border); color: var(--tool-selected-ink); }
   .l2d :is(.l2d-load-card p, .l2d-progress-meta, .l2d-look-tag) { color: var(--tool-muted); }
-  .l2d .l2d-cycle button { min-width: 38px; font-size: 11px; }
+  .l2d .l2d-cycle button { min-width: 38px; font-size: 12px; }
   .l2d :is(input[type=range], input[type=checkbox], progress) { accent-color: var(--tool-accent); }
 }
 
 /* Written labels carry navigation; avoid decorative arrows throughout tools. */
 html[data-tool-theme="site"][data-tool-theme] body {
-  .task-studio.task-studio .task-conditions-collapsed .task-condition-toggle { font-size: 11px; }
+  .task-studio.task-studio .task-conditions-collapsed .task-condition-toggle { font-size: 12px; }
 }
 
 /* Navigation and selection use the first color; setup and execution use its partner. */
 html[data-tool-theme="site"][data-tool-theme] body .tool-studio.tool-studio[data-tool-kind][data-tool-kind] {
   :is(.event-setup-rail, .event-default-setup, .team-setup, .ds-score-setup, .task-condition-panel) {
-    background:var(--theme-surface); border-color:var(--theme-border);
+    background:var(--theme-surface); border-color:var(--theme-border-soft);
     --tool-muted:var(--theme-text-soft);
   }
   :is(.event-setup-rail, .task-condition-panel) :is(.task-condition-group, .task-context-bar) {
     background:transparent;
   }
-  :is(.event-setup-title, .ds-panel-title, .ds-score-setup > summary, .task-condition-panel > header) {
+  :is(.ds-panel-title, .ds-score-setup > summary) {
+    background:var(--theme-surface-tint); color:var(--tool-ink); border-bottom:1px solid var(--theme-border-soft);
+  }
+  :is(.event-setup-title, .task-condition-panel > header) {
     background:var(--theme-action); color:var(--theme-on-action);
   }
   .event-setup-title { margin:0 0 4px; padding:12px; }
   .event-pool-readiness { background:var(--tool-tint); }
-  .event-action-dock { background:var(--theme-surface); border-color:var(--theme-border); --tool-muted:var(--theme-text-soft); }
+  .event-action-dock:not(.team-action-dock):not(.score-action-dock) { background:var(--theme-surface); border-color:var(--theme-border); --tool-muted:var(--theme-text-soft); }
   :is(.event-action-dock,.event-pool-readiness) button:not(:disabled):hover { border-color:var(--theme-secondary-ink); }
   .ds-task-switcher > button[aria-pressed="true"] { background:var(--theme-accent); color:var(--theme-on-accent); border-color:var(--theme-accent); }
 }

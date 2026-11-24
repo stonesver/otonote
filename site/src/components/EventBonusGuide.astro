@@ -31,13 +31,13 @@ const faq = [
     <div><EventIcon name="music" size={18} /><strong>{t('挑战演出综合力提升','More power in Challenge Lives')}</strong><p>{t('仅在挑战演出中生效','Activates only in Challenge Lives')}</p></div>
   </div>
   <details class="ef-bonus-help">
-    <summary><span class="ef-help-mark" aria-hidden="true">?</span><span>{t('加成规则与常见问题','Bonus rules & questions')}</span><small>{t('了解叠加与编队','Stacking & team building')}</small></summary>
+    <summary><EventIcon name="info" size={16} /><span>{t('加成规则与常见问题','Bonus rules & questions')}</span><small>{t('了解叠加与编队','Stacking & team building')}</small></summary>
     <div class="ef-bonus-help-body"><p class="ef-bonus-formula">{t('同一张卡：乐队条件 ＋ 属性条件 ＋ 指定卡条件','For each card: band + attribute + featured-card bonuses')}</p><dl>{faq.map(([question,answer])=><div><dt>{question}</dt><dd>{answer}</dd></div>)}</dl></div>
   </details>
-  <div class="ef-bonus-tabs" role="group" aria-label={t('卡牌类型','Card type')}><button type="button" data-bonus-kind="2" aria-pressed="true">{t('成员卡','Members')}</button><button type="button" data-bonus-kind="3" aria-pressed="false">{t('留影卡','Snapshots')}</button></div>
+  <div class="ef-bonus-tabs ui-segmented ui-segmented--block" role="group" aria-label={t('卡牌类型','Card type')}><button type="button" data-bonus-kind="2" aria-pressed="true">{t('成员卡','Members')}</button><button type="button" data-bonus-kind="3" aria-pressed="false">{t('留影卡','Snapshots')}</button></div>
   <div class="ef-bonus-growth">
     <strong data-bonus-growth-title data-member-label={t('成员觉醒','Member awakening')} data-snapshot-label={t('留影上限解放','Snapshot limit break')}>{t('成员觉醒','Member awakening')}</strong>
-    <div role="group" aria-label={t('强化次数','Enhancement count')}>
+    <div class="ui-choice-pills" role="group" aria-label={t('强化次数','Enhancement count')}>
       {[0,1,2,3,4].map(stage=><button type="button" data-bonus-stage={stage} aria-pressed={stage===0 ? 'true' : 'false'}>{stage===0 ? t('初始','Initial') : `${stage}${t('次','×')}`}</button>)}
     </div>
   </div>

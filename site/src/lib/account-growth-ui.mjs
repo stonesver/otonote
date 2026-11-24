@@ -8,15 +8,17 @@ const messages={credentials_rejected:'官方服务提示账号或密码校验未
 export function setupAccountGrowthImport(workbench,{getInventory,replaceInventory}) {
   const root=workbench.querySelector('[data-account-growth]');if(!root)return;
   const q=s=>root.querySelector(s),status=q('[data-growth-status]'),fields=q('[data-growth-login-fields]');
+  const loginForm=q('[data-growth-login]'),retryBtn=q('[data-growth-retry]');
   const context=currentServerContext();
   const store=workbench.personalGrowthStore;
   let nonce=null,busy=false,preview=null,undo=null,maintenance=false;
   function applyStatus(observation) {
+    if(!fields)return;
     maintenance=observation?.status==='maintenance';
     fields.disabled=busy||!nonce||maintenance;
-    q('[data-growth-service-status]').textContent=maintenance ? maintenanceNotice(observation)
+    const svc=q('[data-growth-service-status]');if(svc)svc.textContent=maintenance ? maintenanceNotice(observation)
       : '本站登录入口已连接；官方服务是否可用以实际读取结果为准。';
-    q('[data-growth-retry]').hidden=!maintenance;
+    if(retryBtn)retryBtn.hidden=!maintenance;
   }
   if(globalThis.window?.addEventListener) {
     const events=new AbortController();
@@ -37,50 +39,53 @@ export function setupAccountGrowthImport(workbench,{getInventory,replaceInventor
   }
   workbench.addEventListener('personal-growth-preview',event=>{if(busy){status.textContent='正在读取养成，请完成后再导入。';root.open=true;return;}try{prepare(event.detail);root.open=true;root.scrollIntoView({block:'start'});}catch(error){status.textContent=`未导入：${error.message}`;}});
   async function checkService() {
-   const retry=q('[data-growth-retry]');retry.hidden=true;nonce=null;fields.disabled=true;
+   if(!fields||!retryBtn)return;
+   retryBtn.hidden=true;nonce=null;fields.disabled=true;
    if(!accountServer(context.serverId)) {
     fields.disabled=true;
     q('[data-growth-service-status]').textContent='请先选择账号所属的港澳台、EN 或韩服。';
    } else await fetch(accountCapabilitiesUrl(context.serverId),{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(10000)})
     .then(async r=>{if(!r.ok)throw Error();const result=await r.json();if(result.enabled!==true||typeof result.nonce!=='string'||(result.serverId&&result.serverId!==context.serverId))throw Error();
       nonce=result.nonce;applyStatus(result.gameStatus);})
-    .catch(()=>{q('[data-growth-service-status]').textContent='暂时无法连接登录服务，可重新检查或导入 JSON。';retry.hidden=false;});
+    .catch(()=>{q('[data-growth-service-status]').textContent='暂时无法连接登录服务，可重新检查或导入 JSON。';retryBtn.hidden=false;});
   }
-  q('[data-growth-retry]').addEventListener('click',()=>{if(!busy){q('[data-growth-service-status]').textContent='正在检查网页登录服务…';checkService();}});
-  checkService();
-  q('[data-growth-login]').addEventListener('submit',async event=>{
-    event.preventDefault();if(busy||!nonce||maintenance)return;busy=true;clear();fields.disabled=true;q('[data-growth-file]').disabled=true;
-    let body=JSON.stringify({serverId:context.serverId,account:q('[data-growth-account]').value,password:q('[data-growth-password]').value});
-    q('[data-growth-password]').value='';status.textContent='正在登录并读取养成，请稍候。不会自动重试。';
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),150000);
-    try {
-      const request=fetch('/api/growth-export/read/',{method:'POST',credentials:'same-origin',cache:'no-store',
-        headers:{'Content-Type':'application/json','X-Growth-Nonce':nonce},body,signal:controller.signal});body='';
-      const response=await request;
-      if(response.status===403){
-        nonce=null;q('[data-growth-retry]').hidden=false;
-        q('[data-growth-service-status]').textContent='登录连接需要重新检查。';
-        throw new Error('本次登录请求未通过安全校验。请点“重新检查登录服务”，重新输入密码后再试；仍失败请刷新页面。');
-      }
-      if(Number(response.headers.get('content-length'))>2_000_000)throw new Error('返回文件过大，未导入。');
-      const text=await response.text();if(text.length>2_000_000)throw new Error('返回文件过大，未导入。');
-      let result;try{result=JSON.parse(text);}catch{throw new Error('服务暂不可用，请稍后再试。');}
-      if(result.error==='game_maintenance'){
-        applyStatus(result.gameStatus??{status:'maintenance'});
-        throw new Error(maintenanceNotice(result.gameStatus??{status:'maintenance'}));
-      }
-      if(result.error==='game_client_update_required')throw new Error('游戏要求新的客户端版本，本次读取已停止；请稍后手动重新查询。');
-      if(!response.ok){const code=typeof result.error==='string'&&/^sdk_service_-?\d+$/.test(result.error)?`（${result.error}）`:'';
-        throw new Error(messages[result.reason]??(response.status===429?'服务繁忙，请稍后再试。':`读取未完成，请稍后再试。${code}`));}
-      prepare(result.snapshot);
-    }catch(error){status.textContent=error.name==='AbortError'?'读取超时，未修改卡库。':error.message;}
-    finally{body='';clearTimeout(timer);busy=false;fields.disabled=!nonce||maintenance;q('[data-growth-file]').disabled=false;}
-  });
-  q('[data-growth-file]').addEventListener('change',async event=>{
-    if(busy)return;clear();busy=true;fields.disabled=true;q('[data-growth-file]').disabled=true;
+  if(loginForm&&fields){
+    retryBtn?.addEventListener('click',()=>{if(!busy){q('[data-growth-service-status]').textContent='正在检查网页登录服务…';checkService();}});
+    checkService();
+    loginForm.addEventListener('submit',async event=>{
+      event.preventDefault();if(busy||!nonce||maintenance)return;busy=true;clear();fields.disabled=true;q('[data-growth-file]').disabled=true;
+      let body=JSON.stringify({serverId:context.serverId,account:q('[data-growth-account]').value,password:q('[data-growth-password]').value});
+      q('[data-growth-password]').value='';status.textContent='正在登录并读取养成，请稍候。不会自动重试。';
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),150000);
+      try {
+        const request=fetch('/api/growth-export/read/',{method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/json','X-Growth-Nonce':nonce},body,signal:controller.signal});body='';
+        const response=await request;
+        if(response.status===403){
+          nonce=null;retryBtn.hidden=false;
+          q('[data-growth-service-status]').textContent='登录连接需要重新检查。';
+          throw new Error('本次登录请求未通过安全校验。请点“重新检查登录服务”，重新输入密码后再试；仍失败请刷新页面。');
+        }
+        if(Number(response.headers.get('content-length'))>2_000_000)throw new Error('返回文件过大，未导入。');
+        const text=await response.text();if(text.length>2_000_000)throw new Error('返回文件过大，未导入。');
+        let result;try{result=JSON.parse(text);}catch{throw new Error('服务暂不可用，请稍后再试。');}
+        if(result.error==='game_maintenance'){
+          applyStatus(result.gameStatus??{status:'maintenance'});
+          throw new Error(maintenanceNotice(result.gameStatus??{status:'maintenance'}));
+        }
+        if(result.error==='game_client_update_required')throw new Error('游戏要求新的客户端版本，本次读取已停止；请稍后手动重新查询。');
+        if(!response.ok){const code=typeof result.error==='string'&&/^sdk_service_-?\d+$/.test(result.error)?`（${result.error}）`:'';
+          throw new Error(messages[result.reason]??(response.status===429?'服务繁忙，请稍后再试。':`读取未完成，请稍后再试。${code}`));}
+        prepare(result.snapshot);
+      }catch(error){status.textContent=error.name==='AbortError'?'读取超时，未修改卡库。':error.message;}
+      finally{body='';clearTimeout(timer);busy=false;fields.disabled=!nonce||maintenance;q('[data-growth-file]').disabled=false;}
+    });
+  }
+  q('[data-growth-file]')?.addEventListener('change',async event=>{
+    if(busy)return;clear();busy=true;if(fields)fields.disabled=true;q('[data-growth-file]').disabled=true;
     try{const file=event.target.files[0];if(!file)return;if(file.size>2_000_000)throw new Error('文件超过 2 MB。');prepare(JSON.parse(await file.text()));}
     catch(error){status.textContent=`未导入：${error.message}`;}
-    finally{event.target.value='';busy=false;fields.disabled=!nonce||maintenance;q('[data-growth-file]').disabled=false;}
+    finally{event.target.value='';busy=false;if(fields)fields.disabled=!nonce||maintenance;q('[data-growth-file]').disabled=false;}
   });
   q('[data-growth-apply]').addEventListener('click',()=>{
     if(!preview||busy)return;

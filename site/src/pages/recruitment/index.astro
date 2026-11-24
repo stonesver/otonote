@@ -12,7 +12,6 @@ import RecruitCard from "../../components/systems/RecruitCard.astro";
 import { globalSystems } from "../../lib/global-systems";
 import { say, banner, categories } from "../../lib/system-display";
 import "../../styles/system-modules.css";
-import "../../styles/filter-panel.css";
 const other=await otherEditionArtifact(activeReleaseContext.region,'projection/global-systems.json');
 const pools: typeof globalSystems.gachaPools = annotateOperations(globalSystems.gachaPools,other?.gachaPools??null,'recruitment',activeReleaseContext.region,activeReleaseContext.locale);
 const hasPickup = (pool: typeof pools[number]) => pool.pickupMemberCardIds.length > 0 || pool.pickupSupportCardIds.length > 0;
@@ -39,14 +38,14 @@ const groups = [
             {pool.pickupMemberCardIds.map(id => <RecruitCard id={id} kind={2} pickup compact />)}
             {pool.pickupSupportCardIds.map(id => <RecruitCard id={id} kind={3} pickup compact />)}
           </div></div>}
-          <div class="recruit-footer"><span>{pool.prizes?.filter(p => p.resourceType === 2 || p.resourceType === 3).length || 0} {say("张卡片", "cards")}</span><button type="button" data-open-pool={pool.id}>{say("查看招募", "View recruitment")} <span aria-hidden="true">↗</span></button></div>
+          <div class="recruit-footer"><span>{pool.prizes?.filter(p => p.resourceType === 2 || p.resourceType === 3).length || 0} {say("张卡片", "cards")}</span><button type="button" class="ui-btn-soft" data-open-pool={pool.id}><span>{say("查看招募", "View recruitment")}</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button></div>
         </div>
       </article>)}
       </div></section>)}
     </div><BrowserPagination />
   </system-browser>
     <dialog class="recruit-dialog" data-recruitment-dialog>
-      <div class="recruit-dialog-toolbar"><span>{say("招募详情", "RECRUITMENT")}</span><button type="button" data-close-dialog aria-label={say("关闭招募详情", "Close recruitment details")}><span aria-hidden="true">×</span></button></div>
+      <div class="recruit-dialog-toolbar"><span>{say("招募详情", "Recruitment")}</span><button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-close-dialog aria-label={say("关闭招募详情", "Close recruitment details")}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div data-dialog-content></div>
     </dialog>
     {pools.map(pool => <template data-recruitment-template={pool.id}><RecruitmentDetail pool={pool} /></template>)}

@@ -9,7 +9,6 @@ import { type GachaPool } from "../../lib/global-systems";
 import { catalog } from "../../lib/catalog";
 import { say, banner, categories, rarityLabel } from "../../lib/system-display";
 import "../../styles/system-modules.css";
-import "../../styles/filter-panel.css";
 interface Props { pool: GachaPool; }
 const { pool } = Astro.props;
 const prizes = pool.prizes || [];
@@ -39,7 +38,22 @@ const percent = (value: number | null) => value === null ? "—" : `${Number(val
         <button type="button" data-view="rates" aria-pressed="false">{say("概率与规则", "Rates & rules")}</button>
       </nav>
       <div data-view-panel="featured" hidden={!featured.length}>
-        {featured.length ? <><p class="recruit-featured-note">{say(`成员卡 UP ${pool.pickupMemberCardIds.length} 张 · 留影 UP ${pool.pickupSupportCardIds.length} 张`, `Featured members: ${pool.pickupMemberCardIds.length} · Featured snapshots: ${pool.pickupSupportCardIds.length}`)}{pool.pickupSupportCardIds.length === 0 && say("。留影可在全部内容中查看，不属于本次 UP。", ". Included snapshots are listed under All contents; they are not featured.")}</p><div class="recruit-cards">{featured.map(prize => <RecruitCard id={prize.resourceId} kind={prize.resourceType} pickup rate={prize.fixedRateBasisPoints} />)}</div></>
+        {featured.length ? (() => {
+          const featuredMembers = featured.filter(prize => prize.resourceType === 2);
+          const featuredSnaps = featured.filter(prize => prize.resourceType !== 2);
+          const both = featuredMembers.length > 0 && featuredSnaps.length > 0;
+          return <>
+            <p class="recruit-featured-note">{say(`成员卡 UP ${pool.pickupMemberCardIds.length} 张 · 留影 UP ${pool.pickupSupportCardIds.length} 张`, `Featured members: ${pool.pickupMemberCardIds.length} · Featured snapshots: ${pool.pickupSupportCardIds.length}`)}{pool.pickupSupportCardIds.length === 0 && say("。留影可在全部内容中查看，不属于本次 UP。", ". Included snapshots are listed under All contents; they are not featured.")}</p>
+            {featuredMembers.length > 0 && <div class="recruit-featured-group">
+              {both && <h3 class="recruit-featured-heading">{say("成员卡 UP", "Featured members")}</h3>}
+              <div class="recruit-cards recruit-cards--members">{featuredMembers.map(prize => <RecruitCard id={prize.resourceId} kind={prize.resourceType} pickup rate={prize.fixedRateBasisPoints} />)}</div>
+            </div>}
+            {featuredSnaps.length > 0 && <div class="recruit-featured-group">
+              {both && <h3 class="recruit-featured-heading">{say("留影 UP", "Featured snapshots")}</h3>}
+              <div class="recruit-cards recruit-cards--snaps">{featuredSnaps.map(prize => <RecruitCard id={prize.resourceId} kind={prize.resourceType} pickup rate={prize.fixedRateBasisPoints} />)}</div>
+            </div>}
+          </>;
+        })()
           : <div class="sys-empty"><h2>{say("本招募没有单独指定 UP 卡片", "No individually featured cards")}</h2><p>{say("可在“全部内容”查看收录的成员卡与留影。", "See All contents for the included members and snapshots.")}</p></div>}
       </div>
       <div data-view-panel="all" hidden={featured.length > 0}><system-browser data-filter-scope>

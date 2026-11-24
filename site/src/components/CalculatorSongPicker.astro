@@ -1,8 +1,13 @@
 ---
 import {filterVisual} from '../lib/filter-visuals';
 const optionVisual = (kind: string, value: string | number) => {
-  const visual = filterVisual(kind, String(value));
-  return {'data-icon': visual.icon, 'data-icon-only': visual.iconOnly ? 'true' : undefined, 'data-round': visual.round ? 'true' : undefined};
+  const visual = filterVisual(kind === 'band' ? 'band-round' : kind, String(value));
+  return {
+    'data-icon': visual.icon,
+    'data-fallback-icon': 'fallbackIcon' in visual ? visual.fallbackIcon : undefined,
+    'data-icon-only': visual.iconOnly ? 'true' : undefined,
+    'data-round': visual.round ? 'true' : undefined,
+  };
 };
 import SelectionFilters from "./SelectionFilters.astro";
 import {catalog,getAsset,getCardAttribute} from '../lib/catalog';

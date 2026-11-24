@@ -31,6 +31,7 @@ class SongRanking extends HTMLElement {
       try { this.server = currentServerContext().serverId; } catch (error) { this.serverError = error.message; }
       for (const button of this.querySelectorAll('[data-mode]')) listen(button, 'click', () => {
         this.mode = button.dataset.mode; this.expanded.clear();
+        this.closeDetailDialog();
         if (this.mode === 'ordinary' && specialMetrics.includes(this.metric)) this.setMetric('expectedScore');
         this.render();
       });
@@ -49,8 +50,34 @@ class SongRanking extends HTMLElement {
         listen(panel,'toggle',()=>{if(panel.open)for(const other of this.querySelectorAll('[data-toolbar-panel]'))if(other!==panel)other.open=false;});
         for(const close of panel.querySelectorAll('[data-close-panel]'))listen(close,'click',()=>closePanel(panel));
       }
-      listen(this,'keydown',event=>{if(event.key==='Escape'){const panel=this.querySelector('[data-toolbar-panel][open],.ranking-provenance[open]');if(panel){closePanel(panel);event.preventDefault();}}});
-      listen(document,'pointerdown',event=>{for(const panel of this.querySelectorAll('[data-toolbar-panel][open],.ranking-provenance[open]'))if(!panel.contains(event.target))panel.open=false;});
+      listen(this,'keydown',event=>{if(event.key==='Escape'){const panel=this.querySelector('[data-toolbar-panel][open],.ui-tip-disclosure[open]');if(panel){panel.open=false;panel.querySelector('summary')?.focus();event.preventDefault();}}});
+      listen(document,'pointerdown',event=>{for(const panel of this.querySelectorAll('[data-toolbar-panel][open]'))if(!panel.contains(event.target))panel.open=false;});
+      const detailDialog = this.querySelector('[data-ranking-detail-dialog]');
+      if (detailDialog) {
+        this.detailDialog = detailDialog;
+        let pressedOutside = false;
+        const outside = event => {
+          if (document.querySelector('[data-ranking-chart-dialog][open]')) return false;
+          const r = detailDialog.getBoundingClientRect();
+          return event.target === detailDialog && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom);
+        };
+        listen(detailDialog, 'pointerdown', event => { pressedOutside = outside(event); });
+        listen(detailDialog, 'click', event => { if (pressedOutside && outside(event)) this.closeDetailDialog(); pressedOutside = false; });
+        listen(detailDialog.querySelector('[data-ranking-detail-close]'), 'click', () => this.closeDetailDialog());
+        listen(detailDialog.querySelector('[data-ranking-detail-prev]'), 'click', () => this.stepDetail(-1));
+        listen(detailDialog.querySelector('[data-ranking-detail-next]'), 'click', () => this.stepDetail(1));
+        listen(detailDialog, 'keydown', event => {
+          if (event.target?.closest?.('input, select, textarea') || document.querySelector('[data-ranking-chart-dialog][open]')) return;
+          if (event.key === 'ArrowLeft') { event.preventDefault(); this.stepDetail(-1); }
+          else if (event.key === 'ArrowRight') { event.preventDefault(); this.stepDetail(1); }
+        });
+        listen(detailDialog, 'close', () => {
+          this.activeDetailId = null;
+          this.querySelectorAll('tbody[data-rows] tr[data-active-detail]').forEach(tr => tr.removeAttribute('data-active-detail'));
+          if (this.detailOrigin?.isConnected) this.detailOrigin.focus({preventScroll:true});
+          this.detailOrigin = null;
+        });
+      }
       listen(this.querySelector('[data-copy-skills]'), 'click', () => {
         const slots = [...this.querySelectorAll('[data-skill-slot]')];
         for (const slot of slots.slice(1)) for (const key of ['percent','seconds']) slot.querySelector(`[data-skill-${key}]`).value = slots[0].querySelector(`[data-skill-${key}]`).value;
@@ -89,7 +116,7 @@ class SongRanking extends HTMLElement {
       this.querySelector('[data-reset-all]').hidden = true;
     }
   }
-  disconnectedCallback() { this.chartDialog?.destroy();this.shortcuts?.destroy(); this.replays?.destroy(); this.events?.abort(); this.events = null; }
+  disconnectedCallback() { this.closeDetailDialog(); this.chartDialog?.destroy();this.shortcuts?.destroy(); this.replays?.destroy(); this.events?.abort(); this.events = null; }
   setMetric(metric) {
     this.metric = metric;
     this.querySelector('[data-direction]').value = defaultRankingDirection(metric);
@@ -161,7 +188,7 @@ class SongRanking extends HTMLElement {
     const ranked = rankRefinedSongRows(rows, options);
     const valid = ranked.filter(row => row.rank !== null);
     const scoreLabel = replayView ? say('逐谱平均分','Replay mean') : custom ? say('快速平均参考分','Quick estimated mean') : profile === 'none' ? say('无技能参考分','No-skill score') : this.mode === 'gekisou' ? say('样本平均分','Sample mean') : say('基准平均分','Benchmark mean');
-    const size = 50;
+    const size = 25;
     q('[data-count]').textContent = say(`${ranked.length} 张谱面`, `${ranked.length} charts`);
     q('[data-context]').textContent = [this.mode === 'ordinary' ? say('普通','Ordinary') : say('激奏样本 · 非实战保底','Gekisou samples · not guaranteed'), profileLabel,
       ['requiredPower','targetScore'].includes(this.metric) ? `${say('目标','Target')} ${q('[data-grade-target]').selectedOptions[0].textContent}` : '',
@@ -187,21 +214,63 @@ class SongRanking extends HTMLElement {
     q('[data-empty] p').textContent = replayView ? say('开始逐谱精算，或切回全部筛选结果。若刚按每首歌选谱或数值范围比较，可放宽条件查看其他已算结果。', 'Run chart replay or return to all filtered results. Relax grouping or value filters to see other completed results.') : say('清空筛选，或放宽版本、计算状态、难度与数值区间。', 'Clear filters or relax edition, calculation state, difficulty and numeric ranges.');
     q('[data-show-all]').hidden = !replayView;
     this.tableOptions = {rows:ranked,page:0,size,mode:this.mode,metric:this.metric,direction:options.direction,locale:document.documentElement.lang,
-      artwork:this.data.artwork,expanded:this.expanded,detail:(root,row)=>this.detail(root,row),reveal:this.revealMetric,scoreLabel};
+      artwork:this.data.artwork,expanded:this.expanded,detail:(root,row)=>this.detail(root,row),reveal:this.revealMetric,scoreLabel,
+      onOpenDetail:(row,trigger)=>this.openDetail(row,trigger),activeDetailId:this.activeDetailId??null};
     renderRankingTable(this,this.tableOptions);
     this.visibleCount = Math.min(size,ranked.length);
     q('[data-results]').scrollTop = 0;
     this.updateLoadedCount();
     this.revealMetric=false;
     this.shortcuts?.sync();
+    if (this.detailDialog?.open && this.activeDetailId) {
+      const currentRow = ranked.find(r => r.id === this.activeDetailId);
+      if (currentRow) this.openDetail(currentRow);
+      else this.closeDetailDialog();
+    }
   }
   loadMore() {
     const options = this.tableOptions;
     if (!options || this.visibleCount >= options.rows.length) return;
     const next = options.rows.slice(this.visibleCount, this.visibleCount + options.size);
-    renderRankingTable(this,{...options,rows:next,page:0,append:true,reveal:false});
+    renderRankingTable(this,{...options,rows:next,page:0,append:true,reveal:false,activeDetailId:this.activeDetailId??null});
     this.visibleCount += next.length;
     this.updateLoadedCount();
+  }
+  openDetail(row, triggerEl = null) {
+    const dialog = this.detailDialog;
+    if (!dialog || !row) return;
+    const rows = this.tableOptions?.rows ?? [];
+    const idx = rows.findIndex(r => r.id === row.id);
+    if (!dialog.open) this.detailOrigin = triggerEl ?? document.activeElement;
+    this.activeDetailId = row.id;
+    this.querySelectorAll('tbody[data-rows] tr[data-active-detail]').forEach(tr => tr.removeAttribute('data-active-detail'));
+    const activeTr = [...this.querySelectorAll('tbody[data-rows] tr')].find(tr => tr.dataset.rowId === row.id);
+    if (activeTr) activeTr.dataset.activeDetail = 'true';
+    const rankEl = dialog.querySelector('[data-ranking-detail-rank]');
+    if (rankEl) rankEl.textContent = `#${row.rank ?? '—'} · ${this.mode === 'gekisou' ? say('激奏', 'Gekisou') : say('普通', 'Ordinary')}`;
+    const prevBtn = dialog.querySelector('[data-ranking-detail-prev]');
+    const nextBtn = dialog.querySelector('[data-ranking-detail-next]');
+    if (prevBtn) prevBtn.disabled = idx <= 0;
+    if (nextBtn) nextBtn.disabled = idx < 0 || idx >= rows.length - 1;
+    const body = dialog.querySelector('[data-ranking-detail-body]');
+    if (body) {
+      body.replaceChildren();
+      this.detail(body, row);
+    }
+    const scroller = dialog.querySelector('.ranking-detail-scroll');
+    if (scroller) scroller.scrollTop = 0;
+    if (!dialog.open) dialog.showModal();
+  }
+  stepDetail(delta) {
+    const rows = this.tableOptions?.rows ?? [];
+    const idx = rows.findIndex(r => r.id === this.activeDetailId);
+    const nextIdx = idx + delta;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= rows.length) return;
+    if (nextIdx >= this.visibleCount) this.loadMore();
+    this.openDetail(rows[nextIdx]);
+  }
+  closeDetailDialog() {
+    if (this.detailDialog?.open) this.detailDialog.close();
   }
   updateLoadedCount() {
     const total = this.tableOptions.rows.length, complete = this.visibleCount >= total;
@@ -209,6 +278,14 @@ class SongRanking extends HTMLElement {
     const more = this.querySelector('[data-load-more]');
     more.disabled = complete;
     more.textContent = complete ? say('已全部加载', 'All loaded') : say('加载更多', 'Load more');
+    if (!this._loadMoreObserver && typeof IntersectionObserver !== 'undefined') {
+      this._loadMoreObserver = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting) && this.tableOptions && this.visibleCount < this.tableOptions.rows.length) {
+          this.loadMore();
+        }
+      }, { rootMargin: '280px 0px' });
+      this._loadMoreObserver.observe(more);
+    }
   }
   detail(root,row) {
     renderRankingDetail(root,row,{mode:this.mode,locale:document.documentElement.lang,server:this.server,edition:this.options.edition,artwork:this.data.artwork[row.trackId],openChart:(chart,edition)=>this.chartDialog.open(chart,edition)});

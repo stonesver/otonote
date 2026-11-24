@@ -1,31 +1,364 @@
-.ap-workbench{display:grid;gap:24px}.ap-workbench h2{margin-bottom:16px}.ap-team{display:grid;gap:12px;margin:20px 0}.ap-team-row{display:grid;grid-template-columns:48px minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;padding-bottom:12px;border-bottom:1px solid var(--theme-border)}.ap-team-row>strong{padding-top:22px;font-size:12px}.ap-team-row label{min-width:0}.ap-team-row select{width:100%}.ap-card-meta{font-size:11px;color:var(--calc-muted);line-height:1.6}.ap-workbench .event-controls{row-gap:16px}.ap-result-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}.ap-threshold{color:var(--calc-accent)!important;font-weight:600}
-@media(max-width:640px){.ap-team-row{grid-template-columns:minmax(0,1fr)}.ap-team-row>strong{padding:0}.ap-workbench .event-controls label{flex-basis:100%}.ap-team-row select{font-size:12px}.ap-workbench .event-rec-results{grid-template-columns:minmax(0,1fr)}}
+/* Team AP Forecast workbench unified styles. */
+.ap-workbench {
+  display: grid;
+  gap: 16px;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
 
-.ap-card-preview{width:40px;height:44px;object-fit:cover;border-radius:5px}.ap-team-row label:has(.ap-card-preview){grid-template-columns:40px minmax(0,1fr)}.ap-card-preview{grid-column:1;grid-row:2/4}.ap-team-row label:has(.ap-card-preview) select,.ap-team-row label:has(.ap-card-preview) .ap-card-meta{grid-column:2}
+.ap-workbench .event-panel {
+  padding: 20px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: var(--ds-radius-md, 12px);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-card-shadow);
+}
 
-.tool-studio ap-grade-tool.ap-workbench{gap:14px}
-.tool-studio .ap-workbench h2{margin-bottom:10px}
-.tool-studio .ap-workbench .studio-step{width:22px;height:22px;margin-right:7px;border-radius:5px;font-size:11px}
-.tool-studio .ap-workbench .event-panel>p{margin-block:8px}
-.tool-studio .ap-workbench .event-controls{gap:8px 12px}
-.tool-studio .ap-workbench .ap-team{gap:8px;margin:12px 0}
-.tool-studio .ap-workbench .ap-option-groups{display:grid;gap:10px;margin:12px 0}
-.tool-studio .ap-workbench .ap-option-groups>label{gap:5px;padding:0;border:0;font-size:11px}
-.tool-studio .ap-workbench .ap-mode-controls{grid-template-columns:auto minmax(0,1fr);align-items:end;gap:8px 14px}
-.tool-studio .ap-mode-controls>label{gap:5px}
-.tool-studio .ap-mode-controls>label:first-child{flex:0 1 auto}
-.tool-studio .ap-workbench .ap-level-control{grid-template-columns:64px 64px minmax(0,1fr);align-items:center;gap:6px}
-.tool-studio .ap-workbench .ap-level-control input{width:64px}
-.tool-studio .ap-results-panel .ap-option-groups{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
-.tool-studio .ap-results-panel .ap-option-groups>label:last-child{grid-column:1/-1;grid-template-columns:64px minmax(0,1fr);align-items:center}
-.tool-studio .ap-workbench .ap-result-actions{gap:8px;margin-top:8px}
-.tool-studio .ap-workbench .event-rec-results{gap:10px;margin-top:12px}
-.tool-studio .ap-workbench .event-rec-row{padding:12px;border-radius:7px}
-.tool-studio .ap-workbench .event-rec-pagination{gap:10px;margin:12px 0 0}
-@media(max-width:640px){
- .tool-studio .ap-workbench .ap-mode-controls{grid-template-columns:auto minmax(0,1fr)}
- .tool-studio .ap-results-panel .ap-option-groups{grid-template-columns:minmax(0,1fr)}
- .tool-studio .ap-results-panel .ap-option-groups>label{grid-template-columns:64px minmax(0,1fr);align-items:center}
- .tool-studio .ap-workbench .ap-level-control{grid-template-columns:56px 56px minmax(0,1fr)}
- .tool-studio .ap-workbench .ap-level-control input{width:56px}
+.ap-workbench h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+
+.ap-workbench .ap-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ap-workbench .ap-panel-head h2 {
+  margin: 0;
+}
+
+.ap-workbench .event-panel > p {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--theme-muted);
+}
+
+.ap-workbench .studio-step {
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-team {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.ap-team-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: var(--ds-radius-sm, 8px);
+  background: var(--theme-surface-tint);
+}
+
+.ap-team-row > strong {
+  padding-top: 24px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-muted);
+}
+
+.ap-team-row label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--theme-muted);
+}
+
+.ap-card-preview {
+  width: 40px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.ap-card-meta {
+  font-size: 12px;
+  color: var(--theme-muted);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-workbench .event-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.ap-workbench button {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ds-radius-sm, 8px);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ap-workbench button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, var(--theme-border));
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+}
+
+.ap-workbench button.event-primary,
+.ap-workbench [data-ap-run] {
+  min-height: 36px;
+  padding: 6px 16px;
+  background: var(--theme-action);
+  border-color: var(--theme-action);
+  color: var(--theme-on-action);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ap-workbench button.event-primary:hover:not(:disabled),
+.ap-workbench [data-ap-run]:hover:not(:disabled) {
+  background: var(--theme-accent-bright);
+  border-color: var(--theme-accent-bright);
+  color: var(--theme-on-action);
+}
+
+.tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench :is(select:not([multiple]), input[type="search"], input[type="number"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--ds-radius-sm, 8px);
+  background-color: var(--theme-surface);
+  color: var(--theme-text);
+  font-size: 13px;
+}
+
+.tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-muted) 50%),
+    linear-gradient(135deg, var(--theme-muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench select:not([multiple]):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--theme-accent) 65%, var(--theme-border));
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--theme-accent) 50%),
+    linear-gradient(135deg, var(--theme-accent) 50%, transparent 50%);
+}
+
+.ap-workbench .tool-options button[data-difficulty] {
+  --difficulty: var(--theme-muted);
+  color: var(--difficulty);
+  border: 1px solid color-mix(in srgb, var(--difficulty) 30%, transparent);
+  background: color-mix(in srgb, var(--difficulty) 6%, var(--theme-surface));
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 28px;
+  padding: 3px 9px;
+}
+
+.ap-workbench .tool-options button[data-difficulty="easy"] { /* Game semantics: difficulty identity. */ --difficulty: #207959; }
+.ap-workbench .tool-options button[data-difficulty="normal"] { /* Game semantics: difficulty identity. */ --difficulty: #2968a5; }
+.ap-workbench .tool-options button[data-difficulty="hard"] { /* Game semantics: difficulty identity. */ --difficulty: #98600c; }
+.ap-workbench .tool-options button[data-difficulty="expert"] { /* Game semantics: difficulty identity. */ --difficulty: #97416b; }
+.ap-workbench .tool-options button[data-difficulty][aria-pressed="true"],
+.ap-workbench .tool-options button[data-difficulty][aria-pressed="true"]:hover:not(:disabled) {
+  color: var(--theme-media-text);
+  background: var(--difficulty);
+  border-color: var(--difficulty);
+}
+
+.tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench > .calculation-scope {
+  margin: 0;
+  padding: 16px 20px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: var(--ds-radius-md, 12px);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-card-shadow);
+  display: grid;
+  gap: 8px;
+}
+
+.tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench > .calculation-scope > label {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--theme-muted);
+}
+
+.ap-workbench .calculation-scope-summary {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+
+.ap-workbench .playlist-help,
+.ap-workbench .calculation-scope > details,
+.ap-workbench .calculation-scope > details > summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--theme-muted);
+}
+
+.ap-workbench .calculation-scope button:disabled {
+  display: none;
+}
+
+.ap-workbench .ap-option-groups {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.ap-workbench .ap-option-groups > label {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  color: var(--theme-muted);
+}
+
+.ap-workbench .ap-mode-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: 8px 14px;
+}
+
+.ap-workbench .ap-mode-controls > label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--theme-muted);
+}
+
+.ap-workbench .ap-level-control {
+  display: grid;
+  grid-template-columns: 64px 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-workbench .ap-level-control input {
+  width: 72px;
+}
+
+.ap-results-panel .ap-option-groups {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  align-content: start;
+  gap: 10px 16px;
+}
+
+.ap-results-panel .ap-option-groups > label:last-child {
+  grid-column: 1 / -1;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+}
+
+.ap-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ap-workbench .event-rec-results {
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ap-workbench .event-rec-row {
+  padding: 14px;
+  border: 1px solid var(--theme-border-soft);
+  border-radius: var(--ds-radius-sm, 8px);
+  background: var(--theme-surface-tint);
+}
+
+.ap-workbench .event-rec-pagination {
+  gap: 10px;
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.ap-threshold {
+  color: var(--theme-accent) !important;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .ap-workbench .event-panel,
+  .tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench > .calculation-scope {
+    padding: 14px;
+  }
+
+  .ap-team-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .ap-team-row > strong {
+    padding: 0;
+  }
+
+  .tool-studio.tool-studio[data-tool-kind="ap-grade"] .ap-workbench :is(select:not([multiple]), input[type="search"], input[type="number"]) {
+    min-height: 38px;
+    font-size: 16px;
+  }
+
+  .ap-workbench .ap-mode-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ap-results-panel .ap-option-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ap-results-panel .ap-option-groups > label {
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .ap-workbench .ap-level-control {
+    grid-template-columns: 64px 64px minmax(0, 1fr);
+  }
+
+  .ap-workbench .event-rec-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

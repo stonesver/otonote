@@ -42,6 +42,7 @@ export function rankingPicker(select, {label, en = false, describe = () => null}
       const info = describe(option.value);
       if (info?.image) {
         const image = document.createElement('img');image.src = info.image;image.alt = '';image.loading = 'lazy';image.decoding = 'async';
+        if (info.round) image.className = 'pr-picker-icon--round';
         image.addEventListener('error',()=>image.remove(),{once:true});button.append(image);
       }
       const text = document.createElement('span');text.textContent = info?.name || option.textContent;button.append(text);

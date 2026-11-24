@@ -1,9 +1,9 @@
 .immersive-library { padding-block: 28px 40px; }
 .immersive-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:22px; }
-.immersive-heading h1 { font-size:clamp(25px,3vw,36px); letter-spacing:-.04em; line-height:1.35; margin:7px 0 12px; }
-.immersive-heading p:not(.home-kicker) { color:var(--silver-dark); font-size:12px; margin:0; }
-.immersive-heading > a { color:var(--lacquer); font-size:12px; flex-shrink:0; }
-.immersive-scene { min-width:0; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--paper-light); }
+.immersive-heading h1 { font-size:clamp(25px,3vw,36px); letter-spacing:-.03em; line-height:1.35; margin:7px 0 12px; }
+.immersive-heading p:not(.home-kicker) { color:var(--theme-muted); font-size:12px; margin:0; }
+.immersive-heading > a { color:var(--theme-accent); font-size:12px; font-weight:600; flex-shrink:0; }
+.immersive-scene { min-width:0; border:1px solid var(--theme-border-soft); border-radius:16px; overflow:hidden; background:var(--theme-surface); box-shadow:var(--theme-card-shadow); }
 .immersive-viewport { position:relative; aspect-ratio:16/9; overflow:hidden; background:var(--theme-media-shade); }
 .immersive-canvas,.immersive-poster { position:absolute; inset:0; width:100%; height:100%; }
 .immersive-poster { object-fit:cover; object-position:center; }
@@ -11,7 +11,7 @@
 .immersive-canvas:active { cursor:grabbing; }
 .immersive-canvas canvas { display:block; width:100%; height:100%; }
 .immersive-start { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:color-mix(in srgb, var(--theme-media-shade) 14.9%, transparent); }
-.immersive-start > span { color:var(--theme-media-text); font-size:11px; text-shadow:0 1px 4px var(--theme-media-shade); }
+.immersive-start > span { color:var(--theme-media-text); font-size:12px; text-shadow:0 1px 4px var(--theme-media-shade); }
 .immersive-load-progress { width:min(300px,calc(100% - 40px)); box-sizing:border-box; padding:12px 14px; border:1px solid color-mix(in srgb, var(--theme-media-text) 33.33%, transparent); border-radius:10px; color:var(--theme-media-text); background:color-mix(in srgb, var(--theme-media-shade) 92.94%, transparent); font-size:12px; box-shadow:0 5px 26px color-mix(in srgb, var(--theme-shadow-color) 13.33%, transparent); }
 .immersive-load-progress > div { display:flex; justify-content:space-between; gap:12px; }
 .immersive-load-progress [data-load-percent],.immersive-load-progress small { font-variant-numeric:tabular-nums; }
@@ -19,107 +19,108 @@
 .immersive-load-progress progress::-webkit-progress-bar { background:color-mix(in srgb, var(--theme-media-text) 18.82%, transparent); border-radius:99px; }
 .immersive-load-progress progress::-webkit-progress-value { background:var(--theme-accent-bright); border-radius:99px; }
 .immersive-load-progress progress::-moz-progress-bar { background:var(--theme-accent-bright); border-radius:99px; }
-.immersive-load-progress small { display:block; margin-top:6px; font-size:10px; color:var(--theme-media-text); }
+.immersive-load-progress small { display:block; margin-top:6px; font-size:12px; color:var(--theme-media-text); }
 .immersive-load-progress small:empty { display:none; }
 .immersive-scene[data-state="loading"] .immersive-start > span { display:none; }
 .immersive-load { display:flex; align-items:center; gap:10px; padding:13px 22px; border:1px solid color-mix(in srgb, var(--theme-media-text) 60%, transparent); border-radius:99px; color:var(--theme-media-text); background:color-mix(in srgb, var(--theme-media-shade) 90.2%, transparent); font:600 13px var(--font-body); cursor:pointer; box-shadow:0 5px 26px color-mix(in srgb, var(--theme-shadow-color) 13.33%, transparent); }
 .immersive-load span { font-size:22px; line-height:1; }
 .immersive-scene[data-state="ready"] .immersive-poster,.immersive-scene[data-state="ready"] .immersive-start { display:none; }
-.immersive-scene-label { position:absolute; bottom:12px; left:15px; color:var(--theme-media-text); background:color-mix(in srgb, var(--theme-media-shade) 70.2%, transparent); border:1px solid color-mix(in srgb, var(--theme-media-text) 20%, transparent); border-radius:6px; padding:5px 9px; font-size:10px; pointer-events:none; }
+.immersive-scene-label { position:absolute; bottom:12px; left:15px; color:var(--theme-media-text); background:color-mix(in srgb, var(--theme-media-shade) 70.2%, transparent); border:1px solid color-mix(in srgb, var(--theme-media-text) 20%, transparent); border-radius:6px; padding:5px 9px; font-size:12px; pointer-events:none; }
 .immersive-scene-label > span { opacity:.45; margin-inline:5px; }
-.immersive-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
+.immersive-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 16px; border-bottom:1px solid var(--theme-border-soft); }
 .immersive-controls[hidden],.immersive-scene [hidden] { display:none!important; }
-.immersive-controls button,.immersive-controls select,.immersive-export button { border:1px solid var(--line); color:var(--ink); background:var(--paper-light); padding:8px 11px; border-radius:7px; font:12px var(--font-body); cursor:pointer; }
-.immersive-controls button:hover,.immersive-export button:hover { border-color:var(--lacquer); }
+.immersive-controls button,.immersive-export button { border:1px solid var(--theme-border); color:var(--theme-text); background:var(--theme-surface); padding:7px 12px; border-radius:8px; font:500 12px var(--font-body); cursor:pointer; }
+.immersive-controls select { padding:6px 28px 6px 10px; border:1px solid var(--theme-border); border-radius:8px; color:var(--theme-text); background-color:var(--theme-surface); font:500 12px/1.4 var(--font-body); }
+.immersive-controls button:hover,.immersive-export button:hover { border-color:var(--theme-accent); }
 .immersive-scene button:disabled { opacity:.5; cursor:default; }
-.immersive-scene :focus-visible { outline:2px solid var(--lacquer); outline-offset:3px; }
-.immersive-layer { display:flex; gap:8px; align-items:center; font-size:11px; }
+.immersive-scene :focus-visible { outline:2px solid var(--theme-focus); outline-offset:3px; }
+.immersive-layer { display:flex; gap:8px; align-items:center; font-size:12px; }
 .immersive-zoom { display:flex; gap:5px; }
 .immersive-timeline { margin-left:auto; display:flex; align-items:center; gap:10px; min-width:190px; flex:1; max-width:320px; }
-.immersive-timeline input { min-width:60px; width:100%; accent-color:var(--lacquer); }
+.immersive-timeline input { min-width:60px; width:100%; accent-color:var(--theme-accent); }
 .immersive-timeline .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
-.immersive-timeline output { font:10px var(--font-mono); white-space:nowrap; color:var(--silver-dark); }
+.immersive-timeline output { font:12px var(--font-body); font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--theme-muted); }
 .immersive-export { display:flex; justify-content:space-between; gap:22px; padding:20px; align-items:center; }
 .immersive-export strong { font-size:15px; }
-.immersive-export p { font-size:12px; margin:7px 0; color:var(--silver-dark); }
-.immersive-export small { font-size:10px; color:var(--silver-dark); }
+.immersive-export p { font-size:12px; margin:7px 0; color:var(--theme-muted); }
+.immersive-export small { font-size:12px; font-variant-numeric:tabular-nums; color:var(--theme-muted); }
 .immersive-export-actions { display:flex; flex-wrap:wrap; gap:8px; flex-shrink:0; }
-.immersive-export-actions button:first-child { background:var(--lacquer); color:var(--theme-on-accent); border-color:var(--lacquer); }
+.immersive-export-actions button:first-child { background:var(--theme-action); color:var(--theme-on-action); border-color:var(--theme-action); }
 .immersive-export-progress { margin:0 20px 4px; }
-.immersive-export-progress > div { display:flex; justify-content:space-between; gap:12px; font-size:12px; color:var(--lacquer); margin-bottom:8px; }
+.immersive-export-progress > div { display:flex; justify-content:space-between; gap:12px; font-size:12px; color:var(--theme-accent); margin-bottom:8px; }
 .immersive-export-progress [data-export-percent] { font-variant-numeric:tabular-nums; }
-.immersive-export-progress progress { display:block; appearance:none; width:100%; height:7px; border:0; border-radius:99px; overflow:hidden; background:var(--paper-deep); accent-color:var(--lacquer); }
-.immersive-export-progress progress::-webkit-progress-bar { background:var(--paper-deep); border-radius:99px; }
-.immersive-export-progress progress::-webkit-progress-value { background:var(--lacquer); border-radius:99px; }
-.immersive-export-progress progress::-moz-progress-bar { background:var(--lacquer); border-radius:99px; }
-.immersive-status { margin:0; padding:0 20px; font-size:12px; color:var(--lacquer); }
+.immersive-export-progress progress { display:block; appearance:none; width:100%; height:7px; border:0; border-radius:99px; overflow:hidden; background:var(--theme-surface-deep); accent-color:var(--theme-accent); }
+.immersive-export-progress progress::-webkit-progress-bar { background:var(--theme-surface-deep); border-radius:99px; }
+.immersive-export-progress progress::-webkit-progress-value { background:var(--theme-accent); border-radius:99px; }
+.immersive-export-progress progress::-moz-progress-bar { background:var(--theme-accent); border-radius:99px; }
+.immersive-status { margin:0; padding:0 20px; font-size:12px; color:var(--theme-accent); }
 .immersive-status:not(:empty) { padding-block:12px; }
-.immersive-download { display:inline-block; margin:0 20px 15px; font-size:12px; color:var(--lacquer); text-decoration:underline; }
-.immersive-export-preview { margin:0 20px 20px; font-size:12px; color:var(--silver-dark); }
+.immersive-download { display:inline-block; margin:0 20px 15px; font-size:12px; color:var(--theme-accent); text-decoration:underline; }
+.immersive-export-preview { margin:0 20px 20px; font-size:12px; color:var(--theme-muted); }
 .immersive-export-preview summary { cursor:pointer; margin-bottom:10px; }
 .immersive-export-preview img,.immersive-export-preview video { display:block; width:100%; max-height:400px; object-fit:contain; background:repeating-conic-gradient(var(--theme-surface-deep) 0% 25%,var(--theme-surface) 0% 50%) 0/20px 20px; border-radius:8px; }
-.immersive-notes { display:flex; align-items:baseline; gap:20px; padding:18px 2px; font-size:11px; color:var(--silver-dark); }
-.immersive-notes span { flex-shrink:0; color:var(--lacquer); }
+.immersive-notes { display:flex; align-items:baseline; gap:20px; padding:18px 2px; font-size:12px; color:var(--theme-muted); }
+.immersive-notes span { flex-shrink:0; color:var(--theme-accent); }
 .immersive-notes p { margin:0; }
-.home-immersive-hero { display:none; grid-template-columns: minmax(230px,.75fr) minmax(0,1.4fr); border:1px solid var(--line); border-radius:18px; overflow:hidden; margin-bottom:14px; background:var(--paper-light); }
+.home-immersive-hero { display:none; grid-template-columns: minmax(230px,.75fr) minmax(0,1.4fr); border:1px solid var(--theme-border-soft); border-radius:18px; overflow:hidden; margin-bottom:14px; background:var(--theme-surface); }
 html[data-home="immersive"] .home-immersive-hero { display:grid; }
 html[data-home="immersive"] .home-intro--illustrated { display:none; }
 .home-immersive-copy { display:flex; flex-direction:column; justify-content:center; padding:28px; }
-.home-immersive-copy h1 { margin:9px 0 13px; font-size:clamp(24px,2.5vw,34px); line-height:1.4; letter-spacing:-.05em; }
-.home-immersive-copy > p:not(.home-kicker) { margin:0; color:var(--silver-dark); font-size:12px; line-height:1.9; }
-.home-immersive-copy > div { display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin:22px 0 24px; font-size:12px; color:var(--lacquer); }
-.home-immersive-primary { background:var(--lacquer); color:var(--theme-on-accent); padding:9px 12px; border-radius:8px; }
-.home-immersive-copy small { color:var(--silver-dark); font-size:10px; }
-.immersive-scene--compact { border:0; border-radius:0; display:flex; flex-direction:column; background:var(--paper-deep); }
+.home-immersive-copy h1 { margin:9px 0 13px; font-size:clamp(24px,2.5vw,34px); line-height:1.4; letter-spacing:-.04em; }
+.home-immersive-copy > p:not(.home-kicker) { margin:0; color:var(--theme-muted); font-size:12px; line-height:1.9; }
+.home-immersive-copy > div { display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin:22px 0 24px; font-size:12px; color:var(--theme-accent); }
+.home-immersive-primary { background:var(--theme-action); color:var(--theme-on-action); padding:9px 12px; border-radius:8px; }
+.home-immersive-copy small { color:var(--theme-muted); font-size:12px; }
+.immersive-scene--compact { border:0; border-radius:0; display:flex; flex-direction:column; background:var(--theme-surface-deep); }
 .immersive-scene--compact .immersive-viewport { flex:1; min-height:300px; }
 .immersive-scene--compact .immersive-controls { justify-content:space-between; padding:7px 12px; border:0; }
-.immersive-scene--compact .immersive-controls a { font-size:11px; color:var(--lacquer); }
+.immersive-scene--compact .immersive-controls a { font-size:12px; color:var(--theme-accent); }
 .immersive-scene--compact .immersive-controls button { padding:5px 10px; }
-.home-scene-switch { display:flex; justify-content:flex-end; gap:5px; margin-bottom:10px; font-size:10px; }
-.home-scene-switch a { border:1px solid var(--line); border-radius:99px; padding:5px 10px; color:var(--silver-dark); }
-html:not([data-home="immersive"]) .home-scene-switch [data-home-mode="original"],html[data-home="immersive"] .home-scene-switch [data-home-mode="immersive"] { background:var(--paper-light); color:var(--lacquer); border-color:var(--lacquer); }
-.home-immersive-entry { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:12px 16px; margin:16px 0; border:1px solid var(--line); border-radius:10px; background:var(--paper-light); }
+.home-scene-switch { display:flex; justify-content:flex-end; gap:5px; margin-bottom:10px; font-size:12px; }
+.home-scene-switch a { border:1px solid var(--theme-border); border-radius:99px; padding:5px 10px; color:var(--theme-muted); }
+html:not([data-home="immersive"]) .home-scene-switch [data-home-mode="original"],html[data-home="immersive"] .home-scene-switch [data-home-mode="immersive"] { background:var(--theme-surface); color:var(--theme-accent); border-color:var(--theme-accent); }
+.home-immersive-entry { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:12px 16px; margin:16px 0; border:1px solid var(--theme-border-soft); border-radius:10px; background:var(--theme-surface); }
 .home-immersive-entry strong { font-size:13px; }
-.home-immersive-entry span { color:var(--silver-dark); font-size:11px; margin-left:14px; }
-.home-immersive-entry > a { color:var(--lacquer); font-size:12px; flex-shrink:0; }
+.home-immersive-entry span { color:var(--theme-muted); font-size:12px; margin-left:14px; }
+.home-immersive-entry > a { color:var(--theme-accent); font-size:12px; flex-shrink:0; }
 @media(max-width:900px) { .home-immersive-hero { grid-template-columns:1fr; } .home-immersive-copy { padding:22px; } .home-immersive-copy > div { margin:16px 0 0; } .home-immersive-copy small { display:none; } .immersive-scene--compact .immersive-viewport { min-height:0; flex:auto; } }
-@media(max-width:650px) { .immersive-heading { align-items:flex-start; flex-direction:column; gap:12px; } .immersive-export { align-items:flex-start; flex-direction:column; gap:16px; padding:16px; } .immersive-controls { padding:10px; gap:8px; } .immersive-timeline { max-width:none; flex-basis:100%; } .immersive-notes { flex-direction:column; gap:8px; } .home-immersive-entry span { display:none; } .immersive-load { padding:9px 16px; } .immersive-scene-label { bottom:8px; left:8px; font-size:9px; } }
+@media(max-width:650px) { .immersive-heading { align-items:flex-start; flex-direction:column; gap:12px; } .immersive-export { align-items:flex-start; flex-direction:column; gap:16px; padding:16px; } .immersive-controls { padding:10px; gap:8px; } .immersive-timeline { max-width:none; flex-basis:100%; } .immersive-notes { flex-direction:column; gap:8px; } .home-immersive-entry span { display:none; } .immersive-load { padding:9px 16px; } .immersive-scene-label { bottom:8px; left:8px; font-size:12px; } }
 .immersive-heading nav { display:flex; flex-wrap:wrap; gap:8px; font-size:12px; }
-.immersive-heading nav a { border:1px solid var(--line); border-radius:99px; padding:8px 12px; }
-.immersive-heading nav a[aria-current] { color:var(--lacquer); border-color:var(--lacquer); background:var(--paper-light); }
-.immersive-catalog-note { color:var(--silver-dark); font-size:12px; line-height:1.8; }
+.immersive-heading nav a { border:1px solid var(--theme-border); border-radius:99px; padding:8px 12px; }
+.immersive-heading nav a[aria-current] { color:var(--theme-accent); border-color:var(--theme-accent); background:var(--theme-surface); }
+.immersive-catalog-note { color:var(--theme-muted); font-size:12px; line-height:1.8; }
 .immersive-filters { display:flex; flex-wrap:wrap; align-items:center; gap:20px; margin:24px 0 18px; font-size:12px; }
 .immersive-filters label { display:flex; align-items:center; gap:8px; }
-.immersive-filters select { padding:8px 12px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:var(--paper-light); }
-.immersive-filters input { accent-color:var(--lacquer); }
-.immersive-filters > span { margin-left:auto; color:var(--silver-dark); }
+.immersive-filters select { padding:6px 28px 6px 12px; border:1px solid var(--theme-border); border-radius:8px; color:var(--theme-text); background-color:var(--theme-surface); font:500 12px/1.4 var(--font-body); }
+.immersive-filters input { accent-color:var(--theme-accent); }
+.immersive-filters > span { margin-left:auto; color:var(--theme-muted); font-variant-numeric:tabular-nums; }
 .immersive-catalog-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-bottom:28px; }
-.immersive-card { min-width:0; overflow:hidden; background:var(--paper-light); border:1px solid var(--line); border-radius:12px; }
+.immersive-card { min-width:0; overflow:hidden; background:var(--theme-surface); border:1px solid var(--theme-border-soft); border-radius:12px; box-shadow:var(--theme-card-shadow); }
 .immersive-card[hidden] { display:none; }
 .immersive-card-link { display:block; height:100%; color:inherit; text-decoration:none; border-radius:inherit; }
-.immersive-card:has(a:hover),.immersive-card:has(a:focus-visible) { border-color:var(--lacquer); box-shadow:0 5px 18px color-mix(in srgb, var(--theme-shadow-color) 7.06%, transparent); }
-.immersive-card-link:focus-visible { outline:3px solid var(--lacquer); outline-offset:-3px; }
-.immersive-card-link[href]:hover h2 { color:var(--lacquer); }
-.immersive-card-art { position:relative; aspect-ratio:16/9; background:var(--paper-deep); }
+.immersive-card:has(a:hover),.immersive-card:has(a:focus-visible) { border-color:color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border)); box-shadow:var(--theme-elevated-shadow); }
+.immersive-card-link:focus-visible { outline:3px solid var(--theme-focus); outline-offset:-3px; }
+.immersive-card-link[href]:hover h2 { color:var(--theme-accent); }
+.immersive-card-art { position:relative; aspect-ratio:16/9; background:var(--theme-surface-deep); }
 .immersive-card-art img { display:block; width:100%; height:100%; object-fit:cover; }
-.immersive-card-art > span { position:absolute; bottom:8px; left:8px; color:var(--theme-media-text); background:color-mix(in srgb, var(--theme-media-shade) 90.2%, transparent); border-radius:5px; padding:5px 8px; font-size:10px; }
+.immersive-card-art > span { position:absolute; bottom:8px; left:8px; color:var(--theme-media-text); background:color-mix(in srgb, var(--theme-media-shade) 90.2%, transparent); border-radius:5px; padding:4px 8px; font-size:12px; }
 .immersive-card-copy { padding:15px; }
-.immersive-card-copy small { font:10px var(--font-mono); color:var(--silver-dark); }
+.immersive-card-copy small { font:600 12px var(--font-body); color:var(--theme-muted); }
 .immersive-card-copy h2 { margin:7px 0 0; font-size:16px; line-height:1.45; }
-.immersive-card-copy p { color:var(--silver-dark); font-size:11px; margin:0; }
+.immersive-card-copy p { color:var(--theme-muted); font-size:12px; margin:4px 0 0; }
 @media(max-width:1050px) { .immersive-catalog-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } }
 @media(max-width:480px) { .immersive-catalog-grid { grid-template-columns:1fr; } .immersive-heading nav { gap:6px; } }
 .immersive-scene-select { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; }
-.immersive-scene-select select { max-width:260px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; color:var(--ink); background:var(--paper-light); }
+.immersive-scene-select select { max-width:260px; padding:6px 28px 6px 12px; border:1px solid var(--theme-border); border-radius:8px; color:var(--theme-text); background-color:var(--theme-surface); font:500 12px/1.4 var(--font-body); }
 
 /* Character actions stay outside the artwork and remain available to keyboard users. */
 .immersive-cast { display:flex; flex-wrap:wrap; flex-basis:100%; gap:8px; padding-top:4px; }
-.immersive-cast button { position:relative; display:flex; align-items:center; gap:12px; overflow:hidden; min-height:42px; padding:9px 13px; }
-.immersive-cast button::after { content:""; position:absolute; bottom:0; left:0; width:var(--motion-progress,0%); height:2px; background:var(--lacquer); opacity:.25; }
-.immersive-cast button[data-playing="true"] { border-color:var(--lacquer); background:var(--paper-deep); }
+.immersive-cast button { position:relative; display:flex; align-items:center; gap:12px; overflow:hidden; min-height:40px; padding:8px 13px; }
+.immersive-cast button::after { content:""; position:absolute; bottom:0; left:0; width:var(--motion-progress,0%); height:2px; background:var(--theme-accent); opacity:.25; }
+.immersive-cast button[data-playing="true"] { border-color:var(--theme-accent); background:var(--theme-action-soft); }
 .immersive-cast button[data-playing="true"]::after { opacity:1; }
-.immersive-cast button small { color:var(--silver-dark); font-size:10px; }
-.immersive-interaction-hint { flex-basis:100%; margin:0; color:var(--silver-dark); font-size:11px; line-height:1.7; }
+.immersive-cast button small { color:var(--theme-muted); font-size:12px; }
+.immersive-interaction-hint { flex-basis:100%; margin:0; color:var(--theme-muted); font-size:12px; line-height:1.7; }
 .immersive-scene--compact .immersive-controls { gap:8px; padding:10px 12px; }
 .immersive-scene--compact .immersive-controls > a { margin-left:auto; }
 .immersive-scene--compact .immersive-cast button { padding:8px 10px; }

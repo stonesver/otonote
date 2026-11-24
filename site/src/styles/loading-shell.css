@@ -54,8 +54,8 @@ html[data-loading-card-format="support"] .loading-grid .loading-art { aspect-rat
 .loading-paragraph { margin:24px 0 36px; }
 .loading-hero { height:clamp(240px,32vw,430px); margin-bottom:28px; border-radius:16px; }
 .loading-scene { aspect-ratio:16/9; max-height:65vh; margin-bottom:24px; }
-[data-loading-skeleton] { position:relative; overflow:hidden; opacity:.7; }
-[data-loading-skeleton]::after { content:''; pointer-events:none; position:absolute; inset:0; background:linear-gradient(105deg,transparent 25%,color-mix(in srgb, var(--theme-surface) 36%, transparent) 45%,transparent 65%); transform:translateX(-100%); animation:loading-sweep 3.8s ease-in-out infinite; }
+[data-loading-skeleton] { position:relative; overflow:hidden; opacity:.82; }
+[data-loading-skeleton]::after { content:''; pointer-events:none; position:absolute; inset:0; background:linear-gradient(105deg,transparent 20%,color-mix(in srgb, var(--theme-surface) 58%, transparent) 48%,transparent 75%); transform:translateX(-100%); animation:loading-sweep 1.65s cubic-bezier(0.4,0,0.2,1) infinite; }
 [data-loading-interlude][data-failed] * { animation:none; }
 [data-loading-interlude][data-failed] .loading-beat { visibility:hidden; }
 [data-loading-error] { padding:20px; border:1px solid var(--line); border-radius:12px; background:var(--paper-light); }

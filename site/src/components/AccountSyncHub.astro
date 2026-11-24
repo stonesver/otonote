@@ -1,0 +1,535 @@
+---
+import '../styles/account-sync-hub.css';
+import { activeReleaseContext } from '../lib/release-context';
+import { siteHref } from '../lib/site-context';
+import { SYNC_SERVICES } from '../lib/account-sync-hub.mjs';
+
+interface Props {
+  locale?: string;
+}
+
+const locale = Astro.props.locale ?? activeReleaseContext.locale;
+const en = locale === 'en';
+const href = (path: string) => (import.meta.env.BASE_URL === '/' ? path : siteHref(path, activeReleaseContext));
+---
+
+<dialog class="account-hub-dialog" data-account-hub-dialog aria-labelledby="account-hub-title">
+  <header class="account-hub-heading">
+    <div class="ws-heading-main">
+      <h2 id="account-hub-title">{en ? 'Account sync hub' : '账号同步中心'}</h2>
+      <div class="ws-sheet-switch" role="tablist" aria-label={en ? 'Workspace switcher' : '切换个人面板'}>
+        <button type="button" role="tab" aria-selected="true">{en ? 'Account sync' : '账号同步'}</button>
+        <button type="button" role="tab" aria-selected="false" data-hub-switch="team">{en ? 'Growth & teams' : '养成与队伍'}</button>
+        <button type="button" role="tab" aria-selected="false" data-hub-switch="playlist">{en ? 'Playlists' : '我的歌单'}</button>
+      </div>
+    </div>
+    <button type="button" class="ui-icon-btn" data-account-hub-close aria-label={en ? 'Close' : '关闭'} title={en ? 'Close' : '关闭'}>
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+        <path d="M4 4 12 12M12 4 4 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="account-hub-body">
+    <div class="account-hub-col">
+      <section class="account-hub-card account-hub-card--surface" aria-label={en ? 'Game account sign-in' : '游戏账号同步'}>
+        <div class="account-hub-server-row">
+          <span class="account-hub-server-pill" data-hub-server-pill data-state="checking">
+            <i class="account-hub-server-dot" aria-hidden="true"></i>
+            <span data-hub-server-label>{en ? 'Checking server…' : '正在识别区服…'}</span>
+          </span>
+          <button type="button" class="ui-btn-soft" data-hub-recheck>{en ? 'Recheck connection' : '重新检查'}</button>
+        </div>
+        <p class="account-hub-service-status" data-hub-service-status role="status" aria-live="polite">
+          {en ? 'Checking account sync service…' : '正在检查网页同步服务…'}
+        </p>
+
+        <form data-hub-form>
+          <div class="account-hub-services" role="group" aria-label={en ? 'Select services to sync' : '选择本次同步功能'}>
+            {SYNC_SERVICES.map(service => (
+              <label class="account-hub-service-option" data-hub-service-row={service.id}>
+                <input type="checkbox" value={service.id} data-hub-service={service.id} checked={service.id !== 'arena'} />
+                <strong>{en ? service.en : service.zh}</strong>
+                <small data-hub-service-hint={service.id}>{en ? service.hintEn : service.hintZh}</small>
+              </label>
+            ))}
+          </div>
+
+          <fieldset class="account-hub-fields" data-hub-fields disabled>
+            <div class="account-hub-form-grid">
+              <label>
+                {en ? 'BHK account email' : 'BHK 账号邮箱'}
+                <input type="email" name="account" autocomplete="off" required maxlength="320" data-hub-account placeholder={en ? 'Your BHK email' : '输入 BHK 邮箱'} />
+              </label>
+              <label>
+                <span>{en ? 'Login key' : '密码'}</span>
+                <input type="password" name="credential" autocomplete="off" required maxlength="4096" data-hub-password placeholder={en ? 'Enter account key' : '输入账号密码'} />
+              </label>
+            </div>
+            <div class="account-hub-form-actions">
+              <button type="submit" class="ui-btn-primary" data-hub-submit>{en ? 'Sign in and sync selected' : '登录并同步已选功能'}</button>
+              <details class="ui-tip-disclosure" data-tip-align="left">
+                <summary aria-label={en ? 'Privacy & sign-in notes' : '安全与登录说明'}>
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.8v.6" stroke-linecap="round" />
+                  </svg>
+                  <span>{en ? 'Security notes' : '隐私说明'}</span>
+                </summary>
+                <div class="ui-tip-body">
+                  <p>{en
+                    ? 'Supports TW/HK/MO, EN and Korea BHK email accounts. Google direct sign-in is not yet available.'
+                    : '支持港澳台、EN 与韩服 BHK 邮箱账号，不支持未接入的 Google 直接授权。'}</p>
+                  <p>{en
+                    ? 'Your email and password authenticate once per sync and are cleared immediately — passwords, tokens, and session state are never stored.'
+                    : '账号密码仅在本次同步瞬间直连认证，不保存密码、令牌或会话状态；登录可能使当前游戏在线会话下线。'}</p>
+                </div>
+              </details>
+            </div>
+          </fieldset>
+        </form>
+
+        <p class="account-hub-status-bar" data-hub-status role="status" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <div class="account-hub-col">
+      <section class="account-hub-card" aria-label={en ? 'Sync results and local imports' : '同步结果与导入选项'}>
+        <h3>{en ? 'Sync results' : '同步结果预览'}</h3>
+        <p data-hub-results-empty>
+          {en
+            ? 'Check the data you need on the left and sign in once to sync your collection, pull history, or arena rank together.'
+            : '在左侧勾选需要同步的功能并一次登录，读取到的养成、抽卡记录或舞台排名会显示在这里。'}
+        </p>
+
+        <article class="account-hub-result-item" data-hub-result-growth hidden>
+          <header>
+            <h4>{en ? 'Collection & personal growth' : '卡库与养成预览'}</h4>
+            <span class="ui-pill">{en ? 'Pending save' : '待确认写入'}</span>
+          </header>
+          <p data-hub-growth-summary></p>
+          <div class="account-hub-result-actions">
+            <button type="button" class="ui-btn-primary" data-hub-growth-save>{en ? 'Save as current growth' : '保存为当前养成'}</button>
+            <button type="button" class="ui-btn-soft" data-hub-growth-download>{en ? 'Download JSON' : '下载备份 JSON'}</button>
+            <button type="button" class="ui-btn-soft" data-hub-growth-undo hidden>{en ? 'Undo save' : '撤销上次保存'}</button>
+          </div>
+        </article>
+
+        <article class="account-hub-result-item" data-hub-result-gacha hidden>
+          <header>
+            <h4>{en ? 'Gacha draw history' : '抽卡记录已读取'}</h4>
+            <span class="ui-pill">{en ? 'Session memory' : '仅内存暂存'}</span>
+          </header>
+          <p data-hub-gacha-summary></p>
+          <div class="account-hub-result-actions">
+            <a class="ui-btn-primary" href={href('/tools/gacha-history/')} data-hub-gacha-open>
+              {en ? 'Open gacha report' : '立即查看抽卡报告'}
+            </a>
+          </div>
+        </article>
+
+        <article class="account-hub-result-item" data-hub-result-arena hidden>
+          <header>
+            <h4>{en ? 'Personal arena rank' : '激奏舞台个人排名'}</h4>
+            <span class="ui-pill">{en ? 'Session only' : '即时结果'}</span>
+          </header>
+          <p data-hub-arena-summary></p>
+        </article>
+
+        <h3>{en ? 'Offline & local alternatives' : '本地备份与截图导入'}</h3>
+        <div class="account-hub-alt-grid">
+          <div class="account-hub-alt-row">
+            <div>
+              <strong>{en ? 'Import growth JSON backup' : '导入养成 JSON 备份'}</strong>
+              <small>{en ? 'Parsed locally in your browser without uploading.' : '选择已导出的养成 JSON，仅在浏览器本地预览写入。'}</small>
+            </div>
+            <label class="ui-btn-soft account-hub-file-btn">
+              <span>{en ? 'Choose JSON' : '选择文件'}</span>
+              <input type="file" accept=".json,application/json" data-hub-json-file />
+            </label>
+          </div>
+          <div class="account-hub-alt-row">
+            <div>
+              <strong>{en ? 'Local growth exporter' : '开源本地导出工具'}</strong>
+              <small>{en ? 'Export growth offline on Windows / macOS.' : '本地读取并导出 JSON 后回到此处导入，密码不经过网站。'}</small>
+            </div>
+            <a class="ui-btn-soft" href={href('/tools/account-export/')}>{en ? 'View tool guide' : '下载与说明'}</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import { containModalFocus } from '../lib/dialog-focus.mjs';
+  import { installWorkspaceDismiss } from '../lib/workspace-dismiss.mjs';
+  import { accountServer } from '../lib/account-servers.mjs';
+  import { currentServerContext, gameServer } from '../lib/game-servers.mjs';
+  import {
+    createAccountSyncClient,
+    stageGachaHandoff,
+  } from '../lib/account-sync-hub.mjs';
+  import { loadTeamWorkspaceData } from '../lib/shared-team-loader.mjs';
+  import { getActiveToolTeamContext } from '../lib/shared-team-context.mjs';
+  import { createPersonalGrowthStore } from '../lib/personal-growth-store.mjs';
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-account-hub-dialog]');
+  if (dialog) {
+    const q = <T extends HTMLElement = HTMLElement>(sel: string) => dialog.querySelector<T>(sel)!;
+    const en = document.documentElement.lang === 'en';
+    const client = createAccountSyncClient();
+    const ARENA_CTX_KEY = Symbol.for('ournotes.arena.context.v1');
+
+    let opener: HTMLElement | null = null;
+    let dismissedOutside = false;
+    let currentArenaScope: { serverId?: string; seasonId?: string; bandId?: string; label?: string } | null = null;
+    let pendingGrowthPreview: ReturnType<ReturnType<typeof createPersonalGrowthStore>['fromImport']> | null = null;
+    let pendingGrowthStore: ReturnType<typeof createPersonalGrowthStore> | null = null;
+    let growthUndoCheckpoint: string | null = null;
+    let latestGachaSnapshot: unknown = null;
+    let currentServerId: string | null = null;
+
+    dialog.addEventListener('keydown', (event) => containModalFocus(dialog, event));
+
+    const stopDismiss = installWorkspaceDismiss(dialog, null, () => {
+      dismissedOutside = true;
+      dialog.close();
+    });
+
+    const readArenaScope = () => {
+      if (currentArenaScope?.seasonId && currentArenaScope?.bandId) return currentArenaScope;
+      const getter = (window as unknown as Record<symbol, (() => typeof currentArenaScope) | undefined>)[ARENA_CTX_KEY];
+      return typeof getter === 'function' ? getter() : null;
+    };
+
+    const setStatus = (text: string, tone: 'info' | 'error' | 'success' = 'info') => {
+      const bar = q('[data-hub-status]');
+      bar.textContent = text;
+      bar.dataset.tone = tone;
+    };
+
+    const refreshServiceCheckboxes = () => {
+      const arenaScope = readArenaScope();
+      const arenaBox = q<HTMLInputElement>('[data-hub-service="arena"]');
+      const arenaHint = q('[data-hub-service-hint="arena"]');
+      const gachaBox = q<HTMLInputElement>('[data-hub-service="gacha"]');
+      const state = client.getState();
+      const hasArena = Boolean(arenaScope?.seasonId && arenaScope?.bandId && (!state.capabilities || state.capabilities.arenaPersonal === true));
+      arenaBox.disabled = !hasArena;
+      if (!hasArena) arenaBox.checked = false;
+      arenaHint.textContent = arenaScope?.seasonId && arenaScope?.bandId
+        ? (en ? `Active stage: ${arenaScope.label ?? `${arenaScope.seasonId}`}` : `当前舞台：${arenaScope.label ?? `赛季 ${arenaScope.seasonId}`}`)
+        : (en ? 'Open an arena season & band to enable personal rank lookup.' : '在激奏舞台页选择赛季与乐队后可勾选查询');
+      const gachaEnabled = !state.capabilities || state.capabilities.gachaHistory === true;
+      gachaBox.disabled = !gachaEnabled;
+      if (!gachaEnabled) gachaBox.checked = false;
+    };
+
+    const syncEmptyPlaceholder = () => {
+      const hasResult = !q('[data-hub-result-growth]').hidden || !q('[data-hub-result-gacha]').hidden || !q('[data-hub-result-arena]').hidden;
+      q('[data-hub-results-empty]').hidden = hasResult;
+    };
+
+    const describeGrowth = (preview: NonNullable<typeof pendingGrowthPreview>) => {
+      const { inventory, account } = preview;
+      const inst = account.bandItemTotals && Object.keys(account.bandItemTotals).length
+        ? `${Object.keys(account.bandItemTotals).length} 个乐队总级`
+        : account.bandItems ? `${Object.keys(account.bandItems).length} 件乐器` : '未记录';
+      const ranks = account.characterRanks ? `${Object.keys(account.characterRanks).length} 位` : '未记录';
+      const tgw = account.tgwCardRank ?? '未记录';
+      return en
+        ? `${inventory.memberCardIds.length} member cards · ${inventory.supportCardIds.length} snaps · Instruments: ${inst} · Character ranks: ${ranks} · TGW: ${tgw}`
+        : `成员卡 ${inventory.memberCardIds.length} 张 · 留影 ${inventory.supportCardIds.length} 张 · 乐器 ${inst} · 角色评级 ${ranks} · TGW ${tgw}`;
+    };
+
+    const prepareGrowthPreview = async (snapshot: unknown) => {
+      const data = await loadTeamWorkspaceData(getActiveToolTeamContext());
+      const store = createPersonalGrowthStore({ rules: data.formalRules, vipRanks: data.vipRanks });
+      const preview = store.fromImport(snapshot);
+      pendingGrowthStore = store;
+      pendingGrowthPreview = preview;
+      q('[data-hub-growth-summary]').textContent = describeGrowth(preview);
+      q<HTMLButtonElement>('[data-hub-growth-save]').disabled = false;
+      q('[data-hub-result-growth]').hidden = false;
+      syncEmptyPlaceholder();
+    };
+
+    const checkConnection = async () => {
+      const pill = q('[data-hub-server-pill]');
+      const labelEl = q('[data-hub-server-label]');
+      const serviceStatus = q('[data-hub-service-status]');
+      const fields = q<HTMLFieldSetElement>('[data-hub-fields]');
+
+      const ctx = currentServerContext();
+      currentServerId = ctx.serverId ?? null;
+      const serverObj = ctx.serverId ? gameServer(ctx.serverId) : null;
+      labelEl.textContent = serverObj ? (en ? serverObj.englishLabel : serverObj.label) : (ctx.region === 'jp' ? (en ? 'Japan edition (read-only)' : '日服（暂不支持在线读取）') : (en ? 'No server selected' : '未选择账号区服'));
+      pill.dataset.state = 'checking';
+      serviceStatus.dataset.state = 'info';
+      serviceStatus.textContent = en ? 'Checking account sync service…' : '正在检查网页同步服务…';
+      fields.disabled = true;
+
+      const res = await client.checkCapabilities(ctx.serverId);
+      pill.dataset.state = res.maintenance ? 'maintenance' : res.ok ? 'ready' : 'error';
+      serviceStatus.dataset.state = res.ok && !res.maintenance ? 'ready' : 'error';
+      serviceStatus.textContent = res.message;
+      fields.disabled = !res.ok || Boolean(res.maintenance) || !accountServer(ctx.serverId);
+      refreshServiceCheckboxes();
+    };
+
+    const openHub = (detail?: { services?: string[]; arenaScope?: typeof currentArenaScope; opener?: HTMLElement | null }) => {
+      if (detail?.opener instanceof HTMLElement) opener = detail.opener;
+      else opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+      if (detail?.arenaScope) currentArenaScope = detail.arenaScope;
+      if (!dialog.open) dialog.showModal();
+      document.querySelectorAll<HTMLDialogElement>('.tw-panel[open], .playlist-dialog[open]').forEach((d) => d.close());
+
+      if (Array.isArray(detail?.services) && detail.services.length) {
+        const want = new Set(detail.services);
+        for (const box of dialog.querySelectorAll<HTMLInputElement>('[data-hub-service]')) {
+          box.checked = want.has(box.value) && !box.disabled;
+        }
+      }
+      refreshServiceCheckboxes();
+      if (Array.isArray(detail?.services) && detail.services.includes('arena') && !q<HTMLInputElement>('[data-hub-service="arena"]').disabled) {
+        q<HTMLInputElement>('[data-hub-service="arena"]').checked = true;
+      }
+      setStatus('');
+      void checkConnection().then(() => {
+        if (Array.isArray(detail?.services) && detail.services.length) {
+          for (const id of detail.services) {
+            const box = dialog.querySelector<HTMLInputElement>(`[data-hub-service="${id}"]`);
+            if (box && !box.disabled) box.checked = true;
+          }
+        }
+      });
+    };
+
+    document.addEventListener('account-hub:open', (event) => {
+      openHub(event instanceof CustomEvent ? event.detail : undefined);
+    });
+
+    document.addEventListener('click', (event) => {
+      const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-account-hub-open]') : null;
+      if (!trigger) return;
+      if (trigger.closest('[data-site-nav]')) return;
+      const services = trigger.dataset.accountHubServices?.split(',').map((s) => s.trim()).filter(Boolean);
+      openHub({ services, opener: trigger });
+    });
+
+    q('[data-account-hub-close]').addEventListener('click', () => dialog.close());
+    q('[data-hub-recheck]').addEventListener('click', () => void checkConnection());
+
+    dialog.querySelector('[data-hub-switch="team"]')?.addEventListener('click', () => {
+      opener = null;
+      document.dispatchEvent(new CustomEvent('team-workspace:open', { detail: { tab: 'inventory' } }));
+    });
+
+    dialog.querySelector('[data-hub-switch="playlist"]')?.addEventListener('click', () => {
+      opener = null;
+      document.dispatchEvent(new CustomEvent('playlist-workspace:open'));
+    });
+
+    q<HTMLFormElement>('[data-hub-form]').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const selected = [...dialog.querySelectorAll<HTMLInputElement>('[data-hub-service]:checked')]
+        .filter((el) => !el.disabled)
+        .map((el) => el.value);
+      if (!selected.length) {
+        setStatus(en ? 'Select at least one service to sync.' : '请至少勾选一项要同步的功能。', 'error');
+        return;
+      }
+
+      const accountInput = q<HTMLInputElement>('[data-hub-account]');
+      const passwordInput = q<HTMLInputElement>('[data-hub-password]');
+      let account = accountInput.value;
+      let password = passwordInput.value;
+      passwordInput.value = '';
+      if (!account.trim() || !password) {
+        account = '';
+        password = '';
+        setStatus(en ? 'Enter your BHK email and password.' : '请填写 BHK 邮箱账号与密码。', 'error');
+        return;
+      }
+
+      const ctx = currentServerContext();
+      const fields = q<HTMLFieldSetElement>('[data-hub-fields]');
+      const submitBtn = q<HTMLButtonElement>('[data-hub-submit]');
+      fields.disabled = true;
+      submitBtn.disabled = true;
+      setStatus(en ? 'Signing in and syncing selected data…' : '正在登录并按顺序读取所选功能，请稍候…');
+
+      try {
+        const outcome = await client.syncSelected({
+          serverId: ctx.serverId,
+          account,
+          password,
+          services: selected,
+          arenaScope: readArenaScope(),
+          onProgress: ({ label, index, total, status }) => {
+            if (status === 'running') {
+              setStatus(en ? `Syncing (${index + 1}/${total})…` : `正在读取（${index + 1}/${total}）：${label}…`);
+            }
+          },
+        });
+        account = '';
+        password = '';
+
+        if (outcome.results.growth) {
+          try {
+            await prepareGrowthPreview(outcome.results.growth);
+          } catch (error) {
+            outcome.errors.growth = error instanceof Error ? error.message : String(error);
+          }
+        }
+
+        if (outcome.results.gacha) {
+          latestGachaSnapshot = outcome.results.gacha;
+          const total = Array.isArray((latestGachaSnapshot as { batches?: { prizes?: unknown[] }[] }).batches)
+            ? (latestGachaSnapshot as { batches: { prizes?: unknown[] }[] }).batches.reduce((n, b) => n + (b.prizes?.length ?? 0), 0)
+            : 0;
+          q('[data-hub-gacha-summary]').textContent = en
+            ? `Fetched ${total} draw records for this session. Not saved after closing.`
+            : `已读取 ${total} 条抽卡记录；刷新或离开站点后自动清空。`;
+          q('[data-hub-result-gacha]').hidden = false;
+          syncEmptyPlaceholder();
+          document.dispatchEvent(new CustomEvent('account-hub:gacha-result', {
+            detail: { snapshot: latestGachaSnapshot, serverId: ctx.serverId },
+          }));
+        }
+
+        if (outcome.results.arena) {
+          const snap = outcome.results.arena as { status?: string; rank?: number | null; point?: number | null };
+          q('[data-hub-arena-summary]').textContent = snap.status === 'ranked'
+            ? (en ? `Rank #${snap.rank} · ${snap.point?.toLocaleString() ?? '—'} pts` : `第 ${snap.rank} 名 · ${snap.point?.toLocaleString() ?? '—'} 分`)
+            : (en ? 'Unranked / no score returned for this stage.' : '当前舞台暂无上榜名次或分数记录。');
+          q('[data-hub-result-arena]').hidden = false;
+          syncEmptyPlaceholder();
+          document.dispatchEvent(new CustomEvent('account-hub:arena-result', {
+            detail: { snapshot: snap, scope: readArenaScope() },
+          }));
+        }
+
+        const errorEntries = Object.entries(outcome.errors);
+        if (errorEntries.length) {
+          setStatus(errorEntries.map(([, msg]) => msg).join(' '), 'error');
+        } else {
+          setStatus(en ? 'Sync complete. Review results on the right.' : '同步完成，请在右侧确认或查看结果。', 'success');
+        }
+
+        if (outcome.nonceExpired || outcome.maintenance) {
+          q('[data-hub-server-pill]').dataset.state = outcome.maintenance ? 'maintenance' : 'error';
+          q('[data-hub-service-status]').dataset.state = 'error';
+          q('[data-hub-service-status]').textContent = outcome.maintenance
+            ? (en ? 'Official game maintenance.' : '官方游戏维护中，已暂停读取。')
+            : (en ? 'Connection expired. Recheck before syncing again.' : '连接校验已过期，请点击“重新检查”。');
+        }
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error), 'error');
+      } finally {
+        account = '';
+        password = '';
+        submitBtn.disabled = false;
+        const st = client.getState();
+        fields.disabled = !st.nonce || st.maintenance || !accountServer(ctx.serverId);
+      }
+    });
+
+    q('[data-hub-growth-save]').addEventListener('click', () => {
+      if (!pendingGrowthPreview || !pendingGrowthStore) return;
+      try {
+        growthUndoCheckpoint = pendingGrowthStore.checkpoint();
+        pendingGrowthStore.save(pendingGrowthPreview);
+        q<HTMLButtonElement>('[data-hub-growth-save]').disabled = true;
+        q('[data-hub-growth-undo]').hidden = !growthUndoCheckpoint;
+        setStatus(en ? 'Saved personal growth for all tools in this region.' : '已保存为当前区服的个人养成，全站配队与算分工具可直接读取。', 'success');
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error), 'error');
+      }
+    });
+
+    q('[data-hub-growth-undo]').addEventListener('click', () => {
+      if (!growthUndoCheckpoint || !pendingGrowthStore) return;
+      try {
+        pendingGrowthStore.restore(growthUndoCheckpoint);
+        growthUndoCheckpoint = null;
+        q('[data-hub-growth-undo]').hidden = true;
+        q<HTMLButtonElement>('[data-hub-growth-save]').disabled = false;
+        setStatus(en ? 'Restored previous personal growth.' : '已撤销本次保存并恢复原养成档案。', 'info');
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error), 'error');
+      }
+    });
+
+    q('[data-hub-growth-download]').addEventListener('click', () => {
+      if (!pendingGrowthPreview) return;
+      const url = URL.createObjectURL(new Blob([JSON.stringify(pendingGrowthPreview, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'otonote-personal-growth.json';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    q('[data-hub-gacha-open]').addEventListener('click', (event) => {
+      if (location.pathname.includes('/tools/gacha-history/')) {
+        event.preventDefault();
+        dialog.close();
+        return;
+      }
+      if (latestGachaSnapshot && currentServerId) {
+        stageGachaHandoff(latestGachaSnapshot, currentServerId);
+      }
+    });
+
+    q<HTMLInputElement>('[data-hub-json-file]').addEventListener('change', async (event) => {
+      const input = event.currentTarget;
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) return;
+      try {
+        if (file.size > 2_000_000) throw Error(en ? 'File exceeds 2 MB limit.' : '备份文件不能超过 2 MB。');
+        const json = JSON.parse(await file.text());
+        await prepareGrowthPreview(json);
+        setStatus(en ? 'Backup loaded. Confirm save on the right.' : '备份读取成功，请核对右侧摘要后保存。', 'success');
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error), 'error');
+      }
+    });
+
+    window.addEventListener('game-service-status-change', (event) => {
+      const detail = (event as CustomEvent).detail;
+      const ctx = currentServerContext();
+      if (!ctx.serverId || !client.getState().nonce) return;
+      const next = client.applyGameStatus(detail?.servers?.[ctx.serverId]);
+      q('[data-hub-server-pill]').dataset.state = next.maintenance ? 'maintenance' : 'ready';
+      q('[data-hub-service-status]').dataset.state = next.maintenance ? 'error' : 'ready';
+      q('[data-hub-service-status]').textContent = next.message;
+      q<HTMLFieldSetElement>('[data-hub-fields]').disabled = next.maintenance;
+    });
+
+    dialog.addEventListener('close', () => {
+      client.abortSync();
+      q<HTMLInputElement>('[data-hub-account]').value = '';
+      q<HTMLInputElement>('[data-hub-password]').value = '';
+      if (!dismissedOutside && opener?.isConnected) opener.focus({ preventScroll: true });
+      dismissedOutside = false;
+    });
+
+    window.addEventListener('pagehide', () => {
+      latestGachaSnapshot = null;
+      q<HTMLInputElement>('[data-hub-account]').value = '';
+      q<HTMLInputElement>('[data-hub-password]').value = '';
+      if (dialog.open) dialog.close();
+    });
+
+    document.addEventListener('ournotes:shell-dispose', () => {
+      stopDismiss();
+      client.abortSync();
+      latestGachaSnapshot = null;
+      if (dialog.open) dialog.close();
+    });
+  }
+</script>

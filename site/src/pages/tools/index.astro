@@ -31,7 +31,7 @@ const browseTools = [
    {[items[2],items[6],items[0],items[1],items[4],items[3],items[5],items[7]].map(item=><a class={`tools-task tools-task--${item.path}`} href={href(`/tools/${item.path}/`)} data-tool-state="available" data-navigation-title={item.title}>
     <div class="tools-task-top"><span class="tools-task-glyph"><ToolGlyph kind={item.path}/></span><span class="tools-task-name">{item.title}</span></div>
     <div class="tools-task-copy"><h2>{item.goal}</h2><p>{item.description}</p></div>
-    {item.path==='deck-builder' && <div class="tools-lineup" aria-hidden="true"><div class="tools-lineup-cards">{['♪','♫','✦','♫','♪'].map((mark,i)=><span style={`--card-index:${i}`}><i>{mark}</i><b>{i===2?'LEADER':'MEMBER'}</b><small>SUPPORT</small></span>)}</div><span class="tools-lineup-caption">MEMBER × SUPPORT</span></div>}
+    {item.path==='deck-builder' && <div class="tools-lineup" aria-hidden="true"><div class="tools-lineup-cards">{['♪','♫','✦','♫','♪'].map((mark,i)=><span style={`--card-index:${i}`}><i>{mark}</i><span class="tools-lineup-bar"></span></span>)}</div><span class="tools-lineup-caption">5 MEMBER × 5 SUPPORT</span></div>}
     <div class="tools-task-bottom"><small>{item.input}</small><span class="tools-task-open">{say('打开工具','Open tool')}</span></div>
    </a>)}
   </nav>
@@ -42,6 +42,14 @@ const browseTools = [
    </nav>
   </section>
   <nav class="tools-workflow" aria-label={say('常用工具流程','Common workflows')}><strong>{say('从哪里开始','Where to start')}</strong><a href={href('/my-growth/')}>{say('录入卡库','Save cards')}</a><a href={href('/tools/deck-builder/')}>{say('推荐配队','Build a team')}</a><a href={href('/tools/ap-grade/')}>{say('选曲达档','Find a score grade')}</a><a href={href('/tools/event-efficiency/')}>{say('规划活动收益','Plan event rewards')}</a><a class="tools-account-guide" href={href('/tools/account-export/')}>{say('如何导入账号数据','How to import account data')}</a></nav>
-  <footer class="tools-desk-note"><span class="tools-note-symbol" aria-hidden="true">♪</span><p><small>{say('配队与分数为参考估算。AP 表示全 Perfect；实际表现受判定与技能顺序影响。','Score results are estimates. AP means all Perfect; judgement and skill order affect actual scores.')}</small></p></footer>
+  <footer class="tools-desk-note">
+   <details class="ui-tip-disclosure" data-tip-edge="top" data-tip-edge-fixed>
+    <summary aria-label={say('估算范围与说明','About estimates')} title={say('估算范围与说明','About estimates')}>
+     <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.8v.6" stroke-linecap="round" /></svg>
+     <span>{say('估算说明','Estimates note')}</span>
+    </summary>
+    <div class="ui-tip-body"><p>{say('配队与分数为参考估算。AP 表示全 Perfect；实际表现受判定与技能顺序影响。','Score results are estimates. AP means all Perfect; judgement and skill order affect actual scores.')}</p></div>
+   </details>
+  </footer>
  </div>
 </BaseLayout>

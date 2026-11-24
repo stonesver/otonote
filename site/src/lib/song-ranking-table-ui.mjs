@@ -2,7 +2,7 @@ import {rankingTableColumns, formatRankingCell, rankingStatusTags} from './song-
 import {RANKING_OPTIONS} from './song-ranking-options.mjs';
 import {rankingSongCover} from './ranking-song-cover.mjs';
 
-export function renderRankingTable(root, {rows, page, size, mode, metric, direction, locale, artwork, expanded, detail, reveal, scoreLabel, append = false}) {
+export function renderRankingTable(root, {rows, page, size, mode, metric, direction, locale, artwork, expanded, detail, reveal, scoreLabel, append = false, onOpenDetail, activeDetailId = null}) {
   const document = root.ownerDocument, en = locale.startsWith('en');
   const make = (tag, text = '', className = '') => { const element = document.createElement(tag); element.textContent = text; element.className = className; return element; };
   const columns = rankingTableColumns(mode,metric), table = root.querySelector('[data-ranking-table]');
@@ -35,10 +35,10 @@ export function renderRankingTable(root, {rows, page, size, mode, metric, direct
   const body = root.querySelector('[data-rows]'); if (!append) body.replaceChildren();
   for (const row of rows.slice(page*size,(page+1)*size)) {
     const tr = make('tr');
+    tr.dataset.rowId = row.id;
+    if (activeDetailId && row.id === activeDetailId) tr.dataset.activeDetail = 'true';
     if (RANKING_OPTIONS[metric][2] !== 'text' && row.rank > 0 && row.rank <= 3) tr.dataset.podium = String(row.rank);
     tr.append(make('td',row.rank === null ? '—' : String(row.rank).padStart(2,'0'),'ranking-position'));
-    const expandedRow = make('tr','','ranking-detail'); expandedRow.hidden = !expanded.has(row.id); expandedRow.id = `detail-${row.id}`;
-    const cell = make('td'), content = make('div','','ranking-detail-content'); cell.colSpan = columns.length+1; cell.append(content); expandedRow.append(cell);
     for (const column of columns) {
       const td = make('td','','title' === column.key ? 'ranking-song' : 'ranking-value'); td.dataset.column = column.key;
       if (column.key === metric) td.dataset.active = '';
@@ -55,14 +55,20 @@ export function renderRankingTable(root, {rows, page, size, mode, metric, direct
           tags.append(badge);
         }
         track.append(name);
-        const button = make('button',expandedRow.hidden ? '⋯' : '−','ranking-detail-toggle'); button.type = 'button';
+        const button = make('button','','ranking-detail-toggle'); button.type = 'button';
+        button.innerHTML = '<svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M10 8v4M8 10h4"/></svg>';
         button.setAttribute('aria-label',en ? `Details for ${row.title} ${row.difficulty}` : `查看 ${row.title} ${row.difficulty} 明细`);
-        button.setAttribute('aria-expanded',String(!expandedRow.hidden)); button.setAttribute('aria-controls',expandedRow.id);
-        button.addEventListener('click',()=>{
-          expandedRow.hidden = !expandedRow.hidden;
-          if (!expandedRow.hidden && !content.children.length) detail(content,row);
-          expandedRow.hidden ? expanded.delete(row.id) : expanded.add(row.id);
-          button.textContent = expandedRow.hidden ? '⋯' : '−'; button.setAttribute('aria-expanded',String(!expandedRow.hidden));
+        button.setAttribute('aria-haspopup','dialog');
+        button.title = en ? 'Open chart details' : '查看谱面明细';
+        const open = () => {
+          if (onOpenDetail) { onOpenDetail(row, button); return; }
+          if (expanded) expanded.has(row.id) ? expanded.delete(row.id) : expanded.add(row.id);
+          detail?.(make('div'), row);
+        };
+        button.addEventListener('click', event => { event.stopPropagation(); open(); });
+        track.addEventListener('click', event => {
+          if (event.target.closest('button, a, .ranking-tag')) return;
+          open();
         });
         track.append(button); td.append(track,tags);
       } else {
@@ -74,8 +80,7 @@ export function renderRankingTable(root, {rows, page, size, mode, metric, direct
       }
       tr.append(td);
     }
-    if (!expandedRow.hidden) detail(content,row);
-    body.append(tr,expandedRow);
+    body.append(tr);
   }
   if (reveal) {
     const wrap = root.querySelector('[data-results]'), th = head.querySelector(`[data-column="${metric}"]`);

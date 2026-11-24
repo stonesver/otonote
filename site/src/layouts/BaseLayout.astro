@@ -9,6 +9,8 @@ import TransitionPreview from "../components/TransitionPreview.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import GameServiceNotice from "../components/GameServiceNotice.astro";
 import SiteNotifications from "../components/SiteNotifications.astro";
+import GlobalWorkspaceDock from "../components/GlobalWorkspaceDock.astro";
+import AccountSyncHub from "../components/AccountSyncHub.astro";
 import SharedPlaylistWorkspace from "../components/SharedPlaylistWorkspace.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
 import shellPreferences from "../lib/shell-preferences.mjs?raw";
@@ -37,6 +39,7 @@ import "../styles/tool-ux.css";
 import "../styles/tool-design-system.css";
 import "../styles/skill-activation.css";
 import "../styles/theme-surfaces.css";
+import "../styles/design-foundation.css";
 import "../styles/theme-seasonal.css";
 import { filterVisualOptions } from "../lib/filter-visuals";
 
@@ -81,6 +84,7 @@ const activeGroup = navItems.find((item) => item.id === activeNavId);
 const activeChild = activeNavigationChild(Astro.props.navigationPath ?? pathname, activeGroup?.children ?? []);
 const homeLabel = activeReleaseContext.locale === "en" ? "Overview" : "首页概览";
 const currentLabel = title ?? activeChild?.label ?? activeGroup?.label ?? homeLabel;
+const showPageEdition = /^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab|event-efficiency|song-ranking))(\/|$)/.test(pathname);
 
 const htmlLanguage = activeReleaseContext.locale;
 
@@ -193,10 +197,22 @@ const htmlLanguage = activeReleaseContext.locale;
       </nav>
 
       <button class="sidebar-collapse" data-sidebar-collapse type="button" aria-controls="site-navigation" aria-expanded="true" aria-label={htmlLanguage === "en" ? "Collapse sidebar" : "收起侧栏"}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="4"/><path d="M9 4v16m6-12-3 4 3 4"/></svg></button>
-      <nav class="site-breadcrumb" aria-label={htmlLanguage === "en" ? "Breadcrumb" : "当前位置"}>
-        <a href={href("/")}>{homeLabel}</a>
-        {pathname !== "/" && <><span aria-hidden="true">/</span>{activeGroup && activeGroup.label !== currentLabel && <><a href={href(activeGroup.href)}>{activeGroup.label}</a><span aria-hidden="true">/</span></>}<strong aria-current="page">{currentLabel}</strong></>}
-      </nav>
+      <div class="site-header-lead">
+        <nav class="site-breadcrumb" aria-label={htmlLanguage === "en" ? "Breadcrumb" : "当前位置"}>
+          {pathname === "/" ? (
+            <strong aria-current="page">{homeLabel}</strong>
+          ) : (
+            <><a href={href("/")}>{homeLabel}</a><span aria-hidden="true">/</span>{activeGroup && activeGroup.label !== currentLabel && <><a href={href(activeGroup.href)}>{activeGroup.label}</a><span aria-hidden="true">/</span></>}<strong aria-current="page">{currentLabel}</strong></>
+          )}
+        </nav>
+        {showPageEdition && <PageEditionSwitcher inline counterparts={Astro.props.editionCounterparts} />}
+      </div>
+
+      {Astro.props.personalWorkspaces !== false && (
+        <div class="site-header-hub">
+          <GlobalWorkspaceDock locale={activeReleaseContext.locale} />
+        </div>
+      )}
 
       <UnifiedSearch />
       <Fragment set:html={renderThemePicker(htmlLanguage)} />
@@ -223,9 +239,9 @@ const htmlLanguage = activeReleaseContext.locale;
       <span data-unavailable-path></span>
     </aside>
 
-    {Astro.props.personalWorkspaces !== false && <><SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={false} /><SharedPlaylistWorkspace /></>}
+    {Astro.props.personalWorkspaces !== false && <><AccountSyncHub locale={activeReleaseContext.locale} /><SharedTeamWorkspace locale={activeReleaseContext.locale} showLauncher={false} /><SharedPlaylistWorkspace /></>}
     <main id="main-content" data-page-kind={pathname === "/" ? "home" : "module"} tabindex="-1">
-      {(/^\/(events|recruitment|missions|tools\/(deck-builder|song-calculator|optimizer|gekisou-lab|event-efficiency))(\/|$)/.test(pathname)) && <PageEditionSwitcher counterparts={Astro.props.editionCounterparts} />}
+      {showPageEdition && <p class="page-edition-notice content-shell" data-edition-message role="status"></p>}
       {activeReleaseContext.region === 'global' && <GameServiceNotice locale={activeReleaseContext.locale} />}
       {pathname !== "/" && !Astro.props.contentHeading && <h1 class="sr-only">{currentLabel}</h1>}
       <slot />
@@ -253,7 +269,7 @@ const htmlLanguage = activeReleaseContext.locale;
       try { navigationStorage = window.sessionStorage; } catch { /* Storage is optional. */ }
       restoreNavigationScroll(navigation, navigationStorage);
       const backdrop = document.querySelector<HTMLButtonElement>("[data-nav-backdrop]");
-      const backgroundElements = document.querySelectorAll<HTMLElement>("#main-content, .site-footer, .availability-notice, .site-brand, .sidebar-collapse, .site-breadcrumb, .global-search, .context-switcher");
+      const backgroundElements = document.querySelectorAll<HTMLElement>("#main-content, .site-footer, .availability-notice, .site-brand, .sidebar-collapse, .site-header-lead, .site-breadcrumb, .site-header-hub, .global-search, .context-switcher");
       const closeNavigation = () => {
         toggle?.setAttribute("aria-expanded", "false");
         toggle?.setAttribute("aria-label", labels.open);
@@ -283,6 +299,12 @@ const htmlLanguage = activeReleaseContext.locale;
         if (toggle instanceof HTMLElement) toggle.focus();
       });
       navigation?.addEventListener("click", (event) => {
+        if (event.target instanceof Element && event.target.closest("[data-account-hub-open]")) {
+          closeNavigation();
+          if (mobileNavigation.matches && toggle instanceof HTMLElement) toggle.focus();
+          document.dispatchEvent(new CustomEvent("account-hub:open"));
+          return;
+        }
         if (event.target instanceof Element && event.target.closest("[data-playlist-workspace-open]")) {
           closeNavigation();
           if (mobileNavigation.matches && toggle instanceof HTMLElement) toggle.focus();
@@ -365,6 +387,61 @@ const htmlLanguage = activeReleaseContext.locale;
         const path = notice.querySelector("[data-unavailable-path]");
         if (path) path.textContent = unavailable;
       }
+
+      const isTipElement = (node: unknown): node is HTMLDetailsElement =>
+        node instanceof HTMLDetailsElement &&
+        (node.classList.contains("ui-tip-disclosure") ||
+          Boolean(node.closest(".calc-source-tip-bar") && node.classList.contains("source-disclosure")));
+
+      const alignTip = (tip: HTMLDetailsElement) => {
+        const rect = tip.getBoundingClientRect();
+        const dialog = tip.closest("dialog[open]");
+        const bounds = dialog
+          ? dialog.getBoundingClientRect()
+          : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+        const spaceLeft = rect.left - bounds.left;
+        const spaceRight = bounds.right - rect.right;
+        tip.dataset.tipAlign = spaceLeft < spaceRight ? "left" : "right";
+        if (!tip.hasAttribute("data-tip-edge-fixed")) {
+          const spaceBottom = bounds.bottom - rect.bottom;
+          const spaceTop = rect.top - bounds.top;
+          if (spaceBottom < 220 && spaceTop > spaceBottom) tip.dataset.tipEdge = "top";
+          else delete tip.dataset.tipEdge;
+        }
+      };
+
+      document.addEventListener("pointerover", (event) => {
+        const tip = event.target instanceof Element ? event.target.closest("details") : null;
+        if (isTipElement(tip)) alignTip(tip);
+      });
+
+      document.addEventListener("focusin", (event) => {
+        const tip = event.target instanceof Element ? event.target.closest("details") : null;
+        if (isTipElement(tip)) alignTip(tip);
+      });
+
+      document.addEventListener("toggle", (event) => {
+        const target = event.target;
+        if (!isTipElement(target) || !target.open) return;
+        document.querySelectorAll<HTMLDetailsElement>(".ui-tip-disclosure[open], .calc-source-tip-bar .source-disclosure[open]").forEach((other) => {
+          if (other !== target) other.open = false;
+        });
+        alignTip(target);
+      }, true);
+
+      document.addEventListener("pointerdown", (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        document.querySelectorAll<HTMLDetailsElement>(".ui-tip-disclosure[open], .calc-source-tip-bar .source-disclosure[open]").forEach((tip) => {
+          if (!target || !tip.contains(target)) tip.open = false;
+        });
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        document.querySelectorAll<HTMLDetailsElement>(".ui-tip-disclosure[open], .calc-source-tip-bar .source-disclosure[open]").forEach((tip) => {
+          tip.open = false;
+        });
+      });
     </script>
   </body>
 </html>

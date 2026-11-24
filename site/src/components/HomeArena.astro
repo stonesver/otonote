@@ -1,0 +1,123 @@
+---
+import { activeReleaseContext } from '../lib/release-context';
+import { siteHref } from '../lib/site-context';
+import { filterVisualOptions, bandCircleIcon } from '../lib/filter-visuals';
+import '../styles/home-arena.css';
+
+const en = activeReleaseContext.locale === 'en';
+const href = (path: string) => import.meta.env.BASE_URL === '/' ? path : siteHref(path, activeReleaseContext);
+
+const visuals = JSON.stringify({
+  band: filterVisualOptions.band.map(b => ({
+    value: b.value,
+    label: b.label,
+    icon: b.icon ?? null,
+    circleIcon: bandCircleIcon(b.value).icon ?? null,
+  })),
+  attribute: filterVisualOptions.attribute.map(a => ({
+    value: a.value,
+    label: a.label,
+    icon: a.icon ?? null,
+  })),
+}).replaceAll('<', '\\u003c');
+---
+<section class="home-arena ui-sheet" data-home-arena aria-labelledby="home-arena-heading">
+  <header class="home-arena-header">
+    <div class="home-arena-lead">
+      <h2 id="home-arena-heading">{en ? 'Gekisou Arena' : '激奏舞台'}</h2>
+      <span class="home-arena-season" data-home-arena-season hidden>
+        <span class="home-arena-dot" aria-hidden="true"></span>
+        <span data-home-arena-season-name></span>
+      </span>
+      <span class="home-arena-period" data-home-arena-period hidden></span>
+    </div>
+    <a href={href('/arena/')}>{en ? 'Arena & rankings →' : '舞台与排行 →'}</a>
+  </header>
+  <div class="home-arena-grid" data-home-arena-grid>
+    <p class="home-arena-empty">{en ? 'Loading live stage conditions…' : '正在读取当前激奏舞台条件…'}</p>
+  </div>
+  <script type="application/json" data-home-arena-visuals set:html={visuals}></script>
+</section>
+
+<script>
+  import { artifact, pageContext, snapshot } from '../runtime/content.mjs';
+  import { validateArena, arenaBandPreviews, arenaContext } from '../lib/arena-context.mjs';
+  import { resolveArenaCondition } from '../lib/arena-presentation.mjs';
+
+  const root = document.querySelector<HTMLElement>('[data-home-arena]');
+  if (root) {
+    const { region, locale, base } = pageContext();
+    const en = locale === 'en';
+    const visualsEl = root.querySelector('[data-home-arena-visuals]');
+    const visuals = visualsEl?.textContent ? JSON.parse(visualsEl.textContent) : { band: [], attribute: [] };
+    const grid = root.querySelector<HTMLElement>('[data-home-arena-grid]');
+    const seasonPill = root.querySelector<HTMLElement>('[data-home-arena-season]');
+    const seasonName = root.querySelector<HTMLElement>('[data-home-arena-season-name]');
+    const periodEl = root.querySelector<HTMLElement>('[data-home-arena-period]');
+
+    const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] ?? ch));
+    const missionShort = (code: number) => (['选歌', 'C', 'L', 'J'][code] ?? '—');
+    const missionName = (code: number) => (['选歌查看', 'COMBO', 'LUCK', 'JUST'][code] ?? '—');
+    const shortTime = (iso: string) =>
+      new Intl.DateTimeFormat(en ? 'en-GB' : 'zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(iso));
+
+    (async () => {
+      try {
+        const [raw, pinned] = await Promise.all([artifact('projection/arena.json', { optional: true }), snapshot()]);
+        const data = validateArena(raw, { region, sourceReleaseId: pinned.contentReleaseId });
+        if (!data || !grid) {
+          if (grid) grid.innerHTML = `<p class="home-arena-empty">${en ? 'Arena stage data is not published for this edition yet.' : '当前版本暂未收录激奏舞台条件。'}</p>`;
+          return;
+        }
+        const now = Date.now();
+        const ctx = arenaContext(data, '', { now, region });
+        const previews = arenaBandPreviews(data, '', { now, region });
+        if (ctx.season?.name && seasonPill && seasonName) {
+          seasonName.textContent = ctx.season.name;
+          seasonPill.hidden = false;
+        }
+        const firstCond = previews.find(p => p.condition?.validFrom && p.condition?.validUntil)?.condition;
+        if (firstCond && periodEl) {
+          periodEl.textContent = `${shortTime(firstCond.validFrom)} → ${shortTime(firstCond.validUntil)} ${en ? 'UTC+8' : '北京时间'}`;
+          periodEl.hidden = false;
+        }
+        if (!previews.length) {
+          grid.innerHTML = `<p class="home-arena-empty">${en ? 'No active arena bands recorded.' : '暂无进行中的激奏舞台乐队。'}</p>`;
+          return;
+        }
+        grid.innerHTML = previews.map(preview => {
+          const { league, condition } = preview;
+          const bVis = visuals.band.find((b: any) => String(b.value) === String(league.bandId));
+          const resolved = condition ? resolveArenaCondition(condition, null) : null;
+          const attrCode = resolved?.attribute;
+          const aVis = visuals.attribute.find((a: any) => Number(a.value) === Number(attrCode));
+          const attrLabel = attrCode == null || attrCode === 0 ? (en ? 'By song' : '按歌') : attrCode === 99 ? 'ALL' : (aVis?.label ?? String(attrCode));
+          const emblem = bVis?.circleIcon || bVis?.icon;
+          const missionsHtml = resolved?.missions?.length
+            ? resolved.missions.map((m: number) => `<span class="home-arena-pill" data-mission="${m}" title="${esc(missionName(m))}">${esc(missionShort(m))}</span>`).join('')
+            : '<span class="home-arena-pill">—</span>';
+          const targetHref = `${base}arena/?band=${encodeURIComponent(league.bandId)}`;
+          return `<a class="home-arena-card ui-subsheet" href="${esc(targetHref)}">
+            <div class="home-arena-band">
+              ${emblem ? `<img src="${esc(emblem)}" alt="" width="20" height="20" loading="lazy">` : ''}
+              <strong>${esc(league.name)}</strong>
+            </div>
+            <div class="home-arena-cond">
+              <span class="home-arena-attr">${aVis?.icon ? `<img src="${esc(aVis.icon)}" alt="" width="17" height="17" loading="lazy">` : ''}<span>${esc(attrLabel)}</span></span>
+              <span class="home-arena-missions" aria-label="${esc((resolved?.missions ?? []).map(missionName).join(' / '))}">${missionsHtml}</span>
+            </div>
+          </a>`;
+        }).join('');
+      } catch {
+        if (grid) grid.innerHTML = `<p class="home-arena-empty">${en ? 'Unable to load arena conditions right now.' : '暂未能读取当前激奏舞台条件，可点击右上角进入查看。'}</p>`;
+      }
+    })();
+  }
+</script>

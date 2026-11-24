@@ -1,18 +1,39 @@
 ---
-import FilterPanel from "../FilterPanel.astro";
 import { say, categories } from "../../lib/system-display";
 import { catalog } from "../../lib/catalog";
 interface Props { count: number; categoryKeys?: string[]; cards?: boolean; placeholder?: string; }
 const { count, categoryKeys = [], cards, placeholder = say("搜索名称或奖励…", "Search names or rewards…") } = Astro.props;
 ---
-<div class="filter-toolbar">
-  <label class="search-control sys-search"><span class="visually-hidden">{say("搜索", "Search")}</span><input type="search" data-filter="query" placeholder={placeholder} /></label>
-<FilterPanel drawer count={count} noun={say("项", "results")} title={say("筛选", "Filters")} hint={say("组合条件，缩小浏览范围", "Combine filters to narrow results")}>
-  <div class="sys-filters">
-    {categoryKeys.length > 0 && <label>{say("分类", "Category")}<select data-filter="category"><option value="">{say("全部分类", "All categories")}</option>{categoryKeys.map(key => <option value={key}>{categories[key] || key}</option>)}</select></label>}
-    {cards && <><label>{say("卡片类型", "Card type")}<select data-filter="kind"><option value="">{say("全部", "All")}</option><option value="2">{say("成员卡", "Members")}</option><option value="3">{say("留影", "Snapshots")}</option><option value="1">{say("道具", "Items")}</option></select></label>
-      <label>{say("稀有度", "Rarity")}<select data-filter="rarity"><option value="">{say("全部", "All")}</option>{catalog.cardTaxonomy.rarities.map(r => <option value={r.label}>{r.label}</option>)}</select></label></>}
+<div class="ui-sheet sys-controls-shell">
+  <div class="sys-controls-top">
+    <label class="sys-search-box">
+      <span class="visually-hidden">{say("搜索", "Search")}</span>
+      <svg class="sys-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input class="ui-input" type="search" data-filter="query" placeholder={placeholder} />
+    </label>
+    {cards && <div class="sys-card-selects">
+      <label class="sys-select-field">
+        <span class="visually-hidden">{say("卡片类型", "Card type")}</span>
+        <select class="ui-select" data-filter="kind" aria-label={say("卡片类型", "Card type")}><option value="">{say("全部类型", "All types")}</option><option value="2">{say("成员卡", "Members")}</option><option value="3">{say("留影", "Snapshots")}</option><option value="1">{say("道具", "Items")}</option></select>
+      </label>
+      <label class="sys-select-field">
+        <span class="visually-hidden">{say("稀有度", "Rarity")}</span>
+        <select class="ui-select" data-filter="rarity" aria-label={say("稀有度", "Rarity")}><option value="">{say("全部稀有度", "All rarities")}</option>{catalog.cardTaxonomy.rarities.map(r => <option value={r.label}>{r.label}</option>)}</select>
+      </label>
+    </div>}
+    <div class="sys-result-bar">
+      <p class="sys-result-count" role="status">{say("共", "Found")} <strong data-count data-filter-count>{count}</strong> {say("项", "results")}</p>
+      <button type="button" class="ui-btn-ghost sys-reset-btn" data-reset data-filter-reset>{say("重置", "Reset")}</button>
+    </div>
   </div>
-</FilterPanel>
+  {categoryKeys.length > 0 && <>
+    <select data-filter="category" hidden aria-hidden="true" tabindex="-1">
+      <option value="">{say("全部分类", "All categories")}</option>
+      {categoryKeys.map(key => <option value={key}>{categories[key] || key}</option>)}
+    </select>
+    <div class="ui-choice-pills sys-cat-pills" role="group" aria-label={say("分类筛选", "Filter by category")}>
+      <button type="button" data-category-pill="" aria-pressed="true">{say("全部", "All")}</button>
+      {categoryKeys.map(key => <button type="button" data-category-pill={key} aria-pressed="false">{categories[key] || key}</button>)}
+    </div>
+  </>}
 </div>
-<div class="sys-result-bar"><p class="sys-result-count" role="status">{say("找到", "Found")} <strong data-count data-filter-count>{count}</strong> {say("项", "results")}</p><button type="button" data-reset data-filter-reset>{say("重置", "Reset")}</button></div>

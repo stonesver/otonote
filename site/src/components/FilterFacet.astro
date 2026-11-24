@@ -19,7 +19,7 @@ const inputAttribute = mode === 'switcher' ? { 'data-switcher-facet': facet.name
         return <label class:list={['facet-check', { 'filter-icon-only': visual.iconOnly }]} data-facet-option data-option-label={label.toLocaleLowerCase('zh-CN')} title={label}>
           <input type="checkbox" name={mode === 'switcher' ? undefined : facet.name} value={option.value} aria-label={label} {...inputAttribute} />
           <span class="filter-option-content">
-            {visual.icon && <img class:list={['filter-option-icon', { 'filter-option-icon--round': visual.round }]} src={visual.icon} alt="" loading="lazy" />}
+            {visual.icon && <img class:list={['filter-option-icon', { 'filter-option-icon--round': visual.round }]} src={visual.icon} data-fallback-icon={visual.fallbackIcon} alt="" loading="lazy" />}
             <span class:list={{ 'visually-hidden': visual.iconOnly }}>{label}</span>
           </span>
           <b data-facet-count>0</b>

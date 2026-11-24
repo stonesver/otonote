@@ -31,7 +31,7 @@ const id = (name:string) => `event-${event.id}-${name}`;
     <div class="ef-pass-heading"><span><EventIcon name="pass" size={24} /><strong>{pass.levels.length} {t('级奖励','reward levels')}</strong></span><p>{formatEventTime(pass.startAt, event.edition, event.schedule.timeZone)} — {formatEventTime(pass.endAt, event.edition, event.schedule.timeZone)} · {eventTimeLabel(event.edition, locale === 'en')}</p></div>
     <p class="ea-note">{t('完成本期通行证任务获得通行证积分，提升等级。高级奖励需要对应的高级通行证权益。','Complete pass missions to earn points and increase the pass level. Premium rewards require the corresponding premium pass.')}</p>
     <div data-event-pass>
-      <div class="ef-bonus-tabs ef-pass-tabs" role="group" aria-label={t('通行证内容','Pass content')}>
+      <div class="ef-bonus-tabs ef-pass-tabs ui-segmented ui-segmented--block" role="group" aria-label={t('通行证内容','Pass content')}>
         <button type="button" data-pass-view="missions" aria-pressed="true" aria-controls={id(`pass-${pass.id}-missions`)}>{t('任务','Missions')} <small>{pass.missions.reduce((sum,group)=>sum+group.stages.length,0)}</small></button>
         <button type="button" data-pass-view="rewards" aria-pressed="false" aria-controls={id(`pass-${pass.id}-rewards`)}>{t('等级奖励','Level rewards')} <small>{pass.levels.length}</small></button>
       </div>

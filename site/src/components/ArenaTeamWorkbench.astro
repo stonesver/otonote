@@ -1,6 +1,7 @@
 ---
 import { catalog, getAsset } from '../lib/catalog';
 import { sharedTeamData } from '../lib/shared-team-data.mjs';
+import { bandCircleIcon } from '../lib/filter-visuals';
 import { scoringRulesAvailable } from '../lib/scoring-release-gate.mjs';
 import ScoringUnavailable from './ScoringUnavailable.astro';
 import { arenaSkillRoles } from '../lib/arena-skill-policy.mjs';
@@ -15,21 +16,28 @@ const client = JSON.stringify({ ...data,
 ---
 {available ? <arena-team-workbench>
   <script is:inline type="application/json" data-arena-data set:html={client} />
-  <details class="arena-settings" data-arena-settings open>
-    <summary><span>配队条件</span><span class="arena-settings-summary" data-arena-condition-summary>使用我的养成</span><span class="arena-settings-edit">编辑</span></summary>
+  <details class="arena-settings ui-sheet" data-arena-settings open>
+    <summary class="arena-settings-bar">
+      <span class="arena-settings-title">配队条件</span>
+      <span class="arena-settings-summary ui-summary-segments" data-arena-condition-summary>使用我的养成</span>
+      <span class="arena-settings-edit">
+        <span class="arena-edit-open"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 10 4-4 4 4"/></svg><span>收起条件</span></span>
+        <span class="arena-edit-closed"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5h11M2.5 11h11"/><circle cx="6" cy="5" r="1.5"/><circle cx="10.5" cy="11" r="1.5"/></svg><span>修改条件</span></span>
+      </span>
+    </summary>
     <form id="arena-team-form" data-arena-form>
       <div class="arena-controls">
         <section data-arena-stage>
-          <div class="arena-setup-heading"><h2>舞台与卡库</h2><div class="arena-stage-source arena-segments" role="group" aria-label="舞台条件来源"><button type="button" data-stage-source="schedule" aria-pressed="true">舞台安排</button><button type="button" data-stage-source="manual" aria-pressed="false">手动试配</button></div></div>
-          <label class="arena-band-field">参赛乐队<select name="bandId" data-quick>{data.bands.map(b => <option value={b.id} data-icon={data.filterVisualOptions.band.find(v=>v.value===String(b.id))?.icon} data-icon-only>{b.name}</option>)}</select></label>
-          <div class="arena-schedule" data-arena-schedule><button type="button" class="arena-period-trigger" data-arena-period aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h3m2 0h3"/></svg><span data-arena-period-label>当前舞台</span><small>换场次</small><span aria-hidden="true">›</span></button><div class="arena-stage-summary" data-arena-stage-summary role="status">读取舞台安排…</div></div>
-          <dialog class="arena-period-dialog" data-arena-period-dialog aria-label="选择舞台场次"><header><h2>舞台场次</h2><button type="button" data-arena-period-close aria-label="关闭场次选择">×</button></header><div class="arena-period-toolbar"><button type="button" data-arena-period-current>跟随当前舞台</button><small data-arena-period-zone></small></div><div class="arena-period-list" data-arena-period-list></div></dialog>
-          <div data-arena-manual hidden><label class="arena-attribute-field">舞台属性<select name="musicType" data-quick><option value="" selected hidden>选择属性</option><option value="0">原曲</option>{catalog.cardTaxonomy.attributes.map(a=><option value={a.code} data-icon={data.filterVisualOptions.attribute.find(v=>v.value===String(a.code))?.icon} data-icon-only>{a.names[catalog.release.locale]}</option>)}</select></label><label>三段任务<select name="missionType" data-quick><option value="3">JUST ×3</option><option value="2">LUCK ×3</option></select></label></div>
-          <label class="arena-player-field">对局人数<select name="participantCount" data-quick>{[5,4,3,2].map(n=><option value={n}>{n} 人</option>)}</select></label>
-          <label>使用卡片<select name="cardScope"><option value="owned">我的卡库</option><option value="reference">全卡库参考 · 满养成</option></select></label>
+          <div class="arena-setup-heading"><h2>舞台与卡库</h2><div class="arena-stage-source arena-segments ui-segmented" role="group" aria-label="舞台条件来源"><button type="button" data-stage-source="schedule" aria-pressed="true">舞台安排</button><button type="button" data-stage-source="manual" aria-pressed="false">手动试配</button></div></div>
+          <label class="arena-band-field">参赛乐队<select name="bandId" data-quick>{data.bands.map(b => { const visual = bandCircleIcon(b.id); const logo = data.filterVisualOptions.band.find(v=>v.value===String(b.id))?.icon; return <option value={b.id} data-icon={visual.icon ?? logo} data-fallback-icon={visual.fallbackIcon ?? logo} data-icon-only={visual.icon || logo ? '' : undefined} data-round={visual.round ? 'true' : undefined}>{b.name}</option>; })}</select></label>
+          <div class="arena-schedule" data-arena-schedule><button type="button" class="arena-period-trigger" data-arena-period aria-haspopup="dialog" aria-label="切换舞台场次"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h3m2 0h3"/></svg><span data-arena-period-label>当前舞台</span><svg class="arena-period-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg></button><div class="arena-stage-summary" data-arena-stage-summary role="status">读取舞台安排…</div></div>
+          <dialog class="arena-period-dialog ui-dialog" data-arena-period-dialog aria-label="选择舞台场次"><header><h2>舞台场次</h2><button type="button" class="ui-icon-btn" data-arena-period-close aria-label="关闭场次选择" title="关闭"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></header><div class="arena-period-toolbar"><button type="button" class="ui-btn-soft" data-arena-period-current>跟随当前舞台</button><small data-arena-period-zone></small></div><div class="arena-period-list" data-arena-period-list></div></dialog>
+          <div data-arena-manual hidden><label class="arena-attribute-field">舞台属性<select name="musicType" data-quick><option value="" selected hidden>选择属性</option><option value="0">原曲</option>{catalog.cardTaxonomy.attributes.map(a=><option value={a.code} data-icon={data.filterVisualOptions.attribute.find(v=>v.value===String(a.code))?.icon} data-icon-only>{a.names[catalog.release.locale]}</option>)}</select></label><label>三段任务<select name="missionType" data-quick data-quick-segmented><option value="3">JUST ×3</option><option value="2">LUCK ×3</option></select></label></div>
+          <label class="arena-player-field">对局人数<select name="participantCount" data-quick data-quick-segmented="pill">{[5,4,3,2].map(n=><option value={n}>{n} 人</option>)}</select></label>
+          <label class="arena-scope-field">使用卡片<select name="cardScope" data-quick data-quick-segmented><option value="owned">我的卡库</option><option value="reference" data-short-label="全卡库满养成">全卡库参考 · 满养成</option></select></label>
           <p class="arena-hint" data-arena-card-scope-note>按个人卡库的实际养成计算。</p>
           <div data-arena-comparison hidden>
-            <label>自配队对照（可选）<select name="comparisonTeam" data-quick-native><option value="">不加入对照</option></select></label>
+            <label>自配队对照（可选）<select name="comparisonTeam" class="ui-select" data-quick-native><option value="">不加入对照</option></select></label>
             <p class="arena-hint" data-arena-comparison-note></p>
           </div>
         </section>
@@ -37,31 +45,38 @@ const client = JSON.stringify({ ...data,
           <div class="arena-setup-heading"><h2>技能偏好</h2></div>
           <div class="arena-skill-toolbar">
             <label>推荐倾向<select name="skillPreference" data-quick><option value="none">不偏好</option>{Object.entries(arenaSkillRoles).map(([value, label]) => <option value={value}>{label}优先</option>)}</select></label>
-            <button type="button" data-arena-limits-open aria-haspopup="dialog">数量限制 · 未设置</button>
+            <button type="button" class="ui-btn-soft" data-arena-limits-open aria-haspopup="dialog">数量限制 · 未设置</button>
           </div>
           <p class="arena-hint">选择偏好后，综合推荐与偏好方案并列展示。同类技能卡更多的方案优先，同数量按综合推荐排序。</p>
-          <dialog class="arena-limits-dialog" data-arena-limits-dialog aria-labelledby="arena-limits-title">
-            <header><h2 id="arena-limits-title">技能数量限制</h2><button type="button" data-arena-limits-close aria-label="取消数量限制修改">×</button></header>
+          <dialog class="arena-limits-dialog ui-dialog" data-arena-limits-dialog aria-labelledby="arena-limits-title">
+            <header><h2 id="arena-limits-title">技能数量限制</h2><button type="button" class="ui-icon-btn" data-arena-limits-close aria-label="取消数量限制修改" title="关闭"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></header>
             <div class="arena-skill-limits">{['member', 'support'].map(kind => <fieldset><legend>{kind === 'member' ? '成员' : '留影'}数量限制</legend>
               <div class="arena-skill-limit-head"><span>技能</span><span>最少</span><span>最多</span></div>
-              {Object.entries(arenaSkillRoles).map(([role, label]) => <div class="arena-skill-limit-row"><span>{label}</span>{['min', 'max'].map(bound => <select name={`skill-${kind}-${role}-${bound}`} data-quick-native aria-label={`${kind === 'member' ? '成员' : '留影'}${label}${bound === 'min' ? '最少' : '最多'}数量`}>{[0,1,2,3,4,5].map(n => <option value={n} selected={n === (bound === 'min' ? 0 : 5)}>{n} 张</option>)}</select>)}</div>)}
+              {Object.entries(arenaSkillRoles).map(([role, label]) => <div class="arena-skill-limit-row"><span>{label}</span>{['min', 'max'].map(bound => <select class="ui-select" name={`skill-${kind}-${role}-${bound}`} data-quick-native aria-label={`${kind === 'member' ? '成员' : '留影'}${label}${bound === 'min' ? '最少' : '最多'}数量`}>{[0,1,2,3,4,5].map(n => <option value={n} selected={n === (bound === 'min' ? 0 : 5)}>{n} 张</option>)}</select>)}</div>)}
             </fieldset>)}</div>
             <p class="arena-hint">按当前配对可用的 JUST 技能计数；同卡同类只计一次，多类分别计数。LIFE、累计次数等条件仍须在演奏中满足。</p>
             <p class="arena-status" data-arena-limits-error role="alert"></p>
-            <footer><button type="button" data-arena-limits-reset>清除限制</button><button type="button" data-arena-limits-apply>应用限制</button></footer>
+            <footer><button type="button" class="ui-btn-outline" data-arena-limits-reset>清除限制</button><button type="button" class="ui-btn-primary" data-arena-limits-apply>应用限制</button></footer>
           </dialog>
         </section>
         <section class="arena-pool-controls">
           <div class="arena-setup-heading"><h2>评估歌曲</h2>
             <details class="arena-performance"><summary aria-label="调整参考发挥"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span data-arena-performance-summary>稳定 FC · ±20ms</span><svg class="arena-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary>
-              <div class="arena-performance-fields"><strong>参考发挥</strong><label>时机波动（±毫秒）<input name="timingSpreadMs" type="number" min="0" max="50" step="1" value="20" required /></label><label>操作样本<select name="samples" data-quick-native><option value="1">1 组</option><option value="3">3 组</option></select></label><p class="arena-hint">数值越小，时机越准。</p></div>
+              <div class="arena-performance-fields">
+                <strong>参考发挥</strong>
+                <label class="arena-perf-spread">时机波动（±毫秒）<input name="timingSpreadMs" data-quick="0,10,20,30" data-quick-prefix="±" data-quick-suffix="ms" type="number" min="0" max="50" step="1" value="20" required /></label>
+                <label class="arena-perf-samples">操作样本<select name="samples" data-quick data-quick-segmented><option value="1">1 组</option><option value="3">3 组</option></select></label>
+                <p class="arena-hint">数值越小，时机越准。</p>
+              </div>
             </details>
           </div>
           <p class="arena-hint">在所选歌曲上比较同一支队伍的整体表现。可以全选乐队，也可只选常遇到的歌。</p>
-          <div class="arena-pool-toolbar"><span data-arena-song-scope></span><div><button type="button" data-arena-all-songs>全选当前乐队</button><button type="button" data-add-song aria-haspopup="dialog">选歌 / 批量编辑</button></div></div>
-          <details class="arena-song-importance"><summary>高级：歌曲重要程度</summary>
-            <p class="arena-hint">默认每首同等重要。开启后可单独调整：填 2 表示这首歌对推荐的影响是填 1 的两倍，与对局人数无关。关闭后恢复同等重要。</p>
-            <label><input type="checkbox" name="customWeights" data-arena-custom-weights />自定义歌曲重要程度</label>
+          <div class="arena-pool-toolbar"><span data-arena-song-scope></span><div><button type="button" class="ui-btn-soft" data-arena-all-songs>全选当前乐队</button><button type="button" class="ui-btn-soft" data-add-song aria-haspopup="dialog">选歌 / 批量编辑</button></div></div>
+          <details class="arena-song-importance ui-subfold"><summary><span>高级：歌曲重要程度</span><small data-arena-weight-summary>同等重要</small></summary>
+            <div>
+              <p class="arena-hint">默认每首同等重要。开启后可单独调整：填 2 表示这首歌对推荐的影响是填 1 的两倍，与对局人数无关。关闭后恢复同等重要。</p>
+              <label class="arena-weight-switch"><input type="checkbox" role="switch" class="ui-switch" name="customWeights" data-arena-custom-weights /><span>自定义歌曲重要程度</span></label>
+            </div>
           </details>
           <ul class="arena-song-list" data-song-list tabindex="0" aria-label="已选歌曲，可滚动浏览"></ul>
           <p class="arena-song-empty" data-arena-song-empty>选一首歌开始，也可加入多首比较队伍。</p>
@@ -71,15 +86,15 @@ const client = JSON.stringify({ ...data,
 
     </form>
   </details>
-  <footer class="arena-run" data-calculation-dock aria-label="配队操作">
+  <footer class="arena-run ui-dock" data-calculation-dock aria-label="配队操作">
     <div class="arena-dock-copy"><div><strong data-arena-dock-summary>选择歌曲，准备推荐</strong><small data-profile-status>读取养成…</small></div><p class="arena-status" data-arena-status role="status" aria-live="polite"></p></div>
-    <div class="arena-dock-actions"><button type="button" class="arena-help-button" data-arena-method-open aria-haspopup="dialog" aria-label="推荐原理" title="推荐原理"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M7.8 7.5a2.2 2.2 0 1 1 3.7 1.6c-1 .7-1.5 1-1.5 2.2M10 13.6v.4"/></svg></button><button type="button" data-arena-edit>条件</button><button type="button" data-arena-continue hidden>继续计算</button><button type="button" data-arena-cancel hidden>取消</button><button type="submit" form="arena-team-form" data-arena-run>推荐队伍 <span aria-hidden="true">→</span></button></div>
+    <div class="arena-dock-actions"><button type="button" class="arena-help-button ui-icon-btn ui-icon-btn--circle" data-arena-method-open aria-haspopup="dialog" aria-label="推荐原理" title="推荐原理"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M7.8 7.5a2.2 2.2 0 1 1 3.7 1.6c-1 .7-1.5 1-1.5 2.2M10 13.6v.4"/></svg></button><button type="button" class="ui-btn-soft" data-arena-edit aria-label="修改条件" title="修改条件"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 5h11M2.5 11h11"/><circle cx="6" cy="5" r="1.5"/><circle cx="10.5" cy="11" r="1.5"/></svg><span class="arena-edit-label">条件</span></button><button type="button" class="ui-btn-outline" data-arena-continue hidden>继续计算</button><button type="button" class="ui-btn-ghost" data-arena-cancel hidden>取消</button><button type="submit" form="arena-team-form" class="ui-btn-primary" data-arena-run>推荐队伍 <span aria-hidden="true">→</span></button></div>
     <progress data-arena-progress hidden max="1" value="0" aria-label="配队进度"></progress>
   </footer>
   <div class="arena-main">
     <div data-arena-results></div>
-    <dialog class="arena-method-dialog" data-arena-method-dialog aria-labelledby="arena-method-title">
-      <header><h2 id="arena-method-title">怎么算推荐？</h2><button type="button" data-arena-method-close aria-label="关闭推荐说明">×</button></header>
+    <dialog class="arena-method-dialog ui-dialog" data-arena-method-dialog aria-labelledby="arena-method-title">
+      <header><h2 id="arena-method-title">怎么算推荐？</h2><button type="button" class="ui-icon-btn" data-arena-method-close aria-label="关闭推荐说明" title="关闭"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></header>
       <p class="arena-method-intro" data-arena-method-intro>看整场得分，也看 JUST 带来的名次奖励。</p>
       <dl>
         <div><dt>对手未知，怎么选队？</dt><dd data-arena-method-comparison>比较不同对手计数下，换成另一支候选最多能多拿多少分。优先推荐这个差距更小的队伍。</dd></div>

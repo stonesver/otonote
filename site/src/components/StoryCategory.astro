@@ -1,12 +1,12 @@
 ---
 import EditionBadge from "./EditionBadge.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import FilterPanel from "./FilterPanel.astro";
-import PaginationControls from "./PaginationControls.astro";
+import StoryCategoryNav from "./StoryCategoryNav.astro";
 import { storyLibrary, storyCharacters, storyBands, storyCopy as copy, episodeLabel, storyKind, storyKindLabel, storyKinds } from "../lib/shared-stories";
 import { activeReleaseContext } from "../lib/release-context";
 import { siteHref } from "../lib/site-context";
 import { catalog, getAsset } from "../lib/catalog";
+import { bandCircleIcon } from "../lib/filter-visuals";
 import { storyAvatar, storyCharacter } from "../lib/story-avatars";
 import "../styles/story-text.css";
 const href = (path: string) => import.meta.env.BASE_URL === "/" ? path : siteHref(path, activeReleaseContext);
@@ -16,102 +16,282 @@ const entries = storyLibrary.entries.filter(entry => storyKind(entry) === catego
 const title = storyKindLabel(category);
 const hints = { main: copy.mainHint, extra: copy.extraHint, viewpoint: copy.viewpointHint, friendship: copy.friendshipHint };
 const bandDetails = new Map(catalog.bands.map(band => [band.masterId, band]));
+const bandMasterById = new Map(catalog.bands.map(band => [band.id, band.masterId]));
+const chapters = [...new Set(entries.map(entry => entry.chapterName).filter(Boolean))];
+const en = activeReleaseContext.locale === "en";
+const allChaptersLabel = en ? "All chapters" : activeReleaseContext.locale === "ja" ? "すべての章" : activeReleaseContext.locale === "zh-TW" ? "全部章節" : "全部章节";
 ---
 <BaseLayout title={title} description={hints[category]}>
-  <div class="st-library content-shell" data-story-library data-filter-scope>
+  <div class="st-library content-shell" data-story-library data-filter-scope data-active-category={category}>
+    <div class="st-command-panel">
+      <StoryCategoryNav active={category} />
+
+      {entries.length > 0 && (
+        <form class="st-filters" data-library-form>
+        <div class="st-filter-topline">
+          <div class="st-band-shelf" role="group" aria-label={copy.bandFilter}>
+            <button type="button" class="st-band-all" data-story-band-all aria-pressed="true">{copy.allBands}</button>
+            {storyLibrary.bands.map(band => {
+              const detail = bandDetails.get(band.id);
+              const circle = detail ? bandCircleIcon(detail.id) : { icon: undefined, fallbackIcon: undefined, round: false };
+              const logo = getAsset(detail?.logoAssetId);
+              const iconSrc = circle.icon || logo?.thumbnailUrl || logo?.previewUrl;
+              return <button type="button" class:list={["st-band-btn", { "st-band-btn--round": circle.round && Boolean(circle.icon) }]} data-story-band={band.id} aria-pressed="false" aria-label={band.name} title={band.name} style={`--band-accent:${detail?.mainColor || "var(--theme-accent)"}`}>
+                {iconSrc ? <img src={iconSrc} data-fallback-icon={circle.fallbackIcon} alt="" width="28" height="28" loading="lazy" /> : null}
+                <span>{band.name}</span>
+              </button>;
+            })}
+          </div>
+          <div class="st-filter-tools">
+            {chapters.length > 1 && (
+              <label class="st-chapter-filter">
+                <span class="visually-hidden">{allChaptersLabel}</span>
+                <select name="chapter" class="ui-select st-chapter-select" data-story-chapter aria-label={allChaptersLabel}>
+                  <option value="all">{allChaptersLabel}</option>
+                  {chapters.map(chapter => <option value={chapter}>{chapter}</option>)}
+                </select>
+              </label>
+            )}
+            <label class="st-search">
+              <span class="visually-hidden">{copy.search}</span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input type="search" name="q" class="ui-input" placeholder={copy.search} autocomplete="off" />
+            </label>
+            <div class="st-results" aria-live="polite">
+              <span><b data-library-count data-filter-count>{entries.length}</b> {copy.results}</span>
+              <button type="button" class="ui-btn-ghost" data-library-clear data-filter-reset hidden>{copy.clear}</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="st-character-shelf" role="group" aria-label={copy.character}>
+          <button type="button" class="st-char-all" data-story-character-all aria-pressed="true">{copy.allCharacters}</button>
+          <div class="st-character-list">
+            {storyLibrary.characters.map(character => {
+              const detail = storyCharacter(character.id);
+              const avatar = storyAvatar(detail);
+              const charBandId = detail ? bandMasterById.get(detail.bandId) : undefined;
+              return <button
+                type="button"
+                class="st-char-btn"
+                data-story-character={character.id}
+                data-character-band={charBandId}
+                aria-pressed="false"
+                aria-label={character.name}
+                title={character.name}
+                style={detail?.mainColor ? `--char-accent:${detail.mainColor}` : undefined}
+              >
+                {avatar ? <img src={avatar.thumbnailUrl || avatar.previewUrl} alt="" width="28" height="28" loading="lazy" /> : <span class="st-char-fallback">{detail?.shortName || character.name.slice(0, 2)}</span>}
+                <span class="st-char-name">{detail?.shortName || character.name}</span>
+              </button>;
+            })}
+          </div>
+        </div>
+
+        <select name="band" multiple hidden aria-hidden="true" tabIndex={-1}>
+          <option value="all">{copy.allBands}</option>
+          {storyLibrary.bands.map(band => <option value={band.id}>{band.name}</option>)}
+        </select>
+        <select name="character" multiple hidden aria-hidden="true" tabIndex={-1}>
+          <option value="all">{copy.allCharacters}</option>
+          {storyLibrary.characters.map(character => <option value={character.id}>{character.name}</option>)}
+        </select>
+      </form>
+      )}
+    </div>
 
     {!entries.length ? <p class="st-empty">{copy.unavailable}</p> : <>
-      <div class="st-band-shelf" role="group" aria-label={copy.bandFilter}>
-        <span class="st-shelf-label">{copy.bandFilter}</span>
-        {storyLibrary.bands.map(band => {
-          const detail = bandDetails.get(band.id);
-          const logo = getAsset(detail?.logoAssetId);
-          return <button type="button" data-story-band={band.id} aria-pressed="false" aria-label={band.name} title={band.name} style={`--band-accent:${detail?.mainColor || "var(--lacquer)"}`}>
-            {logo ? <img src={logo.thumbnailUrl || logo.previewUrl} alt={band.name} width="100" height="40" /> : <span>{band.name}</span>}
-          </button>;
-        })}
-      </div>
-      <form class="st-filters" data-library-form>
-        <label class="st-search"><span class="visually-hidden">{copy.search}</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input type="search" name="q" placeholder={copy.search} autocomplete="off" /></label>
-        <FilterPanel drawer title={title} count={entries.length} noun={copy.results}><div class="st-filter-groups">
-          <label><span>{copy.bandFilter}</span><select name="band" multiple data-inline-filter><option value="all">{copy.allBands}</option>{storyLibrary.bands.map(band => <option value={band.id}>{band.name}</option>)}</select></label>
-          <label><span>{copy.character}</span><select name="character" multiple data-inline-filter><option value="all">{copy.allCharacters}</option>{storyLibrary.characters.map(character => <option value={character.id}>{character.name}</option>)}</select></label>
-        </div></FilterPanel>
-      </form>
-      <div class="st-results"><div><span aria-live="polite"><b data-library-count data-filter-count>{entries.length}</b> {copy.results}</span></div><button type="button" data-library-clear data-filter-reset>{copy.clear}</button></div>
+      <div class="st-index-sheet">
       <div class="st-cards">
         {entries.map(entry => {
           const characters = entry.characterIds.map(id => storyCharacters.get(id)).filter(Boolean).join(" / ");
           const bands = entry.bandIds.map(id => storyBands.get(id)).filter(Boolean).join(" / ");
           const kind = storyKind(entry);
           const band = bandDetails.get(entry.bandIds[0]);
+          const subtitle = entry.category === "friendship" ? characters : entry.chapterName;
           return <article class="st-card" data-story-card data-id={entry.id} data-category={kind} data-kind={kind}
-            data-band={entry.bandIds.join(",")} data-character={entry.characterIds.join(",")}
-            style={`--band-accent:${band?.mainColor || "var(--lacquer)"}`}
+            data-band={entry.bandIds.join(",")} data-character={entry.characterIds.join(",")} data-chapter={entry.chapterName}
+            style={`--band-accent:${band?.mainColor || "var(--theme-accent)"}`}
             data-search={`${entry.title} ${entry.chapterName} ${characters} ${bands} ${episodeLabel(entry)}`}>
             <a href={entry.sourceHref ?? href(`/stories/episodes/${entry.id}/`)}>
-              <div class="st-card-meta"><span class="st-tag" data-kind={kind}>{storyKindLabel(kind)}</span><span class="st-episode-label">{episodeLabel(entry)}</span><EditionBadge record={entry} /></div>
-              <div class="st-card-body"><p class="st-chapter-name">{entry.category === "friendship" ? characters : entry.chapterName}</p><h3>{entry.title || episodeLabel(entry)}</h3>
+              <span class="st-card-index" aria-hidden="true">{String(entry.episodeNumber).padStart(2, "0")}</span>
+              <div class="st-card-main">
+                <div class="st-card-meta">
+                  <span class="st-episode-label">{episodeLabel(entry)}</span>
+                  {subtitle && <span class="st-chapter-name">{subtitle}</span>}
+                  <EditionBadge record={entry} />
+                </div>
+                <h3>{entry.title || episodeLabel(entry)}</h3>
                 {entry.category === "viewpoint" ? <p class="st-viewpoint-name">{characters}</p> : entry.description && <p class="st-card-excerpt">{entry.description}</p>}
               </div>
-              <div class="st-card-cast"><div class="st-cast" aria-hidden="true">{entry.characterIds.slice(0,5).map(id => {const character = storyCharacter(id); const avatar = storyAvatar(character); return <span>{avatar ? <img src={avatar.thumbnailUrl || avatar.previewUrl} alt="" loading="lazy" width="32" height="32" /> : character?.shortName}</span>;})}</div><span>{bands}</span></div>
-              <div class="st-card-footer"><span>{entry.lineCount} {copy.lines}</span><span class="st-read-link">{copy.read}</span></div>
+              <div class="st-card-aside">
+                <div class="st-cast" aria-hidden="true">{entry.characterIds.slice(0, 5).map(id => {const character = storyCharacter(id); const avatar = storyAvatar(character); return <span>{avatar ? <img src={avatar.thumbnailUrl || avatar.previewUrl} alt="" loading="lazy" width="24" height="24" /> : character?.shortName}</span>;})}</div>
+                <div class="st-card-cta">
+                  <span class="st-line-count">{entry.lineCount} {copy.lines}</span>
+                  <span class="st-read-link" aria-hidden="true">→</span>
+                </div>
+              </div>
             </a>
           </article>;
         })}
       </div>
-      <div class="st-empty" data-library-empty hidden><span aria-hidden="true">⌕</span><h2>{copy.noResults}</h2><p>{copy.tryAgain}</p><button type="button" data-library-clear>{copy.clear}</button></div>
-      <PaginationControls defaultPageSize={24} />
+      <div class="st-empty" data-library-empty hidden><span aria-hidden="true">⌕</span><h2>{copy.noResults}</h2><p>{copy.tryAgain}</p><button type="button" class="ui-btn-soft" data-library-clear>{copy.clear}</button></div>
+      <div class="st-load-footer" data-load-sentinel hidden>
+        <span data-load-status></span>
+        <button type="button" class="ui-btn-soft" data-load-more hidden>{en ? "Load more" : "加载更多"}</button>
+      </div>
+      </div>
     </>}
   </div>
 </BaseLayout>
 <script>
   import { restoreFilterControl, selectedControlValues, matchesFilter } from "../lib/filter-controls.mjs";
   import { serverSearchParams } from "../lib/game-servers.mjs";
-  import { createPaginationAdapter } from "../lib/pagination-browser.mjs";
   const library = document.querySelector<HTMLElement>("[data-story-library]");
   const form = library?.querySelector<HTMLFormElement>("[data-library-form]");
   if (library && form) {
+    const BATCH = 24;
     const cards = Array.from(library.querySelectorAll<HTMLElement>("[data-story-card]"));
-    const fields = ["q", "band", "character"];
-    const controls = fields.map(name => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement);
-    const restore = () => { const params = new URLSearchParams(location.search); form.reset();
-      controls.forEach(control => { const value = params.get(control.name); if (value) restoreFilterControl(control, value); }); };
+    const sentinel = library.querySelector<HTMLElement>("[data-load-sentinel]");
+    const loadStatus = library.querySelector<HTMLElement>("[data-load-status]");
+    const loadMoreBtn = library.querySelector<HTMLButtonElement>("[data-load-more]");
+    const isEn = document.documentElement.lang?.startsWith("en");
+    const fields = ["q", "band", "character", "chapter"];
+    const controls = fields
+      .map(name => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)
+      .filter((control): control is HTMLInputElement | HTMLSelectElement => Boolean(control));
+    let visibleCards: HTMLElement[] = cards;
+    let shownLimit = BATCH;
+
+    const restore = () => {
+      const params = new URLSearchParams(location.search);
+      form.reset();
+      controls.forEach(control => {
+        const value = params.get(control.name);
+        if (value) restoreFilterControl(control, value);
+      });
+    };
     restore();
-    let pagination: ReturnType<typeof createPaginationAdapter> = null;
-    const update = (reset = false, mode: "replace" | "push" | "none" = "replace") => {
-      if (reset) pagination?.reset();
-      const params = serverSearchParams(new URLSearchParams());
-      controls.forEach(c => { const value = c instanceof HTMLSelectElement ? selectedControlValues(c).join(",") : c.value; if (value && value !== "all") params.set(c.name, value); });
-      const query = (params.get("q") || "").trim().toLocaleLowerCase();
-      const visible = cards.filter(card => (!query || (card.dataset.search || "").toLocaleLowerCase().includes(query))
-        && ["band", "character"].every(key => matchesFilter((card.dataset[key] || "").split(","), params.get(key))));
-      const page = pagination?.paginate(visible);
-      const shown = new Set(page?.records ?? visible);
+
+    const renderVisibleSlice = () => {
+      const shown = new Set(visibleCards.slice(0, shownLimit));
       cards.forEach(card => { card.hidden = !shown.has(card); });
-      const count = library.querySelector("[data-library-count]"); if (count) count.textContent = String(visible.length);
-      const empty = library.querySelector<HTMLElement>("[data-library-empty]"); if (empty) empty.hidden = visible.length > 0;
+      const total = visibleCards.length;
+      const displayed = Math.min(shownLimit, total);
+      const hasMore = displayed < total;
+      if (sentinel) sentinel.hidden = total === 0;
+      if (loadStatus) {
+        loadStatus.textContent = hasMore
+          ? (isEn ? `Showing ${displayed} / ${total} · Scroll to load more` : `已显示 ${displayed} / ${total} 篇 · 下滑自动加载`)
+          : (isEn ? `Showing all ${total} stories` : `已显示全部 ${total} 篇`);
+      }
+      if (loadMoreBtn) loadMoreBtn.hidden = !hasMore;
+    };
+
+    const loadMore = () => {
+      if (shownLimit >= visibleCards.length) return;
+      shownLimit += BATCH;
+      renderVisibleSlice();
+    };
+
+    const update = (reset = false, mode: "replace" | "push" | "none" = "replace") => {
+      if (reset) shownLimit = BATCH;
+      const params = serverSearchParams(new URLSearchParams());
+      controls.forEach(c => {
+        const value = c instanceof HTMLSelectElement ? selectedControlValues(c).join(",") : c.value;
+        if (value && value !== "all") params.set(c.name, value);
+      });
+      const query = (params.get("q") || "").trim().toLocaleLowerCase();
+      const selectedBands = (params.get("band") || "").split(",").filter(Boolean);
+      const selectedCharacters = (params.get("character") || "").split(",").filter(Boolean);
+      const selectedChapter = params.get("chapter") || "";
+      visibleCards = cards.filter(card =>
+        (!query || (card.dataset.search || "").toLocaleLowerCase().includes(query))
+        && ["band", "character"].every(key => matchesFilter((card.dataset[key] || "").split(","), params.get(key)))
+        && (!selectedChapter || card.dataset.chapter === selectedChapter)
+      );
+      renderVisibleSlice();
+
+      const count = library.querySelector("[data-library-count]");
+      if (count) count.textContent = String(visibleCards.length);
+      const hasFilter = Boolean(query || selectedBands.length || selectedCharacters.length || selectedChapter);
+      const clearBtn = form.querySelector<HTMLButtonElement>("[data-library-clear]");
+      if (clearBtn) clearBtn.hidden = !hasFilter;
+      const empty = library.querySelector<HTMLElement>("[data-library-empty]");
+      if (empty) empty.hidden = visibleCards.length > 0;
+
+      const bandAll = library.querySelector<HTMLElement>("[data-story-band-all]");
+      if (bandAll) bandAll.setAttribute("aria-pressed", String(selectedBands.length === 0));
       library.querySelectorAll<HTMLElement>("[data-story-band]").forEach(link => {
-        const selected = (params.get("band") || "").split(",").includes(link.dataset.storyBand!);
+        const selected = selectedBands.includes(link.dataset.storyBand!);
         link.toggleAttribute("data-active", selected);
         link.setAttribute("aria-pressed", String(selected));
       });
+
+      const charAll = library.querySelector<HTMLElement>("[data-story-character-all]");
+      if (charAll) charAll.setAttribute("aria-pressed", String(selectedCharacters.length === 0));
+      library.querySelectorAll<HTMLElement>("[data-story-character]").forEach(btn => {
+        const charId = btn.dataset.storyCharacter!;
+        const charBand = btn.dataset.characterBand || "";
+        const selected = selectedCharacters.includes(charId);
+        const bandMatch = selectedBands.length === 0 || !charBand || selectedBands.includes(charBand);
+        btn.hidden = !bandMatch && !selected;
+        btn.toggleAttribute("data-active", selected);
+        btn.setAttribute("aria-pressed", String(selected));
+      });
+
       document.dispatchEvent(new Event("filter-controls-sync"));
-      if (page) pagination?.render(page);
-      const next = pagination?.params(params) ?? params;
-      if (mode !== "none") history[mode === "push" ? "pushState" : "replaceState"](null, "", `${location.pathname}${next.size ? `?${next}` : ""}`);
+      if (mode !== "none") history[mode === "push" ? "pushState" : "replaceState"](null, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
     };
-    pagination = createPaginationAdapter(library, { onChange: (mode: "replace" | "push") => update(false, mode) });
+
+    if (sentinel && typeof IntersectionObserver !== "undefined") {
+      const observer = new IntersectionObserver(
+        entries => {
+          if (entries.some(entry => entry.isIntersecting)) loadMore();
+        },
+        { rootMargin: "320px 0px" },
+      );
+      observer.observe(sentinel);
+    }
+    loadMoreBtn?.addEventListener("click", loadMore);
     form.addEventListener("submit", event => event.preventDefault());
     form.addEventListener("input", () => update(true));
     form.addEventListener("change", () => update(true));
+    library.querySelector<HTMLButtonElement>("[data-story-band-all]")?.addEventListener("click", () => {
+      const control = form.elements.namedItem("band") as HTMLSelectElement;
+      restoreFilterControl(control, "all");
+      update(true, "push");
+    });
     library.querySelectorAll<HTMLButtonElement>("[data-story-band]").forEach(button => button.addEventListener("click", () => {
       const control = form.elements.namedItem("band") as HTMLSelectElement;
-      control.value = selectedControlValues(control).includes(button.dataset.storyBand!) ? "all" : button.dataset.storyBand!;
+      const target = button.dataset.storyBand!;
+      const current = selectedControlValues(control);
+      const next = current.includes(target) ? current.filter(v => v !== target) : [target];
+      restoreFilterControl(control, next.length ? next.join(",") : "all");
       update(true, "push");
     }));
-    library.querySelectorAll("[data-library-clear]").forEach(button => button.addEventListener("click", () => { form.reset(); update(true); }));
-    window.addEventListener("popstate", () => { restore(); pagination?.restore(new URLSearchParams(location.search)); update(false, "none"); });
+    library.querySelector<HTMLButtonElement>("[data-story-character-all]")?.addEventListener("click", () => {
+      const control = form.elements.namedItem("character") as HTMLSelectElement;
+      restoreFilterControl(control, "all");
+      update(true, "push");
+    });
+    library.querySelectorAll<HTMLButtonElement>("[data-story-character]").forEach(button => button.addEventListener("click", () => {
+      const control = form.elements.namedItem("character") as HTMLSelectElement;
+      const target = button.dataset.storyCharacter!;
+      const current = selectedControlValues(control);
+      const next = current.includes(target) ? current.filter(v => v !== target) : [...current, target];
+      restoreFilterControl(control, next.length ? next.join(",") : "all");
+      update(true, "push");
+    }));
+    library.querySelectorAll("[data-library-clear]").forEach(button => button.addEventListener("click", () => {
+      form.reset();
+      for (const name of ["band", "character"]) {
+        const control = form.elements.namedItem(name);
+        if (control instanceof HTMLSelectElement) restoreFilterControl(control, "all");
+      }
+      update(true);
+    }));
+    window.addEventListener("popstate", () => { restore(); update(true, "none"); });
     update();
   }
 </script>

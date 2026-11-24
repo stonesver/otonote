@@ -26,7 +26,7 @@ const projection = moduleUrl(`
   export const TEAM_RULE_SET = {};
   export const getAsset = () => null, getBand = () => null, getCharacter = () => null,
     getCardRarity = () => null, getCardAttribute = () => null;
-  export const filterVisual = () => ({});
+  export const filterVisual = () => ({}), bandCircleIcon = () => ({});
   export const getRuntimeUiLabels = () => ({ locale: "en", teamDraft: {}, scoringResearch: {} });
   export default { sourceReleaseId: "previous-release", verificationStatus: "code_audited" };
 `);

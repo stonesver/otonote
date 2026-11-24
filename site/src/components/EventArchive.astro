@@ -11,12 +11,31 @@ import "../styles/event-editorial.css";
 interface Props { identities?: Record<number, Identity>; cards?: Record<number, EventCard[]>; archive: EventArchiveData; locale?: string; href?: (path: string) => string; artworks?: Record<number, { cover?: string; logo?: string }>; story?: boolean; readableCounts?: Record<number, number> }
 const { identities = {}, cards = {}, archive, locale = "zh-CN", href = (path: string) => path, artworks = {}, story = false, readableCounts = {} } = Astro.props;
 const copy = eventCopy(locale);
+const stateTabs = locale === "en"
+  ? [["all", "All"], ["active", "Ongoing"], ["upcoming", "Upcoming"], ["ended", "Ended"]]
+  : locale === "ja"
+    ? [["all", "すべて"], ["active", "開催中"], ["upcoming", "開催予定"], ["ended", "終了"]]
+    : locale === "zh-TW"
+      ? [["all", "全部"], ["active", "進行中"], ["upcoming", "未開始"], ["ended", "已結束"]]
+      : [["all", "全部"], ["active", "进行中"], ["upcoming", "未开始"], ["ended", "已结束"]];
 const records = [...(archive.records ?? [])].filter(event => !story || event.story.episodes.length).sort((a,b) => (b.schedule.startAt ?? "").localeCompare(a.schedule.startAt ?? "") || b.id - a.id);
 ---
 <div class="event-archive content-shell ef-directory" data-event-directory>
 
   {records.length > 0 ? <>
-    <div class="ea-toolbar"><p><strong data-event-count>{records.length}</strong> {copy.events}</p><label class="ea-search"><EventIcon name="search" size={18} /><span class="visually-hidden">{copy.search}</span><input type="search" data-event-search placeholder={copy.search} /></label></div>
+    <div class="ea-toolbar">
+      <div class="ea-toolbar-lead">
+        <p class="ea-count-pill"><strong data-event-count>{records.length}</strong> {copy.events}</p>
+        {!story && (
+          <div class="ea-state-filters" role="group" aria-label={locale === "en" ? "Filter by status" : "按活动状态筛选"}>
+            {stateTabs.map(([value, label], index) => (
+              <button type="button" class="ea-state-pill" data-event-state-filter={value} aria-pressed={index === 0 ? "true" : "false"}>{label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+      <label class="ea-search"><EventIcon name="search" size={16} /><span class="visually-hidden">{copy.search}</span><input type="search" data-event-search placeholder={copy.search} /></label>
+    </div>
     <div class:list={["ea-cards", {"ea-cards--single": records.length === 1}]}>{records.map(event => {
       const art = artworks[event.id];
       return <article class="ea-card" data-event-card data-search={[event.name, ...((identities[event.id]?.bands ?? []).map(band => band.name)), ...((identities[event.id]?.characters ?? []).map(character => character.name))].join(" ")}>
@@ -24,11 +43,15 @@ const records = [...(archive.records ?? [])].filter(event => !story || event.sto
           <div class:list={["ea-card-art", { "ea-card-art--empty": !art?.cover }]}>
             {art?.cover ? <img class="ea-card-cover" src={art.cover} alt="" loading="lazy" width="1920" height="1440" /> : <span class="ea-card-placeholder" aria-hidden="true">{story ? "STORY" : "EVENT"}<small>{String(event.id).padStart(2, "0")}</small></span>}
             {art?.logo && <img class="ea-card-logo" src={art.logo} alt="" width="460" height="240" loading="lazy" />}
-            <span class="ea-card-badge">{story ? copy.stories : copy.event}</span>
+            {story && <span class="ea-card-badge">{copy.stories}</span>}
           </div>
-          <div class="ea-card-body"><p class="ea-card-eyebrow"><EventTypeBadge mode={event.mode} locale={locale} /> {event.edition === "jp" ? copy.jp : copy.global} · EVENT {String(event.id).padStart(2,"0")}</p><h2 lang={event.nameLocale ?? undefined}>{event.name}</h2><p class="ea-card-dates">{formatEventTime(event.schedule.startAt, event.edition, event.schedule.timeZone).slice(0,10)} — {formatEventTime(event.schedule.endAt, event.edition, event.schedule.timeZone).slice(0,10)}</p>
-            <EventIdentity identity={identities[event.id]} compact locale={locale} /><div class="ea-card-facts"><span><EventIcon name="book" size={14} /><b>{event.story.episodes.length}</b> {copy.episodes}</span>{story ? <span><b>{readableCounts[event.id] ?? 0}</b> {copy.available}</span> : <><span><EventIcon name="music" size={14} /><b>{event.challengeSongs.length}</b> {copy.songs}</span><span><EventIcon name="card" size={14} /><b>{cards[event.id]?.length ?? event.pickupCards.length}</b> {locale === "en" ? "cards" : "活动卡牌"}</span></>}</div>
-            <div class="ea-card-footer"><Countdown start={event.schedule.startAt} end={event.schedule.endAt} edition={event.edition} timeZone={event.schedule.timeZone} locale={locale} /><span>{story ? copy.chapters : copy.details}</span></div>
+          <div class="ea-card-body">
+            <p class="ea-card-eyebrow"><EventTypeBadge mode={event.mode} locale={locale} /><span>{event.edition === "jp" ? copy.jp : copy.global} · #{String(event.id).padStart(2,"0")}</span></p>
+            <h2 lang={event.nameLocale ?? undefined}>{event.name}</h2>
+            <p class="ea-card-dates">{formatEventTime(event.schedule.startAt, event.edition, event.schedule.timeZone).slice(0,10)} — {formatEventTime(event.schedule.endAt, event.edition, event.schedule.timeZone).slice(0,10)}</p>
+            <EventIdentity identity={identities[event.id]} compact locale={locale} />
+            <div class="ea-card-facts"><span><EventIcon name="book" size={14} /><b>{event.story.episodes.length}</b> {copy.episodes}</span>{story ? <span><b>{readableCounts[event.id] ?? 0}</b> {copy.available}</span> : <><span><EventIcon name="music" size={14} /><b>{event.challengeSongs.length}</b> {copy.songs}</span><span><EventIcon name="card" size={14} /><b>{cards[event.id]?.length ?? event.pickupCards.length}</b> {locale === "en" ? "cards" : "活动卡牌"}</span></>}</div>
+            <div class="ea-card-footer"><Countdown start={event.schedule.startAt} end={event.schedule.endAt} edition={event.edition} timeZone={event.schedule.timeZone} locale={locale} /><span class="ea-card-cta">{story ? copy.chapters : copy.details} <EventIcon name="arrow" size={14} /></span></div>
           </div>
         </a>
       </article>;
@@ -39,20 +62,44 @@ const records = [...(archive.records ?? [])].filter(event => !story || event.sto
 <script>
   document.querySelectorAll<HTMLElement>("[data-event-directory]").forEach(root => {
     const input = root.querySelector<HTMLInputElement>("[data-event-search]");
-    if (!input) return;
+    const stateButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-event-state-filter]")];
     const cards = [...root.querySelectorAll<HTMLElement>("[data-event-card]")];
+    let stateFilter = "all";
     const update = () => {
-      const query = input.value.trim().toLocaleLowerCase();
-      cards.forEach(card => card.hidden = !(card.dataset.search ?? "").toLocaleLowerCase().includes(query));
+      const query = input?.value.trim().toLocaleLowerCase() ?? "";
+      stateButtons.forEach(button => button.setAttribute("aria-pressed", String((button.dataset.eventStateFilter ?? "all") === stateFilter)));
+      cards.forEach(card => {
+        const matchesQuery = (card.dataset.search ?? "").toLocaleLowerCase().includes(query);
+        const liveState = card.querySelector<HTMLElement>("[data-event-countdown]")?.dataset.state ?? "unknown";
+        const matchesState = stateFilter === "all" || liveState === stateFilter;
+        card.hidden = !(matchesQuery && matchesState);
+      });
       const count = cards.filter(card => !card.hidden).length;
-      root.querySelector("[data-event-count]")!.textContent = String(count);
-      root.querySelector<HTMLElement>("[data-event-empty]")!.hidden = count > 0;
-      const url = new URL(location.href); query ? url.searchParams.set("q", input.value) : url.searchParams.delete("q");
-      history.replaceState(null, "", url);
+      const countEl = root.querySelector("[data-event-count]");
+      if (countEl) countEl.textContent = String(count);
+      const emptyEl = root.querySelector<HTMLElement>("[data-event-empty]");
+      if (emptyEl) emptyEl.hidden = count > 0;
+      if (input) {
+        const url = new URL(location.href);
+        input.value ? url.searchParams.set("q", input.value) : url.searchParams.delete("q");
+        history.replaceState(null, "", url);
+      }
     };
-    const restore = () => { input.value = new URLSearchParams(location.search).get("q") ?? ""; update(); };
-    input.addEventListener("input", update);
-    root.querySelector("[data-event-clear]")?.addEventListener("click", () => { input.value = ""; update(); input.focus(); });
+    const restore = () => {
+      if (input) input.value = new URLSearchParams(location.search).get("q") ?? "";
+      update();
+    };
+    input?.addEventListener("input", update);
+    stateButtons.forEach(button => button.addEventListener("click", () => {
+      stateFilter = button.dataset.eventStateFilter ?? "all";
+      update();
+    }));
+    root.querySelector("[data-event-clear]")?.addEventListener("click", () => {
+      if (input) input.value = "";
+      stateFilter = "all";
+      update();
+      input?.focus();
+    });
     window.addEventListener("popstate", restore);
     restore();
   });

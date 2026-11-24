@@ -21,18 +21,25 @@ export function addArenaSongs(songs, tracks, charts, difficulty) {
 }
 
 export function createArenaSongPicker({ charts, onChange }) {
-  const dialog = el('dialog', '', 'arena-song-dialog'); dialog.setAttribute('aria-label', '选择舞台歌曲');
-  const header = el('header'), title = el('h2'), close = el('button', '×'); close.type = 'button'; close.setAttribute('aria-label', '关闭选歌');
+  const closeIcon = () => {
+    if (typeof document.createElementNS !== 'function') return '×';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 20 20'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.8'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', 'M5 5l10 10M15 5L5 15'); svg.append(p); return svg;
+  };
+  const dialog = el('dialog', '', 'arena-song-dialog ui-dialog'); dialog.setAttribute('aria-label', '选择舞台歌曲');
+  const header = el('header'), title = el('h2'), close = el('button', '', 'ui-icon-btn'); close.type = 'button'; close.setAttribute('aria-label', '关闭选歌'); close.title = '关闭';
+  const closeNode = closeIcon(); if (typeof closeNode === 'string') close.textContent = closeNode; else close.append(closeNode);
   header.append(title, close);
-  const query = el('input'); query.type = 'search'; query.placeholder = '搜索歌曲'; query.setAttribute('aria-label', '搜索舞台歌曲');
-  const toolbar = el('div', '', 'arena-song-batch'), difficultyLabel = el('label', '批量难度'), difficulty = el('select');
+  const query = el('input', '', 'ui-input'); query.type = 'search'; query.placeholder = '搜索歌曲'; query.setAttribute('aria-label', '搜索舞台歌曲');
+  const toolbar = el('div', '', 'arena-song-batch'), difficultyLabel = el('label', '批量难度'), difficulty = el('select', '', 'ui-select');
   difficulty.setAttribute('aria-label', '批量难度');
   for (const value of arenaDifficulties) { const option = el('option', value.toUpperCase()); option.value = value; difficulty.append(option); }
   difficulty.value = 'hard'; difficultyLabel.append(difficulty); toolbar.append(difficultyLabel);
-  const action = (label, fn) => { const button = el('button', label); button.type = 'button'; button.addEventListener('click', fn); toolbar.append(button); return button; };
+  const action = (label, fn) => { const button = el('button', label, 'ui-btn-outline'); button.type = 'button'; button.addEventListener('click', fn); toolbar.append(button); return button; };
   const hint = el('p', '可连续选歌；批量加入时，无所选难度的歌曲使用其最高可用难度。', 'arena-hint');
   const notice = el('p', '', 'arena-hint'); notice.setAttribute('role', 'status');
-  const list = el('div', '', 'arena-song-choices'), footer = el('footer'), summary = el('span'), done = el('button', '完成选歌'); done.type = 'button';
+  const list = el('div', '', 'arena-song-choices'), footer = el('footer'), summary = el('span'), done = el('button', '完成选歌', 'ui-btn-primary'); done.type = 'button';
   footer.append(summary, done); dialog.append(header, query, toolbar, hint, notice, list, footer);
   let tracks = [], selected = new Map();
   const visible = () => {

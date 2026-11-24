@@ -1,10 +1,11 @@
 ---
-import "../../../styles/tool-studio.css";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
+import "../../../styles/tool-studio.css";
 import ScoringResearchWorkbench from "../../../components/ScoringResearchWorkbench.astro";
 import SourceDisclosure from "../../../components/SourceDisclosure.astro";
 import { scoringCapability } from "../../../lib/scoring-capability";
 import "../../../styles/tools.css";
+import "../../../styles/score-calculator.css";
 ---
 
 <BaseLayout title="歌曲计算">
@@ -15,14 +16,12 @@ import "../../../styles/tools.css";
       <ScoringResearchWorkbench />
     </div>
   </section>
-  {scoringCapability.calculatorEnabled && <section class="catalog-section catalog-section--tight">
-    <div class="content-shell">
+  {scoringCapability.calculatorEnabled && <div class="content-shell calc-source-tip-bar">
     <SourceDisclosure>
       <p>计算依据已收录的卡牌、歌曲、谱面和技能资料，结合你设置的养成与加成，估算整首歌的分数。</p>
       <p>默认按全部音符获得 Perfect、满生命且不开启辅助来计算。技能发动顺序会影响分数，页面会给出平均分与分数范围。</p>
       <p>结果仅供比较队伍与养成方案，尚不能保证与游戏实得分数完全一致。部分同时出现的音符和技能效果仍可能有差异；规则尚未确认的活动暂不支持计算。</p>
     </SourceDisclosure>
-    </div>
-  </section>}
+  </div>}
 </div>
 </BaseLayout>

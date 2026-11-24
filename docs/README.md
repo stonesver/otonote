@@ -27,6 +27,7 @@
 | Document | Role | Status |
 | --- | --- | --- |
 | [Golden Replay evidence intake](../catalog/baselines/scoring/README.md) | `reference` | `current` |
+| [前端视觉基座、组件规范与素材使用准则](reference/frontend-design-system.md) | `reference` | `current` |
 | [三服邮箱认证与账号读取](reference/account-reads.md) | `reference` | `current` |
 | [激奏舞台规则、信息设计与配队](reference/arena-stage.md) | `reference` | `current` |
 | [计算搜索与证书边界](reference/calculation-search.md) | `reference` | `current` |

@@ -17,6 +17,14 @@ class SystemBrowser extends (globalThis.HTMLElement || class {}) {
       kind: node.dataset.kind || "", rarity: node.dataset.rarity || "" }));
     this.addEventListener("input", event => { if (event.target.matches("[data-filter]")) { this.pagination?.reset(); this.render(); } });
     this.addEventListener("click", event => {
+      const categoryPill = event.target.closest("[data-category-pill]");
+      if (categoryPill) {
+        const select = this.querySelector('[data-filter="category"]');
+        if (select) select.value = categoryPill.dataset.categoryPill || "";
+        this.pagination?.reset();
+        this.render();
+        return;
+      }
       if (event.target.closest("[data-reset]")) {
         this.querySelectorAll("[data-filter]").forEach(input => { input.value = ""; }); this.pagination?.reset(); this.render();
       }
@@ -25,7 +33,12 @@ class SystemBrowser extends (globalThis.HTMLElement || class {}) {
   }
   render() {
     const value = key => this.querySelector(`[data-filter="${key}"]`)?.value || "";
-    const matched = filterEntries(this.entries, value("query"), value("category"), value("kind"), value("rarity"));
+    const activeCategory = value("category");
+    this.querySelectorAll("[data-category-pill]").forEach(button => {
+      const active = (button.dataset.categoryPill || "") === activeCategory;
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    const matched = filterEntries(this.entries, value("query"), activeCategory, value("kind"), value("rarity"));
     const result = this.pagination?.paginate(matched);
     const visible = new Set(result?.records ?? matched);
     this.entries.forEach(entry => { entry.node.hidden = !visible.has(entry); });

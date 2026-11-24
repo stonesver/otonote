@@ -26,16 +26,24 @@ test('classic preserves the CSS defaults and every preset overrides the same bas
   }
 });
 
-test('the collection offers thirteen palettes, twelve light and night as the sole dark choice', () => {
+test('the collection offers eighteen palettes, seventeen light and night as the sole dark choice', () => {
   const light = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'light');
   const dark = THEME_PRESETS.filter(theme => theme.tokens['color-scheme'] === 'dark');
-  assert.equal(THEME_PRESETS.length, 13);
-  assert.equal(light.length, 12);
+  assert.equal(THEME_PRESETS.length, 18);
+  assert.equal(light.length, 17);
   assert.deepEqual(dark.map(theme => [theme.id, theme.group]), [['night', 'dark']]);
   for (const theme of light) {
     assert.ok(luminance(theme.tokens.canvas) >= 0.82, `${theme.id} must have a bright canvas`);
     assert.ok(luminance(theme.tokens.surface) >= 0.93, `${theme.id} must have a bright content surface`);
   }
+});
+
+test('band signature palettes cover all five featured bands', () => {
+  const bands = THEME_PRESETS.filter(theme => theme.group === 'band');
+  assert.deepEqual(
+    bands.map(theme => [theme.id, theme.bandId]),
+    [['band-mygo', 1], ['band-avemujica', 2], ['band-mewtype', 3], ['band-millsage', 4], ['band-dumbrock', 5]]
+  );
 });
 
 test('attribute-inspired palettes retain the five game attribute codes and names', () => {

@@ -15,10 +15,14 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
   header.append(el('h2', '候选队伍'), browse);
   const comparisonNote = el('p', '与当前队伍比较 · 换卡高亮', 'arena-candidate-comparison');
   const featured = el('div', '', 'arena-candidate-featured');
-  const dialog = el('dialog', '', 'arena-candidate-dialog'); dialog.setAttribute('aria-label', '候选队伍排行');
-  const dialogHeader = el('header'), close = el('button', '×', 'arena-candidate-close'); close.type = 'button'; close.setAttribute('aria-label', '关闭候选排行');
+  const dialog = el('dialog', '', 'arena-candidate-dialog ui-dialog'); dialog.setAttribute('aria-label', '候选队伍排行');
+  const dialogHeader = el('header'), close = el('button', '', 'arena-candidate-close ui-icon-btn'); close.type = 'button'; close.setAttribute('aria-label', '关闭候选排行'); close.title = '关闭';
+  if (typeof document.createElementNS === 'function') {
+    const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); closeSvg.setAttribute('viewBox', '0 0 20 20'); closeSvg.setAttribute('fill', 'none'); closeSvg.setAttribute('stroke', 'currentColor'); closeSvg.setAttribute('stroke-width', '1.8'); closeSvg.setAttribute('stroke-linecap', 'round'); closeSvg.setAttribute('aria-hidden', 'true');
+    const closePath = document.createElementNS('http://www.w3.org/2000/svg', 'path'); closePath.setAttribute('d', 'M5 5l10 10M15 5L5 15'); closeSvg.append(closePath); close.append(closeSvg);
+  } else close.textContent = '×';
   dialogHeader.append(el('h2', '候选排行'), close);
-  const toolbar = el('div', '', 'arena-candidate-toolbar'), sortGroup = el('div', '', 'arena-segments');
+  const toolbar = el('div', '', 'arena-candidate-toolbar'), sortGroup = el('div', '', 'arena-segments ui-segmented');
   sortGroup.setAttribute('role', 'group'); sortGroup.setAttribute('aria-label', '候选排序');
   const basis = el('p', '', 'arena-candidate-basis'), list = el('ol', '', 'arena-candidate-list');
   list.setAttribute('aria-label', '候选队伍');

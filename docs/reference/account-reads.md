@@ -17,6 +17,7 @@
 EN 的 UTC 是本站明确的显示约定，不代表官方日界线。SDK 的 app/channel/server 参数来自所支持渠道的应用配置，与上表的游戏服务器编号分别处理。
 
 - `GET /api/growth-export/capabilities/?serverId=global-en`：返回所选 serverId、支持列表、nonce、authMethods 和所选服维护状态。支持的方法目前仅 `email_password`。
+- **全站统一同步入口（[AccountSyncHub.astro](../../site/src/components/AccountSyncHub.astro) / [account-sync-hub.mjs](../../site/src/lib/account-sync-hub.mjs)）**：页面顶部个人入口栏、侧栏、`我的养成`、`/tools/gacha-history/` 与激奏舞台「我的排名」均统一打开同一居中 `账号同步中心` 弹窗；玩家可在一次登录中勾选本次要顺序同步的服务（`卡库与养成档案`、`抽卡记录查询`、舞台语境下可选 `激奏舞台本人排名`），单个 403/认证错误立即中止后续请求且不自动重试，密码、令牌与结果在关闭或离开时清空。
 - `POST /api/growth-export/read/` 和 `/gacha-history/`：JSON 包含 `serverId`、`account`、`password`。历史客户端省略 serverId 时兼容港澳台；无效区服、额外参数、冲突来源拒绝。
 - `POST /api/growth-export/arena-rank/`：同一网关的本人查询，必填 `serverId`、`seasonId`、`bandId` 及邮箱密码；拒绝额外玩家 ID 或名次参数。能力响应 `arenaPersonal` 表示源码接通，不保证所选服已开放舞台；协议、段位版本核验和临时结果清空见[舞台契约](arena-stage.md#我的排名与段位)。
 - 沿用同源/Host/Origin、nonce、no-store、限流和并发限制。nonce 不代表玩家登录状态；每次请求新建客户端并独立认证。

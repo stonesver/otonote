@@ -1,27 +1,171 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-const links=[{label:'查看 GitHub 源码',url:import.meta.env.PUBLIC_GROWTH_SOURCE_URL || 'https://github.com/stonesver/ournotes-growth-exporter'},
-  {label:'下载三服预览版 v0.2.0-alpha.2',url:import.meta.env.PUBLIC_GROWTH_DOWNLOAD_URL || 'https://github.com/stonesver/ournotes-growth-exporter/releases/tag/v0.2.0-alpha.2'}]
-  .filter(link=>typeof link.url==='string'&&/^https:\/\//.test(link.url));
+const links = [
+  { label: '下载三服预览版 v0.2.0-alpha.2', primary: true, url: import.meta.env.PUBLIC_GROWTH_DOWNLOAD_URL || 'https://github.com/stonesver/ournotes-growth-exporter/releases/tag/v0.2.0-alpha.2' },
+  { label: '查看 GitHub 源码', primary: false, url: import.meta.env.PUBLIC_GROWTH_SOURCE_URL || 'https://github.com/stonesver/ournotes-growth-exporter' },
+].filter(link => typeof link.url === 'string' && /^https:\/\//.test(link.url));
 ---
 <BaseLayout title="养成导入与本地工具">
+  <section class="content-shell export-guide-page">
+    <section class="ui-sheet export-hero-card">
+      <div class="export-hero-copy">
+        <h2>本地养成导出工具</h2>
+        <p>本地读取游戏养成并生成 JSON 文件，再导入至「我的养成」供全站配队与算分工具共用。</p>
+      </div>
+      <div class="export-actions">
+        <button type="button" class="ui-btn-soft" data-account-hub-open data-account-hub-services="growth" aria-haspopup="dialog">直接使用网页账号同步</button>
+        {links.map(link => (
+          <a href={link.url} target="_blank" rel="noopener noreferrer" class={link.primary ? 'ui-btn-primary' : 'ui-btn-outline'}>
+            {link.label}
+          </a>
+        ))}
+      </div>
+    </section>
 
-  <section class="content-shell growth-tool-guide">
-    <div class="growth-tool-links">{links.map(link=><a href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>)}</div>
-    <ol>
-      <li>下载并解压。Windows 打开 <code>Start.cmd</code>，Mac 打开 <code>Start.command</code>。包内已附 SDK 应用配置，启动后即可登录，无需另行获取配置。</li>
-      <li>选择账号所属区服（港澳台、EN 或韩服），输入 BHK 邮箱、密码，读取后下载养成 JSON。该区服须已有角色。</li>
-      <li>回到网站选择同一区服，在配卡工具「我的卡库 · 从游戏导入我的养成」选择 JSON，预览后应用。</li>
+    <ol class="export-steps">
+      <li class="ui-subsheet">
+        <span class="export-step-num" aria-hidden="true">1</span>
+        <div>
+          <strong>下载并启动本地包</strong>
+          <p>下载并解压。Windows 打开 <code>Start.cmd</code>，Mac 打开 <code>Start.command</code>。包内已附 SDK 应用配置，启动后即可登录，无需另行获取配置。</p>
+        </div>
+      </li>
+      <li class="ui-subsheet">
+        <span class="export-step-num" aria-hidden="true">2</span>
+        <div>
+          <strong>选择区服并导出 JSON</strong>
+          <p>选择账号所属区服（港澳台、EN 或韩服），输入 BHK 邮箱、密码，读取后下载养成 JSON。该区服须已有角色。</p>
+        </div>
+      </li>
+      <li class="ui-subsheet">
+        <span class="export-step-num" aria-hidden="true">3</span>
+        <div>
+          <strong>在网站导入并保存养成</strong>
+          <p>回到网站选择同一区服，在配卡工具「我的卡库 · 从游戏导入我的养成」选择 JSON，预览后应用。</p>
+        </div>
+      </li>
     </ol>
-    <p>本地工具的密码不经过本站，JSON 仅在浏览器解析。也可直接网页登录：密码会经本站服务器处理，不保存密码或令牌。</p>
-    <p>旧版 v0.1.0-alpha.3 及更早的本地包仅支持港澳台，请更新后再读取 EN 或韩服。v0.2.0-alpha.1 用户建议更新并完整解压，以恢复内置配置。Google 游戏授权尚未接通。</p>
-    <p>非官方工具，存在账号限制风险；登录可能使游戏会话失效，遇到额外验证会停止。导入后请核对数据及缺失项目。</p>
-    <p>支持 Windows x64、Mac Apple Silicon。Mac 版尚未完成 Apple 公证，不支持 Intel Mac。用完后关闭工具终端即可退出。</p>
+
+    <section class="ui-sheet export-notes-card" aria-label="安全与兼容性说明">
+      <h3>说明与注意事项</h3>
+      <p>本地工具的密码不经过本站，JSON 仅在浏览器解析。也可直接网页登录：密码会经本站服务器处理，不保存密码或令牌。</p>
+      <p>旧版 v0.1.0-alpha.3 及更早的本地包仅支持港澳台，请更新后再读取 EN 或韩服。v0.2.0-alpha.1 用户建议更新并完整解压，以恢复内置配置。Google 游戏授权尚未接通。</p>
+      <p>非官方工具，存在账号限制风险；登录可能使游戏会话失效，遇到额外验证会停止。导入后请核对数据及缺失项目。</p>
+      <p>支持 Windows x64、Mac Apple Silicon。Mac 版尚未完成 Apple 公证，不支持 Intel Mac。用完后关闭工具终端即可退出。</p>
+    </section>
   </section>
 </BaseLayout>
 
 <style>
-.growth-tool-guide { padding-bottom:40px; }.growth-tool-guide p { max-width:78ch; font-size:14px; line-height:1.9; }.growth-tool-guide a { color:var(--lacquer); text-decoration:underline; }
-.growth-tool-guide ol { max-width:78ch; padding-left:1.5em; font-size:14px; line-height:1.9; }.growth-tool-guide li { padding:4px 0; }
-.growth-tool-links { display:flex; flex-wrap:wrap; gap:12px; margin:20px 0 12px; }.growth-tool-links a { display:inline-flex; align-items:center; min-height:44px; padding:8px 14px; border:1px solid var(--lacquer); border-radius:8px; font-size:14px; text-decoration:none; }.growth-tool-links a:focus-visible { outline:2px solid var(--lacquer); outline-offset:3px; }
+.export-guide-page {
+  display: grid;
+  gap: 16px;
+  padding-top: 8px;
+  padding-bottom: 48px;
+  font-family: var(--font-body);
+}
+.export-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px;
+}
+.export-hero-copy {
+  display: grid;
+  gap: 6px;
+  max-width: 60ch;
+}
+.export-hero-copy h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+.export-hero-copy p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--theme-muted);
+}
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.export-actions a {
+  text-decoration: none;
+  min-height: 36px;
+  padding: 6px 16px;
+}
+.export-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.export-steps > li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 16px;
+}
+.export-step-num {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--theme-action-soft);
+  color: var(--theme-accent);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.export-steps strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--theme-text);
+}
+.export-steps p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--theme-muted);
+}
+.export-steps code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border-soft);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  font: 12px var(--font-mono);
+}
+.export-notes-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px;
+}
+.export-notes-card h3 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+.export-notes-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--theme-muted);
+}
+@media (max-width: 900px) {
+  .export-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 </style>

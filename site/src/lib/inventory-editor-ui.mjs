@@ -169,5 +169,8 @@ export function setupInventoryEditor(workbench,{onChange,onUse}) {
     catch(error){if(current===fileRequest)status.textContent=`读取失败：${error.message}`;}finally{event.target.value='';}
   });
   setupAccountGrowthImport(workbench,{getInventory:()=>inventory,replaceInventory:commit});
+  globalThis.window?.addEventListener('personal-growth:changed',()=>{
+    try{const saved=store.read();if(saved){inventory=saved.inventory;applyPersonalGrowth(workbench.draft,saved);clearPreview();render();onChange(inventory);}}catch{}
+  });
   render();return {get inventory(){return inventory;},validate:manager.validate,replace:commit};
 }

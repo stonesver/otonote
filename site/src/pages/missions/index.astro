@@ -10,7 +10,6 @@ import { globalSystems } from "../../lib/global-systems";
 import { say, systemHref } from "../../lib/system-display";
 import { catalog } from "../../lib/catalog";
 import "../../styles/system-modules.css";
-import "../../styles/filter-panel.css";
 const missions = (globalSystems.missions || []).map(m => ({ ...m, visual: missionVisual(m) }));
 const keys = [...new Set(["limited", "permanent", "event", "daily", ...missions.map(m => m.category)])];
 const relatedPages = new Set([
@@ -41,14 +40,14 @@ const relatedPages = new Set([
             </div>
             {mission.previewRewards.some(r => [2, 3].includes(r.resourceType)) && <div class="mission-card-prizes"><Rewards rewards={mission.previewRewards.filter(r => [2, 3].includes(r.resourceType))} compact /></div>}
           </div>
-          <button class="mission-open-details" type="button" data-open-mission={mission.id}>{say("查看任务与奖励", "View tasks & rewards")} <span aria-hidden="true">↗</span></button>
+          <button class="mission-open-details" type="button" data-open-mission={mission.id}><span>{say("查看任务与奖励", "View tasks & rewards")}</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
         </article>)}
       </div>
       <BrowserPagination />
     </system-browser>
 
     <dialog class="recruit-dialog mission-dialog" data-mission-dialog>
-      <div class="recruit-dialog-toolbar"><span>{say("任务与奖励", "MISSIONS & REWARDS")}</span><button type="button" data-close-mission aria-label={say("关闭任务详情", "Close mission details")}><span aria-hidden="true">×</span></button></div>
+      <div class="recruit-dialog-toolbar"><span>{say("任务与奖励", "Missions & rewards")}</span><button type="button" class="ui-icon-btn ui-icon-btn--circle ui-icon-btn--outline" data-close-mission aria-label={say("关闭任务详情", "Close mission details")}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div data-mission-content></div>
     </dialog>
     {missions.map(mission => <template data-mission-template={mission.id}>
@@ -61,13 +60,13 @@ const relatedPages = new Set([
 
             {mission.completeRewards.length > 0 && <div class="mission-completion"><h3>{say("整组完成奖励", "Group completion reward")}</h3><Rewards rewards={mission.completeRewards} compact /></div>}
             {mission.sections.length > 1 && <label class="mission-section-picker">{say("任务内容", "Objectives")}
-              <select data-mission-section-select>{mission.sections.map(section => <option value={section.id}>{section.title} · {section.taskCount}{say("项", " tasks")}</option>)}</select>
+              <select class="ui-select" data-mission-section-select>{mission.sections.map(section => <option value={section.id}>{section.title} · {section.taskCount}{say("项", " tasks")}</option>)}</select>
             </label>}
             <p class="sys-muted mission-template-note" data-character-note hidden={!mission.sections[0]?.isCharacterTemplate}>{say("以下目标对各角色分别计算，奖励按单个角色列出，不计入列表卡片的奖励合计。", "These objectives apply separately to each character. Per-character rewards are excluded from the card totals.")}</p>
             <ol class="mission-stages">{mission.stages.map((stage, i) => <li data-mission-section={stage.sectionId} data-character-template={stage.isCharacterTemplate ? "true" : "false"} hidden={stage.sectionId !== mission.sections[0]?.id}>
               <div>{stage.releaseDay > 0 && (i === 0 || stage.releaseDay !== mission.stages[i - 1].releaseDay) && <small class="sys-muted">{say("第", "Day ")}{stage.releaseDay}{say("天开放", "")}</small>}<p>{stage.description}</p>
                 {stage.related.length > 0 && <div class="mission-links">{stage.related.map(link => relatedPages.has(link.href)
-                  ? <a href={systemHref(link.href)}>{link.name} ↗</a> : <span>{link.name}</span>)}</div>}
+                  ? <a href={systemHref(link.href)}><span>{link.name}</span><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></a> : <span>{link.name}</span>)}</div>}
               </div><Rewards rewards={stage.rewards} compact />
             </li>)}</ol>
       </section>

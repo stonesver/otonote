@@ -48,7 +48,7 @@ export function createToolCardPicker({root,getCards,getDraft,getOwned=()=>[],get
   const catalogOptions=teamCardFilterOptions([...getCards('member'),...getCards('support')],root.data);
   const option=(value,label)=>{const el=node('option',label);el.value=value;return el;};
   for(const [key,zh,english] of [['band','全部乐队','All bands'],['character','全部角色','All characters'],['rarity','全部稀有度','All rarities']]){
-    selections[key].append(option('',say(zh,english)));for(const item of catalogOptions[key]){const choice=option(item.value,item.label);if(item.icon){choice.dataset.icon=item.icon;if(key==='band'){choice.dataset.round='true';choice.dataset.iconOnly='true';}}selections[key].append(choice);}
+    selections[key].append(option('',say(zh,english)));for(const item of catalogOptions[key]){const choice=option(item.value,item.label);const visualIcon=key==='band'?(item.circleIcon??item.icon):item.icon;if(visualIcon){choice.dataset.icon=visualIcon;if(key==='band'){if(item.circleIcon)choice.dataset.fallbackIcon=item.icon;choice.dataset.round='true';choice.dataset.iconOnly='true';}if(key==='rarity')choice.dataset.iconOnly='true';}selections[key].append(choice);}
   }
   for(const [key,items] of [['mission',[['','全部类型'],['combo','COMBO'],['luck','LUCK'],['just','JUST']]],['normal',[['','全部技能'],['score','得分提升'],['heal','生命回复'],['judge','判定辅助'],['life','生命条件'],['judgement','判定条件']]]])for(const [value,label] of items)selections[key].append(option(value,label));
   for(const [value,zh,english] of [['default','默认顺序','Default order'],['name','名称','Name'],['rarity-desc','稀有度从高到低','Highest rarity'],['level-desc','等级从高到低','Highest level']])selections.sort.append(option(value,say(zh,english)));

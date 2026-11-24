@@ -1,100 +1,214 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import {catalog, getAsset} from '../../../lib/catalog';
-import {globalSystems} from '../../../lib/global-systems';
-import {activeReleaseContext} from '../../../lib/release-context';
-import {siteHref} from '../../../lib/site-context';
+import { catalog, getAsset } from '../../../lib/catalog';
+import { globalSystems } from '../../../lib/global-systems';
+import { activeReleaseContext } from '../../../lib/release-context';
+import { siteHref } from '../../../lib/site-context';
 import '../../../styles/gacha-history.css';
-const data=JSON.stringify({
-  pools:globalSystems.gachaPools.map(p=>({id:p.id,name:p.name,prizeGroupIds:p.prizeGroupIds,products:p.products})),
-  prizes:globalSystems.gachaHistoryPrizes??[],
-  cards:[...catalog.memberCards.map(c=>({...c,resourceType:2})),...catalog.supportCards.map(c=>({...c,resourceType:3}))].map(c=>{
-    const asset=getAsset(c.thumbnailAssetId??c.primaryAssetId),image=asset?.thumbnailUrl??asset?.previewUrl;
-    const artwork=getAsset(c.primaryAssetId)?.previewUrl??image;
-    return {resourceType:c.resourceType,masterId:c.masterId,name:c.displayName,rarity:c.rarity,
-      image:image?siteHref(image,activeReleaseContext):null,
-      artwork:artwork?siteHref(artwork,activeReleaseContext):null,
-      href:siteHref(`/cards/${c.resourceType===2?'members':'supports'}/${c.id}/`,activeReleaseContext)};
-  })
-}).replaceAll('<','\\u003c');
+
+const data = JSON.stringify({
+  pools: globalSystems.gachaPools.map(p => ({ id: p.id, name: p.name, prizeGroupIds: p.prizeGroupIds, products: p.products })),
+  prizes: globalSystems.gachaHistoryPrizes ?? [],
+  cards: [...catalog.memberCards.map(c => ({ ...c, resourceType: 2 })), ...catalog.supportCards.map(c => ({ ...c, resourceType: 3 }))].map(c => {
+    const asset = getAsset(c.thumbnailAssetId ?? c.primaryAssetId), image = asset?.thumbnailUrl ?? asset?.previewUrl;
+    const artwork = getAsset(c.primaryAssetId)?.previewUrl ?? image;
+    return {
+      resourceType: c.resourceType,
+      masterId: c.masterId,
+      name: c.displayName,
+      rarity: c.rarity,
+      image: image ? siteHref(image, activeReleaseContext) : null,
+      artwork: artwork ? siteHref(artwork, activeReleaseContext) : null,
+      href: siteHref(`/cards/${c.resourceType === 2 ? 'members' : 'supports'}/${c.id}/`, activeReleaseContext),
+    };
+  }),
+}).replaceAll('<', '\\u003c');
 ---
 <BaseLayout title="抽卡记录">
- <div class="gacha-page">
+  <div class="gacha-page">
+    <gacha-history-tool class="gacha-tool">
+      <script is:inline type="application/json" data-gacha-catalog set:html={data}></script>
 
-  <gacha-history-tool class="gacha-tool">
-    <script is:inline type="application/json" data-gacha-catalog set:html={data}></script>
-    <details class="gacha-query gacha-panel" data-gacha-login-panel open>
-      <summary><span><strong>BHK 账号查询</strong><small>刷新或离开页面后清空记录</small></span><span class="gacha-query-action">登录 / 重新查询</span></summary>
-      <form data-gacha-login>
-        <fieldset data-gacha-fields disabled>
-          <legend class="gacha-sr-only">BHK 登录信息</legend>
-          <label>BHK 账号邮箱<input type="email" name="account" autocomplete="off" required maxlength="320" data-gacha-account placeholder="你的 BHK 邮箱" /></label>
-          <label>密码<input type="password" name="password" autocomplete="off" required maxlength="4096" data-gacha-password placeholder="输入账号密码" /></label>
-          <button type="submit" class="gacha-primary">登录并查询 </button>
-        </fieldset>
-      </form>
-      <div class="gacha-service-row"><p class="gacha-service" data-gacha-service role="status">正在检查登录服务…</p><button type="button" data-gacha-retry hidden>重新检查</button></div>
-      <p class="gacha-login-note">支持港澳台、EN、韩服 BHK 邮箱账号，请先选择账号所属区服。Google 直接授权暂未接入。登录可能使游戏会话失效；账号密码仅用于向官方查询，不保存密码、令牌或记录。</p>
-    </details>
-    <div class="gacha-query-status"><p data-gacha-status class="gacha-status" role="status" aria-live="polite">登录后查看抽卡记录。</p><button type="button" data-gacha-clear class="gacha-clear" hidden>清空记录</button></div>
-    <section class="gacha-welcome" data-gacha-empty>
-      <div class="gacha-empty-cards" aria-hidden="true"><span>SSR</span><span>UP</span><span>SSR</span></div>
-      <h2>查看这次抽到了什么</h2>
-      <p>登录后，角色卡与留影分别统计，SSR 和 UP 卡牌集中展示。</p>
-      <ul><li>按卡池查看</li><li>区分当期 UP</li><li>导出卡图</li></ul>
-    </section>
-    <div data-gacha-result hidden>
-      <section class="gacha-filters" aria-label="统计范围">
-        <label class="gacha-pool-select">查看卡池<select data-gacha-pool><option value="all">全部卡池</option></select></label>
-        <label>开始日期<input type="date" data-gacha-from /></label><label>结束日期<input type="date" data-gacha-to /></label>
-        <button type="button" class="gacha-primary" data-gacha-share disabled>生成分享图片 </button>
-        <p data-gacha-filter-status role="status"></p>
+      <header class="gacha-topbar gacha-panel">
+        <div class="gacha-topbar-status">
+          <span class="gacha-status-badge" data-gacha-mode-badge>未读取</span>
+          <p data-gacha-status class="gacha-status" role="status" aria-live="polite">通过全站账号同步读取本次抽卡记录，或先浏览示例报告。</p>
+        </div>
+        <div class="gacha-topbar-actions">
+          <button type="button" class="gacha-primary" data-gacha-open-hub>登录并同步抽卡记录</button>
+          <button type="button" class="gacha-secondary-btn" data-gacha-demo>预览示例报告</button>
+          <button type="button" class="gacha-clear" data-gacha-clear hidden>清空当前记录</button>
+          <details class="ui-tip-disclosure ui-tip-disclosure--icon-only" data-tip-align="right">
+            <summary aria-label="统计范围与隐私说明" title="统计范围与隐私说明">
+              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.8v.6" stroke-linecap="round" />
+              </svg>
+            </summary>
+            <div class="ui-tip-body">
+              <p>支持港澳台、EN、韩服 BHK 邮箱账号（请先确认顶部区服）；每次查询重新登录，仅保留当前页面会话结果，刷新或离开后清空。</p>
+              <p data-gacha-statistics-note></p>
+            </div>
+          </details>
+        </div>
+      </header>
+
+
+      <section class="gacha-welcome gacha-panel" data-gacha-empty>
+        <div class="gacha-empty-cards" aria-hidden="true">
+          <span class="gacha-card-fan gacha-card-fan--left"><b>SSR</b><small>Member</small></span>
+          <span class="gacha-card-fan gacha-card-fan--center"><b>UP</b><small>Pick-up</small></span>
+          <span class="gacha-card-fan gacha-card-fan--right"><b>BD</b><small>Special</small></span>
+        </div>
+        <h2>看看这次抽出了哪些高光瞬间</h2>
+        <p>统一登录一键读取官方抽卡历史，自动汇总当期 UP、角色卡与留影分布，生成高光陈列墙与专属成绩单分享图。</p>
+        <div class="gacha-welcome-actions">
+          <button type="button" class="gacha-primary" data-gacha-open-hub>登录 BHK 账号同步</button>
+          <button type="button" class="gacha-secondary-btn" data-gacha-demo>先看看示例报告</button>
+        </div>
+        <ul class="gacha-feature-pills">
+          <li>按卡池点击直筛</li>
+          <li>高光卡面陈列墙</li>
+          <li>本地绘制分享长图</li>
+        </ul>
       </section>
-      <section class="gacha-overview" aria-label="抽卡概览">
-        <div class="gacha-range-row"><p class="gacha-range" data-gacha-range></p><details class="gacha-statistics-note"><summary>统计说明</summary><p data-gacha-statistics-note></p></details></div>
-        <dl class="gacha-metrics">
-          <div><dt>本次抽数</dt><dd data-gacha-total>—</dd><small data-gacha-total-detail></small></div>
-          <div><dt>SSR 角色卡</dt><dd data-gacha-member-ssr>—</dd><small data-gacha-member-detail></small></div>
-          <div><dt>SSR 留影</dt><dd data-gacha-support-ssr>—</dd><small data-gacha-support-detail></small></div>
-          <div><dt>当期 UP</dt><dd data-gacha-pickup>—</dd><small data-gacha-pickup-detail></small></div>
-        </dl>
-        <p data-gacha-share-status role="status" class="gacha-muted"></p>
-      </section>
-      <section class="gacha-distribution-section" aria-labelledby="gacha-distribution-title">
-        <div class="gacha-section-heading"><h2 id="gacha-distribution-title">稀有度分布</h2><span class="gacha-chart-legend"><i class="gacha-key-up"></i>当期 UP <i class="gacha-key-unknown"></i>UP 未判定</span></div>
-        <div class="gacha-distribution" data-gacha-distribution></div>
-      </section>
-      <section class="gacha-album gacha-panel" aria-labelledby="gacha-album-title">
-        <div class="gacha-section-heading"><div><h2 id="gacha-album-title">这次抽到了</h2><p class="gacha-muted" data-gacha-album-count></p></div><div class="gacha-album-controls">
-          <div class="gacha-segmented" role="group" aria-label="相册卡牌种类"><button type="button" data-gacha-album-kind="all" aria-pressed="true">全部</button><button type="button" data-gacha-album-kind="member" aria-pressed="false">角色卡</button><button type="button" data-gacha-album-kind="support" aria-pressed="false">留影</button></div>
-          <label class="gacha-checkbox"><input type="checkbox" data-gacha-album-up />只看含 UP 的卡</label>
-        </div></div>
-        <div class="gacha-album-grid" data-gacha-album></div>
-        <button type="button" class="gacha-more" data-gacha-album-more hidden>显示更多卡牌</button>
-        <p class="gacha-chart-note">同一卡牌合并张数；金色角标表示其中的当期 UP 数量。相册筛选不影响统计和分享图片。</p>
-      </section>
-      <p class="gacha-coverage" data-gacha-coverage></p>
-      <div class="gacha-secondary-charts">
-        <section class="gacha-panel"><h2>各池抽数</h2><div class="gacha-pool-bars" data-gacha-pools></div></section>
-        <section class="gacha-panel"><div class="gacha-section-heading"><h2>抽卡日期</h2><span class="gacha-chart-legend"><i class="gacha-key-member"></i>角色卡 <i class="gacha-key-support"></i>留影</span></div><div data-gacha-trend></div></section>
+
+      <div data-gacha-result hidden>
+        <section class="gacha-filters gacha-panel" aria-label="统计范围">
+          <label class="gacha-pool-select">查看卡池<select data-gacha-pool><option value="all">全部卡池</option></select></label>
+          <label>开始日期<input type="date" data-gacha-from /></label>
+          <label>结束日期<input type="date" data-gacha-to /></label>
+          <button type="button" class="gacha-primary" data-gacha-share disabled>生成分享成绩单</button>
+          <p data-gacha-filter-status role="status"></p>
+        </section>
+
+        <section class="gacha-hero-report" aria-label="抽卡战绩总览">
+          <article class="gacha-persona gacha-panel" data-gacha-persona data-tier="steady">
+            <div class="gacha-persona-ring-wrap">
+              <svg viewBox="0 0 96 96" class="gacha-persona-svg" aria-hidden="true">
+                <circle class="gacha-ring-track" cx="48" cy="48" r="38" />
+                <circle class="gacha-ring-progress" data-gacha-ring cx="48" cy="48" r="38" />
+              </svg>
+              <div class="gacha-persona-rate">
+                <strong data-gacha-rate>—</strong>
+                <span>高稀有占比</span>
+              </div>
+            </div>
+            <div class="gacha-persona-copy">
+              <div class="gacha-persona-title-row">
+                <span class="gacha-persona-badge" data-gacha-persona-badge>统计中</span>
+                <details class="ui-tip-disclosure ui-tip-disclosure--icon-only" data-tip-align="left">
+                  <summary aria-label="称号判定与数据边界说明">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.8v.6" stroke-linecap="round" />
+                    </svg>
+                  </summary>
+                  <div class="ui-tip-body">
+                    <p>趣味称号仅基于当前范围内已确认的高稀有度比例（≥10% 欧皇附体、≥5% 小欧怡情、≥2% 平稳发挥、&lt;2% 非酋渡劫；不足 20 抽不评级），不代表官方概率或下次预测。</p>
+                  </div>
+                </details>
+              </div>
+              <h2 data-gacha-persona-title>这次的抽卡战绩</h2>
+              <p class="gacha-persona-note" data-gacha-persona-note></p>
+              <p class="gacha-range" data-gacha-range></p>
+            </div>
+          </article>
+
+          <dl class="gacha-metrics">
+            <div><dt>本次抽数</dt><dd data-gacha-total>—</dd><small data-gacha-total-detail></small></div>
+            <div><dt>SSR 角色卡</dt><dd data-gacha-member-ssr>—</dd><small data-gacha-member-detail></small></div>
+            <div><dt>SSR 留影</dt><dd data-gacha-support-ssr>—</dd><small data-gacha-support-detail></small></div>
+            <div><dt>当期 UP</dt><dd data-gacha-pickup>—</dd><small data-gacha-pickup-detail></small></div>
+          </dl>
+        </section>
+
+        <p data-gacha-share-status role="status" class="gacha-share-feedback"></p>
+
+        <section class="gacha-album gacha-panel" aria-labelledby="gacha-album-title">
+          <div class="gacha-section-heading">
+            <div>
+              <h2 id="gacha-album-title">高光出货陈列墙</h2>
+              <p class="gacha-muted" data-gacha-album-count></p>
+            </div>
+            <div class="gacha-album-controls">
+              <div class="gacha-segmented" role="group" aria-label="相册卡牌种类">
+                <button type="button" data-gacha-album-kind="all" aria-pressed="true">全部</button>
+                <button type="button" data-gacha-album-kind="member" aria-pressed="false">角色卡</button>
+                <button type="button" data-gacha-album-kind="support" aria-pressed="false">留影</button>
+              </div>
+              <label class="gacha-checkbox"><input type="checkbox" data-gacha-album-up />只看当期 UP</label>
+            </div>
+          </div>
+          <div class="gacha-album-grid" data-gacha-album></div>
+          <button type="button" class="gacha-more" data-gacha-album-more hidden>显示更多卡牌</button>
+          <p class="gacha-chart-note">同一卡牌合并张数展示；金色角标标识当期 UP 数量，下方切换筛选不影响总数统计与分享图。</p>
+        </section>
+
+        <section class="gacha-distribution-section" aria-labelledby="gacha-distribution-title">
+          <div class="gacha-section-heading">
+            <h2 id="gacha-distribution-title">稀有度分布</h2>
+            <span class="gacha-chart-legend"><i class="gacha-key-up"></i>当期 UP <i class="gacha-key-unknown"></i>UP 未判定</span>
+          </div>
+          <div class="gacha-distribution" data-gacha-distribution></div>
+        </section>
+
+        <p class="gacha-coverage" data-gacha-coverage></p>
+
+        <div class="gacha-secondary-charts">
+          <section class="gacha-panel">
+            <div class="gacha-section-heading">
+              <h2>各池抽数</h2>
+              <span class="gacha-muted">点击卡池条可联动筛选</span>
+            </div>
+            <div class="gacha-pool-bars" data-gacha-pools></div>
+          </section>
+          <section class="gacha-panel">
+            <div class="gacha-section-heading">
+              <h2>抽卡日期走势</h2>
+              <span class="gacha-chart-legend"><i class="gacha-key-member"></i>角色卡 <i class="gacha-key-support"></i>留影 <i class="gacha-key-star">✦</i>含高稀有</span>
+            </div>
+            <div data-gacha-trend></div>
+          </section>
+        </div>
+
+        <section class="gacha-panel gacha-records" aria-labelledby="gacha-records-title">
+          <header>
+            <div>
+              <h2 id="gacha-records-title">抽卡明细</h2>
+              <p data-gacha-record-count class="gacha-muted"></p>
+            </div>
+            <div class="gacha-record-filters">
+              <label>卡牌种类<select data-gacha-kind><option value="all">全部种类</option><option value="member">角色卡</option><option value="support">留影</option><option value="item">道具</option><option value="unknown">未识别</option></select></label>
+              <label>稀有度<select data-gacha-rarity><option value="all">全部稀有度</option><option value="4">SSR</option><option value="10">EX</option><option value="20">BD</option><option value="3">SR</option><option value="2">R</option></select></label>
+              <label>UP 状态<select data-gacha-up><option value="all">全部状态</option><option value="yes">当期 UP</option><option value="no">非 UP</option><option value="unknown">未判定</option></select></label>
+            </div>
+          </header>
+          <p class="gacha-chart-note">同批次十连／单抽奖品不区分先后顺序，不计算保底计数。</p>
+          <ol class="gacha-record-list" data-gacha-record-list></ol>
+          <nav class="gacha-pagination" aria-label="记录分页">
+            <button type="button" data-gacha-previous>上一页</button>
+            <span data-gacha-page>1 / 1</span>
+            <button type="button" data-gacha-next>下一页</button>
+          </nav>
+        </section>
       </div>
-      <section class="gacha-panel gacha-records" aria-labelledby="gacha-records-title">
-        <header><div><h2 id="gacha-records-title">抽卡明细</h2><p data-gacha-record-count class="gacha-muted"></p></div><div class="gacha-record-filters">
-          <label>卡牌种类<select data-gacha-kind><option value="all">全部种类</option><option value="member">角色卡</option><option value="support">留影</option><option value="item">道具</option><option value="unknown">未识别</option></select></label>
-          <label>稀有度<select data-gacha-rarity><option value="all">全部稀有度</option><option value="4">SSR</option><option value="10">EX</option><option value="20">BD</option><option value="3">SR</option><option value="2">R</option></select></label>
-          <label>UP 状态<select data-gacha-up><option value="all">全部状态</option><option value="yes">当期 UP</option><option value="no">非 UP</option><option value="unknown">未判定</option></select></label>
-        </div></header>
-        <p class="gacha-chart-note">同批次奖品不区分抽取先后，不计算保底进度。</p>
-        <ol class="gacha-record-list" data-gacha-record-list></ol>
-        <nav class="gacha-pagination" aria-label="记录分页"><button type="button" data-gacha-previous>上一页</button><span data-gacha-page>1 / 1</span><button type="button" data-gacha-next>下一页</button></nav>
-      </section>
-    </div>
-    <dialog class="gacha-share-dialog" data-gacha-share-dialog aria-labelledby="gacha-share-title">
-      <header><div><h2 id="gacha-share-title">抽卡记录分享图</h2><p>包含所选卡池与日期范围，每类最多展示 6 种卡牌。</p></div><button type="button" data-gacha-share-close aria-label="关闭分享图片">关闭 ×</button></header>
-      <img data-gacha-share-image alt="抽卡记录：角色卡和留影统计、SSR 与 UP 卡图" />
-      <footer><a class="gacha-primary" data-gacha-download download="otonote-gacha-report.png">下载 PNG 图片</a><small>也可长按图片保存</small></footer>
-    </dialog>
-  </gacha-history-tool>
- </div>
+
+      <dialog class="gacha-share-dialog" data-gacha-share-dialog aria-labelledby="gacha-share-title">
+        <header>
+          <div>
+            <h2 id="gacha-share-title">抽卡记录分享图</h2>
+            <p>包含所选卡池与日期范围，每类最多展示 6 种高光卡牌。</p>
+          </div>
+          <button type="button" class="ui-icon-btn" data-gacha-share-close aria-label="关闭分享图片" title="关闭">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </header>
+        <img data-gacha-share-image alt="抽卡记录：角色卡和留影统计、SSR 与 UP 卡图" />
+        <footer>
+          <a class="gacha-primary" data-gacha-download download="otonote-gacha-report.png">下载 PNG 图片</a>
+          <small>也可长按或右键图片保存</small>
+        </footer>
+      </dialog>
+    </gacha-history-tool>
+  </div>
 </BaseLayout>
 <script>import '../../../lib/gacha-history-ui.mjs';</script>

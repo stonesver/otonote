@@ -9,8 +9,8 @@ const en = locale === 'en';
 
 ---
 {identity && (identity.bands.length > 0 || identity.characters.length > 0 || identity.attributes.length > 0) && <div class:list={['ef-identity', {'ef-identity--compact': compact}]}>
-  <div class="ef-bands">{identity.bands.map(band => <div class="ef-band">{band.image && <img src={band.image} alt="" width="100" height="56" loading="lazy" />}<div><small>{band.bonus ? (en ? 'BONUS BAND' : '加成乐队') : (en ? 'FEATURED BAND' : '登场乐队')}</small><strong>{band.name}</strong></div></div>)}</div>
+  <div class="ef-bands">{identity.bands.map(band => <div class="ef-band">{band.image && <img src={band.image} alt="" width="100" height="56" loading="lazy" />}<div><small>{band.bonus ? (en ? 'Bonus band' : '加成乐队') : (en ? 'Featured band' : '登场乐队')}</small><strong>{band.name}</strong></div></div>)}</div>
   <div class="ef-cast" aria-label={en ? 'Featured characters' : '活动登场角色'}>{identity.characters.map(character => <span title={character.name}>{character.image && <img src={character.image} alt="" width="40" height="40" loading="lazy" />}<small>{character.name}</small></span>)}</div>
-  {identity.attributes.length > 0 && <span class="ef-attribute" aria-label={en ? 'Bonus attribute' : '加成属性'}>{identity.attributes.map(id => <CardAttributeBadge code={id} compact />)}</span>}
+  {identity.attributes.length > 0 && <span class="ef-attribute" aria-label={en ? 'Bonus attribute' : '加成属性'}>{identity.attributes.map(id => <CardAttributeBadge code={id} compact iconOnly />)}</span>}
   <slot />
 </div>}

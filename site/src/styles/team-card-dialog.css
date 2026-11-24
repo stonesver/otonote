@@ -1,11 +1,4 @@
-/* Interaction geometry only; palette and selected states remain in tool-colors.css. */
+/* Interaction geometry only; card picker layout and tokens live in shared-team-workspace.css. */
 body:has(.tw-panel:modal){overflow:hidden}
 .tw-panel .ux-card-grid,.tw-panel .ux-card-positions,.tw-panel .ux-card-preview{overscroll-behavior:contain}
-.tw-panel .ux-card-picker :is(button,input,select,summary):focus-visible{outline:2px solid var(--tool-focus,var(--lacquer));outline-offset:2px}
-@media(max-width:760px){
-  /* Filters and results share a scroll area so expanded filters cannot cover cards. */
-  body:has(.task-studio) .tw-panel .ux-card-browser{overflow-y:auto;overscroll-behavior:contain;display:block}
-  body:has(.task-studio) .tw-panel .ux-card-picker .ux-card-grid{overflow:visible;min-height:0;flex:none}
-  body:has(.task-studio) .tw-panel .ux-card-picker .ux-card-search input{font-size:16px}
-  body:has(.task-studio) .tw-panel .ux-card-preview{box-sizing:border-box;min-height:0}
-}
+.tw-panel .ux-card-picker :is(button,input,select,summary):focus-visible{outline:2px solid var(--tool-focus,var(--theme-focus));outline-offset:2px}

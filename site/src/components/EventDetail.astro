@@ -16,6 +16,7 @@ import StickyBanner from './EventStickyBanner.astro';
 import BonusGuide from './EventBonusGuide.astro';
 import EventRelated from './EventRelated.astro';
 import Dialog from './EventDialog.astro';
+import ToolGlyph from './ToolGlyph.astro';
 import { eventCopy } from '../lib/event-copy';
 import { eventRankingPath } from '../lib/event-ranking-links.mjs';
 interface Props { archive: EventArchiveData; locale?: string; href?: (path: string) => string; artworks?: Record<number, {cover?: string; logo?: string}>; media?: EventMediaMap; identities?: Record<number, Identity>; cards?: Record<number, EventCard[]> }
@@ -34,16 +35,16 @@ const points = (value: number) => !en && value >= 10000 && value % 1000 === 0 ? 
     return <article class="ea-event">
       <a class="ea-back" href={href('/events/')}>← {copy.back}</a>
       <EventHero event={event} artwork={artworks[event.id]} locale={locale} />
-      <EventIdentity identity={identities[event.id]} locale={locale}><button class="ef-text-button" data-event-dialog={dialogId('bonus')} aria-haspopup="dialog">{t('加成详情', 'Bonus details')} <EventIcon name="arrow" size={15} /></button></EventIdentity>
+      <EventIdentity identity={identities[event.id]} locale={locale}><div class="ef-identity-actions">{event.mode === 'challenge_live' && <a class="ui-btn-soft ef-tool-cta" href={href(`/tools/event-efficiency/?eventId=${event.id}`)}><ToolGlyph kind="event-efficiency" /><span>{t('活动收益配队', 'Event efficiency')}</span></a>}<button type="button" class="ui-btn-outline" data-event-dialog={dialogId('bonus')} aria-haspopup="dialog">{t('加成详情', 'Bonus details')} <EventIcon name="arrow" size={14} /></button></div></EventIdentity>
       <StickyBanner event={event} logo={artworks[event.id]?.logo} attributes={identities[event.id]?.attributes} locale={locale} />
       <div class="ef-schedule"><Countdown start={event.schedule.startAt} end={event.schedule.endAt} edition={event.edition} timeZone={event.schedule.timeZone} locale={locale} /><EventIcon name="calendar" size={15} /><span>{copy.displayEnd}：{formatEventTime(event.schedule.displayEndAt, event.edition, event.schedule.timeZone, true)}</span><small>{eventTimeLabel(event.edition, locale === 'en')}</small></div>
 
-      <section class="ef-section" id={dialogId('cards')}>
-        <div class="ea-section-head"><div><p class="ea-kicker">EVENT CARDS</p><h2><EventIcon name="card" />{t('活动卡牌', 'Event cards')}</h2></div><span>{eventCards.length} {t('张 · 专属加成与活动奖励', 'cards · bonuses & rewards')}</span></div>
+      <section class="ef-section ef-cards-section ui-sheet" id={dialogId('cards')}>
+        <div class="ea-section-head"><div><h2><EventIcon name="card" />{t('活动卡牌', 'Event cards')}</h2></div><span>{eventCards.length} {t('张 · 专属加成与活动奖励', 'cards · bonuses & rewards')}</span></div>
         <div class="ef-card-groups">{[2,3].map(type => {
           const group = eventCards.filter(card => card.resourceType === type);
           return group.length > 0 && <div class:list={['ef-card-group', {'ef-card-group--members': type === 2, 'ef-card-group--snaps': type === 3}]}>
-            <h3>{type === 2 ? t('成员卡', 'Member cards') : t('留影卡', 'Snapshots')}<small>{type === 2 ? 'MEMBER' : 'SNAP'}</small></h3>
+            <h3>{type === 2 ? t('成员卡', 'Member cards') : t('留影卡', 'Snapshots')}</h3>
             <div class="ef-card-grid">{group.map(card => {
               const view = media[`${card.resourceType}:${card.resourceId}`];
               const titleParts = card.name.split(/ · |｜/);
@@ -57,11 +58,11 @@ const points = (value: number) => !en && value >= 10000 && value % 1000 === 0 ? 
                 <Tag class="ef-card-link" {...(view?.href ? {href: view.href} : {})}>
                   <div class="ef-card-art">
                     {view?.artwork ? <img src={view.artwork} alt={card.name} width={type === 2 ? 1440 : 1920} height={type === 2 ? 1920 : 1080} loading="lazy" /> : <EventIcon name="card" size={36} />}
-                    {card.bonus && <span><EventIcon name="sparkle" size={11} />{t('加成', 'BONUS')}</span>}
+                    {card.bonus && <span><EventIcon name="sparkle" size={12} />{t('加成', 'BONUS')}</span>}
                     <div class="ef-card-labels">
-                      {pools.length > 0 && <span><EventIcon name="ticket" size={10} />{t('UP 招募', 'UP')}</span>}
-                      {milestones.length > 0 && <span title={`${points(Math.min(...milestones))} pt ${t('起', '+')}`}><EventIcon name="gift" size={10} />{t('积分奖励', 'Point reward')}</span>}
-                      {exchanges.length > 0 && <span><EventIcon name="shop" size={10} />{t('活动兑换', 'Exchange')}</span>}
+                      {pools.length > 0 && <span><EventIcon name="ticket" size={12} />{t('UP 招募', 'UP')}</span>}
+                      {milestones.length > 0 && <span title={`${points(Math.min(...milestones))} pt ${t('起', '+')}`}><EventIcon name="gift" size={12} />{t('积分奖励', 'Point reward')}</span>}
+                      {exchanges.length > 0 && <span><EventIcon name="shop" size={12} />{t('活动兑换', 'Exchange')}</span>}
                       {card.sources.some(source => source.kind === 'ranking') && <span>{t('排名奖励', 'Ranking reward')}</span>}
                     </div>
                   </div>
@@ -82,9 +83,18 @@ const points = (value: number) => !en && value >= 10000 && value % 1000 === 0 ? 
         })}</div>
       </section>
 
-      <section class="ef-section ef-ranking-section" id={dialogId('songs')}>
-        <div class="ea-section-head"><div><p class="ea-kicker">CHALLENGE & RANKING</p><h2><EventIcon name="trophy" />{t('歌曲与榜单奖励', 'Songs & ranking rewards')}</h2></div><div class="ef-ranking-flags">{event.ranking.configured.music && <span>{t('单曲榜', 'Song ranking')}</span>}{event.ranking.configured.totalMusic && <span>{t('总歌曲榜', 'Total song ranking')}</span>}{event.ranking.configured.eventPoints && <span>{t('积分榜', 'Point ranking')}</span>}</div></div>
-        <div class="ef-challenge-toolbar"><p>{t('消耗挑战 pt，挑战指定歌曲并争夺单曲榜排名。', 'Spend Challenge Points on featured songs and compete in the song rankings.')}</p><button class="ef-challenge-help" data-event-dialog={dialogId('rules')} aria-haspopup="dialog"><span>?</span>{t('玩法与积分', 'How it works')}</button></div>
+      <section class="ef-section ef-ranking-section ui-sheet" id={dialogId('songs')}>
+        <div class="ea-section-head">
+          <div><h2><EventIcon name="trophy" />{t('歌曲与榜单奖励', 'Songs & ranking rewards')}</h2></div>
+          <div class="ef-ranking-head-meta">
+            <div class="ef-ranking-flags">{event.ranking.configured.music && <span>{t('单曲榜', 'Song ranking')}</span>}{event.ranking.configured.totalMusic && <span>{t('总歌曲榜', 'Total song ranking')}</span>}{event.ranking.configured.eventPoints && <span>{t('积分榜', 'Point ranking')}</span>}</div>
+            <details class="ui-tip-disclosure" data-tip-align="right">
+              <summary aria-label={t('排名与榜单说明', 'Ranking & board notes')} title={t('排名与榜单说明', 'Ranking & board notes')}><EventIcon name="info" size={14} /><span>{t('榜单说明', 'Notes')}</span></summary>
+              <div class="ui-tip-body"><p>{t('排名奖励与玩家榜单分别展示。玩家榜按区服读取，并标明采集时间；未取得数据的榜单会显示暂无数据。', 'Rewards and player rankings are shown separately. Player rankings are server-specific and show their capture time; boards without captured results show an empty state.')}</p></div>
+            </details>
+          </div>
+        </div>
+        <div class="ef-challenge-toolbar"><p>{t('消耗挑战 pt，挑战指定歌曲并争夺单曲榜排名。', 'Spend Challenge Points on featured songs and compete in the song rankings.')}</p><button type="button" class="ui-btn-ghost ef-challenge-help" data-event-dialog={dialogId('rules')} aria-haspopup="dialog"><EventIcon name="info" size={15} /><span>{t('玩法与积分', 'How it works')}</span></button></div>
         <nav class="ef-player-ranking-links" aria-label={t('玩家排行榜', 'Player rankings')}>
           {(['music', 'total-music', 'event-points'] as const).map(board => {
             const path = eventRankingPath(event, board);
@@ -112,8 +122,7 @@ const points = (value: number) => !en && value >= 10000 && value % 1000 === 0 ? 
             </button>
           </article>;
         })}</div>
-        <p class="ef-ranking-note">{t('排名奖励与玩家榜单分别展示。玩家榜按区服读取，并标明采集时间；未取得数据的榜单会显示暂无数据。', 'Rewards and player rankings are shown separately. Player rankings are server-specific and show their capture time; boards without captured results show an empty state.')}</p>
-        {event.ranking.rewards.length > 0 && <button class="ef-text-button" data-event-dialog={dialogId('ranking')} aria-haspopup="dialog">{t('查看活动排名奖励', 'Event ranking rewards')} →</button>}
+        {event.ranking.rewards.length > 0 && <div class="ef-ranking-footer"><button type="button" class="ui-btn-outline" data-event-dialog={dialogId('ranking')} aria-haspopup="dialog">{t('查看活动排名奖励', 'Event ranking rewards')} <EventIcon name="arrow" size={14} /></button></div>}
       </section>
 
       <EventRelated event={event} media={media} locale={locale} href={href} />

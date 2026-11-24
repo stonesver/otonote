@@ -67,7 +67,7 @@ export function installGameServiceNotice(root) {
 }
 
 function watchGameServiceStatus(onChange, {fetcher = globalThis.fetch} = {}) {
-  let disposed = false, inFlight = false, timer, controller;
+  let disposed = false, suspended = false, inFlight = false, resumePending = false, timer, controller;
   let observations = {};
   const events = new AbortController();
   const publish = data => {
@@ -76,7 +76,7 @@ function watchGameServiceStatus(onChange, {fetcher = globalThis.fetch} = {}) {
     window.dispatchEvent(new CustomEvent('game-service-status-change', {detail:data}));
   };
   const refresh = async () => {
-    if (disposed || inFlight) return;
+    if (disposed || suspended || document.hidden || inFlight) return;
     clearTimeout(timer);
     inFlight = true;
     const request = controller = new AbortController();
@@ -95,12 +95,28 @@ function watchGameServiceStatus(onChange, {fetcher = globalThis.fetch} = {}) {
     } finally {
       clearTimeout(timeout);
       inFlight = false;
-      if (!disposed) timer = setTimeout(refresh,60000);
+      const delay = resumePending ? 0 : 60000;
+      resumePending = false;
+      if (!disposed && !suspended && !document.hidden) timer = setTimeout(refresh,delay);
     }
   };
   const stop = () => { disposed=true; clearTimeout(timer); controller?.abort(); events.abort(); };
-  window.addEventListener('pagehide',event => { if (!event.persisted) stop(); },{signal:events.signal});
-  window.addEventListener('pageshow',event => { if (event.persisted) refresh(); },{signal:events.signal});
+  const pause = () => { clearTimeout(timer); controller?.abort(); };
+  const resume = () => {
+    if (inFlight) resumePending ||= controller.signal.aborted;
+    else refresh();
+  };
+  window.addEventListener('pagehide',event => {
+    if (!event.persisted) stop();
+    else { suspended=true; pause(); }
+  },{signal:events.signal});
+  window.addEventListener('pageshow',event => {
+    if (event.persisted) { suspended=false; resume(); }
+  },{signal:events.signal});
+  document.addEventListener('visibilitychange',() => {
+    if (document.hidden) pause();
+    else resume();
+  },{signal:events.signal});
   document.addEventListener('ournotes:shell-dispose',stop,{once:true,signal:events.signal});
   refresh();
   return stop;

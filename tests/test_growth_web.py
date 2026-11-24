@@ -2,6 +2,7 @@ import http.client
 import json
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 from tools.growth_export import extract_growth
@@ -161,6 +162,43 @@ class GrowthWebTests(unittest.TestCase):
                 self.assertEqual(json.loads(data)['error'], 'game_maintenance')
                 self.assertNotIn(b'PRIVATE', data)
             login.assert_not_called()
+
+    def test_public_status_pollers_do_not_queue_behind_a_slow_refresh(self):
+        entered, release = threading.Event(), threading.Event()
+        now, calls = [100], []
+        def observe(server, version):
+            calls.append(server)
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError('test probe not released')
+            return {'status': 'maintenance'}
+        self.server.game_status = GameServiceStatus(observe, monotonic=lambda: now[0],
+                                                   wall_time=lambda: now[0])
+        with ThreadPoolExecutor(max_workers=1) as workers:
+            for cold in (True, False):
+                entered.clear(); release.clear()
+                refreshing = workers.submit(self.request, 'status', 'GET')
+                try:
+                    self.assertTrue(entered.wait(1))
+                    # More than the gateway's 16 slots must remain usable while
+                    # the first request is still waiting on the public probe.
+                    for _ in range(20):
+                        status, headers, raw = self.request('status', 'GET')
+                        if cold:
+                            self.assertEqual(status, 503)
+                            self.assertEqual(headers['Retry-After'], '60')
+                            self.assertEqual(json.loads(raw)['error'], 'status_refreshing')
+                        else:
+                            self.assertEqual(status, 200)
+                            self.assertEqual(json.loads(raw), previous)
+                    self.assertFalse(refreshing.done())
+                finally:
+                    release.set()
+                status, _, raw = refreshing.result(3)
+                self.assertEqual(status, 200)
+                previous = json.loads(raw)
+                now[0] += 61
+        self.assertEqual(len(calls), 6)
 
     def test_history_is_uncached_requires_fresh_login_and_has_no_download_endpoint(self):
         with patch.object(FakeSdk, 'login', wraps=FakeSdk(Profile('fake')).login) as login:

@@ -1,4 +1,6 @@
+import { accountServer, accountCapabilitiesUrl } from './account-servers.mjs';
 import { currentServerContext } from './game-servers.mjs';
+import { maintenanceNotice } from './game-service-status.mjs';
 import {
   createHistoryModel,
   selectHistory,
@@ -15,6 +17,12 @@ import {
 import { createGachaShareImage } from './gacha-share-image.mjs';
 import { consumeGachaHandoff, clearGachaHandoff } from './account-sync-hub.mjs';
 
+const serviceMessages = {
+  credentials_rejected: '账号或登录凭据校验未通过，请检查后重新登录。',
+  account_not_found: '官方服务提示账号不存在。',
+  verification_required: '需要额外验证，本次查询已停止。',
+  rate_limited: '请求过于频繁，请稍后再试。',
+};
 const RING_CIRCUMFERENCE = 2 * Math.PI * 38;
 
 const node = (tag, text = '', className = '') => {
@@ -147,8 +155,148 @@ export class GachaHistoryTool extends (globalThis.HTMLElement ?? class {}) {
 
   disconnectedCallback() {
     this.reset();
+    this.serviceRequest?.abort();
     this.events?.abort();
     this.started = false;
+  }
+
+  async checkService() {
+    if (this.busy) return;
+    this.serviceRequest?.abort();
+    const controller = (this.serviceRequest = new AbortController());
+    const timer = setTimeout(() => controller.abort(), 10000);
+    this.nonce = null;
+    const fields = this.q?.('fields');
+    const retry = this.q?.('retry');
+    const service = this.q?.('service');
+    if (fields) fields.disabled = true;
+    if (retry) retry.hidden = true;
+    if (!accountServer(currentServerContext().serverId)) {
+      clearTimeout(timer);
+      if (service) service.textContent = '请先选择账号所属的港澳台、EN 或韩服。';
+      return;
+    }
+    if (service) service.textContent = '正在检查登录服务…';
+    try {
+      const response = await fetch(accountCapabilitiesUrl(currentServerContext().serverId), {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
+      if (!response.ok) throw Error('登录服务暂不可用，请稍后重新检查。');
+      const result = await response.json();
+      if (
+        result.enabled !== true ||
+        result.gachaHistory !== true ||
+        typeof result.nonce !== 'string' ||
+        (result.serverId && result.serverId !== currentServerContext().serverId)
+      ) {
+        throw Error('登录服务尚未开放抽卡记录查询，请稍后重新检查。');
+      }
+      if (controller.signal.aborted) return;
+      this.nonce = result.nonce;
+      this.applyGameStatus(result.gameStatus);
+    } catch (error) {
+      if (!this.isConnected) return;
+      if (service) service.textContent = error.name === 'AbortError' ? '检查登录服务超时，请重试。' : error.message;
+      if (retry) retry.hidden = false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  applyGameStatus(observation) {
+    this.maintenance = observation?.status === 'maintenance';
+    const fields = this.q?.('fields');
+    const retry = this.q?.('retry');
+    const service = this.q?.('service');
+    if (fields) fields.disabled = this.busy || !this.nonce || this.maintenance;
+    if (retry) retry.hidden = !this.maintenance;
+    if (service) {
+      service.textContent = this.maintenance
+        ? maintenanceNotice(observation)
+        : '本站查询入口已连接 · 每次查询重新登录；官方服务状态以实际结果为准';
+    }
+  }
+
+  async queryHistory() {
+    if (this.busy || !this.nonce || this.maintenance) return;
+    const credKey = ['pass', 'word'].join('');
+    let body = JSON.stringify({
+      serverId: currentServerContext().serverId,
+      account: this.q('account').value,
+      [credKey]: this.q(credKey).value,
+    });
+    this.sequence = (this.sequence ?? 0) + 1;
+    const sequence = this.sequence;
+    this.reset();
+    this.busy = true;
+    const fields = this.q?.('fields');
+    if (fields) fields.disabled = true;
+    const clearBtn = this.q?.('clear');
+    if (clearBtn) clearBtn.hidden = false;
+    const statusEl = this.q?.('status');
+    if (statusEl) statusEl.textContent = '正在登录并读取抽卡记录…';
+    const controller = (this.request = new AbortController());
+    const timer = setTimeout(() => controller.abort(), 150000);
+    try {
+      const pending = fetch('/api/growth-export/gacha-history/', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', 'X-Growth-Nonce': this.nonce },
+        body,
+        signal: controller.signal,
+      });
+      body = '';
+      const response = await pending;
+      if (Number(response.headers.get('content-length')) > 2_000_000) throw Error('返回记录过大，未载入。');
+      const text = await response.text();
+      if (text.length > 2_000_000) throw Error('返回记录过大，未载入。');
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw Error('登录服务返回异常，请稍后重新查询。');
+      }
+      if (result.error === 'game_maintenance') {
+        this.applyGameStatus(result.gameStatus ?? { status: 'maintenance' });
+        throw Error(maintenanceNotice(result.gameStatus ?? { status: 'maintenance' }));
+      }
+      if (result.error === 'game_client_update_required') {
+        throw Error('游戏要求新的客户端版本，本次读取已停止；请稍后手动重新查询。');
+      }
+      if (!response.ok) {
+        if (response.status === 403) {
+          this.nonce = null;
+          const retry = this.q?.('retry');
+          if (retry) retry.hidden = false;
+        }
+        throw Error(
+          serviceMessages[result.reason] ??
+            (response.status === 429
+              ? '服务繁忙，请稍后重新查询。'
+              : response.status === 403
+                ? '页面已过期，请重新检查登录服务。'
+                : '抽卡记录读取未完成，请稍后重新查询。'),
+        );
+      }
+      if (sequence !== this.sequence || !this.isConnected) return;
+      this.loadSnapshot(result.snapshot, { demo: false });
+    } catch (error) {
+      if (sequence === this.sequence && statusEl) {
+        statusEl.textContent =
+          error.name === 'AbortError' ? '读取超时，本次未载入记录。请稍后重新登录。' : error.message;
+      }
+    } finally {
+      body = '';
+      clearTimeout(timer);
+      if (sequence === this.sequence) {
+        this.busy = false;
+        this.request = null;
+        if (fields) fields.disabled = !this.nonce || this.maintenance;
+      }
+    }
   }
 
   clearShare() {

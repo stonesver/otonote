@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch frontend code publication for Actions
+
+[Path]
+PathChanged=/srv/ournotes-code
+Unit=ournotes-static-code.service
+
+[Install]
+WantedBy=multi-user.target

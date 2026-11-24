@@ -20,6 +20,7 @@ TABLES = ("MasterArenaSeason", "MasterArenaLeague", "MasterArenaLeagueRegulation
           "MasterArenaRank", "MasterBattleLivePlace", "MasterLiveArenaReward",
           "MasterLiveArenaRankReward", "MasterArenaSeasonReward", "MasterText", "MasterItem", "MasterEvent")
 SERVERS = {"global": {"global-hmt", "global-kr", "global-en"}, "jp": {"jp"}}
+GLOBAL_REVIEW_RELEASE = re.compile(r'global-prod-remote-[A-Za-z0-9-]+-([a-f0-9]{32})-c([a-f0-9]{12})')
 
 
 from tools.arena_public import arena_master_version
@@ -276,11 +277,10 @@ def read_arena_review(source, root):
     value = json.loads(raw)
     if registry and isinstance(value,dict) and value.get('schemaVersion')==1 and value.get('region')==source['region'] and value.get('sourceReleaseId')!=source['contentReleaseId']:
         # A resource-only update may reuse the exact reviewed Master and client.
-        # Unknown/new Master versions need renewed native server bindings. Never
+        # New Master versions need renewed native server bindings. Never
         # turn a configured but outdated review into an empty successful release.
-        pattern = r'global-prod-remote-[A-Za-z0-9-]+-([a-f0-9]{32})-c([a-f0-9]{12})'
-        before = re.fullmatch(pattern, str(value.get('sourceReleaseId', '')))
-        after = re.fullmatch(pattern, source['contentReleaseId'])
+        before = GLOBAL_REVIEW_RELEASE.fullmatch(str(value.get('sourceReleaseId', '')))
+        after = GLOBAL_REVIEW_RELEASE.fullmatch(source['contentReleaseId'])
         if (source['region'] != 'global' or not before or not after
                 or before.groups() != after.groups() or after[1] != value.get('masterVersion')):
             raise ValueError('arena review renewal required: release identity changed')

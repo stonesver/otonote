@@ -248,7 +248,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == ROOT + 'status':
             if self.server.game_status is None:
                 return self.reply(503, {'error': 'status_not_configured'})
-            return self.reply(200, self.server.game_status.snapshot())
+            snapshot = self.server.game_status.snapshot(wait=False)
+            if snapshot is None:
+                return self.reply(503, {'error': 'status_refreshing'})
+            return self.reply(200, snapshot)
         if path != ROOT + 'capabilities':
             return self.reply(404, {'error': 'not_found'})
         query = parse_qs(parsed.query, keep_blank_values=True)

@@ -1,3 +1,4 @@
 boto3==1.43.105
 pyelftools==0.32
 certifi==2026.10.19
+grpcio==1.76.0

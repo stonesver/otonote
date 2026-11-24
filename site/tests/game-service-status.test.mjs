@@ -128,3 +128,50 @@ test('each server gets its own estimate, and elapsed or missing estimates never 
   assert.equal(elapsed.length,3);
   assert.match(elapsed.find(row=>row.serverId==='global-hmt').timing,/14:00.*恢复待确认/);
 });
+
+test('polling pauses in hidden pages and BFCache, resumes after an aborted request, and stops on disposal',async()=>{
+  const names=['window','document','location','fetch','setTimeout','clearTimeout'];
+  const previous=Object.fromEntries(names.map(key=>[key,globalThis[key]]));
+  const timers=[],requests=[];
+  const root={hidden:true,dataset:{locale:'en'},querySelector:()=>({replaceChildren(){}})};
+  globalThis.window=new EventTarget();globalThis.document=new EventTarget();
+  document.hidden=true;
+  globalThis.location={pathname:'/global/en/',search:''};
+  globalThis.setTimeout=(callback,delay)=>{const timer={callback,delay};timers.push(timer);return timer;};
+  globalThis.clearTimeout=timer=>{if(timer)timer.cleared=true;};
+  let pending=false;
+  globalThis.fetch=(url,options)=>{
+    requests.push({url,options});
+    if(pending)return new Promise((resolve,reject)=>{
+      options.signal.addEventListener('abort',()=>reject(new Error('aborted')),{once:true});
+    });
+    return Promise.resolve({ok:true,json:async()=>({schemaVersion:1,
+      validUntil:new Date(Date.now()+60000).toISOString(),servers:{}})});
+  };
+  const flush=()=>new Promise(resolve=>setImmediate(resolve));
+  const visible=value=>{document.hidden=!value;document.dispatchEvent(new Event('visibilitychange'));};
+  const page=(type)=>{const event=new Event(type);event.persisted=true;window.dispatchEvent(event);};
+  let stop;
+  try {
+    stop=installGameServiceNotice(root);await flush();
+    assert.equal(requests.length,0,'initially hidden pages do not fetch');
+    visible(true);await flush();assert.equal(requests.length,1);
+    const scheduled=timers.findLast(timer=>timer.delay===60000);
+    visible(false);assert.equal(scheduled.cleared,true);
+    await scheduled.callback();assert.equal(requests.length,1);
+    pending=true;visible(true);assert.equal(requests.length,2);
+    visible(false);assert.equal(requests.at(-1).options.signal.aborted,true);
+    pending=false;visible(true);await flush();
+    const resume=timers.findLast(timer=>timer.delay===0);
+    assert.ok(resume,'a rapid return waits for abort settlement, then retries immediately');
+    await resume.callback();assert.equal(requests.length,3);
+    const beforeCache=timers.findLast(timer=>timer.delay===60000);
+    page('pagehide');assert.equal(beforeCache.cleared,true);
+    await beforeCache.callback();assert.equal(requests.length,3);
+    page('pageshow');await flush();assert.equal(requests.length,4);
+    document.dispatchEvent(new Event('ournotes:shell-dispose'));
+    visible(false);visible(true);page('pageshow');await flush();
+    assert.equal(requests.length,4);
+    assert.equal(timers.findLast(timer=>timer.delay===60000).cleared,true);
+  } finally {stop?.();Object.assign(globalThis,previous);}
+});

@@ -1,0 +1,153 @@
+name: Deliver approved static site
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: First deployment to a new unrouted Worker
+        type: boolean
+        default: false
+      current_trial:
+        description: Optional validated current trial run to reuse on first delivery
+        type: string
+        required: false
+      previous_trial:
+        description: Optional earlier validated trial run for first-deployment asset retention
+        type: string
+        required: false
+  workflow_run:
+    workflows: [Content production to R2, Retry verified content publication, Recompute published song rankings, Publish reviewed Arena band badges]
+    types: [completed]
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: approved-static-delivery
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event_name == 'workflow_dispatch' ||
+       (vars.STATIC_SITE_ENABLED == 'true' &&
+        (github.event_name == 'schedule' ||
+         (github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == github.event.repository.default_branch))))
+    environment: content-r2-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      STATIC_ROOT: ${{ github.workspace }}/output/static-delivery
+      STATIC_SITE_ORIGIN: ${{ vars.STATIC_SITE_ORIGIN }}
+      STATIC_WORKER_NAME: ${{ vars.STATIC_WORKER_NAME }}
+      WORKER_URL: ${{ vars.STATIC_WORKER_URL }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      CURRENT_TRIAL: ${{ inputs.current_trial }}
+      PREVIOUS_TRIAL: ${{ inputs.previous_trial }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install render dependencies
+        run: |
+          python -m pip install --require-hashes -r tools/python-security-requirements.txt
+          python -m pip install -r tools/r2-requirements.txt
+      - name: Assemble approved code and current content
+        id: prepare
+        env: &r2
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_PUBLIC_BUCKET: otonote-public-content
+          R2_PRIVATE_BUCKET: otonote-production-state
+          GH_TOKEN: ${{ github.token }}
+        run: python -m tools.static_site prepare
+      - name: Install delivery tools
+        if: steps.prepare.outputs.changed == 'true'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/delivery-tools" --no-audit --no-fund wrangler@4.149.0
+          echo "$RUNNER_TEMP/delivery-tools/node_modules/.bin" >> "$GITHUB_PATH"
+          python -m pip install playwright==1.56.0
+      - name: Check inputs before upload
+        if: steps.prepare.outputs.changed == 'true'
+        env: *r2
+        run: python -m tools.static_site guard
+      - name: Bootstrap isolated site or upload a candidate version
+        id: upload
+        if: steps.prepare.outputs.changed == 'true'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: 'false'
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: |
+          set -euo pipefail
+          cfg="$STATIC_ROOT/wrangler.json"
+          if [[ "$BOOTSTRAP" == true ]]; then
+            python -m tools.static_site_bootstrap
+            wrangler deploy --config "$cfg"
+            echo "url=$WORKER_URL" >> "$GITHUB_OUTPUT"
+          else
+            wrangler versions upload --config "$cfg" | tee "$RUNNER_TEMP/static-upload.log"
+            id=$(sed -nE 's/.*Worker Version ID: ([0-9a-f-]{36}).*/\1/p' "$RUNNER_TEMP/static-upload.log" | tail -1)
+            url=$(sed -nE 's/.*Version Preview URL: (https:\/\/[^[:space:]]+).*/\1/p' "$RUNNER_TEMP/static-upload.log" | tail -1)
+            [[ -n "$id" && "$url" == https://*.workers.dev ]]
+            echo "id=$id" >> "$GITHUB_OUTPUT"
+            echo "url=$url" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check candidate on the public Worker URL
+        if: steps.prepare.outputs.changed == 'true'
+        env:
+          URL: ${{ steps.upload.outputs.url }}
+        run: python -m tools.static_site_check "$URL" "$STATIC_ROOT/assets"
+      - name: Recheck active inputs
+        if: steps.prepare.outputs.changed == 'true'
+        env: *r2
+        run: python -m tools.static_site guard
+      - name: Activate the checked version
+        id: activate
+        if: steps.upload.outputs.id != ''
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: 'false'
+          VERSION: ${{ steps.upload.outputs.id }}
+        run: |
+          set -euo pipefail
+          cfg="$STATIC_ROOT/wrangler.json"
+          old=$(wrangler deployments list --json --config "$cfg" | jq -er 'max_by(.created_on).versions | select(length == 1 and .[0].percentage == 100) | .[0].version_id')
+          echo "previous=$old" >> "$GITHUB_OUTPUT"
+          wrangler versions deploy "$VERSION@100%" --yes --config "$cfg"
+      - name: Verify active deployment
+        id: verify_active
+        if: steps.prepare.outputs.changed == 'true'
+        run: python -m tools.static_site_check "$WORKER_URL" "$STATIC_ROOT/assets"
+      - name: Restore previous deployment on failed active check
+        if: failure() && steps.activate.outcome == 'success' && steps.verify_active.outcome == 'failure'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: 'false'
+          PREVIOUS: ${{ steps.activate.outputs.previous }}
+          VERSION: ${{ steps.upload.outputs.id }}
+        run: |
+          cfg="$STATIC_ROOT/wrangler.json"
+          active=$(wrangler deployments list --json --config "$cfg" | jq -er 'max_by(.created_on).versions | select(length == 1 and .[0].percentage == 100) | .[0].version_id')
+          if [[ "$active" == "$VERSION" ]]; then
+            wrangler rollback "$PREVIOUS" --config "$cfg" --yes --message "Active static page verification failed"
+          fi
+      - name: Record successful delivery
+        if: steps.prepare.outputs.changed == 'true'
+        env: *r2
+        run: python -m tools.static_site record

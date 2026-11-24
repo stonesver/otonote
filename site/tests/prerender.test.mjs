@@ -97,6 +97,17 @@ test('site notifications start with the shell while tools prepare or remain unav
     assert.match(result.html, /data-deferred-module="\/app\/releases\/abc\/scripts\/tool.js"/);
   }
 });
+test('prerendered pages load shared styles before inline or linked route styles', () => {
+  const app = {...args.app, sharedCss:'chunks/shell.css', workspaceCss:'chunks/workspaces.css'};
+  for (const route of ['', 'tools/deck-builder']) {
+    const {html} = prepareHtml('<main>Ready</main>', {...args, app, route, stylesheet:'.page{}'});
+    const styles = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)"|<style data-prerender-styles/g)]
+      .map(match => match[1] ?? 'inline');
+    assert.deepEqual(styles, [args.codeRoot + app.sharedCss, args.codeRoot + app.workspaceCss,
+      route ? args.codeRoot + args.css : 'inline']);
+  }
+});
+
 test('styles arrive in HTML without a second request and keep code asset URLs', () => {
   const result = prepareHtml('<html><head></head><body><main>Ready</main></body></html>',{...args,route:'characters',css:'pages/characters.css',stylesheet:'.a{background:url(../assets/a.webp)}.b{background:url("data:image/svg+xml,%3Csvg%3E")}'});
   assert.match(result.html,/<style data-prerender-styles="">/);

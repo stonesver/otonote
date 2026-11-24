@@ -88,8 +88,13 @@ class GameServiceStatus:
         self.cached = None
         self.deadline = 0
 
-    def snapshot(self):
-        with self.lock:
+    def snapshot(self, *, wait=True):
+        # Public polling must not occupy every HTTP connection behind one probe.
+        # Keep the original expiry on a previous observation; it is not recovery
+        # evidence. Account prechecks still wait for the current observation.
+        if not self.lock.acquire(blocking=wait):
+            return copy.deepcopy(self.cached)
+        try:
             if self.cached is not None and self.monotonic() < self.deadline:
                 return copy.deepcopy(self.cached)
             def observe(server_id):
@@ -106,6 +111,8 @@ class GameServiceStatus:
                            'servers': rows}
             self.deadline = self.monotonic() + TTL_SECONDS
             return copy.deepcopy(self.cached)
+        finally:
+            self.lock.release()
 
     def server(self, server_id):
         return self.snapshot()['servers'].get(server_id, {'status': 'unknown'})

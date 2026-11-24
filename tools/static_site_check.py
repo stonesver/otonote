@@ -51,6 +51,11 @@ def check(base, assets):
                         raise ValueError("Missing static response: " + path)
                     if response.body() != (assets / path / "index.html").read_bytes():
                         raise ValueError("Public HTML differs from candidate: " + path)
+                    if suffix == "":
+                        icon = page.locator("#site-navigation .nav-primary svg").first
+                        width = icon.bounding_box(timeout=15000)["width"]
+                        if not 0 < width <= 32:
+                            raise ValueError(f"Homepage navigation icon is {width}px: {path}")
                     if suffix == "tools/song-ranking/":
                         page.locator("song-ranking tbody tr").first.wait_for(
                             timeout=60000

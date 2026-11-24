@@ -129,8 +129,12 @@ await build({ ...options, plugins: [], splitting: false,
 const compiled = await build({ ...options, entryPoints: entries });
 // Build 1 shared immutable shell CSS bundle + 1 lazy-loaded workspace modal CSS bundle.
 const buildCssBundle = async (name, files) => {
-  const combined = (await Promise.all(files.map(f => readFile(join(site, 'src/styles', f), 'utf8')))).join('\n');
-  const minified = (await transformTs(combined, { loader: 'css', minify: true })).code;
+  const imports = files.map(file => `@import "./${file}";`).join('\n');
+  const bundle = await build({
+    stdin: { contents: imports, loader: 'css', resolveDir: join(site, 'src/styles') },
+    bundle: true, minify: true, write: false,
+  });
+  const minified = bundle.outputFiles[0].text;
   const hash = createHash('sha256').update(minified).digest('hex').slice(0, 8).toUpperCase();
   const rel = `chunks/${name}-${hash}.css`;
   await mkdir(join(stage, 'chunks'), { recursive: true });

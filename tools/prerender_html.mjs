@@ -135,6 +135,10 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
     });
     append(head, fragment(`<style data-prerender-styles>${normalized.replace(/<\/style/gi, '<\\/style')}</style>`)[0]);
   } else if (css) append(head, fragment(`<link rel="stylesheet" href="${codeRoot + css}">`)[0]);
+  const sharedStyles = [app.sharedCss, app.workspaceCss].filter(Boolean).map(path =>
+    fragment(`<link rel="stylesheet" href="${codeRoot + path}">`)[0]);
+  for (const link of sharedStyles) link.parentNode = head;
+  head.childNodes.unshift(...sharedStyles);
   const htmlNode = all.find(n => n.tagName === 'html');
   set(htmlNode, 'data-prerendered', 'true');
   return {html:serialize(doc), payloads, deferred:!!tool};

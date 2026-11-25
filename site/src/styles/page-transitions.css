@@ -101,6 +101,15 @@ html[data-transition-speed="slow"] {
   }
   [data-page-transition="fade"][data-transition-speed="slow"]::view-transition-new(root) { animation-duration: 600ms; }
 
+  /* Entering the waiting frame on click should be crisp and immediate; reserve the reveal for the destination page. */
+  [data-navigation-phase="transition"]::view-transition-old(root) {
+    animation: none;
+    opacity: 1;
+  }
+  [data-navigation-phase="transition"]::view-transition-new(root) {
+    animation: page-reveal 90ms ease-out both;
+  }
+
   /* Hold at the fully covered first frame until the incoming layout is ready. */
   [data-navigation-pending]::view-transition-old(root),
   [data-navigation-pending]::view-transition-new(root) { animation-play-state: paused !important; }

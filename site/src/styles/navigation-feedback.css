@@ -13,7 +13,8 @@ html[data-navigation-phase] dialog:not([open]) { display: none !important; }
   100% { transform: translateX(110%) scaleX(0.45); }
 }
 html[data-navigation-pending]::before,
-html[data-navigation-phase="loading"]::before {
+html[data-navigation-phase="loading"]::before,
+html[data-tool-hydrating]::before {
   content: "";
   position: fixed;
   top: 0;
@@ -24,7 +25,7 @@ html[data-navigation-phase="loading"]::before {
   pointer-events: none;
   background: linear-gradient(90deg, transparent, var(--theme-accent), var(--theme-accent-bright), transparent);
   transform-origin: left center;
-  animation: nav-progress-glide 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: nav-progress-glide 1.05s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 [data-navigation-wait] {
@@ -34,13 +35,19 @@ html[data-navigation-phase="loading"]::before {
   border: 0; border-radius: 0; box-shadow: none;
   outline: none; overscroll-behavior: contain;
 }
-[data-tool-gate] { margin-block: 16px; }
-[data-tool-gate] [data-tool-retry] { margin-top: 12px; padding: 8px 16px; cursor: pointer; }
-[data-navigation-actions] button {
-  border: 1px solid var(--line); border-radius: 8px; padding: 9px 16px; margin-right: 12px;
-  background: var(--paper-light); color: var(--ink); cursor: pointer; font: inherit;
+[data-tool-gate] { max-width: 1440px; margin: 16px auto; padding-inline: var(--gutter, 24px); }
+[data-tool-gate] [data-tool-retry] {
+  margin-top: 10px; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--theme-border, var(--line)); background: var(--theme-accent, var(--lacquer));
+  color: var(--theme-on-accent, var(--paper-light)); cursor: pointer; font: inherit;
 }
-[data-navigation-actions] [data-navigation-retry] { background: var(--lacquer); color: var(--paper-light); }
+[data-navigation-actions] button {
+  border: 1px solid var(--theme-border, var(--line)); border-radius: 999px; padding: 8px 16px; margin-right: 10px;
+  background: var(--theme-surface, var(--paper-light)); color: var(--theme-text, var(--ink)); cursor: pointer; font: inherit;
+}
+[data-navigation-actions] [data-navigation-retry] {
+  background: var(--theme-accent, var(--lacquer)); color: var(--theme-on-accent, var(--paper-light)); border-color: transparent;
+}
 @media (max-width: 1100px) {
   [data-navigation-wait] { left: 0; top: calc(var(--header-height, 68px) + env(safe-area-inset-top)); }
 }

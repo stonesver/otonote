@@ -81,7 +81,9 @@ export function createRankingTeaserClient({ container, mode, en = false, catalog
       const hist = (d.closingHistory || []).find(x => String(x.music) === String(d.musicId));
       const c100 = hist?.changes?.find(z => z.rank === 100);
       if (c100) {
-        pills.push(`<a class="ri-teaser-pill" href="${esc(buildStatsUrl(scope, 'closing'))}"><small>${t('24h 百名线', '24h Top-100')}</small><strong>+${c100.pct.toFixed(2)}%</strong></a>`);
+        const isFinalCurve = hist?.isFinal ?? Boolean(d.isFinal);
+        const label = isFinalCurve ? t('最后24h百名线', 'Final 24h Top-100') : t('近24h百名线', 'Past 24h Top-100');
+        pills.push(`<a class="ri-teaser-pill" href="${esc(buildStatsUrl(scope, 'closing'))}"><small>${label}</small><strong>+${c100.pct.toFixed(2)}%</strong></a>`);
       }
     }
 

@@ -14,6 +14,11 @@ const image = (id: string | null | undefined) => {
 };
 
 const bandMasterMap = Object.fromEntries(catalog.bands.map(b => [b.id, String(b.masterId)]));
+const characterBandMasterMap = Object.fromEntries(
+  catalog.characters
+    .filter(c => c.bandId && bandMasterMap[c.bandId])
+    .map(c => [c.id, bandMasterMap[c.bandId]])
+);
 
 const cardAttributes = Object.fromEntries(catalog.cardTaxonomy.attributes.map(a => [
   String(a.code),
@@ -52,8 +57,12 @@ const mapCards = (kind: 'member' | 'support') => Object.fromEntries(
     const defaultSlug = `${kind}-card-${mid}`;
     const slug = card.id === defaultSlug ? '' : card.id;
     const imgRel = trimImg(image(card.thumbnailAssetId));
-    if (kind === 'support') {
-      const bIds = (card.bandIds ?? []).map(id => bandMasterMap[id] ?? String(id));
+    if (kind === 'support' && 'featuredCharacterIds' in card) {
+      const bIds = [...new Set(
+        (card.featuredCharacterIds ?? [])
+          .map(cid => characterBandMasterMap[cid])
+          .filter(Boolean)
+      )];
       return [mid, bIds.length
         ? [card.displayName, imgRel, slug, card.rarity, card.attributeCode, bIds]
         : [card.displayName, imgRel, slug, card.rarity, card.attributeCode]];

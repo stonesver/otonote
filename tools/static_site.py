@@ -96,21 +96,17 @@ def approved_code(root, live):
     revision = os.environ["GITHUB_SHA"]
     if current and (os.environ.get("CONTENT_ONLY") == "true" or current["revision"] == revision):
         return current
-    repo = os.environ["GITHUB_REPOSITORY"]
-    # A scheduled/manual delivery can recover a CI event displaced in the queue.
-    run = os.environ.get("SOURCE_CI_RUN") or subprocess.check_output(
-        ["gh", "run", "list", "--repo", repo, "--workflow", "check.yml",
-         "--event", "push", "--branch", os.environ["DEFAULT_BRANCH"], "--commit", revision,
-         "--status", "success", "--limit", "1", "--json", "databaseId",
-         "--jq", ".[0].databaseId // empty"], text=True,
-    ).strip()
-    if not run:
+    if os.environ["VERIFIED_REVISION"] != revision:
         if current:
             return current
         raise ValueError("First delivery requires successful default-branch CI")
+    repo = os.environ["GITHUB_REPOSITORY"]
+    run = os.environ["VERIFIED_CI_RUN"]
+
     def download(name, directory):
         subprocess.run(["gh", "run", "download", run, "--repo", repo, "--name", name,
                         "--dir", str(root / directory)], check=True)
+
     download("static-code-approval", "approval")
     code = validate_code_identity(json.loads((root / "approval/code.json").read_bytes()))
     if code["revision"] != revision:
@@ -162,7 +158,7 @@ def link_tree(source, dest):
                 os.link(file, to)
 
 
-def package(root, assets, origin, worker):
+def package(root, assets, origin, worker, worker_revision):
     if not re.fullmatch(r"[a-z0-9-]+", worker):
         raise ValueError("Invalid Worker name")
     shell = (root / "code/current/index.html").read_bytes()
@@ -183,7 +179,9 @@ def package(root, assets, origin, worker):
         "/app/releases/*\n  Cache-Control: public, max-age=31536000, immutable\n"
         "/rendered/releases/*\n  Cache-Control: public, max-age=31536000, immutable\n"
     )
-    shutil.copyfile(DEPLOY / "static-site.mjs", root / "worker.mjs")
+    (root / "worker.mjs").write_bytes(subprocess.check_output(
+        ["git", "show", f"{worker_revision}:deploy/static-site.mjs"]
+    ))
     config = {
         "name": worker,
         "main": "worker.mjs",
@@ -367,8 +365,14 @@ def build(root, public, store, desired, live, origin, worker):
         prefix = trial_prefix(os.environ["PREVIOUS_TRIAL"])
         for part in ("app/releases", "rendered/releases"):
             restore_objects(public, prefix + part + "/", assets / part)
-    package(root, assets, origin, worker)
-    (root / "release.json").write_text(json.dumps({"inputs": desired, "pairs": pairs}))
+    worker_revision = desired["code"]["revision"]
+    if desired["code"] == live.get("inputs", {}).get("code"):
+        # Older live records predate the Worker revision field.
+        worker_revision = live.get("workerRevision", os.environ["VERIFIED_REVISION"])
+    package(root, assets, origin, worker, worker_revision)
+    (root / "release.json").write_text(json.dumps({
+        "inputs": desired, "pairs": pairs, "workerRevision": worker_revision,
+    }))
 
 
 def main():

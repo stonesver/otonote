@@ -73,7 +73,7 @@ class SitePackageTests(unittest.TestCase):
             assets = root / "assets"
             static_site.public_artifacts(assets, code, releases)
             static_site.package(
-                root, assets, "https://example.invalid", "example-worker"
+                root, assets, "https://example.invalid", "example-worker", "HEAD"
             )
             cfg = json.loads((root / "wrangler.json").read_text())
             self.assertFalse(cfg["assets"]["run_worker_first"])
@@ -169,15 +169,11 @@ class SitePackageTests(unittest.TestCase):
                     (root / "fixture").rename(output / "code-candidate")
 
             with (
-                patch.dict("os.environ", GITHUB_SHA=revision, GITHUB_REPOSITORY="example/repo", DEFAULT_BRANCH="main"),
-                patch.object(static_site.subprocess, "check_output", return_value="123") as lookup,
+                patch.dict("os.environ", GITHUB_SHA=revision, GITHUB_REPOSITORY="example/repo",
+                           VERIFIED_CI_RUN="123", VERIFIED_REVISION=revision),
                 patch.object(static_site.subprocess, "run", side_effect=download),
             ):
                 code = static_site.approved_code(root, {})
-            command = lookup.call_args.args[0]
-            for flag, value in {"--workflow": "check.yml", "--commit": revision, "--branch": "main",
-                                "--event": "push", "--status": "success"}.items():
-                self.assertEqual(command[command.index(flag) + 1], value)
             store = Mock()
             release = static_site.install_code(store, root, code)
             self.assertEqual(release.name, code["codeId"])
@@ -199,8 +195,7 @@ class SitePackageTests(unittest.TestCase):
             lookup.assert_not_called()
         with (
             patch.dict("os.environ", GITHUB_SHA="d" * 40, CONTENT_ONLY="false",
-                       GITHUB_REPOSITORY="example/repo", DEFAULT_BRANCH="main"),
-            patch.object(static_site.subprocess, "check_output", return_value=""),
+                       VERIFIED_REVISION=code["revision"]),
         ):
             self.assertEqual(static_site.approved_code(Path("."), live), code)
             with self.assertRaisesRegex(ValueError, "First delivery"):

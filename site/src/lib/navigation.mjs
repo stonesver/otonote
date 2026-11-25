@@ -4,7 +4,8 @@ export const NAVIGATION_GROUPS = Object.freeze([
     {labelKey:"arenaStage",href:"/arena/"},
     {labelKey:"recruitment",href:"/recruitment/"},
     {labelKey:"missions",href:"/missions/"},
-    {labelKey:"playerRankings",href:"/rankings/"}
+    {labelKey:"playerRankings",href:"/rankings/"},
+    {labelKey:"rankingStats",href:"/rankings/stats/"}
   ] },
   { id: "catalog", labelKey: "navCatalog", href: "/catalog/",
     matchPrefixes: ["/catalog/", "/characters/", "/costumes/", "/cards/", "/database/"],

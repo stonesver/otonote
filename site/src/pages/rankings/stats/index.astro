@@ -1,0 +1,149 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { activeReleaseContext } from '../../../lib/release-context';
+import { catalog, getAsset } from '../../../lib/catalog';
+import { gameModeDatabase } from '../../../lib/game-modes';
+import { validatedEvents } from '../../../lib/event-content.mjs';
+import { bandCircleIcon } from '../../../lib/filter-visuals';
+import '../../../styles/ranking-insights.css';
+
+const en = activeReleaseContext.locale === 'en';
+const image = (id: string | null | undefined) => {
+  const asset = getAsset(id);
+  return asset?.thumbnailUrl || asset?.previewUrl || null;
+};
+
+const bandMasterMap = Object.fromEntries(catalog.bands.map(b => [b.id, String(b.masterId)]));
+
+const cardAttributes = Object.fromEntries(catalog.cardTaxonomy.attributes.map(a => [
+  String(a.code),
+  image(a.iconAssetId) || ''
+]));
+const cardRarities = Object.fromEntries(catalog.cardTaxonomy.rarities.map(r => [
+  String(r.code),
+  [r.label, getAsset(r.iconAssetId)?.previewUrl || image(r.iconAssetId) || '']
+]));
+
+const rawCardImages: string[] = [];
+for (const card of [...catalog.memberCards, ...catalog.supportCards]) {
+  const url = image(card.thumbnailAssetId);
+  if (url) rawCardImages.push(url);
+}
+const commonDirPrefix = (urls: string[]) => {
+  if (urls.length < 2) return '';
+  let prefix = urls[0];
+  for (let i = 1; i < urls.length && prefix; i++) {
+    while (prefix && !urls[i].startsWith(prefix)) {
+      prefix = prefix.slice(0, -1);
+    }
+  }
+  const slash = prefix.lastIndexOf('/');
+  return slash >= 0 ? prefix.slice(0, slash + 1) : '';
+};
+const imgBase = commonDirPrefix(rawCardImages);
+const trimImg = (url: string | null) => {
+  if (!url) return '';
+  return imgBase && url.startsWith(imgBase) ? url.slice(imgBase.length) : url;
+};
+
+const mapCards = (kind: 'member' | 'support') => Object.fromEntries(
+  (kind === 'member' ? catalog.memberCards : catalog.supportCards).map(card => {
+    const mid = String(card.masterId);
+    const defaultSlug = `${kind}-card-${mid}`;
+    const slug = card.id === defaultSlug ? '' : card.id;
+    const imgRel = trimImg(image(card.thumbnailAssetId));
+    if (kind === 'support') {
+      const bIds = (card.bandIds ?? []).map(id => bandMasterMap[id] ?? String(id));
+      return [mid, bIds.length
+        ? [card.displayName, imgRel, slug, card.rarity, card.attributeCode, bIds]
+        : [card.displayName, imgRel, slug, card.rarity, card.attributeCode]];
+    }
+    return [mid, [card.displayName, imgRel, slug, card.rarity, card.attributeCode]];
+  })
+);
+
+const bands = catalog.bands.map(band => {
+  const circle = bandCircleIcon(band.masterId);
+  return {
+    id: String(band.masterId),
+    name: band.displayName,
+    image: circle?.icon || image(band.logoAssetId),
+  };
+});
+
+const events = validatedEvents(gameModeDatabase.events, activeReleaseContext)
+  .slice()
+  .sort((a, b) => Number(b.id) - Number(a.id))
+  .map(ev => ({ id: String(ev.id), name: ev.name }));
+
+const songs = Object.fromEntries(catalog.musicTracks.map(track => [
+  String(track.masterId),
+  track.title,
+]));
+
+const cardData = JSON.stringify({
+  v: 2,
+  imgBase,
+  hrefBase: `/${activeReleaseContext.region}/${activeReleaseContext.locale}/cards/`,
+  member: mapCards('member'),
+  support: mapCards('support'),
+  attributes: cardAttributes,
+  rarities: cardRarities,
+}).replaceAll('<', '\\u003c');
+
+const contextData = JSON.stringify({ bands, songs }).replaceAll('<', '\\u003c');
+---
+<BaseLayout title={en ? 'Data stats' : '数据统计'}>
+  <div class="content-shell ri-page-shell" data-ranking-stats-page data-locale={activeReleaseContext.locale}>
+    <script is:inline type="application/json" data-stats-cards set:html={cardData}></script>
+    <script is:inline type="application/json" data-stats-context set:html={contextData}></script>
+
+    <section class="ri-cmd" aria-label={en ? 'Data stats controls' : '数据统计筛选'}>
+      <div class="ri-cmd-row">
+        <div class="ui-segmented" role="group" aria-label={en ? 'Mode' : '模式'}>
+          <button type="button" data-stats-mode="arena" aria-pressed="true">{en ? 'Arena' : '激奏舞台'}</button>
+          <button type="button" data-stats-mode="activity" aria-pressed="false">{en ? 'Event' : '活动曲榜'}</button>
+        </div>
+
+        <div class="ui-segmented" role="group" aria-label={en ? 'Server' : '区服'}>
+          <button type="button" data-stats-server="global-hmt" aria-pressed="true">{en ? 'HMT' : '港澳台'}</button>
+          <button type="button" data-stats-server="global-en" aria-pressed="false">EN</button>
+          <button type="button" data-stats-server="global-kr" aria-pressed="false">{en ? 'KR' : '韩服'}</button>
+          <button type="button" data-stats-server="jp" aria-pressed="false">{en ? 'JP' : '日服'}</button>
+        </div>
+
+        <div class="ri-band-rail" data-stats-band-rail role="group" aria-label={en ? 'Band' : '乐队'}>
+          {bands.map((b, idx) => (
+            <button type="button" class="ri-band-btn" data-stats-band={b.id} aria-pressed={idx === 0 ? 'true' : 'false'} title={b.name}>
+              {b.image ? <img src={b.image} alt={b.name} width="24" height="24" decoding="async" /> : <span>{b.name}</span>}
+            </button>
+          ))}
+        </div>
+
+        <div data-stats-event-wrap hidden>
+          <select class="ui-select" data-stats-event aria-label={en ? 'Event' : '活动'}>
+            {events.map(ev => <option value={ev.id}>{en ? `#${ev.id} · ${ev.name}` : `第 ${ev.id} 期 · ${ev.name}`}</option>)}
+          </select>
+        </div>
+
+        <div data-stats-song-wrap hidden>
+          <select class="ui-select" data-stats-song aria-label={en ? 'Song' : '歌曲'}>
+            <option value="">{en ? 'Default song' : '默认曲目'}</option>
+          </select>
+        </div>
+
+        <details class="ui-tip-disclosure ui-tip-disclosure--icon-only">
+          <summary aria-label={en ? 'Notes' : '口径说明'} title={en ? 'Notes' : '口径说明'}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </summary>
+          <div class="ui-tip-body">
+            <p>{en ? 'Anonymous aggregate statistics derived from captured public rankings. No player identifiers are exposed.' : '基于公开榜单快照生成的匿名聚合统计，不展示玩家账号或个人标识。'}</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <div data-stats-host></div>
+  </div>
+</BaseLayout>
+<script>import '../../../lib/ranking-stats-page.mjs';</script>

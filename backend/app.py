@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -22,7 +23,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from backend.config import (
     ConfigurationError,
@@ -322,6 +323,53 @@ def create_app(
         except OSError:
             return _error(503,"arena_population_unavailable","Population observation unavailable")
         return JSONResponse(content=result,headers={"Cache-Control":"no-store"})
+
+    @app.get("/api/v1/ranking-insights")
+    def ranking_insights(
+        request: Request,
+        mode: str = Query(...),
+        server: str = Query(...),
+        event: Optional[str] = Query(None),
+        music: str = Query(""),
+        season: str = Query("1"),
+        band: str = Query("1"),
+        view: str = Query("full"),
+    ) -> Response:
+        from backend.ranking_insights import query_ranking_insights
+        try:
+            result = query_ranking_insights(
+                _state().config.data_root / "observations",
+                mode=mode,
+                server=server,
+                event=event,
+                music=music,
+                season=season,
+                band=band,
+                view=view,
+            )
+        except (ValueError, KeyError, TypeError):
+            return _error(400, "invalid_ranking_insights_query", "Invalid ranking insights query")
+        except OSError:
+            return _error(503, "ranking_insights_unavailable", "Ranking insights are temporarily unavailable")
+
+        body = json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        etag = f'W/"{hashlib.sha256(body).hexdigest()[:16]}"'
+        if result.get("status") != "available":
+            cache_control = "public, max-age=30, stale-while-revalidate=60"
+        elif result.get("mode") == "activity" and result.get("isFinal") is True:
+            cache_control = "public, max-age=3600, stale-while-revalidate=86400"
+        else:
+            cache_control = "public, max-age=120, stale-while-revalidate=300"
+
+        headers = {
+            "Cache-Control": cache_control,
+            "ETag": etag,
+            "Vary": "Accept-Encoding",
+        }
+        inm = request.headers.get("if-none-match")
+        if inm and any(tag.strip() in (etag, "*") for tag in inm.split(",")):
+            return Response(status_code=304, headers=headers)
+        return Response(content=body, media_type="application/json; charset=utf-8", headers=headers)
 
     # ----- dataset routes -------------------------------------------------
 

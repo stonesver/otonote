@@ -8,11 +8,14 @@ import type {ItemIndexRecord} from '../lib/game-database';
 import '../styles/arena.css';
 import '../styles/arena-calendar.css';
 import '../styles/tool-design-system.css';
+import '../styles/ranking-teaser.css';
 const {handoff=false}=Astro.props;
 const en=activeReleaseContext.locale==='en';
 const itemIndex=validateArtifact<{schemaVersion:number;records:ItemIndexRecord[]}>('database-shards/items-index.json',itemIndexData,{schemaVersion:1,fields:{contentReleaseId:'string',records:'array','records[]':'object','records[].id':'string'}}).records;
 const cardImage=(id:string|null)=>{const asset=getAsset(id);return asset?.thumbnailUrl||asset?.previewUrl||null;};
-const cardVisual=(c:MemberCard|SupportCard)=>({id:String(c.masterId),name:c.displayName,image:cardImage(c.thumbnailAssetId),href:c.id,attribute:c.attributeCode});
+const rarityMap=Object.fromEntries(catalog.cardTaxonomy.rarities.map(r=>[r.code,r.label]));
+const bandMasterMap=Object.fromEntries(catalog.bands.map(b=>[b.id,String(b.masterId)]));
+const cardVisual=(c:MemberCard|SupportCard)=>({id:String(c.masterId),name:c.displayName,image:cardImage(c.thumbnailAssetId),href:c.id,attribute:c.attributeCode,rarity:c.rarity,rarityLabel:rarityMap[c.rarity]??'',bandIds:(c.bandIds??[]).map(id=>bandMasterMap[id]??String(id))});
 const visuals=JSON.stringify({band:filterVisualOptions.band.map(b=>({...b,circleIcon:bandCircleIcon(b.value).icon??null,color:catalog.bands.find(v=>String(v.masterId)===b.value)?.mainColor})),attribute:filterVisualOptions.attribute,
  items:itemIndex.map(i=>({id:String(i.masterId),icon:getAsset(i.iconAssetId)?.previewUrl??null})),
  members:catalog.memberCards.map(cardVisual),supports:catalog.supportCards.map(cardVisual),

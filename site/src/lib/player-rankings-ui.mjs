@@ -462,19 +462,62 @@ export function installPlayerRankings(root) {
       status.dataset.state = 'stale';
     }
   });
+  const teaserHost = q('[data-rank-teaser]');
+  const statsBaseHref = `/${context.region || 'global'}/${language}/rankings/stats/`;
+  let teaserClient = null;
+  let teaserIdleHandle = null;
+  let teaserSeq = 0;
+  const cancelPendingTeaser = () => {
+    if (teaserIdleHandle == null) return;
+    if (typeof cancelIdleCallback === 'function') cancelIdleCallback(teaserIdleHandle);
+    else clearTimeout(teaserIdleHandle);
+    teaserIdleHandle = null;
+  };
+  const syncTeaser = () => {
+    if (!teaserHost || !server) return;
+    cancelPendingTeaser();
+    const mySeq = ++teaserSeq;
+    const scope = {
+      serverId: server,
+      eventId: requestedEvent || lastData?.eventId || null,
+      musicId: requestedMusic || lastData?.musicId || '',
+    };
+    const run = async () => {
+      teaserIdleHandle = null;
+      if (mySeq !== teaserSeq || !root.isConnected) return;
+      if (!teaserClient) {
+        const {createRankingTeaserClient} = await import('./ranking-teaser-ui.mjs');
+        if (mySeq !== teaserSeq || !root.isConnected) return;
+        teaserClient = createRankingTeaserClient({
+          container: teaserHost,
+          mode: 'activity',
+          en,
+          catalog: cardCatalog,
+          statsBaseHref,
+        });
+      }
+      teaserClient.select(scope);
+    };
+    if (typeof requestIdleCallback === 'function') {
+      teaserIdleHandle = requestIdleCallback(() => { void run(); }, {timeout: 1200});
+    } else {
+      teaserIdleHandle = setTimeout(() => { void run(); }, 60);
+    }
+  };
+
   const resetBoard=()=>{requestedMusic='';if(![...board.options].some(option=>option.value==='auto')) board.append(new Option(en?'Available board':'已接入榜单','auto'));board.value='auto';pickers.get(board)?.update();};
-  band.addEventListener('change',()=>{syncEvents();requestedEvent=rankingEventForBand(events,band.value,requestedEvent);syncEvents();resetBoard();load();});
-  event.addEventListener('change', () => { requestedEvent = event.value;resetBoard();load(); });
-  board.addEventListener('change', () => { requestedMusic = ''; load(); });
-  song.addEventListener('change', () => { requestedMusic = song.value; load(); });
+  band.addEventListener('change',()=>{syncEvents();requestedEvent=rankingEventForBand(events,band.value,requestedEvent);syncEvents();resetBoard();load().then(syncTeaser);});
+  event.addEventListener('change', () => { requestedEvent = event.value;resetBoard();load().then(syncTeaser); });
+  board.addEventListener('change', () => { requestedMusic = ''; load().then(syncTeaser); });
+  song.addEventListener('change', () => { requestedMusic = song.value; load().then(syncTeaser); });
   next.addEventListener('click', () => load(true)); retry.addEventListener('click', () => load(failedAppend));
-  refresh.addEventListener('click', () => load());
+  refresh.addEventListener('click', () => { load().then(syncTeaser); });
   const tick=()=>{if(root.isConnected){syncEvents();showHeading();showStatus();}else clearInterval(timer);};
   let timer = setInterval(tick,30000);
-  window.addEventListener('pagehide', () => { pending?.abort();clearInterval(timer);observer?.disconnect(); });
+  window.addEventListener('pagehide', () => { pending?.abort();cancelPendingTeaser();clearInterval(timer);observer?.disconnect(); });
   window.addEventListener('pageshow', event => { if (event.persisted && root.isConnected) {loading=false;clearInterval(timer);timer=setInterval(tick,30000);observer?.observe(sentinel);tick();} });
   if (!server) refresh.disabled = true;
-  load();
+  load().then(syncTeaser);
 }
 
 if (typeof document !== 'undefined') document.querySelectorAll('[data-player-rankings]').forEach(installPlayerRankings);

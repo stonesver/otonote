@@ -174,7 +174,8 @@ def package(root, assets, origin, worker, worker_revision):
     (assets / "_headers").write_text(
         "/*\n  X-OurNotes-Delivery: static-assets\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: SAMEORIGIN\n"
         "  Referrer-Policy: strict-origin-when-cross-origin\n"
-        "/global/*\n  Cache-Control: no-store\n/jp/*\n  Cache-Control: no-store\n"
+        "/global/*\n  Cache-Control: private, max-age=30, must-revalidate\n"
+        "/jp/*\n  Cache-Control: private, max-age=30, must-revalidate\n"
         "/site-status/*\n  Cache-Control: no-store\n/__entry/*\n  Cache-Control: no-store\n"
         "/app/releases/*\n  Cache-Control: public, max-age=31536000, immutable\n"
         "/rendered/releases/*\n  Cache-Control: public, max-age=31536000, immutable\n"

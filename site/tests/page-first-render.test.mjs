@@ -4,14 +4,9 @@ import test from 'node:test';
 
 const layout = readFileSync(new URL('../src/layouts/BaseLayout.astro', import.meta.url), 'utf8');
 
-test('streamed navigation cannot reveal the new document before its entire main content is parsed', () => {
+test('base layout allows progressive rendering instead of render-blocking on full main HTML', () => {
   const head = layout.slice(layout.indexOf('<head>'), layout.indexOf('</head>'));
-  const expectedContent = head.match(/<link\b(?=[^>]*rel="expect")(?=[^>]*blocking="render")[^>]*href="#([^"]+)"[^>]*\/?\s*>/);
-  assert.ok(expectedContent, 'the head must render-block on the end-of-content marker, not merely the opening main tag');
-  const marker = `id="${expectedContent[1]}"`;
-  assert.equal(layout.split(marker).length - 1, 1, 'the expected marker must exist exactly once');
-  assert.ok(layout.indexOf(marker) > layout.indexOf('</main>'), 'all slotted module HTML must arrive before first reveal');
-  assert.ok(layout.indexOf(marker) < layout.indexOf('</body>'), 'every BaseLayout page must release the render block');
+  assert.doesNotMatch(head, /<link\b[^>]*rel="expect"[^>]*blocking="render"/);
 });
 
 const { default: vm } = await import('node:vm');
@@ -71,11 +66,11 @@ test('the outgoing frame covers deferred initialization and visible image decodi
 test('stalled initialization and stalled images both release the curtain', async () => {
   const cold = fixture();
   const coldRun = cold.reveal({ finished: deferred().promise });
-  cold.expire(2000); await coldRun;
+  cold.expire(400); await coldRun;
   assert.equal(cold.dataset.navigationPending, undefined);
   const slowImage = fixture({ ready: true, images: [image(() => deferred().promise)] });
   const imageRun = slowImage.reveal({ finished: deferred().promise });
-  await tick(); slowImage.expire(400); await imageRun;
+  await tick(); slowImage.expire(150); await imageRun;
   assert.equal(slowImage.dataset.navigationPending, undefined);
 });
 

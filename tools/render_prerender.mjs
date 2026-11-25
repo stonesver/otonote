@@ -50,8 +50,6 @@ const shell = await readFile(join(code, 'index.html'), 'utf8');
 const boot = shell.match(/src="\/app\/releases\/[a-f0-9]+\/(boot-[^"]+)"/)?.[1];
 if (!boot) throw Error('Missing renderer exports');
 const {renderToString, renderContext} = await import(new URL(boot, fileRoot));
-const bootstrap = await readFile(join(code, 'compiled/prerender/bootstrap.js'), 'utf8');
-const navigationScript = await readFile(join(code, 'compiled/prerender/navigation.js'), 'utf8');
 const loadingArt = await prerenderLoadingArt({store, contentRoot:content.root, codeRoot});
 const results = [];
 for (const route of app.routes) {
@@ -78,7 +76,7 @@ for (const route of app.routes) {
       count++; continue;
     }
     if (locale === 'en') html = localizeHtmlWithStats(html, 'en').html;
-    const prepared = prepareHtml(html, {app, codeRoot, contentRoot:content.root, base, pointer, bootstrap, navigationScript, loadingArt, css:route.css, stylesheet, locale, route:route.pattern, derivedRoot});
+    const prepared = prepareHtml(html, {app, codeRoot, contentRoot:content.root, base, pointer, loadingArt, css:route.css, stylesheet, locale, route:route.pattern, derivedRoot});
     const target = join(output, base, path, 'index.html');
     await mkdir(dirname(target), {recursive:true});
     await writeFile(target, prepared.html);

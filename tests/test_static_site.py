@@ -78,7 +78,11 @@ class SitePackageTests(unittest.TestCase):
             cfg = json.loads((root / "wrangler.json").read_text())
             self.assertFalse(cfg["assets"]["run_worker_first"])
             self.assertFalse({"routes", "route"} & cfg.keys())
-            self.assertNotIn("noindex", (assets / "_headers").read_text())
+            headers_text = (assets / "_headers").read_text()
+            self.assertNotIn("noindex", headers_text)
+            self.assertIn("/global/*\n  Cache-Control: private, max-age=30, must-revalidate\n", headers_text)
+            self.assertIn("/jp/*\n  Cache-Control: private, max-age=30, must-revalidate\n", headers_text)
+            self.assertIn("/site-status/*\n  Cache-Control: no-store\n", headers_text)
             for region in static_site.REGIONS:
                 self.assertEqual(
                     (assets / region / "en/rankings/index.html").read_bytes(),

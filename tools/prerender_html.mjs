@@ -117,15 +117,36 @@ export function prepareHtml(html, {app, codeRoot, contentRoot, base, pointer, bo
       append(head,fragment(`<link rel="modulepreload" href="${codeRoot+path}">`)[0]);
     }
   }
-  const config = {schemaVersion:1, pointer, codeRoot, loadingArt, app:{schemaVersion:app.schemaVersion, routes:app.routes, endpoints:app.endpoints, scripts:app.scripts,workspacePreloads:app.workspacePreloads??[]}};
-  const initializer = fragment(`<script>globalThis[Symbol.for('ournotes.prerender.v1')]=${safeJson(config)};${bootstrap.replace(/<\/script/gi, '<\\/script')};${navigationScript.replace(/<\/script/gi, '<\\/script')}</script>`)[0];
-  initializer.parentNode = head; head.childNodes.unshift(initializer);
-  // These workbenches share a large style stack. Keep it in the immutable code
-  // release so returning to a tool can reuse CSS without retransmitting it in HTML.
-  const cacheToolStyles=css&&['tools/deck-builder','tools/song-calculator','tools/event-efficiency'].includes(route);
-  if (cacheToolStyles) {
-    const link=fragment(`<link rel="stylesheet" href="${codeRoot + css}">`)[0];
-    link.parentNode=head;head.childNodes.unshift(link);
+  const config = {
+    schemaVersion: 1,
+    pointer,
+    codeRoot,
+    loadingArt,
+    app: {
+      schemaVersion: app.schemaVersion,
+      workspacePreloads: app.workspacePreloads ?? []
+    }
+  };
+  const initializer = fragment(`<script>globalThis[Symbol.for('ournotes.prerender.v1')]=${safeJson(config)};</script>`)[0];
+  const runtimeScripts = [
+    fragment(`<script defer src="${codeRoot}prerender/bootstrap.js"></script>`)[0],
+    fragment(`<script defer src="${codeRoot}prerender/navigation.js"></script>`)[0]
+  ];
+  initializer.parentNode = head;
+  for (const node of runtimeScripts) node.parentNode = head;
+  head.childNodes.unshift(initializer, ...runtimeScripts);
+  // Keep large page stylesheets in the immutable code release so navigation
+  // reuses cached CSS instead of retransmitting tens of kilobytes in HTML.
+  const INLINE_STYLE_LIMIT = 16384;
+  const cacheRouteStyles = Boolean(
+    css && (
+      ['tools/deck-builder', 'tools/song-calculator', 'tools/event-efficiency'].includes(route) ||
+      (stylesheet !== undefined && Buffer.byteLength(stylesheet, 'utf8') > INLINE_STYLE_LIMIT)
+    )
+  );
+  if (cacheRouteStyles) {
+    const link = fragment(`<link rel="stylesheet" href="${codeRoot + css}">`)[0];
+    link.parentNode = head; head.childNodes.unshift(link);
   } else if (stylesheet !== undefined) {
     const normalized = stylesheet.replace(/url\(("[^"]*"|'[^']*'|[^)]*)\)/g, (original, raw) => {
       const url = raw.trim().replace(/^(["'])(.*)\1$/, '$2');

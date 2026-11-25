@@ -33,17 +33,17 @@
     const onFinished = () => { finished = true; release(); };
     event.viewTransition.finished.then(onFinished, onFinished);
     try {
-      if (!await waitWithin(domReady, 2000)) return;
+      if (!await waitWithin(domReady, 400)) return;
       if (finished || generation !== revealGeneration) return;
       const images = [...document.querySelectorAll('main img')].filter(image => {
         const rect = image.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.top < window.innerHeight && rect.bottom > 0 &&
           rect.left < window.innerWidth && rect.right > 0 && !!(image.currentSrc || image.getAttribute('src'));
-      }).slice(0, 12);
+      }).slice(0, 6);
       await waitWithin(Promise.allSettled(images.map(image => {
         image.loading = 'eager';
         return image.decode();
-      })), 400);
+      })), 150);
     } catch {
       // Readiness is an enhancement; retain native navigation if it cannot be measured.
     } finally {

@@ -98,8 +98,6 @@ const htmlLanguage = activeReleaseContext.locale;
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <meta name="theme-color" />
-    <!-- Keep the outgoing frame until streamed module HTML has been fully parsed. -->
-    <link rel="expect" blocking="render" href="#page-content-ready" />
     <script is:inline set:html={pageFirstRenderScript} />
     <script is:inline set:html={shellPreferences} />
     <script is:inline set:html={createThemePreferencesScript()} />

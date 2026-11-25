@@ -8,9 +8,35 @@ const app = {...config.app, root:new URL(config.codeRoot, location.href).href};
 globalThis.__OURNOTES_BASE__ = context.base;
 globalThis[Symbol.for('ournotes.code-root.v1')] = app.root;
 pinSnapshot(config.pointer);
+let fullAppPromise = null;
+async function loadFullApp() {
+  if (app.routes && app.endpoints && app.scripts) return app;
+  fullAppPromise ??= fetch(new URL('manifest.json', app.root).href, {
+    cache: 'force-cache',
+    credentials: 'same-origin'
+  }).then(async response => {
+    if (!response.ok) throw new Error(`App manifest unavailable (${response.status})`);
+    const manifest = await response.json();
+    return {
+      ...manifest,
+      ...app,
+      routes: manifest.routes,
+      endpoints: manifest.endpoints,
+      scripts: manifest.scripts,
+      root: app.root
+    };
+  }).catch(error => {
+    fullAppPromise = null;
+    throw error;
+  });
+  return fullAppPromise;
+}
 globalThis[Symbol.for('ournotes.page-resource.v1')] = async (url, options) => {
-  const module = await import(new URL('prerender/resource.js', app.root).href);
-  return module.renderPageResource(url, app, context, options);
+  const [module, resolvedApp] = await Promise.all([
+    import(new URL('prerender/resource.js', app.root).href),
+    loadFullApp()
+  ]);
+  return module.renderPageResource(url, resolvedApp, context, options);
 };
 
 whenDocumentParsed(document,() => {

@@ -21,6 +21,30 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
  const body=root.querySelector('[data-arena-body]'),meta=root.querySelector('[data-arena-meta]'),feedback=root.querySelector('[data-arena-feedback]');
  root.addEventListener('error',event=>{if(event.target instanceof HTMLImageElement)event.target.hidden=true;},true);
  const visuals=JSON.parse(root.querySelector('[data-arena-visuals]').textContent);
+ const teaserCatalog={
+  member:Object.fromEntries((visuals.members||[]).map(c=>[c.id,c])),
+  support:Object.fromEntries((visuals.supports||[]).map(c=>[c.id,c])),
+ };
+ let teaserClient=null,teaserIdleHandle=null,teaserSeq=0;
+ const scheduleArenaTeaser=(el,scope)=>{
+  if(!el)return;
+  if(teaserIdleHandle!=null){if(typeof cancelIdleCallback==='function')cancelIdleCallback(teaserIdleHandle);else clearTimeout(teaserIdleHandle);teaserIdleHandle=null;}
+  const mySeq=++teaserSeq;
+  const run=async()=>{
+   teaserIdleHandle=null;
+   if(mySeq!==teaserSeq||!el.isConnected)return;
+   if(!teaserClient){
+    const {createRankingTeaserClient}=await import('./ranking-teaser-ui.mjs');
+    if(mySeq!==teaserSeq||!el.isConnected)return;
+    teaserClient=createRankingTeaserClient({container:el,mode:'arena',en,catalog:teaserCatalog,statsBaseHref:`${base}rankings/stats/`});
+   }else{
+    teaserClient.setContainer(el);
+   }
+   teaserClient.select(scope);
+  };
+  if(typeof requestIdleCallback==='function')teaserIdleHandle=requestIdleCallback(()=>{void run();},{timeout:1200});
+  else teaserIdleHandle=setTimeout(()=>{void run();},120);
+ };
  let data=null,context=null,all=false,loading=true,error=null,check=null,freshness='unknown',tier=null,players=5,generation=0,updateNotice='',clockNotice='',calendarMonth=null,calendarExpanded=false;
  const referenceDialog=root.querySelector('[data-arena-reference-dialog]'),referenceBody=root.querySelector('[data-arena-reference-body]');
  let referenceKind=null,restoreReferenceFocus=true,initialViewHandled=false,rankingScroll=null;
@@ -240,6 +264,7 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   const tools=handoff?handoffBody():`<div class="arena-stage-wrap ui-sheet" id="arena-stage">${stage}${entry()}</div>
    <div class="arena-stage-grid">${calendar()}<section class="arena-section arena-population ui-sheet" id="arena-population" data-arena-population aria-label="${t('段位人数','Tier population')}"></section></div>
    ${context.previous?`<details class="arena-previous"><summary>${t('上一期（已过期）','Previous period (expired)')}</summary><p>${escape(range(context.previous))}</p></details>`:''}
+   <aside class="ri-teaser" data-arena-teaser hidden aria-label="${t('热门数据统计速览','Data stats highlights')}"></aside>
    <section class="arena-section arena-player-rankings ui-sheet" id="arena-rankings" data-arena-rankings aria-label="${t('玩家排行榜','Player rankings')}"></section>
 `;
   body.innerHTML=`${selectors()}${notice?`<p class="arena-notice" role="status">${escape(notice)}</p>`:''}${context.condition&&context.status!=='current'?button('current',t('查看当前条件','View current conditions'),'class="ui-btn-soft"'):''}${tools}<details class="arena-source-details"><summary>${t('资料来源与时间说明','Source & timing')}</summary><p>${escape(data?.observedAt?t('官方配置核验时间：','Official configuration checked at: ')+time(data.observedAt):t('资料尚未提供','Data unavailable'))}</p><p>${escape(t('已核验账号区服：','Verified servers: ')+(data?.serverScopes.map(id=>GAME_SERVERS.find(s=>s.id===id)?.[en?'englishLabel':'label']??id).join(' / ')||t('待核验','Unverified')))}</p>${context?.season?`<p>${escape(t('赛季参赛时间：','Season entry: ')+range(context.season))}</p>`:''}<p>${t('页面时间为北京时间；有效时间不含结束时刻。','Displayed in UTC+8; the end of an interval is exclusive.')}</p></details>`;
@@ -249,7 +274,12 @@ export async function installArenaPage(root, {clock=()=>Date.now()} = {}) {
   const copyButton=root.querySelector('[data-action="copy-link"]');if(copyButton)copyButton.disabled=!data;
   root.setAttribute('aria-busy','false');
   restoreServerLabels(document,GAME_SERVERS);
-  if(!handoff){const scope={serverId:context.serverId,seasonId:context.season?.id??null,bandId:context.league?.bandId??null};personal.select(scope);population.select(scope);rankingClient.select({...scope,...(query().has('rank')?{rank:Number(query().get('rank')),end:Number(query().get('end')??query().get('rank'))}:{})});}
+  if(!handoff){
+    const scope={serverId:context.serverId,seasonId:context.season?.id??null,bandId:context.league?.bandId??null};
+    personal.select(scope);population.select(scope);rankingClient.select({...scope,...(query().has('rank')?{rank:Number(query().get('rank')),end:Number(query().get('end')??query().get('rank'))}:{})});
+    const teaserEl=body.querySelector('[data-arena-teaser]');
+    if(teaserEl)scheduleArenaTeaser(teaserEl,scope);
+  }
   // Scroll-spy for sticky section indicator
   const spyLinks=[...body.querySelectorAll('[data-arena-spy]')];
   if(spyLinks.length&&typeof IntersectionObserver!=='undefined'){

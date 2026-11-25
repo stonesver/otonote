@@ -10,6 +10,7 @@ import {validatedEvents} from '../../lib/event-content.mjs';
 import {bandCircleIcon} from '../../lib/filter-visuals';
 import {siteHref} from '../../lib/site-context';
 import '../../styles/player-rankings.css';
+import '../../styles/ranking-teaser.css';
 
 const en = activeReleaseContext.locale === 'en';
 const context = currentServerContext();
@@ -238,7 +239,9 @@ const serverShortLabel = (id: string | null | undefined) => {
       </div>
     </section>
 
-    <section class="pr-board" aria-label={en ? 'Ranking board' : '榜单'}>
+    <aside class="ri-teaser" data-rank-teaser hidden aria-label={en ? 'Data stats highlights' : '热门数据统计速览'}></aside>
+
+    <section class="pr-board" data-rank-board-section aria-label={en ? 'Ranking board' : '榜单'}>
       <div class="pr-meta">
         <p data-rank-status role="status">{en ? 'Choose a server to view its rankings.' : '选择区服，查看对应榜单。'}</p>
         <span class="pr-meta-right">

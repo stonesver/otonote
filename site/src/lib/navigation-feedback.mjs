@@ -57,7 +57,7 @@ export function installNavigationFeedback({css, art}) {
   window.addEventListener('pointerdown', prefetchLink, {passive: true});
   function restore() {
     const job = active; if (!job) return;
-    active = null; clearTimeout(job.timer); job.transition?.skipTransition(); job.observer?.disconnect();
+    active = null; clearTimeout(job.showTimer); clearTimeout(job.timer); job.transition?.skipTransition(); job.observer?.disconnect();
     job.overlay?.remove(); job.disableNative?.remove();
     job.main.style.visibility = job.visibility; job.main.inert = job.inert;
     if (job.busy === null) job.main.removeAttribute('aria-busy'); else job.main.setAttribute('aria-busy',job.busy);
@@ -97,7 +97,7 @@ export function installNavigationFeedback({css, art}) {
     job.crumbText=job.crumb?.textContent;
   }
   function show(job) {
-    if (active !== job) return;
+    if (active !== job || job.overlay) return;
     const overlay = document.createElement('main'); overlay.dataset.navigationWait = '';
     overlay.tabIndex = -1; overlay.setAttribute('aria-busy','true');
     overlay.innerHTML = `<section class="loading-page"><div class="loading-heading"><h1></h1></div>
@@ -111,20 +111,28 @@ export function installNavigationFeedback({css, art}) {
       <p data-navigation-actions hidden><button type="button" data-navigation-retry></button><button type="button" data-navigation-cancel></button></p></section>`;
     job.overlay=overlay; captureChrome(job); fill(job); job.main.inert=true; job.main.style.visibility='hidden';
     job.main.setAttribute('aria-busy','true'); document.body.append(overlay); overlay.focus({preventScroll:true});
+    // Once the slow-network waiting screen is visible, skip the cross-document
+    // arrival transition so the destination does not double-animate.
+    if (!job.disableNative) {
+      job.disableNative=document.createElement('style');
+      job.disableNative.textContent='@view-transition { navigation: none; }'; document.head.append(job.disableNative);
+    }
     overlay.querySelector('[data-navigation-retry]').onclick=()=>{window.stop();job.navigating=false;begin(job);};
     overlay.querySelector('[data-navigation-cancel]').onclick=()=>{window.stop();restore();};
   }
   function begin(job) {
     if (active!==job || job.navigating) return;
     job.navigating=true; root.dataset.navigationPhase='loading';
-    // The effect already ran on click. Do not run another cross-document effect on arrival.
-    if (!job.disableNative) {
-      job.disableNative=document.createElement('style');
-      job.disableNative.textContent='@view-transition { navigation: none; }'; document.head.append(job.disableNative);
+    clearTimeout(job.showTimer);
+    if (!job.overlay) {
+      // Show only the top luminous progress rail immediately; defer the full-page
+      // waiting overlay so fast/prefetched navigations and tools never flash twice.
+      job.showTimer=setTimeout(()=>{if(active===job && !job.overlay)show(job);},300);
     }
     clearTimeout(job.timer);
     job.timer=setTimeout(()=>{
       if(active!==job)return;
+      if(!job.overlay)show(job);
       job.overlay.querySelector('[data-navigation-message]').textContent=job.english?'This is taking longer than expected.':'加载时间较长，可以重试或留在当前页面。';
       job.overlay.querySelector('[data-navigation-actions]').hidden=false;
       job.overlay.setAttribute('aria-busy','false');
@@ -144,12 +152,10 @@ export function installNavigationFeedback({css, art}) {
       const job=active;
       if(job.navigating){window.stop();job.navigating=false;}
       job.url=url;job.label=label;if(job.overlay)fill(job);
-      if(root.dataset.navigationPhase==='loading')begin(job);
+      begin(job);
       return;
     }
-    // Remove top-layer UI before the old-page snapshot. A waiting main cannot
-    // cover modal dialogs, and their discrete exit transitions would linger.
-    root.dataset.navigationPhase='transition';
+    // Remove top-layer UI before navigating so open dialogs do not linger.
     for (const dialog of [...document.querySelectorAll('dialog[open]')].reverse()) dialog.close();
     const job={url,label,main,visibility:main.style.visibility,inert:main.inert,busy:main.getAttribute('aria-busy'),focus:document.activeElement};
     active=job;delete root.dataset.navigationPending;
@@ -162,22 +168,12 @@ export function installNavigationFeedback({css, art}) {
       captureChrome(job);fill(job);next.inert=true;next.style.visibility='hidden';next.setAttribute('aria-busy','true');
       ensureStyle();document.body.append(job.overlay);
       if(job.disableNative)document.head.append(job.disableNative);
-      root.dataset.navigationPhase=job.navigating?'loading':'transition';
+      root.dataset.navigationPhase='loading';
     });
     job.observer.observe(document,{childList:true,subtree:true});
-    const animate=document.startViewTransition && root.dataset.motion!=='off' && !root.hasAttribute('data-loading') && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if(animate){
-      try{
-        job.transition=document.startViewTransition(()=>show(job));
-        // Start fetching once the waiting panel is attached, while the original
-        // stage animation is still playing. Never wait for its full duration.
-        job.transition.updateCallbackDone.then(()=>begin(job),()=>{if(!job.overlay)show(job);begin(job);});
-        job.transition.finished.catch(()=>{});
-      }
-      catch{show(job);begin(job);}
-    }else{show(job);begin(job);}
+    begin(job);
   });
-  window.addEventListener('pageswap',event=>{if(active)event.viewTransition?.skipTransition();});
+  window.addEventListener('pageswap',event=>{if(active?.overlay)event.viewTransition?.skipTransition();});
   window.addEventListener('pageshow',event=>{if(event.persisted)restore();});
   // The client fallback replaces head/body after its data arrives.
   document.addEventListener('astro:page-load',ensureStyle);

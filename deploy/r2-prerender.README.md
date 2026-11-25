@@ -28,12 +28,16 @@
 
 ## 双服静态交付到 Workers
 
-`Deliver approved static site` 读取源站正式代码身份和两个已晋级的 R2 内容指针，以同一份已验收代码在 Actions 上生成两服页面。代码包及各区域按版本保存的渲染产物位于私有桶的 `web-delivery/v1/`。界面代码和页面数据随 Worker 版本交付，同时带上上次成功发布版本的不可变资源。实时榜单入口使用客户端入口页，查询继续访问原有 API。
+`Deliver approved static site` 从默认分支的成功 push CI 读取代码候选、独立回执摘要和两个已晋级的 R2 内容指针，以同一份已验收代码在 Actions 上生成两服页面。代码包及各区域按版本保存的渲染产物位于私有桶的 `web-delivery/v1/`。界面代码和页面数据随 Worker 版本交付，同时带上上次成功发布版本的不可变资源。实时榜单入口使用客户端入口页，查询继续访问原有 API。
 
-1. 在源站安装 `export-static-code.py` 和同目录的 `ournotes-static-code.service`、`ournotes-static-code.path`。启用 path 单元并首次运行 service。在站点 HTTPS 配置内引入 `static-code-input.location.conf`，检查 nginx 配置后平滑加载。访问 `/_site-delivery/code.json` 应返回代码 ID、Git 提交和验收回执摘要。
+1. 在源站安装 `export-static-code.py` 和同目录的 `ournotes-static-code.service`、`ournotes-static-code.path`。启用 path 单元并首次运行 service。在站点 HTTPS 配置内引入 `static-code-input.location.conf`，检查 nginx 配置后平滑加载。该入口 `/_site-delivery/code.json` 提供源站同步所需的当前版本。
 2. 在仓库配置 `STATIC_SITE_ORIGIN`（正式 HTTPS 源，不带末尾斜线）、`STATIC_WORKER_NAME`、`STATIC_WORKER_URL`（该专用 Worker 的 HTTPS 地址）。在已有内容交付环境中添加 Workers Scripts 编辑令牌 `CLOUDFLARE_API_TOKEN`。区域路由由站点管理人在面板维护。
 3. 首次在默认分支手动运行工作流，勾选 `bootstrap`，目标必须是未使用过的 Worker 名称。如果已有成功的双服预渲染试跑，可分别填写 `current_trial`、`previous_trial`，分别复用当前视图和保留上一版不可变资源。工作流会比对当前试跑与两服已批准指针。若内容已更新，留空 `current_trial` 重新渲染。首次运行只创建独立的 workers.dev 站点。
 4. 工作流成功后设置仓库变量 `STATIC_SITE_ENABLED=true`，在该 Worker 绑定正式主机的五种路径 `/global/*`、`/jp/*`、`/app/releases/*`、`/rendered/releases/*`、`/site-status/*`。域名须为代理状态。在正式主机检查两服中英文首页、工具页、榜单页、状态 JSON、旧脚本和一个榜单 API。静态响应带有 `X-OurNotes-Delivery: static-assets`。根路径与旧链接继续由 nginx 跳转，内容网关及后台路径保持原路由。
-5. 此后审核后的内容生产、重新发布或重算工作流完成时会检查输入，定时检查也会跟进源站的代码发布。常规更新先将新版本上传到独立版本地址，验收后再激活并记录。部署失败查看工作流中出错的阶段；修复后可手动重跑，已有 Worker 不勾选 `bootstrap`。
+5. 在 `content-r2-production` 设置源站同步专用的 `ORIGIN_SSH_KEY`、独立核实的 `ORIGIN_KNOWN_HOSTS` 和 `ORIGIN_DEPLOY_CONFIG`。最后一项使用[源站部署配置](../docs/runbooks/development.md#源站发布设置与执行)的 JSON，`sshHost` 填 runner 能解析并连接的主机，可含专用用户名。保留源站预渲染 timer，确认同步账号能读取两服 HTML 当前链接，并具备原发布器所需权限。凭据只在同步任务使用。
 
-紧急整站回源时，在面板移除上述五条静态路由，并将 `STATIC_SITE_ENABLED` 设为 `false`。回源依赖现有 ECS 发布器与预渲染服务持续运行。只回退 Worker 版本时，在“部署”中选已验证版本回滚；同时暂停自动交付，确认源站和已批准输入后再恢复。
+默认分支的 push CI 成功后，交付任务从同一次运行取得候选包和 `static-code-approval`，固定提交和回执摘要。上传前和激活前分别检查分支头和两服内容指针。内容生产完成时复用上次上线代码，定时检查会补上最新提交的成功 CI。首次部署需有带独立回执的成功 CI。已有站点沿用私有桶的 `web-delivery/v1/live.json` 和已缓存代码。
+
+Worker 候选和线上版本均通过网页检查后，记录新的 `live.json`。随后 `sync-origin` 读取这份成功记录，校验 Worker 正在提供对应的两服版本，再通过 SSH 安装相同的封存代码。源站预渲染 timer 生成两服 HTML；两服链接和代码回执均匹配时写入私有桶的 `web-delivery/v1/origin.json`。同步失败时 Worker 继续服务；修复源站或同步凭据后，重跑失败任务或等待下次定时检查。等待期间，回源仍可能提供上一个版本。
+
+紧急整站回源时，在面板移除上述五条静态路由，并将 `STATIC_SITE_ENABLED` 设为 `false`。切换前核对源站代码及 Global、JP 实际渲染链接与目标版本。只回退 Worker 版本时，在“部署”中选已验证版本回滚；同时暂停自动交付，确认源站和已批准输入后再恢复。

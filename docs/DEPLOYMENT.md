@@ -1,6 +1,6 @@
 # 部署入口
 
-正式代码发布使用 `scripts/publish-web-client.sh`，晋级同一已验收产物，不重新构建。候选、外置配置、固定回执摘要、旧版本检查与失败回滚见[开发与交付手册](runbooks/development.md)。真实配置以现场受保护文件为准，不要用模板覆盖，参见[配置边界](governance/configuration.md)。
+网页代码由默认分支的成功 push CI 交付到 Cloudflare。Worker 验收成功后，独立任务使用同一份代码包同步源站。自动交付、回源配置和重试见[静态交付手册](../deploy/r2-prerender.README.md#双服静态交付到-workers)。候选、外置配置、固定回执摘要、旧版本检查与失败回滚见[开发与交付手册](runbooks/development.md)。真实配置以现场受保护文件为准，不要用模板覆盖，参见[配置边界](governance/configuration.md)。
 
 | 对象 | 操作说明 |
 | --- | --- |

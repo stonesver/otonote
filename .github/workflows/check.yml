@@ -92,14 +92,27 @@ jobs:
       - name: Publish reviewed artifact identifiers to the run summary
         run: |
           python3 - <<'PYCODE'
-          import hashlib, os
+          import hashlib, json, os
           from pathlib import Path
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               for name in ['output/code-candidate/verification.json', 'output/runtime-candidate/runtime.json']:
                   summary.write(f"{name}: `{hashlib.sha256(Path(name).read_bytes()).hexdigest()}`\n\n")
+          metadata = json.loads(Path('output/code-candidate/code-release.json').read_bytes())
+          Path('output/code.json').write_text(json.dumps({
+              'codeId': metadata['codeId'], 'revision': os.environ['GITHUB_SHA'],
+              'receiptSha256': hashlib.sha256(Path('output/code-candidate/verification.json').read_bytes()).hexdigest(),
+          }))
           PYCODE
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
+          name: static-code-approval
+          path: output/code.json
+          overwrite: true
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          overwrite: true
           name: verified-candidates-${{ github.sha }}
           path: |
             output/code-candidate

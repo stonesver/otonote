@@ -239,7 +239,7 @@ class SitePackageTests(unittest.TestCase):
         publish.assert_not_called()
         store.client.put_object.assert_not_called()
 
-    def test_no_change_retries_only_pending_origin_sync_and_skips_stale_ci(self):
+    def test_unchanged_inputs_and_stale_ci_skip_delivery(self):
         code = {"codeId": "a" * 24, "revision": "b" * 40, "receiptSha256": "c" * 64}
         inputs = {"code": code, "pointers": {}}
         pairs = {"global": "g", "jp": "j"}
@@ -257,14 +257,10 @@ class SitePackageTests(unittest.TestCase):
                 patch.object(static_site, "snapshot", return_value=inputs),
                 patch.object(static_site, "build") as build,
             ):
-                for revision, synced, pending in (
-                    (code["revision"], None, "true"),
-                    (code["revision"], json.dumps(pairs), "false"),
-                    ("d" * 40, None, "false"),
-                ):
+                for revision in (code["revision"], "d" * 40):
                     outputs.write_text("")
                     head.return_value = revision
-                    reader.return_value.control.return_value = synced
                     static_site.main()
-                    self.assertEqual(outputs.read_text().splitlines(), ["changed=false", "sync_origin=" + pending])
+                    self.assertEqual(outputs.read_text().splitlines(), ["changed=false"])
+                reader.return_value.control.assert_not_called()
                 build.assert_not_called()

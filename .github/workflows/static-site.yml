@@ -29,9 +29,6 @@ jobs:
     concurrency:
       group: approved-static-delivery
       cancel-in-progress: false
-    outputs:
-      sync_origin: ${{ steps.prepare.outputs.sync_origin }}
-      delivery_revision: ${{ steps.ci.outputs.revision }}
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       (github.event_name == 'workflow_dispatch' ||
@@ -87,7 +84,6 @@ jobs:
           node-version-file: .nvmrc
       - name: Install render dependencies
         run: |
-          test -f tools/sync_static_origin.py || { echo "Waiting for the first verified direct-delivery commit"; exit 1; }
           python -m pip install --require-hashes -r tools/python-security-requirements.txt
           python -m pip install -r tools/r2-requirements.txt
       - name: Assemble approved code and current content
@@ -180,46 +176,3 @@ jobs:
         if: steps.prepare.outputs.changed == 'true'
         env: *r2
         run: python -m tools.static_site record
-
-  sync-origin:
-    needs: deliver
-    if: needs.deliver.outputs.sync_origin == 'true'
-    concurrency:
-      group: sync-static-origin
-      cancel-in-progress: false
-    environment: content-r2-production
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.deliver.outputs.delivery_revision }}
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: |
-          python -m pip install --require-hashes -r tools/python-security-requirements.txt
-          python -m pip install -r tools/r2-requirements.txt
-      - name: Sync the verified live version to the fallback origin
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_PUBLIC_BUCKET: otonote-public-content
-          R2_PRIVATE_BUCKET: otonote-production-state
-          WORKER_URL: ${{ vars.STATIC_WORKER_URL }}
-          STATIC_SITE_ORIGIN: ${{ vars.STATIC_SITE_ORIGIN }}
-          ORIGIN_DEPLOY_CONFIG: ${{ secrets.ORIGIN_DEPLOY_CONFIG }}
-          ORIGIN_SSH_KEY: ${{ secrets.ORIGIN_SSH_KEY }}
-          ORIGIN_KNOWN_HOSTS: ${{ secrets.ORIGIN_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          : "${ORIGIN_DEPLOY_CONFIG:?Missing fallback deployment settings}" "${ORIGIN_SSH_KEY:?Missing fallback SSH key}" "${ORIGIN_KNOWN_HOSTS:?Missing pinned SSH host key}"
-          umask 077
-          mkdir -p ~/.ssh
-          printf '%s\n' "$ORIGIN_SSH_KEY" > ~/.ssh/id_ed25519
-          printf '%s\n' "$ORIGIN_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          printf '%s' "$ORIGIN_DEPLOY_CONFIG" > "$RUNNER_TEMP/fallback.json"
-          unset ORIGIN_SSH_KEY ORIGIN_KNOWN_HOSTS ORIGIN_DEPLOY_CONFIG
-          python -m tools.sync_static_origin "$RUNNER_TEMP/fallback.json"

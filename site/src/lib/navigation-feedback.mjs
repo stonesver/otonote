@@ -37,6 +37,24 @@ export function installNavigationFeedback({css, art}) {
   const warm = Object.values(art).map(src => {
     const img = new Image(); img.decoding = 'async'; img.fetchPriority = 'low'; img.src = src; return img;
   });
+  // Prefetch internal document HTML on pointer hover/focus so clicks hit HTTP cache.
+  const prefetched = new Set();
+  const prefetchLink = event => {
+    if (globalThis.navigator?.connection?.saveData || prefetched.size >= 16) return;
+    const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+    if (!link) return;
+    const url = documentNavigationTarget({defaultPrevented: false, button: 0}, link, location.href);
+    if (!url || prefetched.has(url.href)) return;
+    prefetched.add(url.href);
+    const hint = document.createElement('link');
+    hint.rel = 'prefetch';
+    hint.as = 'document';
+    hint.href = url.href;
+    document.head?.append(hint);
+  };
+  window.addEventListener('pointerover', prefetchLink, {passive: true});
+  window.addEventListener('focusin', prefetchLink, {passive: true});
+  window.addEventListener('pointerdown', prefetchLink, {passive: true});
   function restore() {
     const job = active; if (!job) return;
     active = null; clearTimeout(job.timer); job.transition?.skipTransition(); job.observer?.disconnect();

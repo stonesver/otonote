@@ -61,6 +61,7 @@ export async function prepareTool({document, readJson, importModule, locale, onR
   const status = document.querySelector('[data-tool-status]');
   const gate = document.querySelector('[data-tool-gate]');
   const en = locale === 'en';
+  document.documentElement?.setAttribute?.('data-tool-hydrating', '');
   try {
     const payloads = await Promise.all([...region.querySelectorAll('script[data-deferred-json]')].map(async node => {
       const [value, rules] = await Promise.all([
@@ -74,11 +75,13 @@ export async function prepareTool({document, readJson, importModule, locale, onR
       if (node.matches?.(directJson)) node[toolJson] = value;
       else node.textContent = JSON.stringify(value);
     }
-    // These modules are preloaded together by the HTML. Evaluate in order, only
-    // after all JSON is present, so custom elements never see partial inputs.
-    for (const script of document.querySelectorAll('script[data-deferred-module]')) {
-      await importModule(script.dataset.deferredModule);
-    }
+    // These modules are preloaded together by the HTML. Evaluate concurrently once
+    // all JSON is attached, so custom elements never see partial inputs.
+    await Promise.all(
+      [...document.querySelectorAll('script[data-deferred-module]')].map(script =>
+        importModule(script.dataset.deferredModule)
+      )
+    );
     revealTool(region);
     gate?.remove();
     onReady();
@@ -90,5 +93,7 @@ export async function prepareTool({document, readJson, importModule, locale, onR
     if (retry) retry.hidden = false;
     // Keep controls inert: ESM may already have partially initialized them.
     // A normal document reload gives retries a clean module/custom-element state.
+  } finally {
+    document.documentElement?.removeAttribute?.('data-tool-hydrating');
   }
 }

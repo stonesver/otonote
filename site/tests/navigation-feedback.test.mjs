@@ -28,9 +28,8 @@ test('dialogs, hash changes, modified clicks, new tabs and downloads stay native
  for(const [e,a] of [[{...event,defaultPrevented:true},link('/jp/en/')],[{...event,ctrlKey:true},link('/jp/en/')],[{...event,button:1},link('/jp/en/')],[event,link('/jp/en/',{target:'_blank'})],[event,link('/jp/en/',{hasAttribute:()=>true})],[event,link('#detail=item-1')],[event,link('https://other.test/jp/en/')],[event,link('/content/releases/a/file.json')],[event,link('/global/en/favicon.svg')]])assert.equal(documentNavigationTarget(e,a,here),null);
 });
 
-test('navigation fetch starts during the stage animation and preserves the original content', async () => {
- const listeners=new Map(), dataset={motion:'on'}, assigned=[];
- let update;
+test('navigation starts immediately with top progress rail and defers full-page waiting overlay until slow threshold', async () => {
+ const listeners=new Map(), dataset={motion:'on'}, assigned=[], timers=[];
  class Element {
   constructor(){this.style={visibility:''};this.inert=false;this.dataset={};this.attributes=new Map();}
   setAttribute(k,v){this.attributes.set(k,v);}
@@ -50,11 +49,7 @@ test('navigation fetch starts during the stage animation and preserves the origi
   head:{append(){}},body:{append(node){node.isConnected=true;}},
   querySelector:selector=>selector==='#main-content'?main:null,
   querySelectorAll:()=>[],addEventListener(){},
-  createElement:tag=>tag==='main'?panel:new Element(),
-  startViewTransition:callback=>({
-   updateCallbackDone:new Promise(resolve=>{update=()=>{callback();resolve();};}),
-   finished:new Promise(()=>{}),skipTransition(){}
-  })
+  createElement:tag=>tag==='main'?panel:new Element()
  };
  const source=readFileSync(new URL('../src/lib/navigation-feedback.mjs',import.meta.url),'utf8')
   .replace(/^import .*;\n/gm,'').replaceAll('export function','function');
@@ -62,17 +57,21 @@ test('navigation fetch starts during the stage animation and preserves the origi
   document,window:{addEventListener:(name,fn)=>listeners.set(name,fn)},Element,
   Image:class {},MutationObserver:class {observe(){} disconnect(){}},URL,
   location:{href:here,assign:url=>assigned.push(url)},matchMedia:()=>({matches:false}),
-  setTimeout:()=>1,clearTimeout(){},loadingKind:()=> 'tool',
+  setTimeout:(fn,ms)=>{const id=timers.length+1;timers.push({id,fn,ms});return id;},clearTimeout(){},
+  loadingKind:()=> 'tool',
   loadingPresentation:()=>({art:'stamp',caption:'好演出，从准备开始。'})
  });
  const anchor=new Element();anchor.href='/global/zh-CN/tools/song-calculator/';anchor.textContent='歌曲计算';anchor.querySelector=()=>null;
  const target=new Element();target.closest=()=>anchor;
  listeners.get('click')({button:0,target,preventDefault(){}});
- assert.deepEqual(assigned,[]);
- update();await Promise.resolve();await Promise.resolve();
  assert.deepEqual(assigned,['https://example.test/global/zh-CN/tools/song-calculator/']);
+ assert.equal(dataset.navigationPhase,'loading');
+ assert.equal(main.style.visibility,'');
+ assert.notEqual(panel.isConnected,true);
+ const slowOverlay=timers.find(t=>t.ms===300);
+ assert.ok(slowOverlay,'slow-network overlay timer should be scheduled');
+ slowOverlay.fn();
  assert.equal(main.style.visibility,'hidden');
  assert.equal(panel.isConnected,true);
  assert.equal(nodes.get('img').src,'/stamp.webp');
- assert.equal(dataset.navigationPhase,'loading');
 });

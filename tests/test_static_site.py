@@ -3,10 +3,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-from tools import static_site
+from tests.test_release_candidate import candidate
+from tools import static_site, sync_static_origin
 
 
 class SitePackageTests(unittest.TestCase):
@@ -72,7 +73,7 @@ class SitePackageTests(unittest.TestCase):
             assets = root / "assets"
             static_site.public_artifacts(assets, code, releases)
             static_site.package(
-                root, assets, "https://example.invalid", "example-worker"
+                root, assets, "https://example.invalid", "example-worker", "HEAD"
             )
             cfg = json.loads((root / "wrangler.json").read_text())
             self.assertFalse(cfg["assets"]["run_worker_first"])
@@ -136,14 +137,134 @@ class SitePackageTests(unittest.TestCase):
                 patch.dict(
                     "os.environ",
                     {
+                        "GITHUB_SHA": "b" * 40,
                         "STATIC_ROOT": tmp,
                         "STATIC_SITE_ORIGIN": "https://example.invalid",
                         "R2_PRIVATE_BUCKET": "private",
                     },
                 ),
                 patch("sys.argv", ["static_site", "guard"]),
+                patch.object(static_site, "main_revision", return_value="b" * 40),
                 patch.object(static_site.R2Reader, "from_environment"),
                 patch.object(static_site, "snapshot", return_value={"code": "next"}),
                 self.assertRaisesRegex(ValueError, "superseded"),
             ):
                 static_site.main()
+
+    def test_main_ci_artifact_is_pinned_cached_and_reusable_without_origin(self):
+        revision = "a" * 40
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            def download(args, *, check):
+                output = Path(args[args.index("--dir") + 1])
+                output.mkdir()
+                self.assertEqual(args[:4], ["gh", "run", "download", "123"])
+                if output.name == "approval":
+                    source, receipt = candidate(root / "fixture")
+                    metadata = json.loads((source / "code-release.json").read_bytes())
+                    (output / "code.json").write_text(json.dumps({
+                        "codeId": metadata["codeId"], "revision": revision, "receiptSha256": receipt,
+                    }))
+                else:
+                    (root / "fixture").rename(output / "code-candidate")
+
+            with (
+                patch.dict("os.environ", GITHUB_SHA=revision, GITHUB_REPOSITORY="example/repo",
+                           VERIFIED_CI_RUN="123", VERIFIED_REVISION=revision),
+                patch.object(static_site.subprocess, "run", side_effect=download),
+            ):
+                code = static_site.approved_code(root, {})
+            store = Mock()
+            release = static_site.install_code(store, root, code)
+            self.assertEqual(release.name, code["codeId"])
+            archive = (root / "code.tar.gz").read_bytes()
+            store.client.download_file.side_effect = lambda bucket, key, name: Path(name).write_bytes(archive)
+            restored = static_site.install_code(store, root / "second-run", code)
+            self.assertEqual((restored / "verification.json").read_bytes(), (release / "verification.json").read_bytes())
+            with self.assertRaisesRegex(ValueError, "receipt digest mismatch"):
+                static_site.install_code(store, root / "wrong-receipt", dict(code, receiptSha256="0" * 64))
+
+    def test_content_update_uses_live_code_during_unverified_merge(self):
+        code = {"codeId": "a" * 24, "revision": "b" * 40, "receiptSha256": "c" * 64}
+        live = {"inputs": {"code": code}}
+        with (
+            patch.dict("os.environ", GITHUB_SHA="d" * 40, CONTENT_ONLY="true"),
+            patch.object(static_site.subprocess, "check_output") as lookup,
+        ):
+            self.assertEqual(static_site.approved_code(Path("."), live), code)
+            lookup.assert_not_called()
+        with (
+            patch.dict("os.environ", GITHUB_SHA="d" * 40, CONTENT_ONLY="false",
+                       VERIFIED_REVISION=code["revision"]),
+        ):
+            self.assertEqual(static_site.approved_code(Path("."), live), code)
+            with self.assertRaisesRegex(ValueError, "First delivery"):
+                static_site.approved_code(Path("."), {})
+
+    def test_fallback_sync_only_records_matching_origin_and_worker(self):
+        code = {"codeId": "a" * 24, "revision": "b" * 40, "receiptSha256": "c" * 64}
+        pairs = {"global": "global-pair", "jp": "jp-pair"}
+        live = {"inputs": {"code": code}, "pairs": pairs}
+        config = {"sshHost": "example"}
+        store = Mock()
+        with (
+            patch.object(sync_static_origin, "read_live", return_value=live),
+            patch.object(sync_static_origin, "read_code", side_effect=[dict(code, codeId="d" * 24), code]),
+            patch.object(sync_static_origin, "install_code", return_value=Path("candidate")),
+            patch.object(sync_static_origin, "deploy") as publish,
+            patch.object(sync_static_origin, "origin_pairs", side_effect=[{}, pairs]),
+            patch.object(sync_static_origin, "check_worker") as check,
+            patch("time.sleep"),
+        ):
+            sync_static_origin.sync(store, config, "origin", "worker", Path("."))
+            publish.assert_called_once_with(Path("candidate"), config, code["receiptSha256"], "d" * 24)
+            self.assertEqual(check.call_count, 2)
+            self.assertEqual(json.loads(store.client.put_object.call_args.kwargs["Body"]), pairs)
+
+    def test_changed_worker_blocks_origin_publication(self):
+        code = {"codeId": "a" * 24, "revision": "b" * 40, "receiptSha256": "c" * 64}
+        live = {"inputs": {"code": code}, "pairs": {"global": "old", "jp": "old"}}
+        response = io.BytesIO(b'{"pair":"new"}')
+        response.headers = {"X-OurNotes-Delivery": "static-assets"}
+        store = Mock()
+        with (
+            patch.object(sync_static_origin, "read_live", return_value=live),
+            patch.object(sync_static_origin, "read_code", return_value=dict(code, codeId="d" * 24)),
+            patch.object(sync_static_origin, "install_code"),
+            patch.object(sync_static_origin, "open_delivery_receipt", return_value=response),
+            patch.object(sync_static_origin, "deploy") as publish,
+            self.assertRaisesRegex(ValueError, "moved away"),
+        ):
+            sync_static_origin.sync(store, {}, "origin", "worker", Path("."))
+        publish.assert_not_called()
+        store.client.put_object.assert_not_called()
+
+    def test_no_change_retries_only_pending_origin_sync_and_skips_stale_ci(self):
+        code = {"codeId": "a" * 24, "revision": "b" * 40, "receiptSha256": "c" * 64}
+        inputs = {"code": code, "pointers": {}}
+        pairs = {"global": "g", "jp": "j"}
+        live = {"inputs": inputs, "pairs": pairs}
+        with tempfile.TemporaryDirectory() as tmp:
+            outputs = Path(tmp) / "outputs"
+            with (
+                patch.dict("os.environ", GITHUB_SHA=code["revision"], STATIC_ROOT=tmp,
+                           GITHUB_OUTPUT=str(outputs), STATIC_SITE_ORIGIN="https://example.invalid"),
+                patch("sys.argv", ["static_site", "prepare"]),
+                patch.object(static_site.R2Reader, "from_environment"),
+                patch.object(static_site, "state_reader") as reader,
+                patch.object(static_site, "main_revision") as head,
+                patch.object(static_site, "read_live", return_value=live),
+                patch.object(static_site, "snapshot", return_value=inputs),
+                patch.object(static_site, "build") as build,
+            ):
+                for revision, synced, pending in (
+                    (code["revision"], None, "true"),
+                    (code["revision"], json.dumps(pairs), "false"),
+                    ("d" * 40, None, "false"),
+                ):
+                    outputs.write_text("")
+                    head.return_value = revision
+                    reader.return_value.control.return_value = synced
+                    static_site.main()
+                    self.assertEqual(outputs.read_text().splitlines(), ["changed=false", "sync_origin=" + pending])
+                build.assert_not_called()

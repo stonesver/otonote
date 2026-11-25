@@ -57,17 +57,21 @@ def read_code(origin):
                 flush=True,
             )
             time.sleep(delay)
+    return validate_code_identity(code)
+
+
+def validate_code_identity(code):
     for field, length in (("codeId", 24), ("revision", 40), ("receiptSha256", 64)):
         if not re.fullmatch(rf"[0-9a-f]{{{length}}}", code[field]):
             raise ValueError("Invalid active code: " + field)
     return code
 
 
-def snapshot(reader, origin):
+def snapshot(reader, code):
     pointers = {
         region: json.loads(reader.control(pointer_key(region))) for region in REGIONS
     }
-    return {"code": read_code(origin), "pointers": pointers}
+    return {"code": code, "pointers": pointers}
 
 
 def state_reader(public):
@@ -78,71 +82,58 @@ def archive_key(code):
     return f"{STATE}/code/{code['codeId']}/{code['receiptSha256']}.tar.gz"
 
 
+def main_revision():
+    return subprocess.check_output(
+        ["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/branches/{os.environ['DEFAULT_BRANCH']}",
+         "--jq", ".commit.sha"], text=True,
+    ).strip()
+
+
+def approved_code(root, live):
+    current = live.get("inputs", {}).get("code")
+    if current:
+        validate_code_identity(current)
+    revision = os.environ["GITHUB_SHA"]
+    if current and (os.environ.get("CONTENT_ONLY") == "true" or current["revision"] == revision):
+        return current
+    if os.environ["VERIFIED_REVISION"] != revision:
+        if current:
+            return current
+        raise ValueError("First delivery requires successful default-branch CI")
+    repo = os.environ["GITHUB_REPOSITORY"]
+    run = os.environ["VERIFIED_CI_RUN"]
+
+    def download(name, directory):
+        subprocess.run(["gh", "run", "download", run, "--repo", repo, "--name", name,
+                        "--dir", str(root / directory)], check=True)
+
+    download("static-code-approval", "approval")
+    code = validate_code_identity(json.loads((root / "approval/code.json").read_bytes()))
+    if code["revision"] != revision:
+        raise ValueError("CI approval does not match the default-branch commit")
+    download("verified-candidates-" + revision, "candidate")
+    return code
+
+
 def install_code(store, root, code):
     directory = root / "code/releases" / code["codeId"]
-    directory.mkdir(parents=True)
+    directory.parent.mkdir(parents=True)
     archive = root / "code.tar.gz"
     key = archive_key(code)
-    cached = store.head(key)
-    if cached:
+    candidate = root / "candidate/code-candidate"
+    if candidate.is_dir():
+        candidate.rename(directory)
+    else:
         store.client.download_file(store.bucket, key, str(archive))
         with tarfile.open(archive) as tar:
             tar.extractall(directory, filter="data")
-    else:
-        revision = code["revision"]
-        repo = os.environ["GITHUB_REPOSITORY"]
-        subprocess.run(
-            ["git", "merge-base", "--is-ancestor", revision, "HEAD"], check=True
-        )
-        run = subprocess.check_output(
-            [
-                "gh",
-                "run",
-                "list",
-                "--repo",
-                repo,
-                "--workflow",
-                "check.yml",
-                "--event",
-                "push",
-                "--commit",
-                revision,
-                "--status",
-                "success",
-                "--limit",
-                "1",
-                "--json",
-                "databaseId",
-                "--jq",
-                ".[0].databaseId // empty",
-            ],
-            text=True,
-        ).strip()
-        if not run.isdigit():
-            raise ValueError("No approved candidate for the active code")
-        subprocess.run(
-            [
-                "gh",
-                "run",
-                "download",
-                run,
-                "--repo",
-                repo,
-                "--name",
-                "verified-candidates-" + revision,
-                "--dir",
-                str(root / "candidate"),
-            ],
-            check=True,
-        )
-        directory.rmdir()
-        (root / "candidate/code-candidate").rename(directory)
     identity, _ = verify_code(
         directory, require_verified=True, expected_receipt_sha256=code["receiptSha256"]
     )
-    if identity != code["codeId"]:
+    manifest = json.loads((directory / "code-release.json").read_bytes())
+    if identity != code["codeId"] or manifest["provenance"]["source"]["commit"] != code["revision"]:
         raise ValueError("Source and approved candidate differ")
-    if not cached:
+    if not archive.exists():
         with tarfile.open(archive, "w:gz") as tar:
             for file in sorted(directory.iterdir()):
                 tar.add(file, arcname=file.name)
@@ -167,7 +158,7 @@ def link_tree(source, dest):
                 os.link(file, to)
 
 
-def package(root, assets, origin, worker):
+def package(root, assets, origin, worker, worker_revision):
     if not re.fullmatch(r"[a-z0-9-]+", worker):
         raise ValueError("Invalid Worker name")
     shell = (root / "code/current/index.html").read_bytes()
@@ -188,7 +179,9 @@ def package(root, assets, origin, worker):
         "/app/releases/*\n  Cache-Control: public, max-age=31536000, immutable\n"
         "/rendered/releases/*\n  Cache-Control: public, max-age=31536000, immutable\n"
     )
-    shutil.copyfile(DEPLOY / "static-site.mjs", root / "worker.mjs")
+    (root / "worker.mjs").write_bytes(subprocess.check_output(
+        ["git", "show", f"{worker_revision}:deploy/static-site.mjs"]
+    ))
     config = {
         "name": worker,
         "main": "worker.mjs",
@@ -372,8 +365,14 @@ def build(root, public, store, desired, live, origin, worker):
         prefix = trial_prefix(os.environ["PREVIOUS_TRIAL"])
         for part in ("app/releases", "rendered/releases"):
             restore_objects(public, prefix + part + "/", assets / part)
-    package(root, assets, origin, worker)
-    (root / "release.json").write_text(json.dumps({"inputs": desired, "pairs": pairs}))
+    worker_revision = desired["code"]["revision"]
+    if desired["code"] == live.get("inputs", {}).get("code"):
+        # Older live records predate the Worker revision field.
+        worker_revision = live.get("workerRevision", os.environ["VERIFIED_REVISION"])
+    package(root, assets, origin, worker, worker_revision)
+    (root / "release.json").write_text(json.dumps({
+        "inputs": desired, "pairs": pairs, "workerRevision": worker_revision,
+    }))
 
 
 def main():
@@ -394,19 +393,26 @@ def main():
             ContentType="application/json",
         )
         return
-    desired = snapshot(public, origin)
     if args.command == "guard":
-        if desired != json.loads((root / "release.json").read_bytes())["inputs"]:
+        expected = json.loads((root / "release.json").read_bytes())["inputs"]
+        if main_revision() != os.environ["GITHUB_SHA"] or snapshot(public, expected["code"]) != expected:
             raise ValueError("Inputs were superseded before activation")
         return
-    live = read_live(store)
-    changed = desired != live.get("inputs")
-    if changed:
-        build(
-            root, public, store, desired, live, origin, os.environ["STATIC_WORKER_NAME"]
-        )
+    changed = False
+    sync_origin = False
+    if main_revision() == os.environ["GITHUB_SHA"]:
+        live = read_live(store)
+        desired = snapshot(public, approved_code(root, live))
+        changed = desired != live.get("inputs")
+        if changed:
+            build(root, public, store, desired, live, origin, os.environ["STATIC_WORKER_NAME"])
+            sync_origin = True
+        else:
+            synced = store.control(STATE + "/origin.json")
+            sync_origin = synced is None or json.loads(synced) != live["pairs"]
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         print("changed=" + str(changed).lower(), file=f)
+        print("sync_origin=" + str(sync_origin).lower(), file=f)
 
 
 if __name__ == "__main__":

@@ -160,3 +160,20 @@ test('tool pages share an integrity-bound rules payload without duplicating rule
   assert.match(b.html, /data-rules-field="rules"/);
   assert.equal((a.html.match(/rel="preload" as="fetch"/g) ?? []).length, 2);
 });
+
+test('large ordinary route stylesheets and shared prerender runtime scripts stay cached in code releases', () => {
+  const stylesheet = '.music-row{display:grid}'.repeat(1000);
+  const result = prepareHtml('<html><head></head><body><main>Music</main></body></html>', {
+    ...args,
+    route: 'music',
+    css: 'pages/music-ABC.css',
+    stylesheet
+  });
+  assert.doesNotMatch(result.html, /data-prerender-styles/);
+  assert.match(result.html, /<link rel="stylesheet" href="\/app\/releases\/abc\/pages\/music-ABC.css">/);
+  assert.match(result.html, /<script defer="" src="\/app\/releases\/abc\/prerender\/bootstrap.js"><\/script>/);
+  assert.match(result.html, /<script defer="" src="\/app\/releases\/abc\/prerender\/navigation.js"><\/script>/);
+  const config = JSON.parse(result.html.match(/globalThis\[Symbol\.for\('ournotes\.prerender\.v1'\)\]=(.*?);<\/script>/)[1]);
+  assert.equal(config.app.routes, undefined);
+  assert.equal(config.app.scripts, undefined);
+});

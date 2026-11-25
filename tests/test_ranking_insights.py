@@ -167,6 +167,7 @@ class RankingInsightsTest(unittest.TestCase):
             self.assertIsNotNone(res["repeatExample"])
             self.assertEqual(len(res["repeatExample"]["placements"]), 2)
             self.assertEqual(len(res["closingHistory"]), 1)
+            self.assertTrue(res["closingHistory"][0]["isFinal"])
             c100 = next(c for c in res["closingHistory"][0]["changes"] if c["rank"] == 100)
             self.assertEqual(c100["increase"], 150000)
 
@@ -181,8 +182,87 @@ class RankingInsightsTest(unittest.TestCase):
             self.assertNotIn("allSongsUsage", teaser)
             self.assertEqual(len(teaser["stats"]["members"]["top"]), 1)
             self.assertEqual(len(teaser["closingHistory"]), 1)
+            self.assertTrue(teaser["closingHistory"][0]["isFinal"])
             self.assertEqual([c["rank"] for c in teaser["closingHistory"][0]["changes"]], [100])
             self.assertLess(len(json.dumps(teaser)), len(json.dumps(res)))
+
+    def test_ongoing_activity_24h_trend_and_window_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            deck_a = _deck([1, 2, 3, 4, 5], [101, 102, 103, 104, 105], power=240000)
+            current_dir = root / "global-hmt"
+            current_dir.mkdir(parents=True, exist_ok=True)
+            current_payload = {
+                "schemaVersion": 1,
+                "serverId": "global-hmt",
+                "observedAt": "2026-11-25T06:00:00+00:00",
+                "expiresAt": "2026-11-25T07:00:00+00:00",
+                "boards": [
+                    {
+                        "eventId": "6",
+                        "eventName": "Ongoing Event",
+                        "type": "music",
+                        "musicId": "2001",
+                        "musicName": "Song Ongoing 24h",
+                        "entries": [
+                            {"playerId": "p1", "name": "P1", "rank": 1, "score": 3000000, "highScoreDeck": deck_a},
+                        ],
+                    },
+                    {
+                        "eventId": "6",
+                        "eventName": "Ongoing Event",
+                        "type": "music",
+                        "musicId": "2002",
+                        "musicName": "Song Too Early",
+                        "entries": [
+                            {"playerId": "p1", "name": "P1", "rank": 1, "score": 3000000, "highScoreDeck": deck_a},
+                        ],
+                    },
+                ],
+            }
+            (current_dir / "current.json").write_text(json.dumps(current_payload), encoding="utf-8")
+
+            db_path = current_dir / "history.sqlite3"
+            conn = sqlite3.connect(db_path)
+            conn.executescript("""
+                CREATE TABLE observations (id TEXT PRIMARY KEY, event TEXT NOT NULL, music TEXT NOT NULL,
+                  observed REAL NOT NULL, start REAL, end REAL, final INTEGER NOT NULL, coverage TEXT NOT NULL, source TEXT NOT NULL);
+                CREATE TABLE scores (observation TEXT NOT NULL, rank INTEGER NOT NULL, score INTEGER NOT NULL, PRIMARY KEY(observation, rank));
+            """)
+            latest_ts = 1764050400.0
+            future_end_ts = latest_ts + 86400 * 3
+            # Song 2001 has >= 24h of non-final history -> valid rolling 24h trend with isFinal=False
+            for oid, hrs, base_score in [("a24", 24, 1000000), ("a12", 12, 1040000), ("a6", 6, 1070000), ("a1", 1, 1090000), ("a0", 0, 1100000)]:
+                conn.execute(
+                    "INSERT INTO observations VALUES (?, '6', '2001', ?, ?, ?, 0, '1-100', 'test')",
+                    (oid, latest_ts - hrs * 3600, latest_ts - 86400 * 2, future_end_ts),
+                )
+                for r, mult in [(10, 1.4), (50, 1.2), (100, 1.0)]:
+                    conn.execute("INSERT INTO scores VALUES (?, ?, ?)", (oid, r, int(base_score * mult)))
+            # Song 2002 only has 3h of history -> must NOT fabricate a 24h curve
+            for oid, hrs, base_score in [("b3", 3, 1000000), ("b1", 1, 1010000), ("b0", 0, 1020000)]:
+                conn.execute(
+                    "INSERT INTO observations VALUES (?, '6', '2002', ?, ?, ?, 0, '1-100', 'test')",
+                    (oid, latest_ts - hrs * 3600, latest_ts - 3600 * 4, future_end_ts),
+                )
+                for r, mult in [(10, 1.4), (50, 1.2), (100, 1.0)]:
+                    conn.execute("INSERT INTO scores VALUES (?, ?, ?)", (oid, r, int(base_score * mult)))
+            conn.commit()
+            conn.close()
+
+            res = query_ranking_insights(root, mode="activity", server="global-hmt", event="6", music="2001")
+            self.assertEqual(res["status"], "available")
+            self.assertFalse(res["isFinal"])
+            self.assertEqual([h["music"] for h in res["closingHistory"]], ["2001"])
+            self.assertFalse(res["closingHistory"][0]["isFinal"])
+            self.assertEqual(res["closingHistory"][0]["end"], latest_ts)
+            c100 = next(c for c in res["closingHistory"][0]["changes"] if c["rank"] == 100)
+            self.assertEqual(c100["increase"], 100000)
+
+            teaser = query_ranking_insights(root, mode="activity", server="global-hmt", event="6", music="2001", view="teaser")
+            self.assertFalse(teaser["isFinal"])
+            self.assertEqual(len(teaser["closingHistory"]), 1)
+            self.assertFalse(teaser["closingHistory"][0]["isFinal"])
 
     def test_arena_teaser_and_http_etag_cache_headers(self) -> None:
         from fastapi.testclient import TestClient

@@ -30,6 +30,9 @@ from backend.player_rankings import (
 SCHEMA_VERSION = 1
 ARENA_BANDS = ("1", "2", "3", "4", "5")
 CHECKPOINT_HOURS = (24, 12, 6, 1)
+# Disjoint tolerance windows around each checkpoint so early/sparse history
+# does not fabricate a 24h curve or map multiple checkpoints to the same sample.
+CHECKPOINT_TOLERANCE_HOURS = {24: 6.0, 12: 3.5, 6: 2.0, 1: 0.75}
 TRACKED_RANKS = (10, 50, 100)
 MUSIC_ID = re.compile(r"[A-Za-z0-9_-]{1,100}")
 
@@ -393,11 +396,12 @@ def _query_closing_history(
             if not obs_rows:
                 continue
             final_rows = [r for r in obs_rows if r[3] == 1]
-            end_ts = next((r[2] for r in reversed(obs_rows) if r[2] is not None), None)
-            if end_ts is None:
-                continue
 
             if final_rows:
+                is_final_curve = True
+                end_ts = next((r[2] for r in reversed(obs_rows) if r[2] is not None), None)
+                if end_ts is None:
+                    continue
                 final_scores = dict(
                     cur.execute(
                         "SELECT rank, score FROM scores WHERE observation = ? AND rank IN (10, 50, 100)",
@@ -405,8 +409,13 @@ def _query_closing_history(
                     ).fetchall()
                 )
             elif final_board_scores and music in final_board_scores:
+                is_final_curve = True
+                end_ts = next((r[2] for r in reversed(obs_rows) if r[2] is not None), None)
+                if end_ts is None:
+                    continue
                 final_scores = final_board_scores[music]
             else:
+                is_final_curve = False
                 latest = obs_rows[-1]
                 end_ts = latest[1]
                 final_scores = dict(
@@ -418,7 +427,10 @@ def _query_closing_history(
             if not all(r in final_scores for r in TRACKED_RANKS):
                 continue
 
-            pre_rows = [r for r in obs_rows if r[3] == 0 and r[1] <= end_ts]
+            pre_rows = [
+                r for r in obs_rows
+                if r[3] == 0 and (r[1] <= end_ts if is_final_curve else r[1] < end_ts)
+            ]
             if not pre_rows:
                 continue
 
@@ -426,6 +438,9 @@ def _query_closing_history(
             for hours in CHECKPOINT_HOURS:
                 target_ts = end_ts - hours * 3600
                 nearest = min(pre_rows, key=lambda r: abs(r[1] - target_ts))
+                tol_seconds = CHECKPOINT_TOLERANCE_HOURS[hours] * 3600.0
+                if abs(nearest[1] - target_ts) > tol_seconds:
+                    continue
                 scores = dict(
                     cur.execute(
                         "SELECT rank, score FROM scores WHERE observation = ? AND rank IN (10, 50, 100)",
@@ -444,6 +459,8 @@ def _query_closing_history(
             if base is None:
                 continue
             window_hours = (end_ts - base["observed"]) / 3600.0
+            if window_hours <= 0:
+                continue
             changes = []
             for r in TRACKED_RANKS:
                 before = int(base["scores"][str(r)])
@@ -461,6 +478,7 @@ def _query_closing_history(
                 "event": event_id,
                 "music": music,
                 "name": song_names.get(music, music),
+                "isFinal": is_final_curve,
                 "end": end_ts,
                 "windowHours": round(window_hours, 2),
                 "within10MinutesOf24h": abs(window_hours - 24.0) <= (10.0 / 60.0),
@@ -544,7 +562,11 @@ def _project_teaser(result: dict[str, Any]) -> dict[str, Any]:
         if str(item.get("music", "")) == music_id:
             c100 = [c for c in (item.get("changes") or []) if c.get("rank") == 100]
             if c100:
-                closing_teaser.append({"music": item["music"], "changes": c100})
+                closing_teaser.append({
+                    "music": item["music"],
+                    "isFinal": bool(item.get("isFinal", result.get("isFinal", False))),
+                    "changes": c100,
+                })
             break
     return {
         "schemaVersion": result["schemaVersion"],

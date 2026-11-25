@@ -184,8 +184,9 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
     } else {
       const hist = (d.closingHistory || []).find(x => String(x.music) === String(d.musicId));
       const c100 = hist?.changes?.find(z => z.rank === 100);
-      h3Sub = t('最后24h百名线', '24h Top-100');
-      h3Title = c100 ? `+${fmt(c100.increase)} ${t('分', 'pts')}` : t('查看涨分曲线', 'Closing curves');
+      const isFinalCurve = hist ? (hist.isFinal ?? Boolean(d.isFinal)) : Boolean(d.isFinal);
+      h3Sub = isFinalCurve ? t('最后24h百名线', 'Final 24h Top-100') : t('近24h百名线', 'Past 24h Top-100');
+      h3Title = c100 ? `+${fmt(c100.increase)} ${t('分', 'pts')}` : (isFinalCurve ? t('查看涨分曲线', 'Closing curves') : t('查看近24h趋势', '24h trend'));
       h3Num = c100 ? `+${c100.pct.toFixed(2)}%` : '—';
       h3Tab = 'closing';
     }
@@ -662,8 +663,11 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
     const list = d.closingHistory || [];
     const h = list.find(x => String(x.music) === String(d.musicId)) || list[0];
     if (!h) {
-      return `<section class="ui-sheet ri-panel"><p class="ri-status">${t('本期暂无最后 24 小时历史采样记录。', 'No final-24h threshold history for this event.')}</p></section>`;
+      return `<section class="ui-sheet ri-panel"><p class="ri-status">${d.isFinal
+        ? t('本期暂无最后 24 小时历史采样记录。', 'No final-24h threshold history for this event.')
+        : t('当前活动暂无足够 24 小时历史采样记录，请稍后查看。', 'Not enough 24h threshold history yet for this ongoing event.')}</p></section>`;
     }
+    const isFinalCurve = h.isFinal ?? Boolean(d.isFinal);
     const base = h.checkpoints.find(x => x.hoursBeforeEnd === 24);
     const meta = [
       { rank: 10, label: t('第 10 名', 'Rank 10'), color: 'var(--theme-chart-4)' },
@@ -677,7 +681,10 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
       const pts = cps.map(cp => {
         const sc = cp.isFinal ? ch.final : Number(cp.scores[String(m.rank)]);
         const p = cp.isFinal ? ch.pct : (sc - first) / first * 100;
-        return { hours: cp.isFinal ? 0 : (h.end - cp.observed) / 3600, score: sc, pct: p, label: cp.isFinal ? t('结算', 'Final') : `${cp.hoursBeforeEnd}h` };
+        const label = cp.isFinal
+          ? (isFinalCurve ? t('结算', 'Final') : t('当前最新', 'Latest'))
+          : (isFinalCurve ? `${cp.hoursBeforeEnd}h` : `-${cp.hoursBeforeEnd}h`);
+        return { hours: cp.isFinal ? 0 : (h.end - cp.observed) / 3600, score: sc, pct: p, label, hoursBeforeEnd: cp.hoursBeforeEnd };
       });
       return { ...m, change: ch, points: pts };
     });
@@ -693,14 +700,14 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
 
     return `<div class="ri-split">
       <section class="ui-sheet ri-panel">
-        <header class="ri-panel-head"><div><h3>${t('最后 24 小时冲刺曲线', 'Final 24h Threshold Curves')}</h3><p>${esc(h.name)}</p></div></header>
+        <header class="ri-panel-head"><div><h3>${isFinalCurve ? t('最后 24 小时冲刺曲线', 'Final 24h Threshold Curves') : t('近 24 小时涨分趋势', 'Past 24h Threshold Trend')}</h3><p>${esc(h.name)}${isFinalCurve ? '' : ` · ${t('活动进行中，截至最新采样', 'Ongoing · as of latest snapshot')}`}</p></div></header>
         <div class="ri-chart-box">
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
             ${series.map(s => `<button type="button" class="ui-btn-outline" data-ri-ctog="${s.rank}" style="${state.chartHidden[s.rank] ? 'opacity:0.45' : ''}"><i class="ri-dot" style="background:${s.color}"></i>${s.label}</button>`).join('')}
           </div>
           <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
             ${[0, 1, 2, 3, 4].map(i => `<line x1="44" y1="${Y(ceil * i / 4)}" x2="${W - 20}" y2="${Y(ceil * i / 4)}" stroke="var(--theme-border-soft)"/><text x="38" y="${Y(ceil * i / 4) + 4}" text-anchor="end" font-size="11" fill="var(--theme-muted)">${(ceil * i / 4).toFixed(1)}%</text>`).join('')}
-            ${series[0].points.map((pt, idx) => (pt.label === '1h' ? '' : `<text x="${X(pt.hours)}" y="198" text-anchor="middle" font-size="11" fill="var(--theme-muted)">${pt.label}</text>`)).join('')}
+            ${series[0].points.map(pt => (pt.hoursBeforeEnd === 1 ? '' : `<text x="${X(pt.hours)}" y="198" text-anchor="middle" font-size="11" fill="var(--theme-muted)">${pt.label}</text>`)).join('')}
             ${vis.map(s => `<polyline fill="none" stroke="${s.color}" stroke-width="2.5" points="${s.points.map(p => `${X(p.hours)},${Y(p.pct)}`).join(' ')}"/>${s.points.map((p, idx) => `<circle cx="${X(p.hours)}" cy="${Y(p.pct)}" r="${idx === hi ? 5.2 : 3.6}" fill="${s.color}" stroke="var(--theme-surface)" stroke-width="1.5" style="cursor:pointer" data-ri-cpt="${idx}"/>`).join('')}`).join('')}
           </svg>
           <div class="ri-chart-tip">
@@ -710,7 +717,7 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
         </div>
       </section>
       <section class="ui-sheet ri-panel">
-        <header class="ri-panel-head"><div><h3>${t('本期各曲百名线涨幅', 'Event Songs Top-100 Surge')}</h3></div></header>
+        <header class="ri-panel-head"><div><h3>${isFinalCurve ? t('本期各曲百名线涨幅', 'Event Songs Top-100 Surge') : t('各曲近 24 小时百名线涨幅', 'Past 24h Top-100 Surge')}</h3></div></header>
         <div style="display:grid;gap:8px">
           ${list.map(x => {
             const c = x.changes.find(z => z.rank === 100);

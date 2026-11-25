@@ -15,7 +15,9 @@ const itemIndex=validateArtifact<{schemaVersion:number;records:ItemIndexRecord[]
 const cardImage=(id:string|null)=>{const asset=getAsset(id);return asset?.thumbnailUrl||asset?.previewUrl||null;};
 const rarityMap=Object.fromEntries(catalog.cardTaxonomy.rarities.map(r=>[r.code,r.label]));
 const bandMasterMap=Object.fromEntries(catalog.bands.map(b=>[b.id,String(b.masterId)]));
-const cardVisual=(c:MemberCard|SupportCard)=>({id:String(c.masterId),name:c.displayName,image:cardImage(c.thumbnailAssetId),href:c.id,attribute:c.attributeCode,rarity:c.rarity,rarityLabel:rarityMap[c.rarity]??'',bandIds:(c.bandIds??[]).map(id=>bandMasterMap[id]??String(id))});
+const characterBandMasterMap=Object.fromEntries(catalog.characters.filter(c=>c.bandId&&bandMasterMap[c.bandId]).map(c=>[c.id,bandMasterMap[c.bandId]]));
+const cardBandIds=(c:MemberCard|SupportCard)=>{const cids='featuredCharacterIds' in c?c.featuredCharacterIds:[c.characterId];return [...new Set((cids??[]).map(id=>characterBandMasterMap[id]).filter(Boolean))];};
+const cardVisual=(c:MemberCard|SupportCard)=>({id:String(c.masterId),name:c.displayName,image:cardImage(c.thumbnailAssetId),href:c.id,attribute:c.attributeCode,rarity:c.rarity,rarityLabel:rarityMap[c.rarity]??'',bandIds:cardBandIds(c)});
 const visuals=JSON.stringify({band:filterVisualOptions.band.map(b=>({...b,circleIcon:bandCircleIcon(b.value).icon??null,color:catalog.bands.find(v=>String(v.masterId)===b.value)?.mainColor})),attribute:filterVisualOptions.attribute,
  items:itemIndex.map(i=>({id:String(i.masterId),icon:getAsset(i.iconAssetId)?.previewUrl??null})),
  members:catalog.memberCards.map(cardVisual),supports:catalog.supportCards.map(cardVisual),

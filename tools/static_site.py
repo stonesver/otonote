@@ -399,20 +399,14 @@ def main():
             raise ValueError("Inputs were superseded before activation")
         return
     changed = False
-    sync_origin = False
     if main_revision() == os.environ["GITHUB_SHA"]:
         live = read_live(store)
         desired = snapshot(public, approved_code(root, live))
         changed = desired != live.get("inputs")
         if changed:
             build(root, public, store, desired, live, origin, os.environ["STATIC_WORKER_NAME"])
-            sync_origin = True
-        else:
-            synced = store.control(STATE + "/origin.json")
-            sync_origin = synced is None or json.loads(synced) != live["pairs"]
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         print("changed=" + str(changed).lower(), file=f)
-        print("sync_origin=" + str(sync_origin).lower(), file=f)
 
 
 if __name__ == "__main__":

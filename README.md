@@ -25,7 +25,7 @@ BanG Dream! Our Notes 的非官方资料站源码，包含角色与卡牌资料�
 
 开发、离线 CI、正式候选、不可变程序包及部署入口见 [开发流程](docs/runbooks/development.md)。真实配置以线上生效行为为初始基线，保存在仓库之外；提交和交付先通过 [配置与脱敏边界](docs/governance/configuration.md)。容量维护与数据新鲜度见 [运行维护](docs/runbooks/operations.md)。
 
-正式候选从指定提交的干净检出构建：`bash scripts/build-web-client.sh --candidate HEAD output/code-candidate`。启用静态交付后，合并到 `main` 的提交通过 CI 即发布同一份候选到 Cloudflare。线上验证成功后，独立任务再同步回源站点。
+正式候选从指定提交的干净检出构建：`bash scripts/build-web-client.sh --candidate HEAD output/code-candidate`。启用静态交付后，合并到 `main` 的提交通过 CI 即发布同一份候选到 Cloudflare。源站按需从本机同步。
 
 文档分层与操作入口见[文档索引](docs/README.md)，新增与更新规则见[文档维护](docs/governance/documentation.md)，尚未关闭的问题见[未结事项](docs/BACKLOG.md)。
 

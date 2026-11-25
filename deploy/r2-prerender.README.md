@@ -34,10 +34,11 @@
 2. 在仓库配置 `STATIC_SITE_ORIGIN`（正式 HTTPS 源，不带末尾斜线）、`STATIC_WORKER_NAME`、`STATIC_WORKER_URL`（该专用 Worker 的 HTTPS 地址）。在已有内容交付环境中添加 Workers Scripts 编辑令牌 `CLOUDFLARE_API_TOKEN`。区域路由由站点管理人在面板维护。
 3. 首次在默认分支手动运行工作流，勾选 `bootstrap`，目标必须是未使用过的 Worker 名称。如果已有成功的双服预渲染试跑，可分别填写 `current_trial`、`previous_trial`，分别复用当前视图和保留上一版不可变资源。工作流会比对当前试跑与两服已批准指针。若内容已更新，留空 `current_trial` 重新渲染。首次运行只创建独立的 workers.dev 站点。
 4. 工作流成功后设置仓库变量 `STATIC_SITE_ENABLED=true`，在该 Worker 绑定正式主机的五种路径 `/global/*`、`/jp/*`、`/app/releases/*`、`/rendered/releases/*`、`/site-status/*`。域名须为代理状态。在正式主机检查两服中英文首页、工具页、榜单页、状态 JSON、旧脚本和一个榜单 API。静态响应带有 `X-OurNotes-Delivery: static-assets`。根路径与旧链接继续由 nginx 跳转，内容网关及后台路径保持原路由。
-5. 在 `content-r2-production` 设置源站同步专用的 `ORIGIN_SSH_KEY`、独立核实的 `ORIGIN_KNOWN_HOSTS` 和 `ORIGIN_DEPLOY_CONFIG`。最后一项使用[源站部署配置](../docs/runbooks/development.md#源站发布设置与执行)的 JSON，`sshHost` 填 runner 能解析并连接的主机，可含专用用户名。保留源站预渲染 timer，确认同步账号能读取两服 HTML 当前链接，并具备原发布器所需权限。凭据只在同步任务使用。
 
 默认分支的 push CI 成功后，交付任务从同一次运行取得候选包和 `static-code-approval`，固定提交和回执摘要。上传前和激活前分别检查分支头和两服内容指针。内容生产完成时复用上次上线代码，定时检查会补上最新提交的成功 CI。首次部署需有带独立回执的成功 CI。已有站点沿用私有桶的 `web-delivery/v1/live.json` 和已缓存代码。
 
-Worker 候选和线上版本均通过网页检查后，记录新的 `live.json`。随后 `sync-origin` 读取这份成功记录，校验 Worker 正在提供对应的两服版本，再通过 SSH 安装相同的封存代码。源站预渲染 timer 生成两服 HTML；两服链接和代码回执均匹配时写入私有桶的 `web-delivery/v1/origin.json`。同步失败时 Worker 继续服务；修复源站或同步凭据后，重跑失败任务或等待下次定时检查。等待期间，回源仍可能提供上一个版本。
+Worker 候选和线上版本均通过网页检查后，工作流记录新的 `live.json`，完成发布。
+
+需要同步源站时，从本机核对 Worker 的两服 `/site-status/{region}.json` 与成功 CI 的 `static-code-approval`，确认 `codeId` 一致。使用同次 CI 的代码包、回执摘要和源站当前代码 ID，按[源站发布步骤](../docs/runbooks/development.md#源站发布设置与执行)执行。源站预渲染 timer 完成后，直连源站核对代码回执、两服渲染组合和中英文首页。
 
 紧急整站回源时，在面板移除上述五条静态路由，并将 `STATIC_SITE_ENABLED` 设为 `false`。切换前核对源站代码及 Global、JP 实际渲染链接与目标版本。只回退 Worker 版本时，在“部署”中选已验证版本回滚；同时暂停自动交付，确认源站和已批准输入后再恢复。

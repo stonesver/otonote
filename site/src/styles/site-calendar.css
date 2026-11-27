@@ -8,39 +8,114 @@ site-calendar { display: contents; }
 }
 .site-calendar-tab:hover, .site-calendar-tab[aria-expanded="true"] { background: var(--theme-action-soft); }
 .site-calendar-tab:focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 2px; }
+
 .site-calendar-panel {
-  position: fixed; right: 12px; top: 72px; z-index: 60; width: min(360px, calc(100vw - 24px));
+  /* Fixed semantic colors for calendar spans/badges so categories stay distinguishable across every site theme. */
+  --cal-event: #d94f70;
+  --cal-arena: #2f7d9c;
+  --cal-birthday: #d9822b;
+  --cal-anniv: #7c4dff;
+  position: fixed; right: 12px; top: 72px; z-index: 60; width: min(412px, calc(100vw - 24px));
   max-height: calc(100dvh - 96px); overflow: auto; padding: 12px; box-shadow: var(--theme-elevated-shadow);
 }
 .site-calendar-panel[hidden] { display: none; }
+
 .cal-head { display: flex; align-items: center; gap: 6px; }
 .cal-head h2 { flex: 1; margin: 0; font-size: 15px; text-align: center; outline: none; }
 .cal-head button { min-height: 32px; min-width: 32px; padding: 0 8px; border: 1px solid var(--theme-border-soft); border-radius: 8px; background: var(--theme-surface); color: var(--theme-text); font-size: 13px; cursor: pointer; }
 .cal-head .cal-nav { font-size: 18px; line-height: 1; }
-.cal-zone { margin: 4px 0 6px; font-size: 12px; color: var(--theme-muted); text-align: center; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
-.cal-dow { padding: 2px 0; font-size: 12px; text-align: center; color: var(--theme-muted); }
-.cal-day { display: grid; grid-template-rows: auto 8px; justify-items: center; align-content: center; gap: 2px; min-height: 44px; padding: 3px 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--theme-text); font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; }
-.cal-day.is-out { color: var(--theme-muted); opacity: .55; }
-.cal-day.is-today { border-color: var(--theme-accent); font-weight: 700; }
+.cal-zone { margin: 4px 0 8px; font-size: 12px; color: var(--theme-muted); text-align: center; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px 0; }
+.cal-dow { padding: 2px 0 4px; font-size: 12px; text-align: center; color: var(--theme-muted); }
+
+.cal-day {
+  position: relative; display: grid; grid-template-rows: 16px 26px 9px; justify-items: center; align-items: center;
+  min-height: 54px; padding: 3px 0 2px; border: 1px solid transparent; border-radius: 9px;
+  background: transparent; color: var(--theme-text); font-size: 12px; cursor: pointer;
+  font-variant-numeric: tabular-nums; transition: background-color 120ms ease, border-color 120ms ease;
+}
+.cal-day:hover { background: var(--theme-surface-tint); }
+.cal-day.is-out { opacity: .42; }
+.cal-day.is-today { border-color: var(--theme-accent); }
+.cal-day.is-today .cal-num {
+  display: inline-grid; place-items: center; min-width: 18px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--theme-accent); color: #fff; font-weight: 700; font-size: 11px;
+}
 .cal-day.is-selected { background: var(--theme-action-soft); border-color: var(--theme-action-edge, var(--theme-accent)); }
 .cal-day:focus-visible, .cal-head button:focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 1px; }
-.cal-day em { display: flex; gap: 2px; height: 6px; font-style: normal; }
-.cal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--theme-muted); }
-.cal-dot[data-kind="event"] { background: var(--theme-chart-1, #b04a6a); }
-.cal-dot[data-kind="arena-season"] { background: var(--theme-chart-3, #5f879f); }
-.cal-dot[data-kind="birthday"] { background: var(--theme-chart-4, #d69b3a); }
-.cal-dot[data-kind="band-anniversary"] { background: var(--theme-accent); }
-.cal-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0; padding: 0; list-style: none; font-size: 12px; color: var(--theme-muted); }
-.cal-legend li { display: inline-flex; align-items: center; gap: 4px; }
+.cal-num { line-height: 1; font-weight: 600; }
+
+/* Game-asset icons directly inside calendar cells */
+.cal-icons { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; height: 24px; padding-inline: 2px; overflow: hidden; }
+.cal-badge { display: inline-grid; place-items: center; flex: none; overflow: hidden; }
+.cal-badge img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.cal-badge.is-fallback { width: 18px; height: 18px; border-radius: 50%; background: var(--theme-surface-tint); color: var(--cal-accent, var(--theme-accent)); }
+.cal-badge.is-fallback svg { width: 13px; height: 13px; }
+
+.cal-badge--birthday.cal-badge--cell {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--cal-accent, var(--cal-birthday)); background: var(--theme-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .14);
+}
+.cal-badge--birthday.cal-badge--cell img { object-fit: cover; }
+.cal-badge--band-anniversary.cal-badge--cell { width: 34px; height: 18px; border-radius: 4px; background: rgba(255, 255, 255, .86); padding: 1px 2px; }
+.cal-badge--event.cal-badge--cell { width: 38px; height: 20px; border-radius: 4px; }
+.cal-badge--arena-season.cal-badge--cell { width: 22px; height: 22px; }
+
+.cal-icons.is-multi .cal-badge--birthday.cal-badge--cell { width: 18px; height: 18px; }
+.cal-icons.is-multi .cal-badge--band-anniversary.cal-badge--cell,
+.cal-icons.is-multi .cal-badge--event.cal-badge--cell { width: 22px; height: 16px; }
+.cal-icons.is-multi .cal-badge--arena-season.cal-badge--cell { width: 18px; height: 18px; }
+.cal-more { font-size: 10px; font-weight: 700; color: var(--theme-muted); line-height: 1; }
+
+/* Continuous multi-day ribbons along the bottom of cells */
+.cal-spans { display: grid; grid-template-rows: 3px 3px; gap: 2px; width: 100%; align-self: end; }
+.cal-span { display: block; height: 3px; width: 100%; opacity: .82; }
+.cal-span--event { grid-row: 1; background: var(--cal-event); }
+.cal-span--arena-season { grid-row: 2; background: var(--cal-arena); }
+.cal-span.is-start { border-top-left-radius: 3px; border-bottom-left-radius: 3px; margin-left: 4px; width: calc(100% - 4px); }
+.cal-span.is-end { border-top-right-radius: 3px; border-bottom-right-radius: 3px; margin-right: 4px; width: calc(100% - 4px); }
+.cal-span.is-start.is-end { width: calc(100% - 8px); }
+
+/* Legend */
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0; padding: 0; list-style: none; font-size: 12px; color: var(--theme-muted); }
+.cal-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.cal-swatch { display: inline-grid; place-items: center; }
+.cal-swatch--birthday { width: 14px; height: 14px; border-radius: 50%; background: color-mix(in srgb, var(--cal-birthday) 18%, transparent); color: var(--cal-birthday); }
+.cal-swatch--band-anniversary { width: 14px; height: 14px; border-radius: 4px; background: color-mix(in srgb, var(--cal-anniv) 16%, transparent); color: var(--cal-anniv); }
+.cal-swatch svg { width: 11px; height: 11px; }
+.cal-swatch--event { width: 16px; height: 4px; border-radius: 2px; background: var(--cal-event); }
+.cal-swatch--arena-season { width: 16px; height: 4px; border-radius: 2px; background: var(--cal-arena); }
+
+/* Selected-day detail cards with game-asset thumbnails */
 .cal-detail { padding-top: 8px; border-top: 1px solid var(--theme-border-soft); }
-.cal-detail h3 { margin: 0 0 6px; font-size: 13px; }
-.cal-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.cal-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; font-size: 13px; }
-.cal-list small { grid-column: 2; font-size: 12px; color: var(--theme-muted); }
-.cal-kind { padding: 1px 6px; border-radius: 5px; background: var(--theme-surface-tint); font-size: 12px; color: var(--theme-text-soft); }
+.cal-detail h3 { margin: 0 0 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cal-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cal-list li {
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+  border: 1px solid var(--theme-border-soft); border-radius: 9px; background: var(--theme-surface-tint);
+}
+.cal-badge--detail { border-radius: 6px; background: var(--theme-surface); border: 1px solid var(--theme-border-soft); }
+.cal-badge--birthday.cal-badge--detail { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--cal-accent, var(--cal-birthday)); }
+.cal-badge--birthday.cal-badge--detail img { object-fit: cover; }
+.cal-badge--band-anniversary.cal-badge--detail { width: 52px; height: 30px; padding: 2px 4px; background: rgba(255, 255, 255, .92); }
+.cal-badge--event.cal-badge--detail { width: 56px; height: 32px; padding: 2px; }
+.cal-badge--arena-season.cal-badge--detail { width: 34px; height: 34px; padding: 2px; }
+.cal-item-copy { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.cal-item-top { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; }
+.cal-item-top a, .cal-item-top strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-list small { font-size: 12px; color: var(--theme-muted); font-variant-numeric: tabular-nums; }
+
+.cal-kind { flex: none; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 600; color: #fff; }
+.cal-kind[data-kind="event"] { background: var(--cal-event); }
+.cal-kind[data-kind="arena-season"] { background: var(--cal-arena); }
+.cal-kind[data-kind="birthday"] { background: var(--cal-birthday); }
+.cal-kind[data-kind="band-anniversary"] { background: var(--cal-anniv); }
 .cal-note { margin: 0; font-size: 12px; color: var(--theme-muted); }
+
 @media (max-width: 700px) {
   .site-calendar-tab { top: auto; bottom: 96px; }
   .site-calendar-panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 82dvh; }
+  .cal-day { min-height: 50px; }
 }

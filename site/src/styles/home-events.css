@@ -574,7 +574,7 @@ home-event-timing {
 @keyframes home-event-enter-next { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 @keyframes home-event-enter-prev { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
 @keyframes home-event-cover-settle { from { transform: scale(1.03); } to { transform: scale(1); } }
-@keyframes home-event-logo-in { from { transform: translateY(6px) scale(0.95); } to { transform: none; } }
+@keyframes home-event-logo-in { from { transform: translateY(calc(-50% + 6px)) scale(0.95); } to { transform: translateY(-50%); } }
 
 @media (prefers-reduced-motion: reduce) {
   .home-events-tab,

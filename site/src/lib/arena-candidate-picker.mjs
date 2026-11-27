@@ -158,8 +158,8 @@ export function createArenaCandidatePicker({ report, cards, onSelect }) {
       title.append(el('b', label));
       if (row.candidate.id === selectedId) title.append(el('small', '当前查看', 'arena-shortcut-current'));
       const score = el('span', '', 'arena-shortcut-score');
-      score.append(el('small', luck ? unknown() ? '三段末位／第一均分' : '整场平均分' : unknown() ? '整场得分范围' : '整场得分'));
       const amount = el('strong', unknown() ? `${points(row.candidate.sameRankScore).replace(' 万', '')}–${points(row.candidate.firstRankScore)}` : points(row.score));
+      amount.title = luck ? (unknown() ? '三段末位／第一均分' : '整场平均分') : (unknown() ? '整场得分范围' : '整场得分');
       score.append(amount);
       if (!unknown()) score.append(el('small', delta(row), 'arena-shortcut-delta'));
       if (row === self) score.append(el('small', `自配队「${report.comparisonTeam.name}」${row === recommendation ? ' · 与综合推荐相同' : ''}`));

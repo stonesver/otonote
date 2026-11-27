@@ -152,11 +152,12 @@ test('result ordering preserves the candidate set and keeps the highest reward f
  assert.equal(selectEventYieldRows(retained,'badges').length,10);
 });
 
-test('result filters intersect levels and song bands, retaining collaboration songs and the input rows',()=>{
+test('result filters intersect difficulties, levels and song bands, retaining collaboration songs and the input rows',()=>{
  const tracks=[{id:'a',bandIds:['1'],bandLabels:['First']},{id:'b',bandIds:['1','2'],bandLabels:['First','Second']},{id:'c',bandIds:['2'],bandLabels:['Second']}];
- const rows=[{song:{trackId:'a',level:25}},{song:{trackId:'b',level:26}},{song:{trackId:'c',level:27}}],before=structuredClone(rows);
- assert.deepEqual(eventResultFilterOptions(rows,tracks),{levels:[25,26,27],bands:[{value:'1',label:'First'},{value:'2',label:'Second'}]});
+ const rows=[{song:{trackId:'a',difficulty:'hard',level:25}},{song:{trackId:'b',difficulty:'expert',level:26}},{song:{trackId:'c',difficulty:'normal',level:27}}],before=structuredClone(rows);
+ assert.deepEqual(eventResultFilterOptions(rows,tracks),{difficulties:['normal','hard','expert'],levels:[25,26,27],bands:[{value:'1',label:'First'},{value:'2',label:'Second'}]});
  assert.deepEqual(filterEventYieldRows(rows,emptyEventResultFilters(),{tracks}),rows);
+ assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),difficulties:['expert']},{tracks}),[rows[1]]);
  assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),levels:[25,26],bands:['2']},{tracks}),[rows[1]]);
  assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),bands:['1','2']},{tracks}),rows);
  assert.deepEqual(filterEventYieldRows(rows,{...emptyEventResultFilters(),levels:[25],bands:['2']},{tracks}),[]);

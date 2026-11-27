@@ -21,6 +21,11 @@ import { compileGekisouEffects } from './gekisou-skill-runtime.mjs';
 export { compileGekisouEffects } from './gekisou-skill-runtime.mjs';
 
 const f32 = Math.fround;
+const defaultSeed = 20260927;
+
+export function gekisouOrderSeed(index, seed = defaultSeed) {
+  return (seed + Math.imul(index + 1, 2654435761)) >>> 0;
+}
 
 export function normalizeGekisouScenario(input = {}) {
   const ranks = input.ranks ?? [1, 1, 1];
@@ -29,7 +34,7 @@ export function normalizeGekisouScenario(input = {}) {
   const timingOffsetMs = input.timingOffsetMs ?? 0;
   requireInteger(timingOffsetMs, 'AP timing offset ms', -50, 50);
   const batches = requireInteger(input.batches ?? 1, 'simulation batches', 1, 32);
-  const seed = requireInteger(input.seed ?? 20260927, 'simulation seed', 0, 0xffffffff);
+  const seed = requireInteger(input.seed ?? defaultSeed, 'simulation seed', 0, 0xffffffff);
   const frameRate = input.frameRate ?? 60;
   const clock = createFrameClock({ frameRate, frames: input.frames });
   const confirmationDelayFrames = input.confirmationDelayFrames ?? [0, 0, 0];
@@ -106,15 +111,17 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
 
   const preparedReplay = prepareGekisouReplay(rules, timeline, ranges, scenario, performanceInput);
 
-  function calculate(draft, { includeTrace = false, includeRankingSamples = false, rankingOnly = false, samplePlan = null } = {}) {
+  function calculate(draft, { includeTrace = false, includeRankingSamples = false, rankingOnly = false, samplePlan = null, singleReplay = null } = {}) {
     if (draft.selectedSongId !== timeline.trackId || draft.selectedDifficulty !== timeline.difficulty) throw new Error('歌曲或难度与谱面不一致');
     if (referenceProfile && draft.modifiers?.event?.id != null) throw new Error('Reference profile cannot use an event');
     const referenceSkills = referenceProfile && Array.from({ length: 5 }, () => ({ liveEffects: [{ type: 2000,
       active: referenceProfile.skillSeconds > 0, rate: referenceProfile.skillPercent / 100, durationMs: referenceProfile.skillSeconds * 1000 }] }));
     const formation = referenceProfile ? { total: { total: referenceProfile.power } } : powerCalculator.calculate(draft);
-    const perfect = referenceSkills || perfectSkills(draft), just = referenceSkills || justSkills(draft);
-    const effects = referenceProfile ? [] : compileGekisouEffects(rules, draft, Boolean(performanceInput), missions);
-    const ordinarySkills = performanceInput || requiresOrdinarySkillReplay(perfect) ? dynamicSkills(draft) : null;
+    const mutedCardId = singleReplay?.mutedCardId;
+    const perfect = referenceSkills || perfectSkills(draft, mutedCardId), just = referenceSkills || justSkills(draft, mutedCardId);
+    const compiled = referenceProfile ? [] : compileGekisouEffects(rules, draft, Boolean(performanceInput), missions);
+    const effects = mutedCardId ? compiled.filter(effect => effect.sourceCardId !== mutedCardId) : compiled;
+    const ordinarySkills = performanceInput || requiresOrdinarySkillReplay(perfect) ? dynamicSkills(draft, mutedCardId) : null;
     const randomSampling = missions.includes(2) || effects.some(e => e.active && e.random);
     // Ordinary skill order changes score commands, not the Gekisou frame
     // machine. Reuse deterministic history across all 120 order sweeps.
@@ -227,6 +234,25 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       if (cacheKey !== null) orderCache.set(cacheKey, result);
       return result;
     }
+    function playback(variants) {
+      return { skills: ordinarySkills ?? perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
+        randomSampling, ranges: ranges.map(({index,missionType,startMs,endMs})=>({index,missionType,startMs,endMs})),
+        luckPointsByResult: [...rules.native.luckPointsByResult],
+        effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex,
+          kind: e.kind, missionType: e.missionType, type: e.definition._skillEffectType, active: e.active,
+          probability: e.probability, effectValue: e.definition._effectValue,
+          conditions: e.conditions })),
+        variants };
+    }
+    if (singleReplay) {
+      const { skillOrder: order } = performanceInput;
+      const seed = requireInteger(singleReplay.seed, 'replay seed', 0, 0xffffffff);
+      const result = run(order, seed, includeTrace);
+      return { score: result.score, noteScore: result.noteScore, rankingBonus: result.rankingBonus,
+        power: formation.total.total, scenario,
+        ...(includeTrace ? { slots: formation.slots,
+          skillPlayback: playback([{ kind: 'explicit', order, seed, ...result }]) } : {}) };
+    }
     const batches = randomSampling ? scenario.batches : 1;
     const samples = [], sectionSums = ranges.map(() => ({ noteScore: 0, rankingBonus: 0, totalScore: 0, ordinaryReferenceScore: 0, combo: 0, currentCombo: 0, maxCombo: 0, just: 0, rawJust: 0, luckPoints: 0, perfectCount: 0, rank: 0 }));
     const rankCounts = ranges.map(()=>[0,0,0,0,0]);
@@ -237,7 +263,7 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
     function* runs() {
       if (rankingOnly && samplePlan) { yield* samplePlan; return; }
       for (let batch = 0; batch < batches; batch++) for (const [index, order] of orders.entries()) {
-        yield { order, seed: (scenario.seed + Math.imul(batch * orders.length + index + 1, 2654435761)) >>> 0 };
+        yield { order, seed: gekisouOrderSeed(batch * orders.length + index, scenario.seed) };
       }
     }
     for (const { order, seed } of runs()) {
@@ -284,15 +310,8 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       chart: { id: timeline.chartId, level: timeline.level, eventCount: timeline.events.length, chartHash: timeline.chartHash,
         difficultyFactor: timeline.difficultyFactor, convertedNoteCount: timeline.convertedNoteCount, masterFullCombo: timeline.masterFullCombo, skillTimes: timeline.skillTimes },
       ...(includeTrace ? { bestSample: bestTrace, bestSampleSeed: best.seed,
-        skillPlayback: { skills: ordinarySkills ?? perfect, justSkills: just, skillTimes: timeline.skillTimes, frameRate: scenario.frameRate,
-          randomSampling, ranges: ranges.map(({index,missionType,startMs,endMs})=>({index,missionType,startMs,endMs})),
-          luckPointsByResult: [...rules.native.luckPointsByResult],
-          effects: effects.map(e => ({ source: e.key, sourceCardId: e.sourceCardId, slotIndex: e.slotIndex,
-            kind: e.kind, missionType: e.missionType, type: e.definition._skillEffectType, active: e.active,
-            probability: e.probability, effectValue: e.definition._effectValue,
-            conditions: e.conditions })),
-          variants: [{ kind: 'best', order: [...best.order], seed: best.seed, ...bestTrace },
-            { kind: 'worst', order: [...worst.order], seed: worst.seed, ...worstTrace }] } } : {}) };
+        skillPlayback: playback([{ kind: 'best', order: [...best.order], seed: best.seed, ...bestTrace },
+            { kind: 'worst', order: [...worst.order], seed: worst.seed, ...worstTrace }]) } : {}) };
   }
 
   // Safe, deliberately loose envelope for the ideal model: released score-up
@@ -308,5 +327,9 @@ export function createGekisouSongCalculator(rules, chart, { scenario: inputScena
       scoreUpFactor: f32(ordinaryFactor + 10 * supportBound + 1), luckScoreFactorPercent: 200,
       convertedNoteCount: timeline.convertedNoteCount, eventBonusFactor: 1, lifeOnusFactor: 1, assistModeNoteScoreFactor: 1, currentLife: 1000 }).score, 0) * (1 + maxRank / 100));
   }
-  return { calculate, calculateRankingSamples: (draft, { samplePlan } = {}) => calculate(draft, { rankingOnly: true, samplePlan }), timeline: { ...timeline, warnings }, scenario, upperBound };
+  function replaySample(draft, { seed, mutedCardId, includeTrace = false }) {
+    if (!performanceInput) throw Error('单次回放需要指定玩家操作');
+    return calculate(draft, { singleReplay: { seed, mutedCardId }, includeTrace });
+  }
+  return { calculate, replaySample, calculateRankingSamples: (draft, { samplePlan } = {}) => calculate(draft, { rankingOnly: true, samplePlan }), timeline: { ...timeline, warnings }, scenario, upperBound };
 }

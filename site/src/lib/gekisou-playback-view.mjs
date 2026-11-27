@@ -108,14 +108,14 @@ export function renderGekisouPlayback(root,result,variant,data,ui,state={}) {
     const log=el('details',null,'gk-event-log');log.append(el('summary',say('查看抽奖时刻与累计点数','Draw times and cumulative points')),el('p',say('累计点数是抽奖时刻的快照；最终追加技能点数以本段任务计数为准。','Totals are snapshots at draw time; the mission count includes the final skill point additions.'),'gk-assumptions'));luck.append(log);
     paginate(log,section.luckEvents,event=>{const row=el('div',null,'gk-log-row');row.append(el('time',seconds(event.timeMs)),el('span',`${event.result===3?'RUSH':say(`${event.result} 档`,`Tier ${event.result}`)} · ${say('累计','Total')} ${fmt(event.bonusPoints)} pt${event.rushCombo?` · RUSH ×${event.rushCombo}`:''}`));return row;});parent.append(luck);
   }
-  for(const section of sections){const card=button(null,'gk-section-card',()=>{selectSection(section);ui.onSeek?.(section.startMs);});card.dataset.section=section.index;card.dataset.mission=section.missionType;card.setAttribute('aria-label',say(`第 ${section.index} 段 ${mission[section.missionType]}`,`Section ${section.index} ${mission[section.missionType]}`));
+  for(const section of sections){const card=button(null,'gk-section-card',()=>{selectSection(section);ui.onSeek?.(section.endMs);});card.dataset.section=section.index;card.dataset.mission=section.missionType;card.setAttribute('aria-label',say(`第 ${section.index} 段 ${mission[section.missionType]}`,`Section ${section.index} ${mission[section.missionType]}`));
     const head=el('span',null,'gk-card-heading');head.append(el('b',String(section.index).padStart(2,'0')),el('strong',mission[section.missionType]),el('span',`#${section.rank}`));
     card.append(head,el('small',`${seconds(section.startMs)} — ${seconds(section.endMs)}`),el('strong',`+${fmt(section.rankingBonus)}`,'gk-card-reward'),el('span',say('名次奖励','Rank reward')));cards.append(card);}
   if(sections.length)selectSection(sections.find(s=>s.index===state.sectionIndex)??sections[0]);
   return {seek(time,{follow=true}={}){
     const active=sections.find(s=>s.startMs<=time&&time<s.endMs);
     if(follow&&active&&active.index!==state.sectionIndex)selectSection(active);
-    for(const card of cards.children){const s=sections.find(s=>s.index===Number(card.dataset.section));card.dataset.playing=String(s===active);card.dataset.settled=String(time>=s.endMs);card.querySelector('.gk-card-reward').textContent=time>=s.endMs?`+${fmt(s.rankingBonus)}`:say('待结算','Pending');}
+    for(const card of cards.children){const s=sections.find(s=>s.index===Number(card.dataset.section));card.dataset.playing=String(s===active);card.dataset.settled=String(time>=s.endMs);card.querySelector('.gk-card-reward').textContent=`+${fmt(s.rankingBonus)}`;}
     const activeEffects=replayTracks.flatMap(track=>track.windows.filter(w=>w.startMs<=time&&time<w.endMs).map(window=>({effect:track.effect,window})));
     const section=sections.find(s=>s.index===state.sectionIndex);if(!section)return {activeEffects};
     const scored=(variant.notes??[]).filter(n=>n.scoreSectionIndex===section.index&&n.timeMs<=time),notes=(variant.notes??[]).filter(n=>n.scoreSectionIndex===section.index);

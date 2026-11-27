@@ -234,6 +234,7 @@
 .ui-select {
   appearance: none;
   -webkit-appearance: none;
+  -moz-appearance: none;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -256,6 +257,10 @@
   box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-shadow-color) 4%, transparent);
   cursor: pointer;
   transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.ui-select::picker-icon {
+  display: none;
 }
 
 .ui-select:hover:not(:disabled) {

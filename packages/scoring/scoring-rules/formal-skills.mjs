@@ -86,7 +86,7 @@ export function createFormalSkillResolver(rules, { judgement = 5, dynamic = fals
     if (row._effectExecuteLimitCount && !startup) fail('_effectExecuteLimitCount');
     return { ...(release ? { release } : {}), ...(cumulative ? { cumulative } : {}), ...(startup ? { startup: true, executeLimit: 1 } : {}) };
   }
-  return function resolve(draft) {
+  return function resolve(draft, mutedCardId = null) {
     return draft.slots.map((slot, slotIndex) => {
       const member = calculator.card(slot.memberCardId, "member");
       const support = calculator.card(slot.supportCardId, "support");
@@ -96,7 +96,7 @@ export function createFormalSkillResolver(rules, { judgement = 5, dynamic = fals
       const supportRank = requireInteger(growth[slot.supportCardId]?.rank ?? 1, "support rank", 1, 5);
       const rank = t.SupportCardRank.find((r) => r._group === support._supportCardRankGroup && r._rank === supportRank);
       if (!rank) throw new Error("Missing support rank");
-      const supportEffects = [1, 2].flatMap((i) => effects("SupportSkillEffect", "_supportSkillID",
+      const supportEffects = slot.supportCardId === mutedCardId ? [] : [1, 2].flatMap((i) => effects("SupportSkillEffect", "_supportSkillID",
         support[`_supportSkillId0${i}`], rank[`_supportSkill0${i}Level`]));
       let extensionMs = 0;
       const supportTrace = supportEffects.map((r) => {
@@ -117,7 +117,8 @@ export function createFormalSkillResolver(rules, { judgement = 5, dynamic = fals
             contribution: r._skillEffectType === 15000 ? 'duration_ms' : r._skillEffectType === 3001 ? 'life_recovery' : 'judgement_conversion' } : {
             contribution: r._skillEffectType === 15000 ? "duration_ms" : "no_score_change_at_full_life_all_perfect" }) };
       });
-      const liveEffects = effects("LiveSkillEffect", "_liveSkillID", member._liveSkillID, memberLevel).map((r) => {
+      const memberEffects = effects("LiveSkillEffect", "_liveSkillID", member._liveSkillID, slot.memberCardId === mutedCardId ? 0 : memberLevel);
+      const liveEffects = memberEffects.map((r) => {
         const program = mechanism(r, 'member');
         if (![2000, 2004].includes(r._skillEffectType) || r._effectLimitCount) throw new UnsupportedSkillMechanismError(`Unsupported live effect ${r._id}`);
         let judgementMatches = true;

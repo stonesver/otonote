@@ -3,7 +3,7 @@ const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!=null)n
 const fmt=n=>Number.isFinite(n)?n.toLocaleString('zh-CN',{maximumFractionDigits:1}):'—';
 const grades=['D','C','B','A','S','SS'];
 const rank=n=>grades[n-2]??'—';
-export function eventSongHeading(data,song,{label='',grade,basis,plays}={}) {
+export function eventSongHeading(data,song,{label='',grade,basis,plays,scoreText='',seconds}={}){
  const track=data.tracks?.find(track=>track.id===song.trackId),root=el('header',null,'event-result-song');
  if(track?.jacketUrl){const art=el('img',null,'event-song-cover');art.src=track.jacketUrl;art.alt='';art.loading='lazy';root.append(art);}
  const copy=el('div',null,'event-song-copy'),title=el('h4',song.title??track?.title??song.trackId),meta=el('div',null,'event-song-meta');
@@ -11,12 +11,24 @@ export function eventSongHeading(data,song,{label='',grade,basis,plays}={}) {
  const difficulty=el('span',`${song.difficulty?.toUpperCase()??'—'}${song.level!=null?' · '+song.level:''}`,'event-difficulty');difficulty.dataset.difficulty=song.difficulty;meta.append(difficulty);
  if(grade)meta.append(el('span',`${grade} 档${basis?' · '+basis:''}`,'event-song-grade'));
  for(const band of track?.bandVisuals??[]){if(!band.icon)continue;const icon=el('img',null,'event-song-band');icon.src=band.icon;icon.alt=band.label;icon.title=band.label;meta.append(icon);}
- if(plays!=null)meta.append(el('span',`${plays} 次`));
+ if(scoreText)meta.append(el('span',scoreText,'event-song-fact'));
+ const dur=seconds??song.seconds;
+ if(dur!=null)meta.append(el('span',`${fmt(dur)} 秒`,'event-song-fact'));
+ if(plays!=null)meta.append(el('span',`${plays} 次`,'event-song-fact'));
  copy.append(title,meta);root.append(copy);return root;
 }
 export function eventMetricList(entries,cls=''){
  const list=el('dl',null,`event-metric-list ${cls}`);
  for(const [label,value] of entries){const cell=el('div');cell.append(el('dt',label),el('dd',value));list.append(cell);}return list;
+}
+export function eventTeamStats(row){
+ if(!row||row.power==null&&!row.bonuses)return null;
+ const entries=[];
+ if(row.power!=null)entries.push(['综合力',fmt(row.power)]);
+ if(row.bonuses){
+  entries.push(['道具加成',`+${fmt(row.bonuses.rewardBP/100)}%`],['活动 pt 加成',`+${fmt(row.bonuses.eventPointBP/100)}%`]);
+ }
+ return entries.length?eventMetricList(entries,'event-team-stats'):null;
 }
 export function eventPerformanceFacts(row){
  const range=row.minimumRank===row.maximumRank?rank(row.minimumRank):`${rank(row.minimumRank)}–${rank(row.maximumRank)}`;
@@ -33,7 +45,10 @@ const summaryChip=(label,value,tone)=>{const chip=el('span',null,'event-summary-
 export function eventPlanHeading(data,row,{label='',plays,referenceCache}={}){
  const {target,threshold,minimum,margin,lowest,stable}=gradeFacts(row,data.rules);
  const basis=row.scoreBasis==='minimumScore'?'稳定刷取':row.scoreBasis==='maximumScore'?'最高分判档':'平均分判档';
- const heading=eventSongHeading(data,row.song,{label,plays,grade:rank(target),basis});heading.className+=' event-plan-heading';
+ const scoreBasisLabel=row.scoreBasis==='minimumScore'?'最低分':row.scoreBasis==='maximumScore'?'最高分':'平均分';
+ const range=row.minimumRank!=null&&row.maximumRank!=null&&row.minimumRank!==row.maximumRank?`（${rank(row.minimumRank)}–${rank(row.maximumRank)}）`:'';
+ const scoreText=Number.isFinite(row.estimatedScore)?`${row.performanceScenario?'预计':'AP'} ${scoreBasisLabel} ${fmt(row.estimatedScore)}${range}`:'';
+ const heading=eventSongHeading(data,row.song,{label,plays,grade:rank(target),basis,scoreText,seconds:row.song?.seconds});heading.className+=' event-plan-heading';
  const summary=el('div',null,'event-plan-summary');summary.setAttribute('aria-label','奖励档位与稳定性摘要');
  const share=Math.abs(margin)/(stable?minimum:threshold)*100;
  const value=lowest?'D 档':share>0&&share<.1?'不足 0.1%':`${stable?'+':'−'}${fmt(share)}%`;
@@ -90,7 +105,9 @@ export function eventGradeRisk(row,rules){
  return root;
 }
 export function eventYieldBreakdown(row){
- const detail=el('details',null,'event-plan-details');detail.append(el('summary','收益明细'));
+ const detail=el('details',null,'event-plan-details event-yield-popover'),toggle=el('summary','收益明细');
+ detail.append(toggle);
+ const bodyWrap=el('div',null,'event-yield-popover-body');
  const table=el('table',null,'event-yield-table'),head=el('thead'),heading=el('tr');
  for(const label of ['阶段','次数','道具','活动 pt'])heading.append(el('th',label));head.append(heading);table.append(head);
  const body=el('tbody'),line=(label,plays,badges,points)=>{const tr=el('tr');tr.append(el('th',label),el('td',plays),el('td',fmt(badges)),el('td',fmt(points)));body.append(tr);};
@@ -100,18 +117,25 @@ export function eventYieldBreakdown(row){
    if(row.continuation)line('挑战',row.continuation.plays,row.continuation.badges,row.continuation.eventPoints);
    line('合计',row.normalPlays+(row.continuation?.plays??0),row.total.badges,row.total.eventPoints);
  }
- table.append(body);detail.append(table,eventPerformanceFacts(row));
+ table.append(body);bodyWrap.append(table);
  const ordinary=row.reward.mode==='ordinary',cost=ordinary?row.spentFire:row.reward.challengeCost;
  const entries=ordinary?[
    ['单次挑战 pt',fmt(row.reward.challengePoints)],['新获挑战 pt',fmt(row.earnedCP)],['已有挑战 pt',fmt(row.startingCP??0)],
-   ['剩余挑战 pt',fmt(row.continuation?.remainingCP??(row.earnedCP+(row.startingCP??0)))],['剩余火',fmt(row.remainingFire)]
- ]:[['消耗挑战 pt',fmt(cost)]];
- entries.push([ordinary?(row.startingCP?'预算比值 · 道具 / 火':'道具 / 火'):'道具 / 挑战 pt',fmt(cost>0?row.total.badges/cost:null)],[ordinary?(row.startingCP?'预算比值 · pt / 火':'活动 pt / 火'):'活动 pt / 挑战 pt',fmt(cost>0?row.total.eventPoints/cost:null)]);
- if(row.song.seconds!=null)entries.push(['歌曲时长',`${fmt(row.song.seconds)} 秒`]);
- detail.append(eventMetricList(entries));return detail;
+   ['剩余挑战 pt',fmt(row.continuation?.remainingCP??(row.earnedCP+(row.startingCP??0)))],['剩余火',fmt(row.remainingFire)],
+   [row.startingCP?'预算比值 · 道具 / 火':'道具 / 火',fmt(cost>0?row.total.badges/cost:null)],
+   [row.startingCP?'预算比值 · pt / 火':'活动 pt / 火',fmt(cost>0?row.total.eventPoints/cost:null)]
+ ]:[
+   ['消耗挑战 pt',fmt(cost)],
+   ['道具 / 挑战 pt',fmt(cost>0?row.total.badges/cost:null)],
+   ['活动 pt / 挑战 pt',fmt(cost>0?row.total.eventPoints/cost:null)]
+ ];
+ bodyWrap.append(eventMetricList(entries));
+ detail.append(bodyWrap);
+ detail.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();detail.open=false;toggle.focus();}});
+ return detail;
 }
 export function eventChallengeBreakdown(stage){
  const root=el('section',null,'event-challenge-yield');root.setAttribute('aria-label','挑战收益');
  root.append(eventMetricList([['消耗 / 次',`${fmt(stage.cost)} pt`],['道具 / 次',fmt(stage.reward.badges)],['活动 pt / 次',fmt(stage.reward.eventPoints)],['挑战次数',fmt(stage.plays)]],'event-challenge-metrics'));
- const details=el('details',null,'event-plan-details');details.append(el('summary','挑战收益明细'),eventPerformanceFacts(stage.row));root.append(details);return root;
+ return root;
 }

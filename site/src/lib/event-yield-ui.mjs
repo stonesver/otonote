@@ -96,11 +96,12 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
    const next=JSON.stringify([displayFilters,displayGoal,page,Boolean(worker),resultKey(result)]);
    if(next===renderKey)return;renderKey=next;
    const view=[],nextArticles=new Map(),focusedPlan=document.activeElement?.dataset?.yieldPlanKey,focusedFilter=document.activeElement?.dataset?.yieldResultFilter;
-   if(q('rewards')?.checked&&tool.q('pool').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value)}按获取后队伍比较，未扣兑换成本。`,'task-event-reward-result-note'));
-   if(tool.q('pool').value==='reference')view.push(el('p','当前阶段使用全卡库满养成参考；账号加成沿用页面设置，不代表实际持有。','event-hint'));
-   const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
-   const challengeBandNote=eventYieldChallengeBandNote(context(),cardBands);if(challengeBandNote)view.push(el('p',challengeBandNote,'event-hint'));
-   if(result.calculationScopes){view.push(el('p',scopeSummary(result.calculationScopes.main)));if(result.calculationScopes.challenge)view.push(el('p','后续挑战 · '+scopeSummary(result.calculationScopes.challenge)));}
+   const scopeNotes=[];
+   if(q('rewards')?.checked&&tool.q('pool').value!=='reference')scopeNotes.push(`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value)}按获取后队伍比较，未扣兑换成本。`);
+   if(tool.q('pool').value==='reference')scopeNotes.push('当前阶段使用全卡库满养成参考；账号加成沿用页面设置，不代表实际持有。');
+   const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)scopeNotes.push(cardBands);
+   const challengeBandNote=eventYieldChallengeBandNote(context(),cardBands);if(challengeBandNote)scopeNotes.push(challengeBandNote);
+   if(result.calculationScopes){scopeNotes.push(scopeSummary(result.calculationScopes.main));if(result.calculationScopes.challenge)scopeNotes.push('后续挑战 · '+scopeSummary(result.calculationScopes.challenge));}
    const completion=eventYieldCompletionText(result),filtering=activeEventResultFilters(displayFilters);
    const boundary=el('span',worker?'计算中 · 方案仍在更新':result.failures.length?'部分谱面失败，结果不完整':completion.individual?`逐曲收益已验证 · ${filtering?'筛选展示':'全部歌曲方案'}`:completion.proven?'所选条件下收益第一 · 备选供参考':'当前推荐 · 尚未证明收益第一','event-result-boundary');
    const target=q('goal').value==='both'?displayGoal:q('goal').value,eligible=result.rows.filter(row=>!row.recommendationGoals||row.recommendationGoals.includes(target));
@@ -114,44 +115,83 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      }
      challengePlannerKey=challengeSignature;
    }
-   const ordered=orderEventYieldRows(filterEventYieldRows(eligible,displayFilters,{tracks:tool.data.tracks,goal:target}),target),{reference,gap}=eventYieldGaps(eligible,target),pageCount=Math.max(1,Math.ceil(ordered.length/8));page=Math.min(page,pageCount-1);
+   const ordered=orderEventYieldRows(filterEventYieldRows(eligible,displayFilters,{tracks:tool.data.tracks,goal:target}),target),{reference,gap}=eventYieldGaps(eligible,target);
    const changeFilters=filters=>{displayFilters=filters;page=0;selectedPlan=null;render();};
    const alternatives=el('details',null,'event-alternatives'),comparisonHeading=el('summary');comparisonHeading.append(el('span',`比较方案 · ${ordered.length} 套`),boundary);alternatives.append(comparisonHeading);alternatives.open=ordered.length>1||Boolean(filtering);
    view.push(alternatives);
    const toolbar=el('div',null,'task-event-plan-sort');
    if(q('goal').value==='both'){const goals=el('div',null,'task-event-result-tabs task-event-goal-tabs');goals.setAttribute('role','group');goals.setAttribute('aria-label','收益优先候选');for(const [goal,name] of [['badges','道具优先'],['eventPoints','pt 优先']]){const button=el('button',name);button.type='button';button.setAttribute('aria-pressed',String(target===goal));button.addEventListener('click',()=>{displayGoal=goal;page=0;selectedPlan=null;render();});goals.append(button);}toolbar.append(goals);}
    const controls=eventResultFilterControls({rows:eligible,tracks:tool.data.tracks,filters:displayFilters,open:filtersOpen,onOpen:open=>{filtersOpen=open;if(open)mountEventBandIcons(q('results'),bandIcons);},onChange:changeFilters});
-   const count=el('small');toolbar.append(controls.trigger,count);alternatives.append(toolbar,controls.panel);
-   const baseline=el('div',null,'task-event-plan-baseline'),identity=el('div',null,'task-event-baseline-name');identity.append(el('small','比较基准'),el('strong',reference?.song.title??'—'),el('span',reference?.song.difficulty.toUpperCase()??'—','task-event-chart-label'));baseline.append(identity);
-   const totals=el('div',null,'task-event-baseline-totals');for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){const metric=el('span');metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));totals.append(metric);}baseline.append(totals);const comparisonNotes=el('details',null,'event-comparison-notes');comparisonNotes.append(el('summary','比较基准'),baseline);toolbar.append(comparisonNotes);
-   comparisonNotes.append(el('p',`${worker?'计算中实时更新领先方案，最终排名以完成结果为准。':''}${completion.individual?'逐曲比较':'展示当前候选'}：${EVENT_YIELD_GOAL_LABELS[target]}，两项收益相同时优先短曲；差值均与本次搜索的收益第一比较，含当前预算${context().includeChallenge?'与后续挑战':''}，筛选不改变比较基准。`,'event-hint task-event-gap-note'));
+   const count=el('small');toolbar.append(controls.trigger,count);
+   if(scopeNotes.length){
+     const scopeTip=el('details',null,'ui-tip-disclosure ui-tip-disclosure--icon-only event-scope-tip');
+     const tipSum=el('summary');tipSum.setAttribute('aria-label','计算范围与条件说明');tipSum.title='计算范围与条件说明';
+     if(typeof document.createElementNS==='function'){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','14');svg.setAttribute('height','14');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','2');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx','12');c.setAttribute('cy','12');c.setAttribute('r','9');const p1=document.createElementNS('http://www.w3.org/2000/svg','path');p1.setAttribute('d','M12 16v-4');const p2=document.createElementNS('http://www.w3.org/2000/svg','path');p2.setAttribute('d','M12 8h.01');svg.append(c,p1,p2);tipSum.append(svg);}else tipSum.textContent='i';
+     const tipBody=el('div',null,'ui-tip-body');for(const text of scopeNotes)tipBody.append(el('p',text));
+     scopeTip.append(tipSum,tipBody);toolbar.append(scopeTip);
+   }
+   alternatives.append(toolbar,controls.panel);
+   const baselineTip=el('details',null,'ui-tip-disclosure ui-tip-disclosure--icon-only event-baseline-tip');
+   const baselineSum=el('summary');baselineSum.setAttribute('aria-label','比较基准');baselineSum.title='比较基准';
+   if(typeof document.createElementNS==='function'){
+     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width','14');svg.setAttribute('height','14');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','2');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');
+     const c1=document.createElementNS('http://www.w3.org/2000/svg','circle');c1.setAttribute('cx','12');c1.setAttribute('cy','12');c1.setAttribute('r','8');
+     const c2=document.createElementNS('http://www.w3.org/2000/svg','circle');c2.setAttribute('cx','12');c2.setAttribute('cy','12');c2.setAttribute('r','3');
+     svg.append(c1,c2);baselineSum.append(svg);
+   }else baselineSum.textContent='基准';
+   const baselineBody=el('div',null,'ui-tip-body event-baseline-body');
+   const baselineHead=el('div',null,'event-baseline-head');
+   const baselineDiff=el('span',reference?.song.difficulty.toUpperCase()??'—','task-event-chart-label');
+   if(reference?.song.difficulty)baselineDiff.dataset.difficulty=reference.song.difficulty;
+   baselineHead.append(el('small','比较基准'),el('strong',reference?.song.title??'—'),baselineDiff);
+   const baselineMetrics=el('div',null,'event-baseline-metrics');
+   for(const [field,label] of [['badges','道具'],['eventPoints','pt']]){
+     const metric=el('span',null,'task-event-baseline-metric');
+     metric.append(el('small',label),el('b',fmt(reference?.total[field]??0)));
+     baselineMetrics.append(metric);
+   }
+   baselineBody.append(baselineHead,baselineMetrics,el('p',`${EVENT_YIELD_GOAL_LABELS[target]}，同收益优先短曲；差值相对本次收益第一，筛选不改基准。`));
+   baselineTip.append(baselineSum,baselineBody);
+   toolbar.append(baselineTip);
    const tabs=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','收益方案');alternatives.append(tabs);
-   count.hidden=ordered.length<=8&&!filtering;count.textContent=filtering?`${ordered.length} / ${eligible.length} 套`:ordered.length?`${page*8+1}–${Math.min(ordered.length,page*8+8)} / ${ordered.length} 套`:'0 套';
-   if(!ordered.length){const empty=el('div',null,'event-results-empty'),clear=el('button','清除筛选');clear.type='button';clear.addEventListener('click',()=>changeFilters(emptyEventResultFilters()));empty.append(el('p','没有符合筛选条件的方案。'),clear);alternatives.append(empty);}
-   const visible=ordered.slice(page*8,page*8+8),selected=visible.find(r=>r.id===selectedPlan?.id&&r.song.id===selectedPlan?.song)??visible.find(r=>r.song.id===selectedPlan?.song)??visible[0];
+   count.hidden=!filtering;count.textContent=filtering?`${ordered.length} / ${eligible.length}`:'';
+   if(!ordered.length){const empty=el('div',null,'event-results-empty'),clear=el('button','清除筛选','ui-btn-soft');clear.type='button';clear.addEventListener('click',()=>changeFilters(emptyEventResultFilters()));empty.append(el('p','没有符合筛选条件的方案。'),clear);alternatives.append(empty);}
+   const shortDiff={easy:'EZ',normal:'NM',hard:'HD',expert:'EX'};
+   const visible=ordered,selected=visible.find(r=>r.id===selectedPlan?.id&&r.song.id===selectedPlan?.song)??visible.find(r=>r.song.id===selectedPlan?.song)??visible[0];
    for(const row of visible){
      const signature=JSON.stringify([{...row,search:undefined},challengeSignature]),cached=articleCache.get(row.id+'|'+row.song.id),reuse=cached?.signature===signature;
      const article=reuse?cached.article:el('article',null,'challenge-opt-result task-event-plan-result');article.hidden=row!==selected;
      if(!reuse)article.className+=' task-event-plan-enter';
      nextArticles.set(row.id+'|'+row.song.id,{signature,article});
      const differenceLabel=gap(row);
-     const tab=el('button',null,'task-event-plan-choice'),title=el('span',row.song.title,'task-event-choice-title'),meta=el('span',null,'task-event-choice-meta');meta.append(el('small',row.song.difficulty.toUpperCase(),'task-event-chart-label'),el('small',row.song.seconds==null?'时长未知':`${fmt(row.song.seconds)} 秒`));tab.append(title,meta);tab.dataset.yieldPlanKey=row.id+'|'+row.song.id;tab.title=row.song.title+' · '+row.song.difficulty.toUpperCase();tab.type='button';tab.setAttribute('aria-pressed',String(row===selected));tab.addEventListener('click',()=>{selectedPlan={id:row.id,song:row.song.id};for(const n of q('results').querySelectorAll('.task-event-plan-result'))n.hidden=n!==article;for(const b of tabs.children)b.setAttribute('aria-pressed',String(b===tab));syncReferences();article.scrollIntoView({block:'start',behavior:'instant'});});tabs.append(tab);
+     const tab=el('button',null,'task-event-plan-choice'),title=el('span',row.song.title,'task-event-choice-title'),meta=el('span',null,'task-event-choice-meta');const diffTag=el('small',shortDiff[row.song.difficulty]??row.song.difficulty.toUpperCase(),'task-event-chart-label');if(row.song.difficulty)diffTag.dataset.difficulty=row.song.difficulty;meta.append(diffTag,el('small',row.song.seconds==null?'—':`${fmt(row.song.seconds)}s`));tab.append(title,meta);tab.dataset.yieldPlanKey=row.id+'|'+row.song.id;tab.title=row.song.title+' · '+row.song.difficulty.toUpperCase();tab.type='button';tab.setAttribute('aria-pressed',String(row===selected));tab.addEventListener('click',()=>{selectedPlan={id:row.id,song:row.song.id};for(const n of q('results').querySelectorAll('.task-event-plan-result'))n.hidden=n!==article;for(const b of tabs.children)b.setAttribute('aria-pressed',String(b===tab));syncReferences();article.scrollIntoView({block:'start',behavior:'instant'});});tabs.append(tab);
      const gapRow=el('span',null,'task-event-choice-gap');for(const [key,label] of [['badges','道具'],['eventPoints','pt']]){const value=differenceLabel[key],cell=el('span');cell.dataset.gap=value===0?'equal':value>0?'less':'more';cell.append(el('small',label),el('b',value===0?'持平':`${value>0?'−':'+'}${fmt(Math.abs(value))}`));gapRow.append(cell);}tab.append(gapRow);
      if(reuse){for(const [index,node] of article.querySelectorAll('.task-event-yield-gap').entries()){const value=gap(row)[['badges','eventPoints'][index]];const text=`比收益第一${gapText(value)}`;if(node.textContent!==text)node.textContent=text;node.hidden=value===0;}}
      if(!reuse){
      const differences=gap(row),metrics=el('div',null,'task-event-total-grid');for(const [key,label] of [['badges','道具总收益'],['eventPoints','活动 pt 总收益']]){const cell=el('div');cell.append(el('small',`${row.continuation?'默认推荐 · ':''}${label}`),el('strong',fmt(row.total[key])),el('small',`比收益第一${gapText(differences[key])}`,'task-event-yield-gap'));cell.children[2].hidden=differences[key]===0;metrics.append(cell);}article.append(metrics);
-     metrics.append(el('p',row.reward.mode==='ordinary'?`${row.spentFire} 火 · ${row.normalPlays} 次普通${row.continuation?' · '+row.continuation.plays+' 次挑战':''}`:`每次 ${row.reward.challengeCost} 挑战 pt`,'event-plan-facts'));
-     article.append(eventYieldBreakdown(row));
+     const ordinary=row.reward.mode==='ordinary',cost=ordinary?row.spentFire:row.reward.challengeCost;
+     const eventName=tool.q('event')?.selectedOptions?.[0]?.textContent?.trim()||'';
+     const perUnit=cost>0?`${ordinary?'每火道具':'道具 / 挑战 pt'} ${fmt(row.total.badges/cost)}`:'';
+     const factsParts=[eventName,ordinary?`${row.spentFire} 火 · ${row.normalPlays} 次普通${row.continuation?' · '+row.continuation.plays+' 次挑战':''}`:`每次 ${row.reward.challengeCost} 挑战 pt`,perUnit].filter(Boolean);
+     const factsBar=el('div',null,'event-plan-facts-bar');
+     factsBar.append(el('p',factsParts.join(' · '),'event-plan-facts'),eventYieldBreakdown(row));
+     metrics.append(factsBar);
      const ordinaryPanel=el('section',null,'event-stage-panel');
      ordinaryPanel.append(eventPlanHeading(tool.data,row,{label:row.reward.mode==='ordinary'?'普通演出':'挑战演出',referenceCache}),eventTeamDetails(tool,row));
-     const apply=el('button',row.reward.mode==='challenge'?'使用挑战方案':'使用普通方案');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));const actions=el('div',null,'event-result-actions');actions.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));ordinaryPanel.append(actions);
+     const apply=el('button',row.reward.mode==='challenge'?'使用挑战方案':'使用普通方案','ui-btn-soft');apply.type='button';apply.addEventListener('click',()=>applyEventPlan(tool,row,row.reward.mode));const actions=el('div',null,'event-result-actions');actions.append(apply,eventTeamSaveButton(row.draft,`${row.song.title} · 收益队伍`));ordinaryPanel.append(actions);
      if(row.continuation){
        const section=el('section',null,'event-recommendations event-stage-panel');
-       const songTabs=el('div',null,'task-event-result-tabs task-event-challenge-song-tabs'),stageArea=el('div');
+       const switcherBar=el('div',null,'event-challenge-song-switcher');
+       const songTabs=el('div',null,'task-event-challenge-song-tabs'),stageArea=el('div');
        songTabs.setAttribute('role','group');songTabs.setAttribute('aria-label','后续挑战歌曲');
-       const options=[{id:'default',label:'默认推荐',plan:()=>row.continuation},...challengePlanners.map(({song,plan})=>({id:song.id,label:`${song.title} · ${song.difficulty.toUpperCase()}`,plan:()=>plan(row.startingCP+row.earnedCP)}))];
+       const defaultSongs=[...new Set((row.continuation.stages??[]).map(s=>`${s.row.song.title} · ${s.row.song.difficulty.toUpperCase()}`))];
+       const options=[
+         {id:'default',title:'默认推荐',difficulty:null,subtitle:defaultSongs.join(' / '),label:'默认推荐',plan:()=>row.continuation},
+         ...challengePlanners.map(({song,plan})=>({id:song.id,title:song.title,difficulty:song.difficulty,subtitle:`${song.title} · ${song.difficulty.toUpperCase()}`,label:`${song.title} · ${song.difficulty.toUpperCase()}`,plan:()=>plan(row.startingCP+row.earnedCP)}))
+       ];
        if(challengePlanners.length){
-         section.append(el('p','固定当前普通曲及队伍，比较改打各首挑战曲的完整续打收益。上方总收益与方案排序按默认推荐。','event-hint'),songTabs);
+         switcherBar.append(el('span','切换挑战曲','event-challenge-switcher-label'),songTabs);
+         section.append(switcherBar);
        }
        section.append(stageArea);
        const priorSong=cached?.article.querySelector?.('[data-yield-challenge-song][aria-pressed="true"]')?.dataset.yieldChallengeSong;
@@ -161,24 +201,34 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
          const continuation=option.plan();stageArea.replaceChildren();
          for(const button of songTabs.children)button.setAttribute('aria-pressed',String(button.dataset.yieldChallengeSong===option.id));
          if(challengePlanners.length){
-           const totals=el('div',null,'task-event-total-grid');
+           const totals=el('div',null,'task-event-total-grid event-challenge-totals');
            for(const [field,label] of [['badges','道具总收益'],['eventPoints','活动 pt 总收益']]){
-             const cell=el('div');cell.append(el('small',label+'（含普通）'),el('strong',fmt(row.total[field]-row.continuation[field]+continuation[field])),el('small',`比默认推荐${gapText(row.continuation[field]-continuation[field])}`));totals.append(cell);
+             const delta=row.continuation[field]-continuation[field];
+             const cell=el('div'),deltaNode=el('small',`比默认推荐${gapText(delta)}`,'task-event-yield-gap');
+             deltaNode.hidden=delta===0;
+             cell.append(el('small',label+'（含普通）'),el('strong',fmt(row.total[field]-row.continuation[field]+continuation[field])),deltaNode);totals.append(cell);
            }
-           stageArea.append(totals,el('p',`${fmt(row.startingCP+row.earnedCP)} 挑战 pt · ${continuation.plays} 次挑战 · 剩余 ${fmt(continuation.remainingCP)} pt`,'event-plan-facts'));
+           totals.append(el('p',`${fmt(row.startingCP+row.earnedCP)} 挑战 pt · ${continuation.plays} 次 · 余 ${fmt(continuation.remainingCP)} pt`,'event-plan-facts'));
+           stageArea.append(totals);
          }
          if(!continuation.stages.length)stageArea.append(el('p','挑战 pt 尚不足一次挑战；保留余额，本次不计入挑战收益。'));
-         const stageTabs=el('div',null,'task-event-result-tabs');stageTabs.setAttribute('role','group');stageTabs.setAttribute('aria-label','后续挑战消耗方案');stageArea.append(stageTabs);
+         const stageTabs=el('div',null,'task-event-stage-cost-tabs');stageTabs.setAttribute('role','group');stageTabs.setAttribute('aria-label','后续挑战消耗方案');stageArea.append(stageTabs);
          const activeCost=continuation.stages.some(stage=>String(stage.cost)===cost)?cost:String(continuation.stages[0]?.cost),stagePanels=[];
          for(const stage of continuation.stages){
            const panel=el('section');panel.hidden=String(stage.cost)!==activeCost;stagePanels.push(panel);
            const stageTab=el('button',`${stage.cost} pt × ${stage.plays} 次`);stageTab.type='button';stageTab.dataset.yieldStageCost=String(stage.cost);stageTab.setAttribute('aria-pressed',String(String(stage.cost)===activeCost));stageTab.addEventListener('click',()=>{for(const n of stagePanels)n.hidden=n!==panel;for(const b of stageTabs.children)b.setAttribute('aria-pressed',String(b===stageTab));selectedPlan={id:row.id,song:row.song.id};syncReferences();});stageTabs.append(stageTab);
            const r=stage.row;
            panel.append(eventPlanHeading(tool.data,r,{label:'挑战演出',plays:stage.plays,referenceCache}),eventChallengeBreakdown(stage),eventTeamDetails(tool,r));
-           const use=el('button','使用挑战方案');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});const stageActions=el('div',null,'event-result-actions');stageActions.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));panel.append(stageActions);stageArea.append(panel);
+           const use=el('button','使用挑战方案','ui-btn-soft');use.type='button';use.addEventListener('click',()=>{tool.q('cost').value=String(stage.cost);applyEventPlan(tool,r,'challenge');});const stageActions=el('div',null,'event-result-actions');stageActions.append(use,eventTeamSaveButton(r.draft,`${r.song.title} · 后续挑战`));panel.append(stageActions);stageArea.append(panel);
          }
        };
-       for(const option of options){const button=el('button',option.label);button.type='button';button.dataset.yieldChallengeSong=option.id;button.addEventListener('click',()=>{showSong(option);selectedPlan={id:row.id,song:row.song.id};syncReferences();});songTabs.append(button);}
+       for(const option of options){
+         const button=el('button',null,'event-challenge-song-pill');button.type='button';button.dataset.yieldChallengeSong=option.id;button.title=option.label;
+         button.append(el('span',option.title,'event-challenge-song-name'));
+         if(option.difficulty){const d=el('span',option.difficulty.toUpperCase(),'task-event-chart-label');d.dataset.difficulty=option.difficulty;button.append(d);}
+         button.addEventListener('click',()=>{showSong(option);selectedPlan={id:row.id,song:row.song.id};syncReferences();});
+         songTabs.append(button);
+       }
        showSong(options.find(option=>option.id===activeSong),priorCost);
        const phases=el('div',null,'event-phase-tabs');phases.setAttribute('role','tablist');phases.setAttribute('aria-label','演出阶段');
        const phaseEntries=[['ordinary','普通演出',ordinaryPanel],['challenge','后续挑战',section]],phaseButtons=[];
@@ -193,7 +243,6 @@ export function setupEventYieldOptimizer(tool,{createScopeControls=setupEventSco
      }
      view.push(article);
    }
-   if(pageCount>1){const pager=el('div',null,'task-event-plan-sort'),prev=el('button','上一页方案'),nextPage=el('button','下一页方案');prev.type=nextPage.type='button';prev.disabled=page===0;nextPage.disabled=page===pageCount-1;prev.addEventListener('click',()=>{page--;selectedPlan=null;render();});nextPage.addEventListener('click',()=>{page++;selectedPlan=null;render();});pager.append(prev,el('small',`${page+1} / ${pageCount}`),nextPage);alternatives.append(pager);}
    if(result.failures.length){const d=el('details',null,'event-details');d.append(el('summary',`${result.failures.length} 张谱面失败，已排除，结果不完整`));for(const f of result.failures)d.append(el('p',`${f.title}：${f.message}`));view.push(d);}
    // Keep unchanged controls (including keyboard focus) and team subtrees mounted.
    const nextView=new Map();

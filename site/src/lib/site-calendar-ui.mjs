@@ -23,6 +23,9 @@ const GLYPH = {
   'band-anniversary': '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2l1.6 3.7 3.9.4-3 2.6.9 3.8L8 10.7l-3.4 2 .9-3.8-3-2.6 3.9-.4z"/></svg>',
   event: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h10v6.5L8 13l-5-3.5z"/></svg>',
   'arena-season': '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.4 1.6 3.4 9h4l-.8 5.4L12.6 7h-4z"/></svg>',
+  prev: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5"/></svg>',
+  next: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg>',
+  close: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4 12 12M12 4 4 12"/></svg>',
 };
 
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -170,14 +173,14 @@ export function mountSiteCalendar(host, panel, close) {
     panel.innerHTML = `<div class="cal-top">
         <header class="cal-head">
           <div class="cal-stepper">
-            <button type="button" class="cal-nav" data-cal-shift="-1" aria-label="${t('上个月', 'Previous month')}">‹</button>
+            <button type="button" class="cal-nav" data-cal-shift="-1" aria-label="${t('上个月', 'Previous month')}">${GLYPH.prev}</button>
             <h2 aria-live="polite" tabindex="-1" data-calendar-focus>${title}</h2>
-            <button type="button" class="cal-nav" data-cal-shift="1" aria-label="${t('下个月', 'Next month')}">›</button>
+            <button type="button" class="cal-nav" data-cal-shift="1" aria-label="${t('下个月', 'Next month')}">${GLYPH.next}</button>
           </div>
           <div class="cal-head-actions">
             <span class="cal-zone">UTC+${region === 'jp' ? 9 : 8}</span>
             <button type="button" class="cal-today" data-cal-today>${t('今天', 'Today')}</button>
-            <button type="button" class="cal-close" data-cal-close aria-label="${t('关闭日历', 'Close calendar')}">×</button>
+            <button type="button" class="cal-close" data-cal-close aria-label="${t('关闭日历', 'Close calendar')}">${GLYPH.close}</button>
           </div>
         </header>
         <div class="cal-controls">

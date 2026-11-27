@@ -804,7 +804,7 @@
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-method > summary { width: 32px; padding-inline: 0; justify-content: center; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs { display: none; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip { padding-top: 2px; gap: 4px; }
-  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .tool-options button { min-height: 26px; padding: 2px 7px; font-size: 11px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .tool-options button { min-height: 26px; padding: 2px 7px; font-size: 12px; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty-options > span { display: none; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-bar { flex-wrap: nowrap; align-items: center; padding: 4px 8px; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-bar__main { min-width: 0; gap: 1px 6px; }
@@ -814,7 +814,7 @@
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track-tags { display: none; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle { display: none; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-subtitle { flex-wrap: nowrap; gap: 4px; margin-top: 2px; }
-  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty { font-size: 10px; padding: 1px 4px; }
-  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track small { font-size: 11px; white-space: nowrap; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty { font-size: 12px; padding: 0 4px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track small { font-size: 12px; white-space: nowrap; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td { height: 48px; }
 }

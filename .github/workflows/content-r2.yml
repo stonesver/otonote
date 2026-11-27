@@ -91,6 +91,7 @@ jobs:
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_PRIVATE_BUCKET: otonote-production-state
       R2_PUBLIC_BUCKET: otonote-public-content
+      OURNOTES_JP_NETWORK_BINDINGS: ${{ matrix.region == 'jp' && secrets.OURNOTES_JP_NETWORK_BINDINGS || '' }}
       OURNOTES_CRI_KEY: ${{ secrets.OURNOTES_CRI_KEY }}
       OURNOTES_MASTER_SALT_HEX: ${{ secrets.OURNOTES_MASTER_SALT_HEX }}
       OURNOTES_MASTER_KEY_HEX: ${{ secrets.OURNOTES_MASTER_KEY_HEX }}
@@ -290,13 +291,13 @@ jobs:
                  --region "$REGION" --image "$OURNOTES_UPDATE_IMAGE"
                  --prepared "$STABLE_ROOT/output/tmp/r2-light/proof.json")
           if [[ "$REGION" == jp && -n "$OURNOTES_JP_PROXY_NODE" ]]; then
-            common+=(--env OURNOTES_JP_VERSION_PROXY)
+            common+=(--env OURNOTES_JP_VERSION_PROXY --env OURNOTES_JP_NETWORK_BINDINGS)
             python -m tools.jp_version_egress \
               --binary "$RUNNER_TEMP/jp-egress-client/mihomo" -- \
               docker run --network host "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
               "${probe[@]}" > "$RUNNER_TEMP/light-probe.json"
           else
-            if [[ "$REGION" == jp ]]; then common+=(--env OURNOTES_JP_VERSION_PROXY); fi
+            if [[ "$REGION" == jp ]]; then common+=(--env OURNOTES_JP_VERSION_PROXY --env OURNOTES_JP_NETWORK_BINDINGS); fi
             docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" \
               "${probe[@]}" > "$RUNNER_TEMP/light-probe.json"
           fi
@@ -410,7 +411,7 @@ jobs:
               docker run "${common[@]}" "$OURNOTES_UPDATE_IMAGE" "${probe[@]}" > "$RUNNER_TEMP/gate-probe.json"
             fi
           else
-            common+=(--env OURNOTES_JP_VERSION_PROXY)
+            common+=(--env OURNOTES_JP_VERSION_PROXY --env OURNOTES_JP_NETWORK_BINDINGS)
             probe+=(--metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat"
                     --apk-root "$STABLE_ROOT/output/r2-jp/apks"
                     --unity-version-file "$STABLE_ROOT/output/r2-jp/unity-version.txt")
@@ -473,7 +474,7 @@ jobs:
                 python3 -m tools.global_update run --config "$GLOBAL_CONFIG_PATH" --card-recognition > "$RUNNER_TEMP/production.json"
             fi
           else
-            common+=(--env OURNOTES_JP_VERSION_PROXY)
+            common+=(--env OURNOTES_JP_VERSION_PROXY --env OURNOTES_JP_NETWORK_BINDINGS)
             producer=(python3 -m tools.jp_update
               --metadata "$STABLE_ROOT/output/r2-jp/metadata.v39.dat"
               --apk-root "$STABLE_ROOT/output/r2-jp/apks"

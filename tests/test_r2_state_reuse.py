@@ -281,15 +281,46 @@ class StateReuseTests(unittest.TestCase):
 
 
 class S3EvidenceTests(unittest.TestCase):
-    def streaming_bucket(self, payloads, expected):
+    def streaming_bucket(self, payloads, expected, *, http_transport=False):
         from botocore.response import StreamingBody
         streams = [io.BytesIO(payload) for payload in payloads]
+        raw_streams = streams
+        if http_transport:
+            from urllib3.response import HTTPResponse
+            raw_streams = [HTTPResponse(body=stream, headers={'Content-Length': str(len(expected))},
+                                       preload_content=False, enforce_content_length=True)
+                           for stream in streams]
         client = Mock()
         client.get_object.side_effect = [
             {'Body': StreamingBody(stream, len(expected)), 'ContentLength': len(expected),
              'ETag': '"response-' + str(index) + '"'}
-            for index, stream in enumerate(streams)]
+            for index, stream in enumerate(raw_streams)]
         return r2_state.PrivateS3Bucket(client, 'private'), streams
+
+    def test_broken_http_stream_restarts_and_removes_partial_file(self):
+        from botocore.exceptions import ResponseStreamingError
+        expected = b'complete verified object'
+        for succeeds in (True, False):
+            for download in (True, False):
+                payloads = [expected[:4], expected] if succeeds else [expected[:4]] * 3
+                bucket, streams = self.streaming_bucket(payloads, expected, http_transport=True)
+                with self.subTest(succeeds=succeeds, download=download), tempfile.TemporaryDirectory() as tmp, \
+                     patch('tools.r2_state.sleep'), patch('tools.r2_state.CHUNK', 4):
+                    target = Path(tmp) / 'object'
+                    def transfer():
+                        if download:
+                            return bucket.download_file('object', target, r2_state.digest(expected), len(expected))
+                        return bucket.verify_file('object', r2_state.digest(expected), len(expected))
+                    if succeeds:
+                        self.assertTrue(transfer())
+                        if download:
+                            self.assertEqual(target.read_bytes(), expected)
+                    else:
+                        with self.assertRaises(ResponseStreamingError):
+                            transfer()
+                        self.assertFalse(target.exists())
+                self.assertEqual(bucket.client.get_object.call_count, len(payloads))
+                self.assertTrue(all(stream.closed for stream in streams))
 
     def test_truncated_stream_restarts_object_and_uses_only_successful_get_evidence(self):
         expected = b'complete verified object'

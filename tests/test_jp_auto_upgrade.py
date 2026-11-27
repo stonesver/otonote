@@ -141,6 +141,37 @@ class RelocatedBindingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'no unique new location'):
                 derive_binding(self.anchor,self.metadata,'1.0.6')
 
+    def test_reviewed_rotation_requires_exact_version_and_metadata(self):
+        import hashlib, json, os
+        from tools import jp_client_profile as profile
+        self.metadata.write_bytes(metadata_fixture(relocated=True, rotate=True))
+        sha = hashlib.sha256(self.metadata.read_bytes()).hexdigest()
+        reviewed = [{'clientVersion': '1.2.0', 'metadataSha256': sha, 'networkIndices': [2, 0]}]
+        with patch.dict(os.environ, {profile.NETWORK_BINDINGS_ENV: json.dumps(reviewed)}):
+            binding = profile.derive_binding(self.anchor, self.metadata, '1.2.0')
+            receipt = {'schemaVersion': 2, 'status': 'verified_seed', 'signatureVerified': True,
+                       'clientVersion': '1.2.0', 'metadataSha256': sha, 'binding': binding}
+            (self.root/profile.PROFILE_NAME).write_text(json.dumps(receipt))
+            self.assertEqual(profile.load_binding(self.metadata), binding)
+            self.assertEqual(profile.credentials(self.metadata.read_bytes(), binding['networkIndices']),
+                             (b'CLIENT', b'Q'*32))
+            with self.assertRaisesRegex(ValueError, 'no unique new location'):
+                profile.derive_binding(self.anchor, self.metadata, '1.2.1')
+            self.metadata.write_bytes(self.metadata.read_bytes() + b'changed')
+            with self.assertRaisesRegex(ValueError, 'no unique new location'):
+                profile.derive_binding(self.anchor, self.metadata, '1.2.0')
+
+    def test_invalid_or_duplicate_reviewed_rotations_are_rejected(self):
+        import hashlib, json, os
+        from tools import jp_client_profile as profile
+        sha = hashlib.sha256(self.metadata.read_bytes()).hexdigest()
+        row = {'clientVersion': '1.2.0', 'metadataSha256': sha, 'networkIndices': [2, 0]}
+        for raw in ('not json', json.dumps([row, row]),
+                    json.dumps([{**row, 'networkIndices': [True, 0]}])):
+            with patch.dict(os.environ, {profile.NETWORK_BINDINGS_ENV: raw}):
+                with self.assertRaisesRegex(ValueError, 'invalid reviewed JP network bindings'):
+                    profile.derive_binding(self.anchor, self.metadata, '1.2.0')
+
     def test_changed_key_and_untrusted_anchor_are_rejected(self):
         from tools.jp_client_profile import derive_binding
         raw=self.metadata.read_bytes().replace(b'K'*16,b'J'*16)

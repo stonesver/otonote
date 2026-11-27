@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import struct
@@ -13,6 +14,36 @@ PROFILE_NAME = 'seed-manifest.json'
 ANCHOR_NAME = 'trusted-metadata.v39.dat'
 MAX_METADATA_BYTES = 128 * 1024 * 1024
 NETWORK_INDICES = (43395, 41482)
+NETWORK_BINDINGS_ENV = 'OURNOTES_JP_NETWORK_BINDINGS'
+
+
+def reviewed_network_indices(version, metadata_sha):
+    """Read operator-reviewed rotations without publishing real client mappings."""
+    raw = os.environ.get(NETWORK_BINDINGS_ENV, '')
+    if not raw:
+        return None
+    try:
+        if len(raw) > 65536:
+            raise ValueError
+        rows = json.loads(raw)
+        if not isinstance(rows, list) or not rows:
+            raise ValueError
+        bindings = {}
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {'clientVersion', 'metadataSha256', 'networkIndices'}:
+                raise ValueError
+            identity = (row['clientVersion'], row['metadataSha256'])
+            indices = row['networkIndices']
+            if (not isinstance(identity[0], str) or not re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,4}', identity[0])
+                    or not isinstance(identity[1], str) or not re.fullmatch('[a-f0-9]{64}', identity[1])
+                    or not isinstance(indices, list) or len(indices) != 2
+                    or any(type(i) is not int or not 0 <= i < 1_000_000 for i in indices)
+                    or identity in bindings):
+                raise ValueError
+            bindings[identity] = indices
+        return bindings.get((version, metadata_sha))
+    except (ValueError, TypeError):
+        raise ValueError('invalid reviewed JP network bindings') from None
 
 
 def read_metadata(path):
@@ -74,6 +105,13 @@ def derive_binding(anchor_path, metadata_path, version):
     key = field_bytes(old, 0x8000020B, 16)
     seed = field_bytes(old, 0x80000213, 8)
     row = relocated_profile(parsed, version, key, seed)
+    current_sha = hashlib.sha256(current).hexdigest()
+    reviewed = reviewed_network_indices(version, current_sha)
+    if reviewed is not None:
+        indices = list(reviewed)
+        credentials(current, indices)
+        return {'clientVersion': version, 'metadataSha256': current_sha,
+                'decoderProfile': row, 'networkIndices': indices}
     known = credentials(anchor, list(NETWORK_INDICES))
     literals = literal_values(current)
     indices = []

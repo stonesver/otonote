@@ -781,3 +781,40 @@
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-tag { font-size: 12px; padding: 2px 5px; }
   .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-explanations p { flex-basis: 100%; font-size: 12px; }
 }
+
+/* Phones: keep the filter area to roughly half its former height and show the data columns on first view. */
+@media (max-width: 700px) {
+  .tool-studio[data-tool-kind="song-ranking"] { --rank-number-width: 26px; --rank-song-width: clamp(134px, 38vw, 152px); }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls { padding: 4px 6px; gap: 3px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-commandbar {
+    grid-template-columns: minmax(0, 1fr) 74px 32px 32px 32px;
+    grid-template-areas: 'search search search mode mode' 'metric direction filters calc info';
+    gap: 4px;
+  }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode { padding: 2px; gap: 2px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode button { min-height: 24px; padding: 2px 4px; flex: 1; justify-content: center; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-mode button span { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search { min-height: 28px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-search input[type=search] { height: 26px; min-height: 26px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-controls :is(select[data-quick-native], input[type=number]) { height: 28px; min-height: 28px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-commandbar :is(input, select, summary) { min-height: 28px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-panel > summary span { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-filter-panel > summary,
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-calculation-panel > summary,
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-method > summary { width: 32px; padding-inline: 0; justify-content: center; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-tabs { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip { padding-top: 2px; gap: 4px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-quickstrip .tool-options button { min-height: 26px; padding: 2px 7px; font-size: 11px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty-options > span { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-bar { flex-wrap: nowrap; align-items: center; padding: 4px 8px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-bar__main { min-width: 0; gap: 1px 6px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-bar__main p[data-result-status] { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-board-bar__tips { flex: none; }
+  /* Song column: cover, title, difficulty and level; band, edition and state tags live in the detail dialog and filters. */
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track-tags { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-detail-toggle { display: none; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-subtitle { flex-wrap: nowrap; gap: 4px; margin-top: 2px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-difficulty { font-size: 10px; padding: 1px 4px; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-track small { font-size: 11px; white-space: nowrap; }
+  .tool-studio[data-tool-kind="song-ranking"] .song-ranking .ranking-table td { height: 48px; }
+}

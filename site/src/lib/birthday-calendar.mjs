@@ -1,33 +1,34 @@
 import { releaseTimestamp } from './recent-releases.mjs';
 
 const DAY = 86_400_000;
-const OFFSET = 8 * 3_600_000;
+export const calendarOffsetHours = region => region === 'jp' ? 9 : 8;
 const birthdayText = /生日|birthday|バースデー|誕生日/i;
 
-/** The homepage calendar follows the Global server's UTC+8 calendar day. */
-export function calendarDate(now = Date.now()) {
-  return new Date(now + OFFSET).toISOString().slice(0, 10);
+export function calendarDate(now = Date.now(), region = 'global') {
+  return new Date(now + calendarOffsetHours(region) * 3_600_000).toISOString().slice(0, 10);
 }
 
-export function nextBirthday(month, day, now = Date.now()) {
+export function birthdayInYear(month, day, year) {
   if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return null;
-  const leapDate = new Date(Date.UTC(2000, month - 1, day));
-  if (leapDate.getUTCMonth() !== month - 1 || leapDate.getUTCDate() !== day) return null;
-  const today = Math.floor((now + OFFSET) / DAY) * DAY;
-  const year = new Date(today).getUTCFullYear();
-  // A February 29 birthday uses its next actual calendar occurrence.
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date.toISOString().slice(0, 10) : null;
+}
+
+export function nextBirthday(month, day, now = Date.now(), region = 'global') {
+  const today = calendarDate(now, region);
+  const year = Number(today.slice(0, 4));
+  // February 29 uses its next actual occurrence, including across non-leap centuries.
   for (let nextYear = year; nextYear <= year + 8; nextYear++) {
-    const date = new Date(Date.UTC(nextYear, month - 1, day));
-    if (date.getUTCMonth() !== month - 1 || date.getTime() < today) continue;
-    return { date: date.toISOString().slice(0, 10), days: (date.getTime() - today) / DAY };
+    const date = birthdayInYear(month, day, nextYear);
+    if (date && date >= today) return { date, days: (Date.parse(date) - Date.parse(today)) / DAY };
   }
   return null;
 }
 
 /** @template {{birthday: {month: number, day: number}}} T @param {T[]} characters */
-export function upcomingBirthdays(characters, now = Date.now()) {
+export function upcomingBirthdays(characters, now = Date.now(), region = 'global') {
   return characters.flatMap(character => {
-    const next = nextBirthday(character.birthday.month, character.birthday.day, now);
+    const next = nextBirthday(character.birthday.month, character.birthday.day, now, region);
     return next ? [{ character, ...next }] : [];
   }).sort((a, b) => a.days - b.days);
 }
@@ -89,4 +90,20 @@ export function birthdayPoolLabel(pool, now = Date.now(), en = false) {
     ? { active: 'Birthday pool · Live', upcoming: 'Birthday pool · Soon', ended: 'Birthday pool · Ended', unknown: 'Birthday pool · Schedule unconfirmed' }
     : { active: '生日招募 · 进行中', upcoming: '生日招募 · 待开放', ended: '生日招募 · 已结束', unknown: '生日招募 · 时间待确认' };
   return labels[state];
+}
+
+const dayNumber = date => Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10)) / DAY;
+
+/** Status of one anniversary (inclusive startDate..endDate, both local dates) on a local date. */
+export function anniversaryStatus(entry, today) {
+  const start = dayNumber(entry.startDate), end = dayNumber(entry.endDate), day = dayNumber(today);
+  if (day < start) return { state: 'upcoming', days: start - day };
+  if (day > end) return { state: 'ended', days: 0 };
+  return { state: 'celebrating', days: 0, day: day - start + 1, total: end - start + 1 };
+}
+
+export function anniversaryText(entry, status, en = false) {
+  const range = `${entry.startDate.slice(5).replace('-', '.')}–${entry.endDate.slice(5).replace('-', '.')}`;
+  if (status.state === 'celebrating') return { label: en ? 'Celebrating' : '庆祝中', note: en ? `Day ${status.day} of ${status.total}` : `第 ${status.day} 天 / 共 ${status.total} 天`, range };
+  return { label: en ? 'Coming up' : '即将到来', note: en ? `In ${status.days} days` : `还有 ${status.days} 天`, range };
 }

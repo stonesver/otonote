@@ -30,6 +30,8 @@ flowchart LR
 
 活动倒计时的初始状态随 HTML 输出，`event-countdown-client` 将同一纯计算函数内嵌在节点后立即校正当前时间；外部交互模块负责定时更新与页面缓存恢复。首页歌曲的历史首次开放日期用于排序，挑战限定标签则由当前普通演出开放时间决定，两者分开处理。
 
+首页纪念日与全站日历共用 [site-calendar.mjs](../site/src/lib/site-calendar.mjs)。`nextBandAnniversary(catalog, now)` 取区服当天仍在庆祝或最近一次即将到来的记录。`loadSiteCalendar(year, { serverId })` 从页面固定的内容版本读取活动、角色与激奏赛季，返回 `entries` 和赛季适用区服 `seasonScopes`。日期键 `startDate/endDate` 包含首尾两天，活动与赛季另有毫秒时间戳 `[startAt, until)`。活动使用实际举办期，赛季使用已收录的赛季边界。国际服按 UTC+8、日服按 UTC+9 归日，生日仅在当年实际存在的日期出现。乐队纪念日按经确认的年度日期收录，梦限大 MewType 自 2026 年起为 11 月 18–20 日。[官方公告](https://x.com/bangdreamon_EN/status/2120454622473261454)
+
 三项主要计算工具的模板按条件、结果和选曲弹窗组织控件；工作台初始化后统一呈现，旧步骤式布局、重复手动卡片编辑器和覆盖全站顶栏的工具导航已移除。预渲染和浏览器冷启动均在数据及模块准备完成后开放工具，失败时保留重载提示。
 
 ## 代码地图

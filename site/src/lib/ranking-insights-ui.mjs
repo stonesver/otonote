@@ -618,6 +618,8 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
     reportEl.innerHTML = reportHtml;
   }
 
+  let chartModel = null;
+
   function renderClosing(d) {
     if (mode === 'arena') {
       const pop = d.population;
@@ -695,7 +697,10 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
     const W = 560, H = 210;
     const X = hr => 44 + (minH - hr) / minH * (W - 64);
     const Y = v => 174 - v / ceil * 144;
-    const hi = state.chartHoverIdx ?? (cps.length - 1);
+    const hi = Math.min(state.chartHoverIdx ?? (cps.length - 1), cps.length - 1);
+    const stamp = sec => new Date(sec * 1000).toLocaleString(en ? 'en-US' : 'zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+    const tipAt = i => `<strong>${series[0].points[i].label} · ${stamp(cps[i].observed)}</strong>${series.map(s => `<span>#${s.rank}: <b>${fmt(s.points[i].score)}</b> (+${s.points[i].pct.toFixed(2)}%)</span>`).join('')}`;
+    chartModel = { xs: series[0].points.map(p => X(p.hours)), W, tipAt, last: cps.length - 1 };
     const maxEvP = Math.max(0.1, ...list.map(x => x.changes.find(z => z.rank === 100).pct));
 
     return `<div class="ri-split">
@@ -705,15 +710,14 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
             ${series.map(s => `<button type="button" class="ui-btn-outline" data-ri-ctog="${s.rank}" style="${state.chartHidden[s.rank] ? 'opacity:0.45' : ''}"><i class="ri-dot" style="background:${s.color}"></i>${s.label}</button>`).join('')}
           </div>
-          <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+          <svg class="ri-chart-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
             ${[0, 1, 2, 3, 4].map(i => `<line x1="44" y1="${Y(ceil * i / 4)}" x2="${W - 20}" y2="${Y(ceil * i / 4)}" stroke="var(--theme-border-soft)"/><text x="38" y="${Y(ceil * i / 4) + 4}" text-anchor="end" font-size="11" fill="var(--theme-muted)">${(ceil * i / 4).toFixed(1)}%</text>`).join('')}
             ${series[0].points.map(pt => (pt.hoursBeforeEnd === 1 ? '' : `<text x="${X(pt.hours)}" y="198" text-anchor="middle" font-size="11" fill="var(--theme-muted)">${pt.label}</text>`)).join('')}
-            ${vis.map(s => `<polyline fill="none" stroke="${s.color}" stroke-width="2.5" points="${s.points.map(p => `${X(p.hours)},${Y(p.pct)}`).join(' ')}"/>${s.points.map((p, idx) => `<circle cx="${X(p.hours)}" cy="${Y(p.pct)}" r="${idx === hi ? 5.2 : 3.6}" fill="${s.color}" stroke="var(--theme-surface)" stroke-width="1.5" style="cursor:pointer" data-ri-cpt="${idx}"/>`).join('')}`).join('')}
+            ${vis.map(s => `<polyline fill="none" stroke="${s.color}" stroke-width="2.5" points="${s.points.map(p => `${X(p.hours)},${Y(p.pct)}`).join(' ')}"/>${s.points.map((p, idx) => `<circle cx="${X(p.hours)}" cy="${Y(p.pct)}" r="${idx === hi ? 5.2 : 3.6}" fill="${s.color}" stroke="var(--theme-surface)" stroke-width="1.5" data-ri-cpt="${idx}" pointer-events="none"/>`).join('')}`).join('')}
+            <line data-ri-guide x1="${chartModel.xs[hi]}" x2="${chartModel.xs[hi]}" y1="22" y2="176" stroke="var(--theme-muted)" stroke-width="1" stroke-dasharray="3 3" pointer-events="none"/>
+            <rect class="ri-chart-plot" data-ri-plot x="30" y="6" width="${W - 40}" height="180" fill="transparent" tabindex="0" role="slider" aria-label="${t('选择时间点', 'Select time point')}" aria-valuemin="0" aria-valuemax="${cps.length - 1}" aria-valuenow="${hi}"/>
           </svg>
-          <div class="ri-chart-tip">
-            <strong>${series[0].points[hi].label}</strong>
-            ${series.map(s => `<span>#${s.rank}: <b>${fmt(s.points[hi].score)}</b> (+${s.points[hi].pct.toFixed(2)}%)</span>`).join('')}
-          </div>
+          <div class="ri-chart-tip" aria-live="polite">${chartModel.tipAt(hi)}</div>
         </div>
       </section>
       <section class="ui-sheet ri-panel">
@@ -774,9 +778,45 @@ export function createRankingInsightsClient({ container, mode, en = false, catal
     </div>`;
   }
 
+  // 24h charts: the whole plot area picks the nearest sample, updated in place so touch drags stay attached.
+  function pickChartPoint(idx) {
+    if (!chartModel) return;
+    idx = Math.max(0, Math.min(chartModel.last, idx));
+    if (state.chartHoverIdx === idx) return;
+    state.chartHoverIdx = idx;
+    const x = chartModel.xs[idx];
+    const guide = container.querySelector('[data-ri-guide]');
+    guide?.setAttribute('x1', x); guide?.setAttribute('x2', x);
+    container.querySelectorAll('circle[data-ri-cpt]').forEach(c => c.setAttribute('r', Number(c.dataset.riCpt) === idx ? 5.8 : 3.6));
+    container.querySelector('[data-ri-plot]')?.setAttribute('aria-valuenow', idx);
+    const tip = container.querySelector('.ri-chart-tip');
+    if (tip) tip.innerHTML = chartModel.tipAt(idx);
+  }
+  const nearestChartPoint = (plot, clientX) => {
+    const box = plot.ownerSVGElement.getBoundingClientRect();
+    const x = (clientX - box.left) / box.width * chartModel.W;
+    let best = 0;
+    chartModel.xs.forEach((cx, i) => { if (Math.abs(cx - x) < Math.abs(chartModel.xs[best] - x)) best = i; });
+    return best;
+  };
+  container?.addEventListener('pointerdown', e => {
+    const plot = e.target.closest?.('[data-ri-plot]');
+    if (!plot || !chartModel) return;
+    pickChartPoint(nearestChartPoint(plot, e.clientX));
+  });
+  container?.addEventListener('pointermove', e => {
+    const plot = e.target.closest?.('[data-ri-plot]');
+    if (!plot || !chartModel || (e.pointerType !== 'mouse' && !e.buttons)) return;
+    pickChartPoint(nearestChartPoint(plot, e.clientX));
+  });
+  container?.addEventListener('keydown', e => {
+    if (!e.target.matches?.('[data-ri-plot]') || !chartModel) return;
+    const cur = state.chartHoverIdx ?? chartModel.last;
+    const next = { ArrowLeft: cur - 1, ArrowRight: cur + 1, Home: 0, End: chartModel.last }[e.key];
+    if (next === undefined) return;
+    e.preventDefault(); pickChartPoint(next);
+  });
   container?.addEventListener('click', e => {
-    const pt = e.target.closest('[data-ri-cpt]');
-    if (pt) { state.chartHoverIdx = Number(pt.dataset.riCpt); render(); return; }
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.dataset.riTop !== undefined) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }

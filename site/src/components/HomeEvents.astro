@@ -128,7 +128,7 @@ const events = homeEvents(eventRecords, region, now, 3);
                 </div>
               )}
               <div class="home-event-actions">
-                {event.mode === 'challenge_live' && <a class="ui-btn-primary" href={href(`/tools/event-efficiency/?eventId=${event.id}`)}><ToolGlyph kind="event-efficiency" /><span>{en ? 'Event efficiency' : '活动收益配队'}</span></a>}
+                {event.mode === 'challenge_live' && <a class="ui-btn-primary" href={href(`/tools/event-efficiency/?eventId=${event.id}`)}><ToolGlyph kind="event-efficiency" /><span>{en ? 'Event efficiency' : '活动配队'}</span></a>}
                 <a class="ui-btn-outline" href={href(`/events/${event.id}/`)}>{en ? 'Event guide & rewards' : '玩法与奖励'}</a>
                 {event.story.episodes.length > 0 && <a class="ui-btn-outline" href={href(`/stories/events/${event.id}/`)}>{en ? 'Event stories' : '活动故事'}</a>}
               </div>
@@ -153,7 +153,10 @@ const events = homeEvents(eventRecords, region, now, 3);
 
     const selectEvent = (nextIndex: number, focusTab = false) => {
       if (!panels.length) return;
+      const previous = active;
       active = (nextIndex + panels.length) % panels.length;
+      const stage = root.querySelector<HTMLElement>('.home-events-grid');
+      if (stage && active !== previous) stage.dataset.direction = active < previous ? 'prev' : 'next';
       const target = String(active);
       tabs.forEach((btn, idx) => {
         const selected = idx === active;

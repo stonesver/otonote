@@ -58,3 +58,12 @@ home-birthdays { display:block; margin:0; }
   .birthday-today small { display:none; }
 }
 @media(prefers-reduced-motion:reduce) { .birthday-portrait img { transition:none; } }
+
+.band-anniversaries { margin-bottom:8px; }
+.band-anniversary { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--theme-border-soft); border-radius:var(--ds-radius-sm, 8px); background:var(--theme-surface-tint); }
+.band-anniversary[hidden] { display:none; }
+.band-anniversary[data-anniversary-state="celebrating"] { border-color:var(--theme-accent); background:var(--theme-action-soft); }
+.band-anniversary-copy { display:grid; gap:1px; min-width:0; }
+.band-anniversary-copy strong { font-size:13px; }
+.band-anniversary-copy span { font-size:12px; color:var(--theme-muted); font-variant-numeric:tabular-nums; }
+.band-anniversary[data-anniversary-state="celebrating"] [data-anniversary-label] { color:var(--theme-accent); }

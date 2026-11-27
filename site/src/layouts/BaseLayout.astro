@@ -10,6 +10,7 @@ import SiteFooter from "../components/SiteFooter.astro";
 import GameServiceNotice from "../components/GameServiceNotice.astro";
 import SiteNotifications from "../components/SiteNotifications.astro";
 import GlobalWorkspaceDock from "../components/GlobalWorkspaceDock.astro";
+import SiteCalendar from "../components/SiteCalendar.astro";
 import AccountSyncHub from "../components/AccountSyncHub.astro";
 import SharedPlaylistWorkspace from "../components/SharedPlaylistWorkspace.astro";
 import SharedTeamWorkspace from "../components/SharedTeamWorkspace.astro";
@@ -244,6 +245,7 @@ const htmlLanguage = activeReleaseContext.locale;
       {pathname !== "/" && !Astro.props.contentHeading && <h1 class="sr-only">{currentLabel}</h1>}
       <slot />
     </main>
+    {Astro.props.personalWorkspaces !== false && <SiteCalendar />}
     <SiteNotifications locale={activeReleaseContext.locale} />
     <span id="page-content-ready" hidden aria-hidden="true"></span>
 

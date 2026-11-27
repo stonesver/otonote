@@ -5,21 +5,41 @@ import { activeReleaseContext } from '../lib/release-context';
 import { siteHref } from '../lib/site-context';
 import ArchiveImage from './ArchiveImage.astro';
 import BandMark from './BandMark.astro';
-import { upcomingBirthdays, calendarDate, birthdayCountdown, birthdayProximity, birthdayContent, preferredBirthdayPool, preferredBirthdayCard, birthdayPoolLabel } from '../lib/birthday-calendar.mjs';
+import { upcomingBirthdays, calendarDate, calendarOffsetHours, birthdayCountdown, birthdayProximity, birthdayContent, anniversaryStatus, anniversaryText, preferredBirthdayPool, preferredBirthdayCard, birthdayPoolLabel } from '../lib/birthday-calendar.mjs';
+import { bandAnniversariesForYear } from '../lib/site-calendar.mjs';
 import '../styles/home-birthdays.css';
 
 const en = activeReleaseContext.locale === 'en';
 const href = (path: string) => import.meta.env.BASE_URL === '/' ? path : siteHref(path, activeReleaseContext);
 const now = Date.now();
-const birthdays = upcomingBirthdays(catalog.characters, now);
-const today = calendarDate(now);
+const region = activeReleaseContext.region;
+const birthdays = upcomingBirthdays(catalog.characters, now, region);
+const today = calendarDate(now, region);
+const year = Number(today.slice(0, 4));
+// Current and next year's dates, so the client can roll over after the celebration ends.
+const anniversaries = [year, year + 1].flatMap(y => bandAnniversariesForYear(catalog.bands, y))
+  .filter(entry => entry.endDate >= today).slice(0, 2);
 ---
-{birthdays.length > 0 && <home-birthdays data-language={en ? 'en' : 'zh'}>
+{birthdays.length > 0 && <home-birthdays data-region={region} data-language={en ? 'en' : 'zh'}>
   <section class="home-birthdays ui-sheet" aria-labelledby="home-birthday-heading">
     <header class="birthday-heading">
       <div><span class="birthday-heading-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l1.9 4.6 4.6 1.9-4.6 1.9L10 15.5l-1.9-4.6L3.5 9l4.6-1.9L10 2.5z"/><path d="M15.5 14l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8.8-1.7z"/></svg></span><h2 id="home-birthday-heading">{en ? 'Birthdays ahead' : '近期生日'}</h2></div>
-      <span class="birthday-today">{en ? 'Today' : '今天'} <time data-calendar-today datetime={today}>{today.slice(5).replace('-', '.')}</time><small>UTC+8</small></span>
+      <span class="birthday-today">{en ? 'Today' : '今天'} <time data-calendar-today datetime={today}>{today.slice(5).replace('-', '.')}</time><small>UTC+{calendarOffsetHours(region)}</small></span>
     </header>
+    {anniversaries.length > 0 && <div class="band-anniversaries" data-anniversary-list>
+      {anniversaries.map((entry, index) => {
+        const band = getBand(entry.id);
+        const status = anniversaryStatus(entry, today);
+        const text = anniversaryText(entry, status, en);
+        return <div class="band-anniversary" data-anniversary data-band-id={entry.id} data-start={entry.startDate} data-end={entry.endDate} data-anniversary-state={status.state} hidden={index > 0}>
+          {band && <BandMark band={band} compact iconOnly round />}
+          <div class="band-anniversary-copy">
+            <strong>{entry.name}{en ? ' anniversary' : ' 纪念日'}</strong>
+            <span><b data-anniversary-label>{text.label}</b> · <span data-anniversary-note>{text.note}</span> · <time data-anniversary-range>{text.range}</time></span>
+          </div>
+        </div>;
+      })}
+    </div>}
     <div class="birthday-grid" data-birthday-list>
       {birthdays.map(({character, date, days}, index) => {
         const portrait = character.portraitAssetIds.map(getAsset).find(asset => asset?.containerPath.endsWith('/character_face_icon.png'))

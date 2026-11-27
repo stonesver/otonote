@@ -8,7 +8,8 @@ const href = (path: string) => import.meta.env.BASE_URL === '/' ? path : siteHre
 ---
 <site-calendar data-language={en ? 'en' : 'zh'} data-region={activeReleaseContext.region} data-base={href('/')}>
   <button type="button" class="site-calendar-tab" data-calendar-open aria-haspopup="dialog" aria-expanded="false" aria-controls="site-calendar-panel" aria-label={en ? 'Open calendar' : '打开日历'} title={en ? 'Calendar' : '日历'}>
-    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="2.2"/><path d="M3 8.5h14M7 2.8v3.2M13 2.8v3.2"/></svg>
+    <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="2.2"/><path d="M3 8.5h14M7 2.8v3.2M13 2.8v3.2"/></svg>
+    <span class="site-calendar-tab__label">{en ? 'Calendar' : '日历'}</span>
   </button>
   <section class="site-calendar-panel ui-sheet" id="site-calendar-panel" role="dialog" aria-modal="false" aria-label={en ? 'Calendar' : '日历'} data-calendar-panel hidden></section>
 </site-calendar>

@@ -167,26 +167,34 @@ export function mountSiteCalendar(host, panel, close) {
     const now = today();
     const weeks = Array.from({ length: 6 }, (_, i) => renderWeek(grid.days.slice(i * 7, i * 7 + 7), pool, now)).join('');
 
-    panel.innerHTML = `<header class="cal-head">
-        <button type="button" class="cal-nav" data-cal-shift="-1" aria-label="${t('上个月', 'Previous month')}">‹</button>
-        <h2 aria-live="polite" tabindex="-1" data-calendar-focus>${title}</h2>
-        <button type="button" class="cal-nav" data-cal-shift="1" aria-label="${t('下个月', 'Next month')}">›</button>
-        <button type="button" class="cal-today" data-cal-today>${t('今天', 'Today')}</button>
-        <button type="button" class="cal-close" data-cal-close aria-label="${t('关闭日历', 'Close calendar')}">×</button>
-      </header>
-      <div class="cal-toolbar">
-        <label class="cal-date-picker">
-          <span class="cal-sr-only">${t('跳转日期', 'Jump to date')}</span>
-          <input type="date" data-cal-jump value="${state.selected}" aria-label="${t('选择日期', 'Select date')}">
-        </label>
-        <span class="cal-zone">UTC+${region === 'jp' ? 9 : 8}</span>
+    panel.innerHTML = `<div class="cal-top">
+        <header class="cal-head">
+          <div class="cal-stepper">
+            <button type="button" class="cal-nav" data-cal-shift="-1" aria-label="${t('上个月', 'Previous month')}">‹</button>
+            <h2 aria-live="polite" tabindex="-1" data-calendar-focus>${title}</h2>
+            <button type="button" class="cal-nav" data-cal-shift="1" aria-label="${t('下个月', 'Next month')}">›</button>
+          </div>
+          <div class="cal-head-actions">
+            <span class="cal-zone">UTC+${region === 'jp' ? 9 : 8}</span>
+            <button type="button" class="cal-today" data-cal-today>${t('今天', 'Today')}</button>
+            <button type="button" class="cal-close" data-cal-close aria-label="${t('关闭日历', 'Close calendar')}">×</button>
+          </div>
+        </header>
+        <div class="cal-controls">
+          <div class="cal-filters" role="group" aria-label="${t('筛选日程类型', 'Filter calendar entries')}">
+            ${FILTERS.map(([id, label]) => `<button type="button" class="cal-chip${state.filter === id ? ' is-active' : ''}" data-cal-filter="${id}" aria-pressed="${state.filter === id}">${label[en ? 1 : 0]}</button>`).join('')}
+          </div>
+          <label class="cal-date-picker">
+            <span class="cal-sr-only">${t('跳转日期', 'Jump to date')}</span>
+            <input type="date" data-cal-jump value="${state.selected}" aria-label="${t('选择日期', 'Select date')}">
+          </label>
+        </div>
       </div>
-      <div class="cal-filters" role="group" aria-label="${t('筛选日程类型', 'Filter calendar entries')}">
-        ${FILTERS.map(([id, label]) => `<button type="button" class="cal-chip${state.filter === id ? ' is-active' : ''}" data-cal-filter="${id}" aria-pressed="${state.filter === id}">${label[en ? 1 : 0]}</button>`).join('')}
-      </div>
-      <div class="cal-grid" role="grid" aria-label="${title}">
-        <div class="cal-dow-row" role="row">${names.map(name => `<span class="cal-dow" role="columnheader">${name}</span>`).join('')}</div>
-        ${weeks}
+      <div class="cal-body">
+        <div class="cal-grid" role="grid" aria-label="${title}">
+          <div class="cal-dow-row" role="row">${names.map(name => `<span class="cal-dow" role="columnheader">${name}</span>`).join('')}</div>
+          ${weeks}
+        </div>
       </div>
       <div class="cal-detail" aria-live="polite"><h3>${state.selected}</h3>${detail(pool)}</div>`;
   }

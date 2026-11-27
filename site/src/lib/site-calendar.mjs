@@ -4,6 +4,7 @@ import { validateArena } from './arena-context.mjs';
 import { validatedEvents } from './event-content.mjs';
 import { artifact, pageContext, snapshot } from '../runtime/content.mjs';
 import { currentServerContext } from './game-servers.mjs';
+import bandIcons from './arena-band-icons.json' with { type: 'json' };
 
 // Annual local calendar dates. Campaign rewards have separate operating periods.
 const anniversaries = [
@@ -37,9 +38,13 @@ export function siteCalendarForYear({ catalog, events, arena, serverId, year }) 
   const byPath = new Map(assets.map(asset => [asset.containerPath, asset]));
   const mediaUrl = asset => asset?.thumbnailUrl || asset?.previewUrl || null;
   const bandById = new Map((catalog.bands ?? []).map(band => [band.id, band]));
+  const bandCircleUrl = band => {
+    const key = band?.masterId ? `public/images/filter-bands/band-${band.masterId}.png` : '';
+    return key && bandIcons.files?.[key] ? `/content/releases/${bandIcons.releaseId}/${key}` : null;
+  };
   const entries = bandAnniversariesForYear(catalog.bands, year).map(entry => {
     const band = bandById.get(entry.id);
-    const icon = mediaUrl(byId.get(band?.logoAssetId));
+    const icon = bandCircleUrl(band) || mediaUrl(byId.get(band?.logoAssetId));
     return { ...entry, ...(icon ? { icon } : {}), ...(band?.mainColor ? { color: band.mainColor } : {}) };
   });
   for (const character of catalog.characters) {
@@ -68,9 +73,8 @@ export function siteCalendarForYear({ catalog, events, arena, serverId, year }) 
     }
   }
   const seasonScopes = arena?.capabilities.conditions ? arena.serverScopes : [];
-  const arenaIcon = [...(arena?.rankIcons ?? [])].sort((a, b) => (b.tier ?? 0) - (a.tier ?? 0))[0]?.image ?? null;
   if (seasonScopes.length && (!serverId || seasonScopes.includes(serverId))) {
-    for (const season of arena.seasons) addPeriod('arena-season', season, Date.parse(season.validFrom), Date.parse(season.validUntil), arenaIcon ? { icon: arenaIcon } : {});
+    for (const season of arena.seasons) addPeriod('arena-season', season, Date.parse(season.validFrom), Date.parse(season.validUntil));
   }
   entries.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
   return { region, year, seasonScopes, entries };

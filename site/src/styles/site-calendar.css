@@ -1,4 +1,6 @@
 site-calendar { display: contents; }
+.cal-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
 /* Right-edge tab, vertically mid-low: clear of the header's account/sync controls and of the bottom action docks. */
 .site-calendar-tab {
   position: fixed; right: 0; top: 62%; z-index: 40; display: grid; place-items: center;
@@ -10,98 +12,131 @@ site-calendar { display: contents; }
 .site-calendar-tab:focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 2px; }
 
 .site-calendar-panel {
-  /* Fixed semantic colors for calendar spans/badges so categories stay distinguishable across every site theme. */
+  /* Fixed semantic colors so events, arena seasons, birthdays and anniversaries stay distinct across every theme. */
   --cal-event: #d94f70;
-  --cal-arena: #2f7d9c;
+  --cal-arena: #237494;
   --cal-birthday: #d9822b;
   --cal-anniv: #7c4dff;
-  position: fixed; right: 12px; top: 72px; z-index: 60; width: min(412px, calc(100vw - 24px));
+  position: fixed; right: 12px; top: 72px; z-index: 60; width: min(428px, calc(100vw - 24px));
   max-height: calc(100dvh - 96px); overflow: auto; padding: 12px; box-shadow: var(--theme-elevated-shadow);
 }
 .site-calendar-panel[hidden] { display: none; }
 
+/* Header */
 .cal-head { display: flex; align-items: center; gap: 6px; }
 .cal-head h2 { flex: 1; margin: 0; font-size: 15px; text-align: center; outline: none; }
-.cal-head button { min-height: 32px; min-width: 32px; padding: 0 8px; border: 1px solid var(--theme-border-soft); border-radius: 8px; background: var(--theme-surface); color: var(--theme-text); font-size: 13px; cursor: pointer; }
+.cal-head button { min-height: 30px; min-width: 30px; padding: 0 8px; border: 1px solid var(--theme-border-soft); border-radius: 8px; background: var(--theme-surface); color: var(--theme-text); font-size: 13px; cursor: pointer; }
 .cal-head .cal-nav { font-size: 18px; line-height: 1; }
-.cal-zone { margin: 4px 0 8px; font-size: 12px; color: var(--theme-muted); text-align: center; }
 
-.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px 0; }
-.cal-dow { padding: 2px 0 4px; font-size: 12px; text-align: center; color: var(--theme-muted); }
+/* Date jump picker & category filter chips */
+.cal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.cal-date-picker { flex: 1; display: flex; }
+.cal-date-picker input {
+  width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--theme-border-soft); border-radius: 8px;
+  background: var(--theme-surface-tint); color: var(--theme-text); font: 12px/1 var(--font-body); font-variant-numeric: tabular-nums;
+}
+.cal-zone { flex: none; padding: 4px 8px; border-radius: 6px; background: var(--theme-surface-tint); font-size: 11px; font-weight: 600; color: var(--theme-muted); font-variant-numeric: tabular-nums; }
+
+.cal-filters { display: flex; gap: 4px; margin: 8px 0 6px; overflow-x: auto; scrollbar-width: none; }
+.cal-filters::-webkit-scrollbar { display: none; }
+.cal-chip {
+  flex: none; min-height: 26px; padding: 0 9px; border: 1px solid var(--theme-border-soft); border-radius: 999px;
+  background: var(--theme-surface); color: var(--theme-text-soft); font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.cal-chip.is-active { background: var(--theme-accent); border-color: var(--theme-accent); color: #fff; font-weight: 600; }
+.cal-chip:focus-visible, .cal-day:focus-visible, .cal-head button:focus-visible, .cal-bar:focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 1px; }
+
+/* Month grid organized by week rows so multi-day event/season bars span continuously across days */
+.cal-grid { display: grid; gap: 2px; }
+.cal-dow-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-dow { padding: 2px 0 4px; font-size: 11px; text-align: center; color: var(--theme-muted); }
+
+.cal-week {
+  display: grid; gap: 2px; padding-bottom: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--theme-border-soft) 70%, transparent);
+}
+.cal-week-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 
 .cal-day {
-  position: relative; display: grid; grid-template-rows: 16px 26px 9px; justify-items: center; align-items: center;
-  min-height: 54px; padding: 3px 0 2px; border: 1px solid transparent; border-radius: 9px;
+  display: grid; grid-template-rows: 22px 24px; justify-items: center; align-items: center;
+  min-height: 46px; padding: 2px 0; border: 0; border-radius: 8px;
   background: transparent; color: var(--theme-text); font-size: 12px; cursor: pointer;
-  font-variant-numeric: tabular-nums; transition: background-color 120ms ease, border-color 120ms ease;
+  font-variant-numeric: tabular-nums; transition: background-color 120ms ease;
 }
 .cal-day:hover { background: var(--theme-surface-tint); }
-.cal-day.is-out { opacity: .42; }
-.cal-day.is-today { border-color: var(--theme-accent); }
-.cal-day.is-today .cal-num {
-  display: inline-grid; place-items: center; min-width: 18px; height: 16px; padding: 0 4px;
-  border-radius: 999px; background: var(--theme-accent); color: #fff; font-weight: 700; font-size: 11px;
+.cal-day.is-out { opacity: .38; }
+.cal-day.is-selected { background: color-mix(in srgb, var(--theme-accent) 12%, transparent); }
+.cal-num {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  line-height: 1; font-weight: 600;
 }
-.cal-day.is-selected { background: var(--theme-action-soft); border-color: var(--theme-action-edge, var(--theme-accent)); }
-.cal-day:focus-visible, .cal-head button:focus-visible { outline: 2px solid var(--theme-focus); outline-offset: 1px; }
-.cal-num { line-height: 1; font-weight: 600; }
+.cal-day.is-today .cal-num {
+  background: var(--theme-accent); color: #fff; font-weight: 700;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--theme-accent) 40%, transparent);
+}
 
-/* Game-asset icons directly inside calendar cells */
-.cal-icons { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; height: 24px; padding-inline: 2px; overflow: hidden; }
-.cal-badge { display: inline-grid; place-items: center; flex: none; overflow: hidden; }
-.cal-badge img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.cal-badge.is-fallback { width: 18px; height: 18px; border-radius: 50%; background: var(--theme-surface-tint); color: var(--cal-accent, var(--theme-accent)); }
-.cal-badge.is-fallback svg { width: 13px; height: 13px; }
-
-.cal-badge--birthday.cal-badge--cell {
-  width: 22px; height: 22px; border-radius: 50%;
+/* Circular character avatars & circular band icons inside day cells */
+.cal-avatars { display: flex; align-items: center; justify-content: center; gap: 2px; height: 24px; }
+.cal-avatar {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; overflow: hidden;
   border: 1.5px solid var(--cal-accent, var(--cal-birthday)); background: var(--theme-surface);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .14);
 }
-.cal-badge--birthday.cal-badge--cell img { object-fit: cover; }
-.cal-badge--band-anniversary.cal-badge--cell { width: 34px; height: 18px; border-radius: 4px; background: rgba(255, 255, 255, .86); padding: 1px 2px; }
-.cal-badge--event.cal-badge--cell { width: 38px; height: 20px; border-radius: 4px; }
-.cal-badge--arena-season.cal-badge--cell { width: 22px; height: 22px; }
+.cal-avatar--band-anniversary { border-color: var(--cal-accent, var(--cal-anniv)); }
+.cal-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cal-avatar.is-fallback { color: var(--cal-accent, var(--theme-accent)); }
+.cal-avatar.is-fallback svg { width: 13px; height: 13px; }
+.cal-avatars.is-multi .cal-avatar { width: 18px; height: 18px; }
+/* Weeks without any birthday or anniversary avatar collapse the empty avatar row so the detail list stays in view. */
+.cal-week:not(:has(.cal-avatar)) .cal-day { grid-template-rows: 24px; min-height: 28px; }
+.cal-week:not(:has(.cal-avatar)) .cal-avatars { display: none; }
 
-.cal-icons.is-multi .cal-badge--birthday.cal-badge--cell { width: 18px; height: 18px; }
-.cal-icons.is-multi .cal-badge--band-anniversary.cal-badge--cell,
-.cal-icons.is-multi .cal-badge--event.cal-badge--cell { width: 22px; height: 16px; }
-.cal-icons.is-multi .cal-badge--arena-season.cal-badge--cell { width: 18px; height: 18px; }
-.cal-more { font-size: 10px; font-weight: 700; color: var(--theme-muted); line-height: 1; }
+/* Continuous multi-day event & arena season span bars */
+.cal-tracks { display: grid; gap: 2px; }
+.cal-lane { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-bar {
+  display: flex; align-items: center; gap: 4px; min-width: 0; height: 18px; padding: 0 5px;
+  border: 0; font-size: 11px; font-weight: 600; line-height: 1; text-align: left; cursor: pointer;
+  overflow: hidden; white-space: nowrap;
+}
+.cal-bar span { overflow: hidden; text-overflow: ellipsis; }
+.cal-bar--event {
+  background: color-mix(in srgb, var(--cal-event) 16%, var(--theme-surface));
+  color: color-mix(in srgb, var(--cal-event) 88%, var(--theme-text));
+}
+.cal-bar--event.is-start { border-left: 2.5px solid var(--cal-event); }
+.cal-bar--arena {
+  height: 16px;
+  background: color-mix(in srgb, var(--cal-arena) 14%, var(--theme-surface));
+  color: color-mix(in srgb, var(--cal-arena) 90%, var(--theme-text));
+}
+.cal-bar--arena.is-start { border-left: 2.5px solid var(--cal-arena); }
+.cal-bar.is-start { border-top-left-radius: 5px; border-bottom-left-radius: 5px; margin-left: 2px; }
+.cal-bar.is-end { border-top-right-radius: 5px; border-bottom-right-radius: 5px; margin-right: 2px; }
+.cal-bar-logo { height: 14px; width: auto; max-width: 30px; flex: none; object-fit: contain; }
+.cal-bar-ico { display: inline-grid; place-items: center; width: 12px; height: 12px; flex: none; color: var(--cal-arena); }
+.cal-bar-ico svg { width: 12px; height: 12px; }
 
-/* Continuous multi-day ribbons along the bottom of cells */
-.cal-spans { display: grid; grid-template-rows: 3px 3px; gap: 2px; width: 100%; align-self: end; }
-.cal-span { display: block; height: 3px; width: 100%; opacity: .82; }
-.cal-span--event { grid-row: 1; background: var(--cal-event); }
-.cal-span--arena-season { grid-row: 2; background: var(--cal-arena); }
-.cal-span.is-start { border-top-left-radius: 3px; border-bottom-left-radius: 3px; margin-left: 4px; width: calc(100% - 4px); }
-.cal-span.is-end { border-top-right-radius: 3px; border-bottom-right-radius: 3px; margin-right: 4px; width: calc(100% - 4px); }
-.cal-span.is-start.is-end { width: calc(100% - 8px); }
-
-/* Legend */
-.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0; padding: 0; list-style: none; font-size: 12px; color: var(--theme-muted); }
-.cal-legend li { display: inline-flex; align-items: center; gap: 5px; }
-.cal-swatch { display: inline-grid; place-items: center; }
-.cal-swatch--birthday { width: 14px; height: 14px; border-radius: 50%; background: color-mix(in srgb, var(--cal-birthday) 18%, transparent); color: var(--cal-birthday); }
-.cal-swatch--band-anniversary { width: 14px; height: 14px; border-radius: 4px; background: color-mix(in srgb, var(--cal-anniv) 16%, transparent); color: var(--cal-anniv); }
-.cal-swatch svg { width: 11px; height: 11px; }
-.cal-swatch--event { width: 16px; height: 4px; border-radius: 2px; background: var(--cal-event); }
-.cal-swatch--arena-season { width: 16px; height: 4px; border-radius: 2px; background: var(--cal-arena); }
-
-/* Selected-day detail cards with game-asset thumbnails */
-.cal-detail { padding-top: 8px; border-top: 1px solid var(--theme-border-soft); }
+/* Selected-day detail list: clean media without white card box wrappers */
+.cal-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--theme-border-soft); }
 .cal-detail h3 { margin: 0 0 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
-.cal-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cal-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .cal-list li {
   display: flex; align-items: center; gap: 10px; padding: 6px 8px;
-  border: 1px solid var(--theme-border-soft); border-radius: 9px; background: var(--theme-surface-tint);
+  border-radius: 8px; background: var(--theme-surface-tint);
 }
-.cal-badge--detail { border-radius: 6px; background: var(--theme-surface); border: 1px solid var(--theme-border-soft); }
-.cal-badge--birthday.cal-badge--detail { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--cal-accent, var(--cal-birthday)); }
-.cal-badge--birthday.cal-badge--detail img { object-fit: cover; }
-.cal-badge--band-anniversary.cal-badge--detail { width: 52px; height: 30px; padding: 2px 4px; background: rgba(255, 255, 255, .92); }
-.cal-badge--event.cal-badge--detail { width: 56px; height: 32px; padding: 2px; }
-.cal-badge--arena-season.cal-badge--detail { width: 34px; height: 34px; padding: 2px; }
+.cal-detail-avatar {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; overflow: hidden;
+  border: 2px solid var(--cal-accent, var(--cal-birthday));
+}
+.cal-detail-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cal-detail-logo { flex: none; height: 28px; width: auto; max-width: 64px; object-fit: contain; }
+.cal-detail-glyph { display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; }
+.cal-detail-glyph[data-kind="arena-season"] { color: var(--cal-arena); }
+.cal-detail-glyph[data-kind="event"] { color: var(--cal-event); }
+.cal-detail-glyph[data-kind="birthday"] { color: var(--cal-birthday); }
+.cal-detail-glyph svg { width: 18px; height: 18px; }
+
 .cal-item-copy { min-width: 0; flex: 1; display: grid; gap: 2px; }
 .cal-item-top { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; }
 .cal-item-top a, .cal-item-top strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -117,5 +152,5 @@ site-calendar { display: contents; }
 @media (max-width: 700px) {
   .site-calendar-tab { top: auto; bottom: 96px; }
   .site-calendar-panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 82dvh; }
-  .cal-day { min-height: 50px; }
+  .cal-day { min-height: 44px; }
 }

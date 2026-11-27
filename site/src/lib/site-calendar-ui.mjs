@@ -1,6 +1,6 @@
 import { calendarDate } from './birthday-calendar.mjs';
 import { loadSiteCalendar } from './site-calendar.mjs';
-import { entriesOn, gridYears, monthGrid, shiftMonth } from './site-calendar-grid.mjs';
+import { entriesOn, gridYears, monthGrid, shiftMonth, weekSpans } from './site-calendar-grid.mjs';
 
 const KINDS = {
   birthday: ['生日', 'Birthday'],
@@ -8,13 +8,23 @@ const KINDS = {
   event: ['活动', 'Event'],
   'arena-season': ['激奏赛季', 'Arena season'],
 };
+const FILTERS = [
+  ['all', ['全部', 'All']],
+  ['event', ['活动', 'Events']],
+  ['arena-season', ['激奏', 'Arena']],
+  ['birthday', ['生日', 'Birthdays']],
+  ['band-anniversary', ['纪念日', 'Anniv.']],
+];
 const KIND_ORDER = { birthday: 0, 'band-anniversary': 1, event: 2, 'arena-season': 3 };
-const FALLBACK_SVG = {
+
+// Crisp site-native glyphs: lightning stage bolt for Gekisou Arena, cake for birthday, star for band anniversary.
+const GLYPH = {
   birthday: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5h10v3H3zM4.5 7.5h7v3h-7zM8 3v2.5"/></svg>',
   'band-anniversary': '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2l1.6 3.7 3.9.4-3 2.6.9 3.8L8 10.7l-3.4 2 .9-3.8-3-2.6 3.9-.4z"/></svg>',
   event: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h10v6.5L8 13l-5-3.5z"/></svg>',
-  'arena-season': '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 3h7v3.5a3.5 3.5 0 0 1-7 0zM4.5 4.2H2.5v1.3a2 2 0 0 0 2 2M11.5 4.2h2v1.3a2 2 0 0 1-2 2M8 10v3M5.5 13h5"/></svg>',
+  'arena-season': '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.4 1.6 3.4 9h4l-.8 5.4L12.6 7h-4z"/></svg>',
 };
+
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const safeColor = color => (typeof color === 'string' && /^#[\da-f]{6}$/i.test(color) ? color : '');
 
@@ -24,7 +34,14 @@ export function mountSiteCalendar(host, panel, close) {
   const base = host.dataset.base ?? '/';
   const t = (zh, eng) => (en ? eng : zh);
   const today = () => calendarDate(Date.now(), region);
-  const state = { year: Number(today().slice(0, 4)), month: Number(today().slice(5, 7)), selected: today(), data: new Map(), status: 'loading' };
+  const state = {
+    year: Number(today().slice(0, 4)),
+    month: Number(today().slice(5, 7)),
+    selected: today(),
+    filter: 'all',
+    data: new Map(),
+    status: 'loading',
+  };
 
   const link = entry => {
     if (entry.kind === 'event') return `${base}events/${entry.id}/`;
@@ -32,8 +49,15 @@ export function mountSiteCalendar(host, panel, close) {
     if (entry.kind === 'arena-season') return `${base}arena/`;
     return null;
   };
-  const entriesFor = date => [...state.data.values()].flatMap(year => entriesOn(year.entries, date))
-    .filter((entry, i, all) => all.findIndex(other => other.kind === entry.kind && other.id === entry.id && other.startDate === entry.startDate) === i)
+
+  const allEntries = () => {
+    const raw = [...state.data.values()].flatMap(year => year.entries);
+    const deduped = raw.filter((entry, i, all) =>
+      all.findIndex(other => other.kind === entry.kind && other.id === entry.id && other.startDate === entry.startDate) === i);
+    return state.filter === 'all' ? deduped : deduped.filter(entry => entry.kind === state.filter);
+  };
+
+  const entriesFor = (date, pool) => entriesOn(pool, date)
     .sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9));
 
   async function ensure() {
@@ -50,56 +74,83 @@ export function mountSiteCalendar(host, panel, close) {
     }
   }
 
-  function badgeMarkup(entry, size = 'cell') {
+  // Day-cell icon for point/celebration entries (character avatar or circular band icon).
+  function cellBadge(entry) {
     const ring = safeColor(entry.color);
     const style = ring ? ` style="--cal-accent:${ring}"` : '';
     const title = escape(entry.name);
     if (entry.icon) {
-      return `<span class="cal-badge cal-badge--${entry.kind} cal-badge--${size}"${style} title="${title}"><img src="${escape(entry.icon)}" alt="" loading="lazy" decoding="async"></span>`;
+      return `<span class="cal-avatar cal-avatar--${entry.kind}"${style} title="${title}"><img src="${escape(entry.icon)}" alt="" loading="lazy" decoding="async"></span>`;
     }
-    return `<span class="cal-badge cal-badge--${entry.kind} cal-badge--${size} is-fallback"${style} title="${title}">${FALLBACK_SVG[entry.kind] ?? ''}</span>`;
+    return `<span class="cal-avatar cal-avatar--${entry.kind} is-fallback"${style} title="${title}">${GLYPH[entry.kind] ?? ''}</span>`;
   }
 
-  function cellContent(date, monthPrefix) {
-    const list = entriesFor(date);
-    const isMonthStart = date === `${monthPrefix}-01`;
-    // Show distinctive icons on milestone days rather than stamping every day of a month-long span.
-    const featured = list.filter(entry => {
-      if (entry.kind === 'birthday' || entry.kind === 'band-anniversary') return true;
-      if (entry.kind === 'event') return entry.startDate === date || (isMonthStart && entry.startDate < date);
-      if (entry.kind === 'arena-season') return entry.startDate === date || entry.endDate === date || (isMonthStart && entry.startDate < date);
-      return false;
-    });
-    const shown = featured.slice(0, 2);
-    const extra = featured.length > 2 ? `<span class="cal-more">+${featured.length - 2}</span>` : '';
-    const iconsHtml = shown.length
-      ? `<span class="cal-icons${shown.length > 1 ? ' is-multi' : ''}">${shown.map(entry => badgeMarkup(entry, 'cell')).join('')}${extra}</span>`
-      : '<span class="cal-icons"></span>';
-
-    const spanBar = kind => {
-      const hit = list.find(entry => entry.kind === kind);
-      if (!hit) return '';
+  function renderWeek(weekDays, pool, now) {
+    const dayCells = weekDays.map(day => {
+      const list = entriesFor(day.date, pool).filter(e => e.kind === 'birthday' || e.kind === 'band-anniversary');
+      const shown = list.slice(0, 2);
+      const icons = shown.length
+        ? `<span class="cal-avatars${shown.length > 1 ? ' is-multi' : ''}">${shown.map(cellBadge).join('')}</span>`
+        : '<span class="cal-avatars"></span>';
       const cls = [
-        'cal-span', `cal-span--${kind}`,
-        hit.startDate === date ? 'is-start' : '',
-        hit.endDate === date ? 'is-end' : '',
+        'cal-day',
+        day.inMonth ? '' : 'is-out',
+        day.date === now ? 'is-today' : '',
+        day.date === state.selected ? 'is-selected' : '',
       ].filter(Boolean).join(' ');
-      return `<i class="${cls}" aria-hidden="true"></i>`;
-    };
-    const spansHtml = `<span class="cal-spans">${spanBar('event')}${spanBar('arena-season')}</span>`;
-    return `${iconsHtml}${spansHtml}`;
+      return `<button type="button" role="gridcell" class="${cls}" data-cal-date="${day.date}" aria-label="${day.date}" aria-pressed="${day.date === state.selected}"><span class="cal-num">${Number(day.date.slice(8))}</span>${icons}</button>`;
+    }).join('');
+
+    const eventBars = weekSpans(weekDays, pool, 'event').map(span => {
+      const cls = ['cal-bar', 'cal-bar--event', span.startsHere ? 'is-start' : '', span.endsHere ? 'is-end' : ''].filter(Boolean).join(' ');
+      const logo = span.entry.icon ? `<img class="cal-bar-logo" src="${escape(span.entry.icon)}" alt="" loading="lazy" decoding="async">` : '';
+      return `<button type="button" class="${cls}" data-cal-date="${span.anchorDate}" style="grid-column:${span.colStart} / span ${span.colSpan}" title="${escape(span.entry.name)} (${span.entry.startDate} – ${span.entry.endDate})">${logo}<span>${escape(span.entry.name)}</span></button>`;
+    }).join('');
+
+    const arenaBars = weekSpans(weekDays, pool, 'arena-season').map(span => {
+      const cls = ['cal-bar', 'cal-bar--arena', span.startsHere ? 'is-start' : '', span.endsHere ? 'is-end' : ''].filter(Boolean).join(' ');
+      return `<button type="button" class="${cls}" data-cal-date="${span.anchorDate}" style="grid-column:${span.colStart} / span ${span.colSpan}" title="${escape(span.entry.name)} (${span.entry.startDate} – ${span.entry.endDate})"><i class="cal-bar-ico" aria-hidden="true">${GLYPH['arena-season']}</i><span>${escape(span.entry.name)}</span></button>`;
+    }).join('');
+
+    const tracks = (eventBars || arenaBars)
+      ? `<div class="cal-tracks">${eventBars ? `<div class="cal-lane">${eventBars}</div>` : ''}${arenaBars ? `<div class="cal-lane">${arenaBars}</div>` : ''}</div>`
+      : '';
+
+    return `<div class="cal-week" role="row"><div class="cal-week-days">${dayCells}</div>${tracks}</div>`;
   }
 
-  function detail() {
-    const list = entriesFor(state.selected);
+  function detailMedia(entry) {
+    // Band anniversary in detail list uses text only (no icon box).
+    if (entry.kind === 'band-anniversary') return '';
+    if (entry.kind === 'birthday') {
+      const ring = safeColor(entry.color);
+      const style = ring ? ` style="--cal-accent:${ring}"` : '';
+      return entry.icon
+        ? `<span class="cal-detail-avatar"${style}><img src="${escape(entry.icon)}" alt="" loading="lazy" decoding="async"></span>`
+        : `<span class="cal-detail-glyph" data-kind="birthday">${GLYPH.birthday}</span>`;
+    }
+    if (entry.kind === 'event') {
+      return entry.icon
+        ? `<img class="cal-detail-logo" src="${escape(entry.icon)}" alt="" loading="lazy" decoding="async">`
+        : `<span class="cal-detail-glyph" data-kind="event">${GLYPH.event}</span>`;
+    }
+    if (entry.kind === 'arena-season') {
+      return `<span class="cal-detail-glyph" data-kind="arena-season">${GLYPH['arena-season']}</span>`;
+    }
+    return '';
+  }
+
+  function detail(pool) {
+    const list = entriesFor(state.selected, pool);
     if (state.status === 'error') return `<p class="cal-note" role="alert">${t('日历数据暂时无法加载，请稍后重试。', 'Calendar data could not be loaded. Try again later.')} <button type="button" data-cal-retry>${t('重试', 'Retry')}</button></p>`;
     if (state.status === 'loading' && !list.length) return `<p class="cal-note" role="status">${t('正在加载…', 'Loading…')}</p>`;
-    if (!list.length) return `<p class="cal-note">${t('这一天没有已收录的条目。', 'Nothing listed for this day.')}</p>`;
+    if (!list.length) return `<p class="cal-note">${t('这一天没有符合条件的条目。', 'Nothing listed for this day.')}</p>`;
     return `<ul class="cal-list">${list.map(entry => {
       const url = link(entry), name = escape(entry.name);
       const range = entry.startDate === entry.endDate ? entry.startDate : `${entry.startDate} – ${entry.endDate}`;
+      const media = detailMedia(entry);
       return `<li data-kind="${entry.kind}">
-        ${badgeMarkup(entry, 'detail')}
+        ${media}
         <div class="cal-item-copy">
           <div class="cal-item-top"><span class="cal-kind" data-kind="${entry.kind}">${KINDS[entry.kind][en ? 1 : 0]}</span>${url ? `<a href="${escape(url)}">${name}</a>` : `<strong>${name}</strong>`}</div>
           <small>${range}</small>
@@ -110,10 +161,12 @@ export function mountSiteCalendar(host, panel, close) {
 
   function draw() {
     const grid = monthGrid(state.year, state.month);
-    const monthPrefix = `${state.year}-${String(state.month).padStart(2, '0')}`;
+    const pool = allEntries();
     const names = en ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] : ['日', '一', '二', '三', '四', '五', '六'];
     const title = en ? new Date(Date.UTC(state.year, state.month - 1, 1)).toLocaleString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : `${state.year} 年 ${state.month} 月`;
     const now = today();
+    const weeks = Array.from({ length: 6 }, (_, i) => renderWeek(grid.days.slice(i * 7, i * 7 + 7), pool, now)).join('');
+
     panel.innerHTML = `<header class="cal-head">
         <button type="button" class="cal-nav" data-cal-shift="-1" aria-label="${t('上个月', 'Previous month')}">‹</button>
         <h2 aria-live="polite" tabindex="-1" data-calendar-focus>${title}</h2>
@@ -121,18 +174,21 @@ export function mountSiteCalendar(host, panel, close) {
         <button type="button" class="cal-today" data-cal-today>${t('今天', 'Today')}</button>
         <button type="button" class="cal-close" data-cal-close aria-label="${t('关闭日历', 'Close calendar')}">×</button>
       </header>
-      <p class="cal-zone">${en ? `Dates in server time (UTC+${region === 'jp' ? 9 : 8})` : `按当前区服日期（UTC+${region === 'jp' ? 9 : 8}）`}</p>
-      <div class="cal-grid" role="grid" aria-label="${title}">
-        ${names.map(name => `<span class="cal-dow" role="columnheader">${name}</span>`).join('')}
-        ${grid.days.map(day => `<button type="button" role="gridcell" class="cal-day${day.inMonth ? '' : ' is-out'}${day.date === now ? ' is-today' : ''}${day.date === state.selected ? ' is-selected' : ''}" data-cal-date="${day.date}" aria-label="${day.date}" aria-pressed="${day.date === state.selected}"><span class="cal-num">${Number(day.date.slice(8))}</span>${cellContent(day.date, monthPrefix)}</button>`).join('')}
+      <div class="cal-toolbar">
+        <label class="cal-date-picker">
+          <span class="cal-sr-only">${t('跳转日期', 'Jump to date')}</span>
+          <input type="date" data-cal-jump value="${state.selected}" aria-label="${t('选择日期', 'Select date')}">
+        </label>
+        <span class="cal-zone">UTC+${region === 'jp' ? 9 : 8}</span>
       </div>
-      <ul class="cal-legend">
-        <li><span class="cal-swatch cal-swatch--birthday">${FALLBACK_SVG.birthday}</span>${KINDS.birthday[en ? 1 : 0]}</li>
-        <li><span class="cal-swatch cal-swatch--band-anniversary">${FALLBACK_SVG['band-anniversary']}</span>${KINDS['band-anniversary'][en ? 1 : 0]}</li>
-        <li><span class="cal-swatch cal-swatch--event"></span>${KINDS.event[en ? 1 : 0]}</li>
-        <li><span class="cal-swatch cal-swatch--arena-season"></span>${KINDS['arena-season'][en ? 1 : 0]}</li>
-      </ul>
-      <div class="cal-detail" aria-live="polite"><h3>${state.selected}</h3>${detail()}</div>`;
+      <div class="cal-filters" role="group" aria-label="${t('筛选日程类型', 'Filter calendar entries')}">
+        ${FILTERS.map(([id, label]) => `<button type="button" class="cal-chip${state.filter === id ? ' is-active' : ''}" data-cal-filter="${id}" aria-pressed="${state.filter === id}">${label[en ? 1 : 0]}</button>`).join('')}
+      </div>
+      <div class="cal-grid" role="grid" aria-label="${title}">
+        <div class="cal-dow-row" role="row">${names.map(name => `<span class="cal-dow" role="columnheader">${name}</span>`).join('')}</div>
+        ${weeks}
+      </div>
+      <div class="cal-detail" aria-live="polite"><h3>${state.selected}</h3>${detail(pool)}</div>`;
   }
 
   const go = async (year, month, selected) => {
@@ -141,6 +197,13 @@ export function mountSiteCalendar(host, panel, close) {
     draw(); await ensure(); draw();
   };
 
+  panel.addEventListener('change', event => {
+    const input = event.target.closest?.('[data-cal-jump]');
+    if (!input || !/^\d{4}-\d{2}-\d{2}$/.test(input.value)) return;
+    const date = input.value;
+    go(Number(date.slice(0, 4)), Number(date.slice(5, 7)), date);
+  });
+
   panel.addEventListener('click', event => {
     const target = event.target.closest('button');
     if (!target) return;
@@ -148,6 +211,7 @@ export function mountSiteCalendar(host, panel, close) {
     if ('calRetry' in target.dataset) { state.status = 'loading'; go(state.year, state.month); return; }
     if ('calToday' in target.dataset) { const d = today(); go(Number(d.slice(0, 4)), Number(d.slice(5, 7)), d); return; }
     if (target.dataset.calShift) { const next = shiftMonth(state.year, state.month, Number(target.dataset.calShift)); go(next.year, next.month); return; }
+    if (target.dataset.calFilter) { state.filter = target.dataset.calFilter; draw(); return; }
     if (target.dataset.calDate) {
       const date = target.dataset.calDate;
       state.selected = date;

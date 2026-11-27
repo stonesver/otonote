@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shiftMonth, monthGrid, gridYears, entriesOn } from '../src/lib/site-calendar-grid.mjs';
+import { shiftMonth, monthGrid, gridYears, entriesOn, weekSpans } from '../src/lib/site-calendar-grid.mjs';
 import { anniversaryStatus, anniversaryText } from '../src/lib/birthday-calendar.mjs';
 
 test('months roll across years in both directions', () => {
@@ -37,4 +37,17 @@ test('band anniversary is celebrating on all three days', () => {
   assert.equal(anniversaryStatus(entry, '2026-11-21').state, 'ended');
   assert.equal(anniversaryText(entry, anniversaryStatus(entry, '2026-11-20')).label, '庆祝中');
   assert.equal(anniversaryText(entry, anniversaryStatus(entry, '2026-11-10')).note, '还有 8 天');
+});
+
+test('weekSpans slices multi-day entries to 1-based grid columns across week edges', () => {
+  const grid = monthGrid(2026, 11);
+  const week3 = grid.days.slice(14, 21); // 2026-11-15 .. 2026-11-21
+  const entries = [
+    { kind: 'event', id: 5, name: 'Prev', startDate: '2026-11-08', endDate: '2026-11-17' },
+    { kind: 'event', id: 6, name: 'Next', startDate: '2026-11-18', endDate: '2026-11-27' },
+  ];
+  const spans = weekSpans(week3, entries, 'event');
+  assert.equal(spans.length, 2);
+  assert.deepEqual([spans[0].colStart, spans[0].colSpan, spans[0].startsHere, spans[0].endsHere], [1, 3, false, true]);
+  assert.deepEqual([spans[1].colStart, spans[1].colSpan, spans[1].startsHere, spans[1].endsHere], [4, 4, true, false]);
 });

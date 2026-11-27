@@ -542,30 +542,45 @@ home-event-timing {
   }
 }
 
-/* Layered spring-eased card transition when switching events (parallax cover, bouncy logo, staggered info & progress sweep). */
-.home-events-tab { transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+/* Overlap crossfade + subtle parallax on switch: outgoing card stays painted underneath so there is never a blank frame. */
+.home-events-grid { position: relative; overflow: hidden; }
+.home-event-card { grid-area: 1 / 1; background: var(--theme-surface); }
+.home-events-tab { transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1); }
 .home-events-tab:active { transform: scale(0.96); }
-.home-event-card:not([hidden]) { animation: home-event-card-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.home-event-card:not([hidden]) .home-event-cover { animation: home-event-cover-next 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.home-event-card:not([hidden]) .home-event-logo { animation: home-event-logo-in 380ms 45ms cubic-bezier(0.34, 1.45, 0.64, 1) both; }
-.home-event-card:not([hidden]) .home-event-info { animation: home-event-info-next 320ms 35ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.home-event-card:not([hidden]) .home-event-progress__fill { animation: home-event-bar-in 420ms 90ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-.home-events-grid[data-direction="prev"] .home-event-card:not([hidden]) .home-event-cover { animation-name: home-event-cover-prev; }
-.home-events-grid[data-direction="prev"] .home-event-card:not([hidden]) .home-event-info { animation-name: home-event-info-prev; }
+.home-event-card[data-leaving] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  animation: home-event-leave 240ms ease-out forwards;
+}
+.home-event-card[data-entering] {
+  position: relative;
+  z-index: 2;
+  animation: home-event-enter-next 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home-event-card[data-entering] .home-event-cover {
+  animation: home-event-cover-settle 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home-event-card[data-entering] .home-event-logo {
+  animation: home-event-logo-in 300ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+.home-events-grid[data-direction="prev"] .home-event-card[data-entering] {
+  animation-name: home-event-enter-prev;
+}
 
-@keyframes home-event-card-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes home-event-cover-next { from { opacity: 0.35; transform: translateX(22px) scale(1.045); } to { opacity: 1; transform: scale(1); } }
-@keyframes home-event-cover-prev { from { opacity: 0.35; transform: translateX(-22px) scale(1.045); } to { opacity: 1; transform: scale(1); } }
-@keyframes home-event-logo-in { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: none; } }
-@keyframes home-event-info-next { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
-@keyframes home-event-info-prev { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
-@keyframes home-event-bar-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes home-event-leave { from { opacity: 1; } to { opacity: 0; } }
+@keyframes home-event-enter-next { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes home-event-enter-prev { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@keyframes home-event-cover-settle { from { transform: scale(1.03); } to { transform: scale(1); } }
+@keyframes home-event-logo-in { from { transform: translateY(6px) scale(0.95); } to { transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .home-events-tab,
-  .home-event-card:not([hidden]),
-  .home-event-card:not([hidden]) :is(.home-event-cover, .home-event-logo, .home-event-info, .home-event-progress__fill),
+  .home-event-card[data-leaving],
+  .home-event-card[data-entering],
+  .home-event-card[data-entering] :is(.home-event-cover, .home-event-logo),
   .home-event-progress[data-state="active"] .home-event-progress__fill::after {
     animation: none;
     transition: none;

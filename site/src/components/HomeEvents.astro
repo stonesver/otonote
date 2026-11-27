@@ -67,8 +67,8 @@ const events = homeEvents(eventRecords, region, now, 3);
         return (
           <article class="home-event-card" data-home-event-panel={String(index)} hidden={index > 0}>
             <a class="home-event-art" href={href(`/events/${event.id}/`)} aria-label={event.name}>
-              {art?.cover ? <img class="home-event-cover" src={art.cover} alt="" width="640" height="480" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : undefined} decoding="async" /> : <span class="home-event-placeholder" aria-hidden="true">EVENT <b>{String(event.id).padStart(2, '0')}</b></span>}
-              {art?.logo && <img class="home-event-logo" src={art.logo} alt="" width="460" height="240" loading={index === 0 ? "eager" : "lazy"} decoding="async" />}
+              {art?.cover ? <img class="home-event-cover" src={art.cover} alt="" width="640" height="480" loading="eager" fetchpriority={index === 0 ? "high" : undefined} decoding="async" /> : <span class="home-event-placeholder" aria-hidden="true">EVENT <b>{String(event.id).padStart(2, '0')}</b></span>}
+              {art?.logo && <img class="home-event-logo" src={art.logo} alt="" width="460" height="240" loading="eager" decoding="async" />}
             </a>
             <div class="home-event-info">
               <div class="home-event-eyebrow">
@@ -150,13 +150,15 @@ const events = homeEvents(eventRecords, region, now, 3);
     const nextBtn = root.querySelector<HTMLButtonElement>('[data-home-event-next]');
     const indexEl = root.querySelector<HTMLElement>('[data-home-event-index]');
     let active = 0;
+    let leaveTimer = 0;
 
     const selectEvent = (nextIndex: number, focusTab = false) => {
       if (!panels.length) return;
       const previous = active;
       active = (nextIndex + panels.length) % panels.length;
+      if (active === previous) return;
       const stage = root.querySelector<HTMLElement>('.home-events-grid');
-      if (stage && active !== previous) stage.dataset.direction = active < previous ? 'prev' : 'next';
+      if (stage) stage.dataset.direction = active < previous ? 'prev' : 'next';
       const target = String(active);
       tabs.forEach((btn, idx) => {
         const selected = idx === active;
@@ -164,9 +166,28 @@ const events = homeEvents(eventRecords, region, now, 3);
         btn.tabIndex = selected ? 0 : -1;
         if (selected && focusTab) btn.focus({ preventScroll: true });
       });
+      clearTimeout(leaveTimer);
+      const outgoing = panels[previous];
       panels.forEach(panel => {
-        panel.hidden = panel.dataset.homeEventPanel !== target;
+        panel.removeAttribute('data-leaving');
+        panel.removeAttribute('data-entering');
+        if (panel.dataset.homeEventPanel === target) {
+          panel.hidden = false;
+          panel.setAttribute('data-entering', '');
+        } else if (panel === outgoing) {
+          panel.hidden = false;
+          panel.setAttribute('data-leaving', '');
+        } else {
+          panel.hidden = true;
+        }
       });
+      leaveTimer = window.setTimeout(() => {
+        if (outgoing && outgoing.dataset.homeEventPanel !== String(active)) {
+          outgoing.hidden = true;
+          outgoing.removeAttribute('data-leaving');
+        }
+        panels[active]?.removeAttribute('data-entering');
+      }, 320);
       if (indexEl) indexEl.textContent = `${active + 1} / ${panels.length}`;
     };
 

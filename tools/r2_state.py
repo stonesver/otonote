@@ -763,18 +763,18 @@ class PrivateS3Bucket:
             raise
 
     def _stream(self, key: str, target: Path | None, sha: str, size: int, *, verification=False):
-        from botocore.exceptions import IncompleteReadError
+        from botocore.exceptions import IncompleteReadError, ResponseStreamingError
         # Botocore's request retries end before the streaming body is consumed.
         for attempt in range(3):
             try:
                 return self._stream_once(key, target, sha, size, verification=verification)
-            except IncompleteReadError:
+            except (IncompleteReadError, ResponseStreamingError):
                 if attempt == 2:
                     raise
                 sleep(attempt + 1)
 
     def _stream_once(self, key: str, target: Path | None, sha: str, size: int, *, verification=False):
-        from botocore.exceptions import ClientError, IncompleteReadError
+        from botocore.exceptions import ClientError, IncompleteReadError, ResponseStreamingError
         try:
             result = self.client.get_object(Bucket=self.bucket, Key=key)
         except ClientError as error:
@@ -801,7 +801,7 @@ class PrivateS3Bucket:
                         if count > size:
                             raise ValueError("private state object exceeds expected size")
                         output.write(chunk)
-        except IncompleteReadError:
+        except (IncompleteReadError, ResponseStreamingError):
             if created:
                 target.unlink()
             raise

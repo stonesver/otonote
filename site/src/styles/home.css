@@ -341,3 +341,11 @@ body:has(.home-dashboard) {
 @media (prefers-reduced-motion: reduce) {
   .home-card, .home-card-art > img, .home-shortcut-card, .home-track { transition: none; transform: none; }
 }
+
+/* Right column follows the featured-event card height: spare space is shared by the cards' rows instead of pooling as blank gaps. */
+.home-top-aside > :is(.home-portal-sheet, .home-personal-sheet) { flex: 1 1 auto; display: flex; flex-direction: column; }
+.home-shortcuts { flex: 1 1 auto; grid-auto-rows: minmax(0, 1fr); }
+.home-personal-stats { flex: 1 1 auto; grid-auto-rows: minmax(0, 1fr); }
+.home-personal-tools { flex: 1 1 auto; grid-auto-rows: minmax(36px, 1fr); margin-top: 0; }
+.home-personal-stat { justify-content: center; }
+.home-personal-tools a { min-height: 0; }

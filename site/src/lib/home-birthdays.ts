@@ -1,14 +1,28 @@
-import { nextBirthday, calendarDate, birthdayCountdown, birthdayProximity, preferredBirthdayPool, preferredBirthdayCard, birthdayPoolLabel } from './birthday-calendar.mjs';
+import { anniversaryStatus, anniversaryText, nextBirthday, calendarDate, calendarOffsetHours, birthdayCountdown, birthdayProximity, preferredBirthdayPool, preferredBirthdayCard, birthdayPoolLabel } from './birthday-calendar.mjs';
 
 class HomeBirthdays extends HTMLElement {
   private timer?: ReturnType<typeof setTimeout>;
   private refresh = () => {
     const now = Date.now();
+    const region = this.dataset.region;
     const en = this.dataset.language === 'en';
     const list = this.querySelector<HTMLElement>('[data-birthday-list]');
     if (!list) return;
+    const localToday = calendarDate(now, region);
+    let shown = false;
+    for (const node of this.querySelectorAll<HTMLElement>('[data-anniversary]')) {
+      const entry = { startDate: node.dataset.start!, endDate: node.dataset.end! };
+      const status = anniversaryStatus(entry, localToday);
+      node.hidden = shown || status.state === 'ended';
+      if (node.hidden) continue;
+      shown = true;
+      const text = anniversaryText(entry, status, en);
+      node.dataset.anniversaryState = status.state;
+      node.querySelector('[data-anniversary-label]')!.textContent = text.label;
+      node.querySelector('[data-anniversary-note]')!.textContent = text.note;
+    }
     const rows = [...list.querySelectorAll<HTMLElement>('[data-birthday-card]')].map(node => ({
-      node, next: nextBirthday(Number(node.dataset.month), Number(node.dataset.day), now)
+      node, next: nextBirthday(Number(node.dataset.month), Number(node.dataset.day), now, region)
     })).filter(row => row.next !== null).sort((a, b) => a.next!.days - b.next!.days);
     rows.forEach(({node, next}, index) => {
       node.hidden = index >= 4;
@@ -35,12 +49,12 @@ class HomeBirthdays extends HTMLElement {
     }
     const today = this.querySelector<HTMLTimeElement>('[data-calendar-today]');
     if (today) {
-      today.dateTime = calendarDate(now);
+      today.dateTime = calendarDate(now, region);
       today.textContent = today.dateTime.slice(5).replace('-', '.');
     }
     clearTimeout(this.timer);
     // Refresh at midnight precisely; also keep recruitment states within a minute.
-    const untilMidnight = 86_400_000 - ((now + 8 * 3_600_000) % 86_400_000);
+    const untilMidnight = 86_400_000 - ((now + calendarOffsetHours(region) * 3_600_000) % 86_400_000);
     this.timer = setTimeout(this.refresh, Math.min(untilMidnight + 50, 60_000));
   };
   connectedCallback() {

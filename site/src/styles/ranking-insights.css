@@ -823,3 +823,18 @@
     right: 1px;
   }
 }
+
+/* The selected matrix cell lists support cards in a grid whose implicit column grew to the cards' min-content width on phones, pushing the count and bar past the panel edge. */
+.ri-split > .ui-subsheet { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.ri-pair-card { min-width: 0; }
+.ri-pair-card > .ri-card { flex: none; }
+@media (max-width: 760px) {
+  .ri-pair-card { gap: 10px; padding: 8px; }
+  .ri-pair-card .ri-card--s112 .ri-frame { width: 96px; height: 54px; }
+}
+
+/* 24h charts: whole plot area is the touch target; vertical page scrolling stays available. */
+.ri-chart-svg { touch-action: pan-y; -webkit-tap-highlight-color: transparent; user-select: none; }
+.ri-chart-plot { cursor: crosshair; touch-action: pan-y; outline: none; }
+.ri-chart-plot:focus-visible { stroke: var(--theme-focus); stroke-width: 2; }
+.ri-chart-tip strong { flex: 1 0 100%; }

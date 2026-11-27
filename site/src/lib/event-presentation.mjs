@@ -294,7 +294,7 @@ export function setupEventPresentation(host,{main,aside,conditionBody,context,ad
   calculation.hidden=isQuick||((!feedback||feedback.hidden)&&!['error','stopped','empty'].includes(state));
   message.hidden=!!feedback&&!feedback.hidden;
   if(!running)set(message,state==='empty'?'没有符合条件的方案，请调整条件。':(state==='stopped'?feedback?.querySelector('strong')?.textContent:feedback?.querySelector('small')?.textContent)|| (state==='stopped'?'已停止':state==='error'?'计算失败，请重试。':''));
-  details.hidden=isQuick||!['results','stopped','empty'].includes(state);
+  details.hidden=true;
   quickError.hidden=!isQuick||!!host.current;if(!quickError.hidden)set(quickError,q('[data-bonus]').textContent);
   q('.task-quick-result').hidden=!isQuick||!host.current;
   q('[data-yield-status]').hidden=isRush;q('[data-challenge-opt-status]').hidden=!isRush;

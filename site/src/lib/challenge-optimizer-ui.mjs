@@ -53,11 +53,7 @@ export function setupChallengeOptimizer(tool){
   }
   function render(){
     const view=[],nextArticles=new Map(),nextTabs=new Map(),focused=document.activeElement?.dataset?.challengeTeamKey;
-    if(q('rewards')?.checked&&q('scope').value!=='reference')view.push(el('p',`本期兑换 / pt 奖励卡已纳入候选，并不保证入选队伍。${eventRewardGrowthNote(q('reward-growth').value)}`,'task-event-reward-result-note'));
-    if(results.searchScope==='reference')view.push(el('p','全卡库参考 · 卡片按满等级、满突破、满觉醒与满技能比较；账号加成沿用当前设置。','event-hint'));
-    if(calculationScope)view.push(el('p',scopeSummary(calculationScope)));
-    const cardBands=cardBandFilterSummary(q('member-band'),q('support-band'));if(cardBands)view.push(el('p',cardBands,'event-hint'));
-    const tabs=resultTabs??=el('div',null,'task-event-result-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');view.push(tabs);
+    const tabs=resultTabs??=el('div',null,'task-event-result-tabs challenge-opt-tabs');tabs.setAttribute('role','group');tabs.setAttribute('aria-label','冲榜候选队伍');view.push(tabs);
     const maximum=results.objective==='maximum_song_score',reference=results.searchScope==='reference';
     const identity=row=>row.draft.slots.map(slot=>`${slot.memberCardId}|${slot.supportCardId}`).join(';');
     const selected=results.results.find(row=>identity(row)===selectedTeam)??results.results[0];
@@ -65,25 +61,40 @@ export function setupChallengeOptimizer(tool){
     for(const [index,row] of results.results.entries()){
       const id=identity(row),signature=JSON.stringify(row),cached=articleCache.get(id),reuse=cached?.signature===signature;
       const card=reuse?cached.card:el('article',null,'challenge-opt-result task-event-plan-enter');
-      const heading=reuse?cached.heading:el('h4'),alternative=reuse?cached.alternative:el('p','备选仅供参考，未证明其排名。','event-hint');
+      const heading=reuse?cached.heading:el('h4',null,'challenge-opt-heading');
       const label=index===0?(results.certifiedSearch?.bestProven?'最佳配队':'当前最佳候选'):`备选 ${index}`;
-      card.hidden=row!==selected;alternative.hidden=index===0;
+      card.hidden=row!==selected;
       const title=`${label} · ${row.apTimingPlan?(hasApTimingInstructions(row.apTimingPlan)?'微操预计分':'正拍预计分'):maximum?'最高估计分':'平均估计分'} ${fmt(row.value)}`;if(heading.textContent!==title)heading.textContent=title;
       let tab=tabCache.get(id);if(!tab){tab=el('button');tab.type='button';tab.dataset.challengeTeamKey=id;tab.addEventListener('click',()=>{selectedTeam=id;render();});}
       if(tab.textContent!==label)tab.textContent=label;tab.setAttribute('aria-pressed',String(row===selected));buttons.push(tab);nextTabs.set(id,tab);
       if(!reuse){
         card.append(heading);
-        card.append(el('p',row.apTimingPlan?`已检查最低 ${fmt(row.minimumScore)} · 最高 ${fmt(row.maximumScore)}`:`最高 ${fmt(row.maximumScore)} · 平均 ${fmt(row.expectedScore)} · 最低 ${fmt(row.minimumScore)}`,'event-hint'));
-        card.append(alternative);
-        card.append(el('p',`活动内综合力 ${fmt(row.power)}${reference?' · 满养成参考，不代表实际持有':row.delta==null?' · 当前队伍不完整或不在所选卡库，未作对比':` · 比当前队伍${row.delta>=0?'提高':'降低'} ${fmt(Math.abs(row.delta))} 分`}`));
+        const chips=el('div',null,'challenge-opt-metrics');
+        const chip=(k,v,tone)=>{const s=el('span',null,'event-summary-chip');if(tone)s.dataset.tone=tone;s.append(el('span',k),el('b',v));return s;};
+        if(row.apTimingPlan){
+          if(hasApTimingInstructions(row.apTimingPlan)&&Number.isFinite(row.apTimingPlan.score)&&Number.isFinite(row.apTimingPlan.onTimeMinimumScore)){
+            const gain=row.apTimingPlan.score-row.apTimingPlan.onTimeMinimumScore;
+            if(gain!==0)chips.append(chip('较正拍',`${gain>0?'+':'−'}${fmt(Math.abs(gain))}`,gain>0?'good':'warn'));
+          }
+          chips.append(chip('最低',fmt(row.minimumScore)),chip('最高',fmt(row.maximumScore)));
+        }else{
+          chips.append(chip('最高',fmt(row.maximumScore)),chip('平均',fmt(row.expectedScore)),chip('最低',fmt(row.minimumScore)));
+        }
+        if(!reference&&row.delta!=null){
+          chips.append(chip('较当前',`${row.delta>=0?'+':'−'}${fmt(Math.abs(row.delta))}`,row.delta>=0?'good':'warn'));
+        }
+        card.append(chips);
         card.append(createEventTeamView(tool,row.draft,{mode:'challenge',eventId:Number(tool.q('event').value),summary:row}));
-        const apply=el('button','应用这支挑战队伍');apply.type='button';apply.addEventListener('click',()=>{
+        const apply=el('button','应用队伍','ui-btn-soft');apply.type='button';apply.addEventListener('click',()=>{
           tool.teamWorkspaceContext.applyDraft(row.draft);tool.q('bonus-source').value='team';
           tool.q('team-status').textContent='已应用挑战出分候选（含队长、配对与养成）；奖励加成已按新队伍重算。稳定评分仍请按实打填写。';
           tool.render();q('status').textContent='队伍已应用到上方；可重新计算与新队伍比较。';
-        });card.append(apply,eventTeamSaveButton(row.draft,'挑战出分队伍'));
+        });
+        const actions=el('div',null,'event-result-actions');
+        actions.append(apply,eventTeamSaveButton(row.draft,'挑战出分队伍'));
+        card.append(actions);
       }
-      nextArticles.set(id,{signature,card,heading,alternative});view.push(card);
+      nextArticles.set(id,{signature,card,heading});view.push(card);
     }
     reconcileCalculationView(tabs,buttons);reconcileCalculationView(q('results'),view);
     if(focused)nextTabs.get(focused)?.focus?.({preventScroll:true});articleCache=nextArticles;tabCache=nextTabs;

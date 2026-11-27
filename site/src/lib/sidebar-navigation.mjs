@@ -2,8 +2,8 @@ import { NAVIGATION_GROUPS, activeNavigationGroup, activeNavigationChild } from 
 import { navIcons } from './navigation-icons.mjs';
 
 const tools = NAVIGATION_GROUPS.find(group => group.id === 'tools');
-const primaryPaths = ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/', '/tools/song-ranking/'];
-const toolTitles = [['配队推荐', 'Team builder'], ['估分与选曲', 'Score & songs'], ['活动收益', 'Event planner'], ['歌曲排行榜', 'Song rankings']];
+const primaryPaths = ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/', '/tools/arena/', '/tools/song-ranking/'];
+const toolTitles = [['配队推荐', 'Team builder'], ['估分与选曲', 'Score & songs'], ['活动配队', 'Event teams'], ['激奏舞台', 'Gekisou Arena'], ['歌曲排行榜', 'Song rankings']];
 export const SIDEBAR_TOOLS = primaryPaths.map((href, index) => ({...tools.children.find(item => item.href === href), title: toolTitles[index]}));
 const browseIds = ['catalog', 'music', 'immersive', 'comics', 'stamps', 'decorations', 'stories'];
 const browse = NAVIGATION_GROUPS.filter(group => browseIds.includes(group.id));
@@ -31,6 +31,7 @@ const icons = {
   '/tools/deck-builder/': 'M3 4h7v7H3z M14 4h7v7h-7z M3 15h7v6H3z M14 15h7v6h-7z',
   '/tools/song-calculator/': navIcons.music,
   '/tools/event-efficiency/': 'M4 20V11h4v9 M10 20V7h4v13 M16 20V3h4v17',
+  '/tools/arena/': 'M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8-4.3-4.1 5.9-.9z',
   '/tools/song-ranking/': 'M8 3h8v5a4 4 0 0 1-8 0V3 M8 5H4v2a4 4 0 0 0 4 4 M16 5h4v2a4 4 0 0 1-4 4 M12 12v6 M9 18h6v3H9z',
   library: navIcons.stories, 'more-tools': navIcons.tools,
   home: 'M3 10l9-7 9 7 M5 9v12h5v-7h4v7h5V9'

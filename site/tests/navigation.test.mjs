@@ -46,7 +46,7 @@ import {SIDEBAR_TOOLS, SIDEBAR_GROUPS, sidebarSelection, renderSidebarNavigation
 test('compact sidebar preserves every canonical destination and promotes the core tools', () => {
   const routes = new Set([...SIDEBAR_TOOLS, ...SIDEBAR_GROUPS.flatMap(group => [group, ...group.children])].map(item => item.href));
   assert.deepEqual([...routes].sort(), navigationRoutes().sort());
-  assert.deepEqual(SIDEBAR_TOOLS.map(item => item.href), ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/', '/tools/song-ranking/']);
+  assert.deepEqual(SIDEBAR_TOOLS.map(item => item.href), ['/tools/deck-builder/', '/tools/song-calculator/', '/tools/event-efficiency/', '/tools/arena/', '/tools/song-ranking/']);
   for (const item of SIDEBAR_TOOLS) assert.equal(sidebarSelection(item.href).groupId, undefined);
   assert.deepEqual(sidebarSelection('/music/bgm/track-1/'), {route:'/music/bgm/', groupId:'library'});
   assert.equal(sidebarSelection('/stories/episodes/story-entry-main-101/').groupId, 'library');

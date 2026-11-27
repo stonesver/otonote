@@ -410,3 +410,15 @@
     font-size: 16px;
   }
 }
+
+.account-hub-privacy-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+.account-hub-privacy-close { min-height: 28px; padding: 0 10px; font-size: 12px; text-decoration: none; }
+
+/* Phones: the privacy note opens inline under the sign-in button so it is never clipped by the dialog edge. */
+@media (max-width: 700px) {
+  .account-hub-form-actions { flex-wrap: wrap; }
+  .account-hub-form-actions > .ui-tip-disclosure[open] { flex: 1 1 100%; }
+  .account-hub-form-actions > .ui-tip-disclosure > .ui-tip-body {
+    position: static; width: auto; max-height: none; margin-top: 8px; box-shadow: none; overflow: visible;
+  }
+}

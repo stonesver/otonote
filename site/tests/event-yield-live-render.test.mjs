@@ -67,7 +67,6 @@ test('result filters reset pagination, preserve focus and recover empty results 
  const badgeNodes=()=>q('results').querySelectorAll('.event-result-band').flatMap(n=>n.children.filter(c=>c.src));
  assert.deepEqual(badgeNodes(),[]);
  const nodes=n=>[n,...n.children.flatMap(nodes)],control=id=>q('results').querySelectorAll('.event-result-filter-control').find(n=>n.dataset.yieldResultFilter===id);
- nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
  control('toggle').listeners.click();
  const icons=badgeNodes();
  assert.deepEqual(icons.map(icon=>icon.src.split('/').pop()),['band-1.png','band-2.png']);
@@ -83,8 +82,8 @@ test('result filters reset pagination, preserve focus and recover empty results 
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,0);
  assert.equal(q('results').querySelectorAll('.task-event-plan-result').length,0);
  assert.equal(q('results').querySelectorAll('.event-results-empty').length,1);
- const baseline=q('results').querySelectorAll('.task-event-baseline-name')[0];assert.ok(baseline.children.some(n=>n.textContent==='Song 0'));
- control('clear').listeners.click();assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,8);
+ const baseline=q('results').querySelectorAll('.event-baseline-head')[0];assert.ok(baseline.children.some(n=>n.textContent==='Song 0'));
+ control('clear').listeners.click();assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,12);
  const risk=control('risk-0');risk.focus();risk.checked=true;risk.listeners.change({stopPropagation(){}});
  assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,5,'zero risk excludes both risky and unknown distributions');
  assert.equal(globalThis.document.activeElement.dataset.yieldResultFilter,'risk-0');
@@ -110,11 +109,11 @@ test('cycle results explain whether challenge bands are unrestricted or inherite
  tool.data.rules.tables.ChallengeMusic=[{_eventId:3,_liveMusicId:1}];
  const member=q('member-band');member.multiple=true;member.options=[{value:'1',textContent:'MyGO!!!!!'}];member.selectedOptions=member.options;
  q('stages').value='cycle';optimizer.sync();optimizer.run();send(partial(1000,'result'));
- assert.ok(q('results').children.some(node=>/后续挑战：不限乐队/.test(node.textContent)));
+ assert.ok(q('results').descendants().some(node=>/后续挑战：不限乐队/.test(node.textContent)));
  assert.match(q('card-band-hint').textContent,/不受普通阶段/);
  q('challenge-band-scope').checked=true;q('challenge-band-scope').listeners.change();assert.equal(q('results').children.length,0);
  optimizer.run();send(partial(1000,'result'));
- assert.ok(q('results').children.some(node=>/后续挑战：沿用普通阶段.*MyGO/.test(node.textContent)));
+ assert.ok(q('results').descendants().some(node=>/后续挑战：沿用普通阶段.*MyGO/.test(node.textContent)));
  assert.match(q('challenge-band-note').textContent,/沿用普通阶段.*MyGO/);
 });
 
@@ -174,19 +173,15 @@ test('default selection follows a new leader and invalidation discards queued re
  assert.equal(q('results').children.length,0);assert.equal(q('status').beforeNode.hidden,true);
 });
 
-test('a complete 93-song comparison keeps every page and the final song reachable',t=>{
+test('a complete 93-song comparison keeps every song reachable without pagination',t=>{
  const {q,send,partial}=harness(t),data=partial(1000,'result'),sample=data.rows[0];
  data.rows=Array.from({length:93},(_,i)=>({...sample,id:`team-${i}`,song:{...sample.song,id:`song-${i}`,title:`Song ${i}`},total:{badges:1000-i,eventPoints:100}}));
  send(data);
  const nodes=n=>[n,...n.children.flatMap(nodes)];
- assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,8);
+ assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,93);
  const comparison=q('results').querySelectorAll('.event-alternatives')[0],firstTeam=q('results').querySelectorAll('.task-event-plan-result')[0];
  assert.ok(q('results').children.indexOf(comparison)<q('results').children.indexOf(firstTeam),'switching plans is available before the full roster');
  assert.equal(comparison.open,true,'multiple candidates are visible without opening a disclosure');
- assert.ok(nodes(q('results')).some(n=>n.textContent==='1–8 / 93 套'));
- for(let page=1;page<12;page++)nodes(q('results')).find(n=>n.textContent==='下一页方案').listeners.click();
- assert.equal(q('results').querySelectorAll('.task-event-plan-choice').length,5);
- assert.ok(nodes(q('results')).some(n=>n.textContent==='89–93 / 93 套'));
  assert.ok(nodes(q('results')).some(n=>n.textContent==='Song 92'));
  const articles=q('results').querySelectorAll('.task-event-plan-result');assert.equal(articles.filter(n=>!n.hidden).length,1);
 });
@@ -210,7 +205,7 @@ test('combined objectives stay inside comparison controls and phase tabs preserv
  tabs.children[1].listeners.click();assert.deepEqual(panels.map(n=>n.hidden),[true,false]);
  assert.equal(tabs.children[1].attrs['aria-selected'],'true');
  assert.deepEqual(activeReferences(),[false,true,false,false]);
- const costs=panels[1].querySelectorAll('.task-event-result-tabs')[0];costs.children[1].listeners.click();
+ const costs=panels[1].querySelectorAll('.task-event-stage-cost-tabs')[0];costs.children[1].listeners.click();
  assert.equal(costs.children[1].attrs['aria-pressed'],'true');
  assert.deepEqual(activeReferences(),[false,false,true,false]);
  const changed={...data,rows:data.rows.map((row,i)=>i?row:{...row,total:{...row.total,badges:1100}})};send(changed);
@@ -248,14 +243,14 @@ test('challenge song switching compares complete budgets, preserves selection an
  const challenge=()=>article().children.find(n=>n.className?.includes('event-recommendations'));
  const pick=id=>songTabs().children.find(n=>n.dataset.yieldChallengeSong===id).listeners.click();
  article().querySelectorAll('.event-phase-tabs')[0].children[1].listeners.click();
- assert.deepEqual(songTabs().children.map(n=>n.textContent),['默认推荐','道具曲 · HARD','pt 曲 · HARD']);
+ assert.deepEqual(songTabs().children.map(n=>text(n).trim()),['默认推荐','道具曲 HARD','pt 曲 HARD']);
  pick('points');
- assert.match(text(challenge()),/649 挑战 pt · 2 次挑战 · 剩余 49 pt/);
+ assert.match(text(challenge()),/649 挑战 pt · 2 次 · 余 49 pt/);
  assert.match(text(challenge()),/比默认推荐少 400/);assert.match(text(challenge()),/比默认推荐多 300/);
  assert.match(text(challenge()),/400 pt × 1 次/);assert.match(text(challenge()),/200 pt × 1 次/);
  assert.ok(article().querySelectorAll('.event-mistake-reference').filter(n=>n.active).every(n=>n.closest('[hidden]')===null));
  // A live update changes the ordinary row but retains the chosen song and tier.
- const costs=()=>challenge().querySelectorAll('.task-event-result-tabs').find(n=>n.attrs['aria-label']==='后续挑战消耗方案');
+ const costs=()=>challenge().querySelectorAll('.task-event-stage-cost-tabs').find(n=>n.attrs['aria-label']==='后续挑战消耗方案');
  costs().children.find(n=>n.dataset.yieldStageCost==='200').listeners.click();
  send({...data,rows:data.rows.map((r,i)=>i?r:{...r,total:{...r.total,badges:r.total.badges+1}})});
  assert.equal(article().querySelector('[data-yield-challenge-song][aria-pressed="true"]').dataset.yieldChallengeSong,'points');

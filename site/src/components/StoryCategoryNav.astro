@@ -49,3 +49,17 @@ const categories = [
     </a>
   ))}
 </nav>
+
+<script>
+  // The tab strip scrolls horizontally on phones; bring the current category into view without moving the page.
+  const reveal = () => {
+    for (const nav of document.querySelectorAll<HTMLElement>('.st-cat-nav')) {
+      const tab = nav.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!tab || nav.scrollWidth <= nav.clientWidth) continue;
+      nav.scrollLeft = Math.max(0, tab.offsetLeft - (nav.clientWidth - tab.offsetWidth) / 2);
+    }
+  };
+  reveal();
+  addEventListener('pageshow', reveal);
+  addEventListener('resize', reveal);
+</script>

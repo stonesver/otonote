@@ -82,6 +82,9 @@ const href = (path: string) => (import.meta.env.BASE_URL === '/' ? path : siteHr
                   <p>{en
                     ? 'Your email and password authenticate once per sync and are cleared immediately — passwords, tokens, and session state are never stored.'
                     : '账号密码仅在本次同步瞬间直连认证，不保存密码、令牌或会话状态；登录可能使当前游戏在线会话下线。'}</p>
+                  <div class="account-hub-privacy-foot">
+                    <a href="#" role="button" class="ui-btn-soft account-hub-privacy-close" data-hub-privacy-close>{en ? 'Close' : '关闭说明'}</a>
+                  </div>
                 </div>
               </details>
             </div>
@@ -329,6 +332,15 @@ const href = (path: string) => (import.meta.env.BASE_URL === '/' ? path : siteHr
     dialog.querySelector('[data-hub-switch="playlist"]')?.addEventListener('click', () => {
       opener = null;
       document.dispatchEvent(new CustomEvent('playlist-workspace:open'));
+    });
+
+    dialog.querySelector('[data-hub-privacy-close]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      const details = (event.currentTarget as HTMLElement).closest('details');
+      if (details) {
+        details.open = false;
+        details.querySelector('summary')?.focus({ preventScroll: true });
+      }
     });
 
     q<HTMLFormElement>('[data-hub-form]').addEventListener('submit', async (event) => {

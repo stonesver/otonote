@@ -27,6 +27,7 @@ export function createCalculationProgress(anchor,kind,{now=()=>performance.now()
    if(p.state==='running'){started=now();ended=undefined;stopClock();timer=schedule(tick,1000);timer?.unref?.();}else {ended=now();stopClock();}
   }
   if(p.label!==previous?.label)label.textContent=p.label;
+  badge.hidden=!badge.textContent||badge.textContent===p.label;
   const detailText=p.state==='error'?(p.detail||p.label):p.detail;
   const previousDetail=previous?.state==='error'?(previous.detail||previous.label):previous?.detail;
   if(detailText!==previousDetail)detail.textContent=detailText;detail.hidden=!detailText||p.state!=='error';
